@@ -1,0 +1,41 @@
+\documentclass[10pt,twocolumn]{article}
+
+\usepackage[usenames,dvipsnames]{color}
+\newcommand{\Red}[1]{{\color{red} #1}}
+\newcommand{\todo}[2]{\Red{\textbf{TODO[}#1\textbf{]:} #2}}
+\newcommand{\tocite}[1]{\Red{\cite{#1}}}
+
+\usepackage{microtype}
+\usepackage{times}
+\usepackage{fullpage}
+\usepackage[pdfborder={0 0 0}]{hyperref}
+\usepackage{graphicx}
+\usepackage{url}
+
+\begin{document}
+
+\title{\bf Title}
+\author{Your names}
+\date{}
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+  My short abstract.
+\end{abstract}
+
+\section{Introduction}
+My nice intro.
+
+% your other sections
+
+\section{Related Work}
+My work improves on~\cite{rm-me}.
+
+\section{Conclusion}
+
+
+\bibliographystyle{abbrv} 
+\bibliography{local}
+
+\end{document}
