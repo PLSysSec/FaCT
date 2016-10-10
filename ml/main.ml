@@ -41,7 +41,7 @@ let identity = FunctionDec("Identity", [identity_param], identity_body');;
 
 let original = Seq (
   Dec(VarDec("y", Primitive(Number(3)))),
-  Seq(If(BinOp(Plus,Variable("x"),Primitive(Number 5)), (* TODO: change Plus to GT*)
+  Seq(If(BinOp(Plus,Variable("x"),Primitive(Number 5)), (* TODO: change Plus to GT. This gives a type error because Boolify expects a boolean *)
         Mutate(Variable("y"), BinOp(Plus,Variable("y"),Primitive(Number(2)))),
         Mutate(Variable("y"), BinOp(Minus,Variable("y"),Primitive(Number(-7))))),
       Return(Variable "y")));;
