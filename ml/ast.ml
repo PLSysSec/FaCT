@@ -30,6 +30,6 @@ and dec =
   | VarDec of string * expr (* varname * value *)
 
 and primitive =
-  | Number of float
+  | Number of int
 
 let _ = ()

@@ -8,15 +8,15 @@ let context = global_context ()
 let the_module = create_module context "ConstantC codegen"
 let builder = builder context
 let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
-let double_type = double_type context
+let int_type = i32_type context
 
 let rec codegen_prim = function
-  | Number n -> const_float double_type n
+  | Number n -> const_int int_type n
 
 and codegen_dec = function
   | FunctionDec(name, args, body) ->
-    let doubles = Array.make (List.length args) double_type in
-    let ft = function_type double_type doubles in
+    let doubles = Array.make (List.length args) int_type in
+    let ft = function_type int_type doubles in
     let the_function =
       match lookup_function name the_module with
       | None -> declare_function name ft the_module
@@ -32,9 +32,18 @@ and codegen_dec = function
     let _ = build_ret ret_val builder in
     Llvm_analysis.assert_valid_function the_function;
     the_function
-  | VarDec _ as v -> raise (NotImplemented "Var decs")
+  | VarDec(name,e) ->
+    let e' = codegen_expr e in
+    set_value_name name e';
+    Hashtbl.add named_values name e';
+    e'
+    (*let llv = build_alloca int_type name builder in
+    Hashtbl.add named_values name llv;
+    let llv' = build_store (codegen_expr e) llv builder in
+    llv*)
 
 and codegen_expr = function
+  | Return e -> codegen_expr e
   | Primitive p -> codegen_prim p
   | Variable name ->
     (try Hashtbl.find named_values name with
@@ -44,13 +53,14 @@ and codegen_expr = function
     let rhs_val = codegen_expr rhs in
     begin
       match op with
-      | Plus -> build_fadd lhs_val rhs_val "addtmp" builder
-      | Minus -> build_fsub lhs_val rhs_val "subtmp" builder
-      | GT -> let i = build_fcmp Fcmp.Ult lhs_val rhs_val "cmptmp" builder in
-              build_uitofp i double_type "booltmp" builder
+      | Plus -> build_add lhs_val rhs_val "addtmp" builder
+      | Minus -> build_sub lhs_val rhs_val "subtmp" builder
+      | GT -> build_icmp Icmp.Ugt lhs_val rhs_val "cmptmp" builder
+              (*build_uitofp i int_type "booltmp" builder*)
+      | B_And -> build_and lhs_val rhs_val "andtmp" builder
       | _ -> raise (Error "Unsupported binary operator")
     end
-  | UnaryOp _ as u -> raise (NotImplemented "Unary Ops")
+  | UnaryOp (B_Not,e) -> build_neg (codegen_expr e) "nottmp" builder
   | If _ as i -> raise (NotImplemented "if statement")
   | Mutate _ as m -> raise (NotImplemented "Mutation")
   | Dec d -> codegen_dec d

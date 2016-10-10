@@ -4,23 +4,23 @@ open Constpass
 open OUnit2
 open Codegen2
 
-let basicAst = Primitive(Number 1.0);;
+let basicAst = Primitive(Number 1);;
 
-let inner = BinOp(Plus,Primitive(Number 92.2), Primitive(Number 90.22));;
+let inner = BinOp(Plus,Primitive(Number 92), Primitive(Number 90));;
 
-let ast1 = (BinOp (Plus,inner,Primitive(Number 1.0)));;
+let ast1 = (BinOp (Plus,inner,Primitive(Number 1)));;
 
-let cond = (BinOp (GT,(Variable "x"),(Primitive(Number 5.0))));;
+let cond = (BinOp (GT,(Variable "x"),(Primitive(Number 5))));;
 
 let y = (Variable "y");;
 
-let then_branch = Mutate(y,(BinOp(Plus,y,Primitive(Number 2.0))));;
+let then_branch = Mutate(y,(BinOp(Plus,y,Primitive(Number 2))));;
 
-let else_branch = Mutate(y,(BinOp(Minus,y,Primitive(Number 7.0))));;
+let else_branch = Mutate(y,(BinOp(Minus,y,Primitive(Number 7))));;
 
 let if_statement = If(cond,then_branch,else_branch);;
 
-let dec = Dec(VarDec("y",(Primitive(Number 3.0))));;
+let dec = Dec(VarDec("y",(Primitive(Number 3))));;
 
 let dec_and_if = Seq(dec,if_statement);;
 
@@ -40,21 +40,23 @@ let identity_body' = CallExp("BOOLIFY", [Variable "identity_param"])
 let identity = FunctionDec("Identity", [identity_param], identity_body');;
 
 let original = Seq (
-  Dec(VarDec("y", Primitive(Number(3.0)))),
-  Seq(If(BinOp(GT,Variable("x"),Primitive(Number 5.0)),
-        Mutate(Variable("y"), BinOp(Plus,Variable("y"),Primitive(Number(2.0)))),
-        Mutate(Variable("y"), BinOp(Minus,Variable("y"),Primitive(Number(-7.0))))),
+  Dec(VarDec("y", Primitive(Number(3)))),
+  Seq(If(BinOp(Plus,Variable("x"),Primitive(Number 5)), (* TODO: change Plus to GT*)
+        Mutate(Variable("y"), BinOp(Plus,Variable("y"),Primitive(Number(2)))),
+        Mutate(Variable("y"), BinOp(Minus,Variable("y"),Primitive(Number(-7))))),
       Return(Variable "y")));;
 
 let mutated = Seq (
-  Dec(VarDec("x_g_5", CallExp("BOOLIFY", [BinOp(GT,Variable("x"),Primitive(Number 5.0))]))),
+  Dec(VarDec("x_g_5", CallExp("BOOLIFY", [BinOp(Plus,Variable("x"),Primitive(Number 5))]))),
   Seq(Dec(VarDec("y", (BinOp (Plus,
-                      Primitive(Number 3.0),
+                      Primitive(Number 3),
                       BinOp(Plus,
-                            BinOp(B_And,Primitive(Number 2.0),Variable("x_g_5")),
-                            BinOp(B_And,Primitive(Number (-7.0)), UnaryOp(B_Not,Variable("x_g_5")))))))),
+                            BinOp(B_And,Primitive(Number 2),Variable("x_g_5")),
+                            BinOp(B_And,Primitive(Number (-7)), UnaryOp(B_Not,Variable("x_g_5")))))))),
   Return(Variable "y"))
 );;
+
+let mut_fun = FunctionDec("main",["x"], mutated);;
 
 module SS = Set.Make(String);;
 let main ast =
@@ -64,9 +66,9 @@ let main ast =
   ()
 ;;
 
-(*main (Seq (ast1::ast2::[]))
-main (Seq (Dec boolify, Dec identity))*)
-main original
+(*main (Seq (ast1::ast2::[]))*)
+main (Seq (Dec boolify, Dec identity));;
+main (Dec mut_fun)
 
 let r = pass_expr original
 

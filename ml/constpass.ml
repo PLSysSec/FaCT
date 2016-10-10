@@ -23,16 +23,16 @@ let pass_dec = function
 (* If so, collapses the if-statement *)
 let remove_branch = function
   | Seq(Dec(VarDec (y, Primitive(Number n))),
-        Seq(If(BinOp(GT,x,n'),
+        Seq(If(BinOp(Plus,x,n'),
            Mutate(Variable y', BinOp(Plus,Variable y'',n'')),
            Mutate(Variable y''', BinOp(Minus,Variable y'''',n'''))),
         Return r)) as s
     (*when (y==y')&&(y==y'')&&(y==y''')&&(y==y'''')&&
          (n==n')&&(n==n'')&&(n==n''')*) ->
     Seq (
-     Dec(VarDec("x_g_5", CallExp("BOOLIFY", [BinOp(GT,x,n')]))),
+     Dec(VarDec("x_g_5", CallExp("BOOLIFY", [BinOp(Plus,x,n')]))),
      Seq(Dec(VarDec("y", (BinOp (Plus,
-                         Primitive(Number 3.0),
+                         Primitive(Number 3),
                          BinOp(Plus,
                                BinOp(B_And,n'',Variable("x_g_5")),
                                BinOp(B_And,n''', UnaryOp(B_Not,Variable("x_g_5")))))))),
