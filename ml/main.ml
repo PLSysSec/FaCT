@@ -66,9 +66,9 @@ let main ast =
   ()
 ;;
 
-(*main (Seq (ast1::ast2::[]))*)
-main (Seq (Dec boolify, Dec identity));;
-main (Dec mut_fun)
+(*main (Seq (ast1::ast2::[]))
+main (Seq (Dec boolify, Dec identity));;*)
+main (Seq (Dec boolify, Dec mut_fun));;
 
 let r = pass_expr original
 
