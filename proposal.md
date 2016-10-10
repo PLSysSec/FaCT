@@ -19,7 +19,7 @@ Some examples are AES key recovery [AES], OpenSSL key recovery [OpenSSL], SSL/TL
 CT-Verif verifies whether something is constant-time, but does not actually produce constant-time code from non-constant-time code.
 
 # How are you thinking about solving this problem?
-Our plan for this quarter is to start by designing the AST structure for ConstanC. The design of our AST, implemented in OCaml, will be guided by our reference implementation as mentioned above, starting with choosing which language features to implement as we need them for our reference implementation. We will also write a code generator that will take our AST and output LLVM IR. We target IR and not assembly/machine code currently, as we plan on tackling architecture-specific issues (i.e. variable-time instructions) at a later stage.
+Our plan for this quarter is to start by designing the AST structure for ConstanC. The design of our AST will be guided by our reference implementation as mentioned above, starting with choosing which language features to implement as we need them for our reference implementation. We will also write a code generator, implemented in OCaml, that will take our AST and output LLVM IR. We target IR and not assembly/machine code currently, as we plan on tackling architecture-specific issues (i.e. variable-time instructions) at a later stage.
 
 Once we have completed our reference implementation, we will draft a syntax based on our AST and qualitatively (and likely fairly informally) assess its readability as compared to an equivalent implementation written in C. To show equivalence, we would verify both implementations using CT-Verif to ensure both versions truly run in constant time.
 
