@@ -1,15 +1,6 @@
 open Ast
 open Llvm
 
-let context = global_context ()
-let the_module = create_module context "my cool compiler"
-let builder = builder context
-let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
-
-let env:(string, llvalue) Hashtbl.t = Hashtbl.create 10
-let double_type' = double_type context
-let string_type = const_stringz context
-
 exception Error of string
 
 let pass_prim = function
@@ -19,16 +10,13 @@ let pass_dec = function
   | FunctionDec _ as f -> f
   | VarDec _ as v -> v
 
-(* Checks if the variant is in both branches *)
-(* If so, collapses the if-statement *)
+(* Does the transformation we discussed as the goal *)
 let remove_branch = function
   | Seq(Dec(VarDec (y, Primitive(Number n))),
         Seq(If(BinOp(Plus,x,n'),
            Mutate(Variable y', BinOp(Plus,Variable y'',n'')),
            Mutate(Variable y''', BinOp(Minus,Variable y'''',n'''))),
-        Return r)) as s
-    (*when (y==y')&&(y==y'')&&(y==y''')&&(y==y'''')&&
-         (n==n')&&(n==n'')&&(n==n''')*) ->
+        Return r)) ->
     Seq (
      Dec(VarDec("x_g_5", CallExp("BOOLIFY", [BinOp(Plus,x,n')]))),
      Seq(Dec(VarDec("y", (BinOp (Plus,

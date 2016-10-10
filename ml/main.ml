@@ -2,7 +2,7 @@ open Llvm
 open Ast
 open Constpass
 open OUnit2
-open Codegen2
+open Codegen
 
 let basicAst = Primitive(Number 1);;
 
