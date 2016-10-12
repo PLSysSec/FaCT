@@ -1,7 +1,7 @@
 (*===----------------------------------------------------------------------===
  * Abstract Syntax Tree (aka Parse Tree)
  *===----------------------------------------------------------------------===*)
-type param = { name: string }
+open Types
 
 type expr =
   | Primitive of primitive
@@ -26,10 +26,13 @@ and op =
   | B_And
 
 and dec =
-  | FunctionDec of string * string list * expr
+  | FunctionDec of string * param list * expr
   | VarDec of string * expr (* varname * value *)
+
+and param = { name: string; ty: constantc_type }
 
 and primitive =
   | Number of int
+  | Bool of bool
 
 let _ = ()
