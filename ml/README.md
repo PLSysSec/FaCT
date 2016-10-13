@@ -16,6 +16,10 @@
 7. compile the program -> ```ocamlbuild -use-ocamlfind -pkgs llvm,oUnit main.byte```
 8. execute the program -> ```./_build/main.byte```
 
+#### Run Tests
+1. ```ocamlbuild -use-ocamlfind -pkgs llvm,oUnit test.byte```
+2. ```./test.byte```
+
 #### Setting up a custom utop
 
 For some reason, utop doesn't like working with LLVM. Fortunately, this is an easy fix.
