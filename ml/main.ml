@@ -3,6 +3,7 @@ open Ast
 open Constpass
 open OUnit2
 open Codegen
+open Typecheck
 
 let basicAst = Primitive(Number 1);;
 
