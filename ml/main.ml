@@ -55,7 +55,8 @@ let mutated = Seq (
                       BinOp(Plus,
                             BinOp(B_And,Primitive(Number 2),Variable("x_g_5")),
                             BinOp(B_And,Primitive(Number (-7)), UnaryOp(B_Not,Variable("x_g_5")))))))),
-  Return(Variable "y"))
+      Seq(CallExp("printf", [Primitive(Number 19)]),
+          Return(Variable "y")))
 );;
 
 let mut_fun = FunctionDec("main",[{ name="x"; ty=Int }], mutated);;
@@ -63,7 +64,7 @@ let mut_fun = FunctionDec("main",[{ name="x"; ty=Int }], mutated);;
 module SS = Set.Make(String);;
 let main ast =
   print_string "Compiling constantc...\n";
-  let _ = codegen_expr ast in
+  let _ = codegen ast in
   dump_module the_module;
   ()
 ;;

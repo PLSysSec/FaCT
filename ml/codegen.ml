@@ -10,6 +10,7 @@ let builder = builder context
 let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
 let int_type = i32_type context
 let bool_type = i1_type context
+let i8_t = i8_type context
 
 let rec codegen_prim = function
   | Number n -> const_int int_type n
@@ -64,6 +65,12 @@ and codegen_expr = function
   | Seq(e,e') ->
     let _ = codegen_expr e in
     codegen_expr e'
+  | CallExp("printf",_) ->
+    (match lookup_function "printf" the_module with
+    | None -> raise (Error "printf DNE")
+    | Some f ->
+      let s = build_global_stringptr "derpderplederp\n" "" builder in
+      build_call f [| s |] "" builder)
   | CallExp(callee, args) ->
     let callee' =
       match lookup_function callee the_module with
@@ -74,3 +81,9 @@ and codegen_expr = function
         raise (Error("Arity mismatch for `" ^ callee ^ "`"));
       let args' = Array.map codegen_expr (Array.of_list args) in
       build_call callee' args' "calltmp" builder
+
+let codegen =
+  let _ = print_string "Initializing codegen...\n" in
+  let printf_ty = var_arg_function_type int_type [| pointer_type i8_t |] in
+  let printf = declare_function "printf" printf_ty the_module in
+  codegen_expr
