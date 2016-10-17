@@ -9,10 +9,12 @@ let the_module = create_module context "ConstantC codegen"
 let builder = builder context
 let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
 let int_type = i32_type context
+let bool_type = i1_type context
 
 let rec codegen_prim = function
   | Number n -> const_int int_type n
-  | Bool b -> raise (NotImplemented "Booleans arent implemented yet")
+  | Bool true -> const_int bool_type 1
+  | Bool false -> const_int bool_type 0
 
 and codegen_dec = function
   | FunctionDec(name, args, body) ->
