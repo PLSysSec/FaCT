@@ -65,7 +65,7 @@ module SS = Set.Make(String);;
 let main ast =
   print_string "Compiling constantc...\n";
   let _ = codegen ast in
-  dump_module the_module;
+  print_module "out.ll" the_module;
   ()
 ;;
 

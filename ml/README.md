@@ -17,8 +17,17 @@
 8. execute the program -> ```./_build/main.byte```
 
 #### Run Tests
+There is a test suite avaiable. Make sure all tests pass whenever you make a change and that you add necessary tests. At some point these should be moved to its own dedicated folder.
+
 1. ```ocamlbuild -use-ocamlfind -pkgs llvm,oUnit test.byte```
 2. ```./test.byte```
+
+#### Run Main
+In addition to tests, there is a main script. This contains a large AST to compile, and integrates all of the pieces of the compiler.
+
+1. ```ocamlbuild -use-ocamlfind -pkgs llvm,oUnit main.byte```
+2. ```./main.byte```
+3. Execute the produced LLVM IR. ```lli out.ll```
 
 #### Setting up a custom utop
 
