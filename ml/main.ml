@@ -4,6 +4,7 @@ open Constpass
 open OUnit2
 open Codegen
 open Typecheck
+open Types
 
 let basicAst = Primitive(Number 1);;
 
@@ -25,17 +26,17 @@ let dec = Dec(VarDec("y",(Primitive(Number 3))));;
 
 let dec_and_if = Seq(dec,if_statement);;
 
-let param1 = "param1";;
-let param2 = "param2";;
+let param1 = { name="param1"; ty=Int };;
+let param2 = { name="param2"; ty=Int };;
 let body = ast1;;
 let ast3 = FunctionDec("myfunc", [param1;param2], dec_and_if);;
 
 
-let boolify_param = "boolify_param";;
+let boolify_param = { name="boolify_param"; ty=Bool };;
 let boolify_body = Variable "boolify_param";;
 let boolify = FunctionDec("BOOLIFY", [boolify_param], boolify_body);;
 
-let identity_param = "identity_param";;
+let identity_param = { name="identity_param"; ty=Int };;
 let identity_body = Variable "identity_param";;
 let identity_body' = CallExp("BOOLIFY", [Variable "identity_param"])
 let identity = FunctionDec("Identity", [identity_param], identity_body');;
@@ -57,12 +58,12 @@ let mutated = Seq (
   Return(Variable "y"))
 );;
 
-let mut_fun = FunctionDec("main",["x"], mutated);;
+let mut_fun = FunctionDec("main",[{ name="x"; ty=Int }], mutated);;
 
 module SS = Set.Make(String);;
 let main ast =
   print_string "Compiling constantc...\n";
-  let ir = codegen_expr ast in
+  let _ = codegen_expr ast in
   dump_module the_module;
   ()
 ;;
@@ -70,14 +71,6 @@ let main ast =
 (*main (Seq (ast1::ast2::[]))
 main (Seq (Dec boolify, Dec identity));;*)
 main (Seq (Dec boolify, Dec mut_fun));;
-
-let r = pass_expr original
-
-let test1 ctx = assert_equal mutated (pass_expr original);;
-let suite =
-  "my tests">:::
-    ["test1">:: test1];;
-let () = run_test_tt_main suite
 
 (*
 int simple(int x) {

@@ -5,6 +5,7 @@ exception Error of string
 
 let pass_prim = function
   | Number _ as n -> n
+  | Bool _ as b -> b
 
 let pass_dec = function
   | FunctionDec _ as f -> f
@@ -38,3 +39,4 @@ let rec pass_expr = function
   | Mutate _ as m -> m
   | Dec d -> Dec(pass_dec d)
   | CallExp _ as c -> c
+  | Return _ as r -> r

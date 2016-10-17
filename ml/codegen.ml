@@ -12,6 +12,7 @@ let int_type = i32_type context
 
 let rec codegen_prim = function
   | Number n -> const_int int_type n
+  | Bool b -> raise (NotImplemented "Booleans arent implemented yet")
 
 and codegen_dec = function
   | FunctionDec(name, args, body) ->
@@ -23,7 +24,7 @@ and codegen_dec = function
       | Some f -> raise (Error ("Function already defined:\t" ^ name)) in
     let args_array = Array.of_list args in
     Array.iteri (fun i a ->
-      let n = args_array.(i) in
+        let { name=n; ty=_ } = args_array.(i) in
       set_value_name n a;
       Hashtbl.add named_values n a) (params the_function);
     let bb = append_block context "entry" the_function in
@@ -53,13 +54,14 @@ and codegen_expr = function
       | Minus -> build_sub lhs_val rhs_val "subtmp" builder
       | GT -> build_icmp Icmp.Ugt lhs_val rhs_val "cmptmp" builder
       | B_And -> build_and lhs_val rhs_val "andtmp" builder
-      | _ -> raise (Error "Unsupported binary operator")
     end
   | UnaryOp (B_Not,e) -> build_neg (codegen_expr e) "nottmp" builder
-  | If _ as i -> raise (NotImplemented "if statement")
-  | Mutate _ as m -> raise (NotImplemented "Mutation")
+  | If _ -> raise (NotImplemented "if statement")
+  | Mutate _ -> raise (NotImplemented "Mutation")
   | Dec d -> codegen_dec d
-  | Seq(e,e') -> codegen_expr e; codegen_expr e'
+  | Seq(e,e') ->
+    let _ = codegen_expr e in
+    codegen_expr e'
   | CallExp(callee, args) ->
     let callee' =
       match lookup_function callee the_module with
@@ -68,6 +70,5 @@ and codegen_expr = function
       let params = params callee' in
       if Array.length params == List.length args then () else
         raise (Error("Arity mismatch for `" ^ callee ^ "`"));
-      let args_array = Array.of_list args in
       let args' = Array.map codegen_expr (Array.of_list args) in
       build_call callee' args' "calltmp" builder
