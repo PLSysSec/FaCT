@@ -60,6 +60,7 @@ and tc_bop = function
   | Minus -> Int
   | GT -> raise (UnknownType "Type is unknown for boolean operator:\t >")
   | B_And -> raise (UnknownType "Type is unknown for boolean operator:\t &")
+  | B_Or -> raise (UnknownType "Type is unknown for boolean operator:\t |")
 
 and tc_dec = function
   | VarDec(name,body) ->

@@ -57,6 +57,7 @@ and codegen_expr = function
       | Minus -> build_sub lhs_val rhs_val "subtmp" builder
       | GT -> build_icmp Icmp.Ugt lhs_val rhs_val "cmptmp" builder
       | B_And -> build_and lhs_val rhs_val "andtmp" builder
+      | B_Or -> build_or lhs_val rhs_val "ortmp" builder
     end
   | UnaryOp (B_Not,e) -> build_neg (codegen_expr e) "nottmp" builder
   | If _ -> raise (NotImplemented "if statement")

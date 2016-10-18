@@ -24,6 +24,7 @@ and op =
   | Minus
   | GT
   | B_And
+  | B_Or
 
 and dec =
   | FunctionDec of string * param list * expr
