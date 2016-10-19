@@ -7,8 +7,6 @@ type constantc_module = FDec of fdec list
 
 and fdec = FunctionDec of string * param list * constantc_type * stm list
 
-and arg = Arg of string * constantc_type
-
 and constantc_type =
   | Int
   | Bool
@@ -50,6 +48,7 @@ let ty_to_string = function
   | Int -> "Int"
   | Bool -> "Bool"
   | String -> "String"
+  | NoneType -> "NoneType"
 
 (*********************************
 type expr =

@@ -1,6 +1,7 @@
 open OUnit2
 open Typecheck
 open Ast
+open Codegen
 
 let prim = Primitive(Number 1)
 let var = Variable "dne"
