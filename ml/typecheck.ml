@@ -1,26 +1,16 @@
 open Ast
-open Types
 
 
 (*
 
-  This is a basic Hindley-Milner type checker. Right now it is able to type
-  check any expr, but does not implement the return statement. I am not very
-  fond of it and was unsure how it would type check so i excluded it.
+  Type checker v2
+  This is very similar to the one before except it uses statements.
+  Every statement has the type 'NoneType', except Return statements. This kinda
+  messes everything up so it might be worth reconsidering how Return is designed
 
-  This works by unifying types from the bottom up. This means if the type
-  checker does not know a type, it type checks a level lower until it finds the
-  type and passes it back up. There is also a variable environment(venv). This
-  stores the name of variables and functions and their corresponding types. For
-  functions, it also stores the types of the arguments.
-
-  A shortcoming of this typechecker is that arguments must be given an explicit
-  type. This kinda sucks, but it is good enough for now.
-
-  By having a typechecker, we should easily be able to restrict the set of
-  AST's which get passed to the codegen. This subset should always pass the
-  LLVM IR typecheck, allowing us to use all of the types that intersect the
-  AST and LLVM IR.
+  The type checker still unifies types. Unification is great because it
+  works well with a real type system with type declarations. If we ever have
+  type declarations, unify will need to be updated to address these needs.
 
 *)
 
@@ -29,9 +19,6 @@ exception VariableNotDefined of string
 exception TypeError of string
 exception UnknownType of string
 exception CallError of string
-
-type ast_types = { ast : expr; ty : constantc_type }
-type prim_types = { prim : primitive; ty : constantc_type }
 
 type ventry = { ty: constantc_type }
 type fentry = { ty: constantc_type; args: constantc_type list }
@@ -48,67 +35,93 @@ let unify t t1 =
   | (Bool,Bool) -> Bool
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with " ^ ty_to_string(t1)))
 
-let rec tc_prim = function
-  | Number n -> { prim=Number n; ty=Int }
-  | Bool b -> { prim=Bool b; ty=Bool }
 
-and tc_unop = function
-  | B_Not -> raise (UnknownType "Type is unknown for boolean operator:\t ~")
+let rec tc_unop = function
+  | B_Not -> Int
+  | Negate -> Int
 
-and tc_bop = function
+and tc_binop = function
   | Plus -> Int
   | Minus -> Int
-  | GT -> raise (UnknownType "Type is unknown for boolean operator:\t >")
+  | GT -> Bool
   | B_And -> raise (UnknownType "Type is unknown for boolean operator:\t &")
 
-and tc_dec = function
-  | VarDec(name,body) ->
-    let { ast=ast; ty=v_ty } = tc_expr body in
-    let _ = Hashtbl.add venv name (VarEntry { ty=v_ty }) in
-    ()
-  | FunctionDec(name,args,body) ->
-    List.map (fun { name=n; ty=t } -> Hashtbl.add venv n (VarEntry {ty=t})) args;
-    let body_ty = (tc_expr body).ty in
-    let args_ty = List.map (fun { name=n; ty=ty} -> ty) args in
-    Hashtbl.add venv name (FunEntry { ty=body_ty; args=args_ty });
-    ()
+and tc_prim = function
+  | Number n -> Int
+  | ByteArray b -> String
+  | Boolean b -> Bool
 
 and tc_expr = function
-  | Primitive p ->
-    let { prim=p'; ty=t} = tc_prim p in
-    { ast=Primitive p'; ty=t }
   | Variable v ->
     (try
-       match (Hashtbl.find venv v) with
-       | VarEntry { ty=v_ty } -> { ast=Variable v; ty=v_ty }
-       | FunEntry _ -> raise NotImplemented
-    with
-      Not_found -> raise (VariableNotDefined("Variable not defined:\t" ^ v)))
-  | BinOp(op,e,e1) ->
-    let op_ty = tc_bop op in
-    let { ast=e'; ty=e_ty } = tc_expr e in
-    let { ast=e1'; ty=e1_ty } = tc_expr e1 in
-    let unified = unify op_ty (unify e_ty e1_ty) in
-    { ast=BinOp(op,e',e1'); ty=unified }
-  | UnaryOp(op,e) ->
+       match Hashtbl.find venv v with
+       | VarEntry { ty=ty } -> ty
+       | _ -> raise (VariableNotDefined(v))
+     with
+       Not_found -> raise (VariableNotDefined("Variable not defined:\t" ^ v)))
+  | Unop(op,expr) ->
     let op_ty = tc_unop op in
-    let { ast=e'; ty=e_ty } = tc_expr e in
-    { ast=UnaryOp(op,e'); ty=(unify e_ty op_ty) }
-  | If(c,t,e) ->
-    let { ast=c'; ty=c_ty } = tc_expr c in
-    let { ast=t'; ty=t_ty } = tc_expr t in
-    let { ast=e'; ty=e_ty } = tc_expr e in
-    unify c_ty Bool;
-    { ast=If(c',t',e'); ty=(unify t_ty e_ty) }
-  | Seq(e,e1) -> tc_expr e; tc_expr e1;
-  | Mutate _ -> raise NotImplemented
-  | Dec d -> tc_dec d; { ast=Dec d; ty=Null }
+    let expr_ty = tc_expr expr in
+    unify op_ty expr_ty
+  | Binop(op,expr1,expr2) ->
+    let op_ty = tc_binop op in
+    let expr1_ty = tc_expr expr1 in
+    let expr2_ty = tc_expr expr2 in
+    let unify_expr = unify expr1_ty expr2_ty in
+    unify unify_expr op_ty
+  | Primitive p -> tc_prim p
   | CallExp(name,args) ->
     (try
-      match Hashtbl.find venv name with
-      | VarEntry _ -> raise (CallError ("Unable to call variable `" ^ name ^ "`"))
-      | FunEntry { ty=ty; args=args' } ->
-        List.map2 (fun carg farg -> unify (tc_expr carg).ty farg) args args';
-        { ast=CallExp(name,args); ty=ty }
-    with
-      Not_found -> raise NotImplemented)
+       match Hashtbl.find venv name with
+       | VarEntry _ -> raise (CallError ("Unable to call variable `" ^ name ^ "`"))
+       | FunEntry { ty=ty; args=args' } ->
+         let _ = List.map2
+                 (fun carg farg -> unify (tc_expr carg) farg)
+                 args args' in
+         ty
+     with
+       Not_found -> raise NotImplemented)
+
+and tc_stm = function
+  | VarDec(name,ty,body) ->
+    let body_ty = tc_expr body in (* TODO: Should we just do type inference here? Or add and enforce an explicit type? *)
+    let _ = Hashtbl.add venv name (VarEntry { ty=body_ty }) in
+    NoneType
+  | Assign(name,body) ->
+    (match Hashtbl.find venv name with
+     | VarEntry { ty=ty } ->
+       let _ = unify ty (tc_expr body); in
+       NoneType
+    | _ -> raise (VariableNotDefined(name)))
+  | If(cond,then',else') ->
+    let _ = unify (tc_expr cond) Bool in
+    let then_ty = tc_stms then' in
+    let else_ty = tc_stms else' in
+    let _ = unify then_ty else_ty; in
+    NoneType
+  | While(cond,body) ->
+    let _ = unify (tc_expr cond) in
+    let _ = tc_stms body in
+    NoneType
+  | Return(expr) -> tc_expr(expr)
+
+and tc_stms = function
+  | [] -> raise (TypeError "Cannot type check an empty statement")
+  | [l] -> tc_stm l
+  | (f::r) ->
+    let _ = tc_stm f in
+    tc_stms r
+
+and tc_fdec = function
+  | FunctionDec(name,args,ty,body) ->
+    let _ = List.map (fun { name=n; ty=t } -> Hashtbl.add venv n (VarEntry {ty=t})) args in
+    let body_ty = tc_stms body in
+    let args_ty = List.map (fun { name=n; ty=ty} -> ty) args in
+    Hashtbl.add venv name (FunEntry { ty=body_ty; args=args_ty });
+    NoneType
+
+and tc_module = function
+  | FDec [] -> NoneType
+  | FDec (f::r) ->
+    let _ = tc_fdec f in
+    tc_module(FDec(r))
