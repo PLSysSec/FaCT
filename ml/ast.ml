@@ -23,9 +23,9 @@ and stm =
   | Return of expr
 
 and expr =
-  | Variable of string
+  | VarExp of string
   | Unop of unop * expr
-  | Binop of binop * expr * expr
+  | BinOp of binop * expr * expr
   | Primitive of primitive
   | CallExp of string * expr list
 
@@ -53,7 +53,7 @@ let ty_to_string = function
 (*********************************
 type expr =
   | Primitive of primitive
-  | Variable of string
+  | VarExp of string
   | BinOp of op * expr * expr (* operator * left * right *)
   | UnaryOp of unop * expr (* unary operator * expr *)
   | If of expr * expr * expr (* condition * then expr * else expr *)
