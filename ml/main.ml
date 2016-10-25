@@ -21,6 +21,12 @@ let else_branch = Assign("y",(BinOp(Minus,y,Primitive(Number 7))));;
 
 let if_statement = If(cond,[then_branch],[else_branch]);;
 
+let hello = Primitive(ByteArray "hello");;
+
+(*let exclamation = chr (33);;*)
+(*let numbers = Primitive(ByteArray chr(5));;*)
+
+(*{1, 2, 3, 4}*)
 (*
 int func (Bool param) {
     Bool foo = param;

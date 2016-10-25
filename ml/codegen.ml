@@ -11,12 +11,14 @@ let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
 let int_type = i32_type context
 let bool_type = i1_type context
 let i8_t = i8_type context
+let bytearr_type = array_type int_type 4
 
 let rec codegen_prim = function
   | Number n -> const_int int_type n
   | Boolean true -> const_int bool_type 1
   | Boolean false -> const_int bool_type 0
   | ByteArray _ -> raise (NotImplemented "Byte arrays are not implemented")
+  | ByteArray str -> const_string context str
 
 and codegen_fdec = function
   | FunctionDec(n,args,ty,body) ->

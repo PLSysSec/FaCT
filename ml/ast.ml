@@ -9,7 +9,7 @@ and fdec = FunctionDec of string * param list * constantc_type * stm list
 and constantc_type =
   | Int
   | Bool
-  | String
+  | ByteArr
   | NoneType
 
 and param = { name: string; ty: constantc_type }
@@ -47,7 +47,7 @@ and primitive = Number of int
 let ty_to_string = function
   | Int -> "Int"
   | Bool -> "Bool"
-  | String -> "String"
+  | ByteArr -> "ByteArr"
   | NoneType -> "NoneType"
 
 (*********************************

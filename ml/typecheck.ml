@@ -49,7 +49,7 @@ and tc_binop = function
 
 and tc_prim = function
   | Number n -> Int
-  | ByteArray b -> String
+  | ByteArray b -> ByteArr
   | Boolean b -> Bool
 
 and tc_expr = function
