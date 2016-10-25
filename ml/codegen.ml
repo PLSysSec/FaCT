@@ -13,7 +13,7 @@ let int_type = i32_type context
 let bool_type = i1_type context
 let i8_t = i8_type context
 (*val array_type : lltype -> int -> lltype*)
-let bytearr_type = array_type int_type 4
+let bytearr_type len = array_type int_type len
 
 let rec codegen_prim = function
   | Number n -> const_int int_type n
