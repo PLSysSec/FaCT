@@ -1,7 +1,6 @@
 (*===----------------------------------------------------------------------===
  * Abstract Syntax Tree (aka Parse Tree)
  *===----------------------------------------------------------------------===*)
-open Types
 
 type constantc_module = FDec of fdec list
 
@@ -38,6 +37,7 @@ and binop =
   | Minus
   | GT
   | B_And
+  | B_Or
 
 and primitive = Number of int
               | ByteArray of string

@@ -4,7 +4,6 @@ open Ast
 open OUnit2
 (*open Codegen*)
 (*open Typecheck*)
-open Types
 
 let basicAst = Primitive(Number 1);;
 
@@ -30,6 +29,14 @@ int func (Bool param) {
 let my_param = { name="param"; ty=Bool };;
 let my_body = VarDec("foo", Bool, VarExp "param")
 let my_func = FunctionDec("func", [my_param], Int, [my_body]);;
+
+let prgm = FunctionDec("prgm", [{name="x"; ty=Int}], Int, [
+  VarDec("y", Int, Primitive(Number 2));
+  VarDec("z", Int, Primitive(Number 4));
+  If(BinOp(GT, VarExp "x", Primitive(Number 5)),
+    [Assign("y", BinOp(Plus, VarExp "y", Primitive(Number 3)))],
+    [Assign("z", BinOp(Minus, VarExp "z", Primitive(Number 7)))]);
+  Return (BinOp(Plus, VarExp "y", VarExp  "z"))]);;
 
 (*
 let identity_param = { name="identity_param"; ty=Int };;
