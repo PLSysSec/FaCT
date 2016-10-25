@@ -8,17 +8,21 @@ let context = global_context ()
 let the_module = create_module context "ConstantC codegen"
 let builder = builder context
 let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
+(*val i32_type : llcontext -> lltype*)
 let int_type = i32_type context
 let bool_type = i1_type context
 let i8_t = i8_type context
+(*val array_type : lltype -> int -> lltype*)
 let bytearr_type = array_type int_type 4
 
 let rec codegen_prim = function
   | Number n -> const_int int_type n
   | Boolean true -> const_int bool_type 1
   | Boolean false -> const_int bool_type 0
-  | ByteArray _ -> raise (NotImplemented "Byte arrays are not implemented")
   | ByteArray str -> const_string context str
+(*val const_string : llcontext -> string -> llvalue
+  val const_int : lltype -> int -> llvalue *)
+
 
 and codegen_fdec = function
   | FunctionDec(n,args,ty,body) ->
