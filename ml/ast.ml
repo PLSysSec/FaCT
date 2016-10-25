@@ -10,7 +10,6 @@ and constantc_type =
   | Int
   | Bool
   | String
-  | NoneType
 
 and param = { name: string; ty: constantc_type }
 
@@ -48,7 +47,6 @@ let ty_to_string = function
   | Int -> "Int"
   | Bool -> "Bool"
   | String -> "String"
-  | NoneType -> "NoneType"
 
 (*********************************
 type expr =
