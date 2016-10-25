@@ -52,15 +52,16 @@ and codegen_binop op e e' =
     | Minus -> build_sub lhs rhs "subtmp" builder
     | GT -> build_icmp Icmp.Ugt lhs rhs "cmptmp" builder
     | B_And -> build_and lhs rhs "andtmp" builder
+    | B_Or -> build_or lhs rhs "ortmp" builder
   end
 
 
 and codegen_expr = function
-  | Variable v ->
+  | VarExp v ->
     (try Hashtbl.find named_values v with
      | Not_found -> raise (Error ("Unknown variable:\t" ^ v)))
   | Unop(op,e) -> codegen_unop op e
-  | Binop(op,e,e') -> codegen_binop op e e'
+  | BinOp(op,e,e') -> codegen_binop op e e'
   | Primitive p -> codegen_prim p
   | CallExp(callee, args) ->
     let callee' =

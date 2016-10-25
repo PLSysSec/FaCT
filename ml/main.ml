@@ -1,9 +1,9 @@
 open Llvm
 open Ast
-(*open Constpass*)
+open Constpass
 open OUnit2
-(*open Codegen*)
-(*open Typecheck*)
+open Codegen
+open Typecheck
 
 let basicAst = Primitive(Number 1);;
 
@@ -26,47 +26,74 @@ int func (Bool param) {
     Bool foo = param;
 }
 *)
-let my_param = { name="param"; ty=Bool };;
-let my_body = VarDec("foo", Bool, VarExp "param")
-let my_func = FunctionDec("func", [my_param], Int, [my_body]);;
+let boolify_param = { name="boolify_param"; ty=Bool };;
+let boolify_body = VarDec("new_var", Bool, VarExp "boolify_param");;
+let boolify = FunctionDec("BOOLIFY", [boolify_param], Int, [boolify_body]);;
 
-let prgm = FunctionDec("prgm", [{name="x"; ty=Int}], Int, [
+
+(*
+Int prgm1(Int x) {
+  Int y = 2;
+  if(x > 5) {
+    y += 3;
+  else {
+    y -= 7;
+  }
+  return y;
+}
+*)
+let prgm1 = FunctionDec("prgm1", [{name="x"; ty=Int}], Int, [
+  VarDec("y", Int, Primitive(Number 2));
+  If(BinOp(GT, VarExp "x", Primitive(Number 5)),
+    [Assign("y", BinOp(Plus, VarExp "y", Primitive(Number 3)))],
+    [Assign("y", BinOp(Minus, VarExp "y", Primitive(Number 7)))]);
+  Return (VarExp "y")]);;
+
+
+(*
+int prgm1_const(int x) {
+  Int y = 2;
+  Int x_g_5 = BOOLIFY(x > 5);
+  y = y + ((3 & x_g_5) + (-7 & ~x_g_5));
+  return y;
+}
+*)
+let prgm1_const = FunctionDec("prgm1_const", [{name="x"; ty=Int}], Int, [
+  VarDec("y", Int, Primitive(Number 2));
+  VarDec("x_g_5", Int, CallExp("BOOLIFY", [BinOp(GT,VarExp("x"),Primitive(Number 5))]));
+  Assign("y", BinOp(Plus,
+    VarExp "y",
+    BinOp(Plus,
+      BinOp(B_And,
+        Primitive(Number 3),
+        VarExp "x_g_5"),
+      BinOp(B_And,
+        Primitive(Number (-7)),
+        Unop(B_Not, VarExp "x_g_5")
+      )
+    )
+  ));
+  Return (VarExp "y")]);;
+
+(*
+Int prgm2(Int x) {
+  Int y = 2;
+  Int z = 4;
+  if(x > 5) {
+    y += 3;
+  else {
+    z -= 7;
+  }
+  return y + z;
+}
+*)
+let prgm2 = FunctionDec("prgm2", [{name="x"; ty=Int}], Int, [
   VarDec("y", Int, Primitive(Number 2));
   VarDec("z", Int, Primitive(Number 4));
   If(BinOp(GT, VarExp "x", Primitive(Number 5)),
     [Assign("y", BinOp(Plus, VarExp "y", Primitive(Number 3)))],
     [Assign("z", BinOp(Minus, VarExp "z", Primitive(Number 7)))]);
   Return (BinOp(Plus, VarExp "y", VarExp  "z"))]);;
-
-(*
-let identity_param = { name="identity_param"; ty=Int };;
-let identity_body = VarExp "identity_param";;
-let identity_body' = CallExp("BOOLIFY", [VarExp "identity_param"])
-let identity = FunctionDec("Identity", [identity_param], identity_body');;
-*)
-
-(*
-let original = Seq (
-  Dec(VarDec("y", Primitive(Number(3)))),
-  Seq(If(BinOp(Plus,VarExp("x"),Primitive(Number 5)), (* TODO: change Plus to GT. This gives a type error because Boolify expects a boolean *)
-        Assign(VarExp("y"), BinOp(Plus,VarExp("y"),Primitive(Number(2)))),
-        Assign(VarExp("y"), BinOp(Minus,VarExp("y"),Primitive(Number(-7))))),
-      Return(VarExp "y")));;
-
-let mutated = Seq (
-  Dec(VarDec("x_g_5", CallExp("BOOLIFY", [BinOp(Plus,VarExp("x"),Primitive(Number 5))]))),
-  Seq(Dec(VarDec("y", (BinOp (Plus,
-                      Primitive(Number 3),
-                      BinOp(Plus,
-                            BinOp(B_And,Primitive(Number 2),VarExp("x_g_5")),
-                            BinOp(B_And,Primitive(Number (-7)), UnaryOp(B_Not,VarExp("x_g_5")))))))),
-      Seq(CallExp("printf", [Primitive(Number 19)]),
-          Return(VarExp "y")))
-);;
-*)
-
-(*
-let mut_fun = FunctionDec("main",[{ name="x"; ty=Int }], mutated);;
 
 module SS = Set.Make(String);;
 let main ast =
@@ -76,28 +103,4 @@ let main ast =
   ()
 ;;
 
-(*main (Seq (ast1::ast2::[]))
-main (Seq (Dec boolify, Dec identity));;*)
-main (Seq (Dec boolify, Dec mut_fun));;
-*)
-(*
-int simple(int x) {
-  int y = 3;
-  if(x > 5) {
-    y +=2;
-  } else {
-    y -= 7;
-  }
-  return y;
-}
-
-}
-
-int simple(int x) {
-  int y = 3;
-  int x_g_5 = BOOLIFY(x > 5);
-  y = y + (2 & x_g_5) + (-7 & ~x_g_5);
-  return y;
-}
-
-*)
+main (FDec [prgm1]);;

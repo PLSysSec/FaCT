@@ -45,6 +45,7 @@ and tc_binop = function
   | Minus -> Int
   | GT -> Bool
   | B_And -> raise (UnknownType "Type is unknown for boolean operator:\t &")
+  | B_Or -> raise (UnknownType "Type is unknown for boolean operator:\t |")
 
 and tc_prim = function
   | Number n -> Int
@@ -52,7 +53,7 @@ and tc_prim = function
   | Boolean b -> Bool
 
 and tc_expr = function
-  | Variable v ->
+  | VarExp v ->
     (try
        match Hashtbl.find venv v with
        | VarEntry { ty=ty } -> ty
@@ -63,7 +64,7 @@ and tc_expr = function
     let op_ty = tc_unop op in
     let expr_ty = tc_expr expr in
     unify op_ty expr_ty
-  | Binop(op,expr1,expr2) ->
+  | BinOp(op,expr1,expr2) ->
     let op_ty = tc_binop op in
     let expr1_ty = tc_expr expr1 in
     let expr2_ty = tc_expr expr2 in
