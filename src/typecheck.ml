@@ -1,6 +1,5 @@
 open Ast
-
-
+open Env
 (*
 
   Type checker v2
@@ -18,17 +17,11 @@ exception TypeError of string
 exception UnknownType of string
 exception CallError of string
 
-type ventry = { ty: constantc_type }
-type fentry = { ty: constantc_type; args: constantc_type list }
-
-type entry =
-  | VarEntry of ventry
-  | FunEntry of fentry
-
 let unify t t1 =
   match (t,t1) with
   | (Int,Int) -> Int
   | (Bool,Bool) -> Bool
+  | (ByteArr, ByteArr) -> ByteArr
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with " ^ ty_to_string(t1)))
 
 let unify_fn (rt,arg_ts) ts =
@@ -55,7 +48,7 @@ and tc_expr venv = function
   | VarExp v ->
     (try
        match Hashtbl.find venv v with
-       | VarEntry { ty=ty } -> ty
+       | VarEntry { v_ty=ty } -> ty
        | _ -> raise (VariableNotDefined(v))
      with
        Not_found -> raise (VariableNotDefined("Variable not defined:\t" ^ v)))
@@ -73,7 +66,7 @@ and tc_expr venv = function
     (try
        match Hashtbl.find venv name with
        | VarEntry _ -> raise (CallError ("Unable to call variable `" ^ name ^ "`"))
-       | FunEntry { ty=ty; args=args' } ->
+       | FunEntry { f_ty=ty; f_args=args' } ->
          let fn_ty = (ty, args') in
          unify_fn fn_ty (List.map (tc_expr venv) args)
      with
@@ -82,10 +75,10 @@ and tc_expr venv = function
 and tc_stm fn_ty venv = function
   | VarDec(name,ty,expr) ->
     let expr_ty = tc_expr venv expr in
-    Hashtbl.add venv name (VarEntry { ty=unify ty expr_ty })
+    Hashtbl.add venv name (VarEntry { v_ty=unify ty expr_ty })
   | Assign(name,expr) ->
     (match Hashtbl.find venv name with
-     | VarEntry { ty=ty } ->
+     | VarEntry { v_ty=ty } ->
        let _ = unify ty (tc_expr venv expr) in ()
      | _ -> raise (VariableNotDefined(name)))
   | If(cond,then',else') ->
@@ -104,16 +97,9 @@ and tc_stms fn_ty venv stms =
 and tc_fdec venv = function
   | FunctionDec(name,args,ty,body) ->
     let venv' = Hashtbl.copy venv in
-    let args_ty = List.map (fun { name=n; ty=t } -> Hashtbl.add venv' n (VarEntry {ty=t}); t) args in
+    let args_ty = List.map (fun { name=n; ty=t } -> Hashtbl.add venv' n (VarEntry {v_ty=t}); t) args in
     let _ = tc_stms ty venv' body in
-    Hashtbl.add venv name (FunEntry { ty=ty; args=args_ty })
+    Hashtbl.add venv name (FunEntry { f_ty=ty; f_args=args_ty })
 
-and tc_module fdec = (* ocamlc complains when I try to eta-reduce this *)
-  let rec tc_module' venv = function
-    | FDec [] -> ()
-    | FDec (f::r) ->
-        let _ = tc_fdec venv f in
-        tc_module' venv (FDec r)
-  in
-  let venv = Hashtbl.create 10 in
-  tc_module' venv fdec
+and tc_module (FDec l) =
+  List.fold_left (fun a f -> let _ = tc_fdec Env.venv f in ()) () l

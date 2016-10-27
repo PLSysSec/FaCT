@@ -4,3 +4,4 @@ B _build/src/
 B _build/test/
 PKG llvm
 PKG ounit
+PKG core

@@ -8,21 +8,15 @@ let context = global_context ()
 let the_module = create_module context "ConstantC codegen"
 let builder = builder context
 let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
-(*val i32_type : llcontext -> lltype*)
 let int_type = i32_type context
 let bool_type = i1_type context
 let i8_t = i8_type context
-(*val array_type : lltype -> int -> lltype*)
-let bytearr_type len = array_type int_type len
 
 let rec codegen_prim = function
   | Number n -> const_int int_type n
   | Boolean true -> const_int bool_type 1
   | Boolean false -> const_int bool_type 0
-  | ByteArray str -> const_string context str
-(*val const_string : llcontext -> string -> llvalue
-  val const_int : lltype -> int -> llvalue *)
-
+  | ByteArray str -> build_global_stringptr str "" builder
 
 and codegen_fdec = function
   | FunctionDec(n,args,ty,body) ->
@@ -77,7 +71,10 @@ and codegen_expr = function
       let params = params callee' in
       if Array.length params == List.length args then () else
         raise (Error("Arity mismatch for `" ^ callee ^ "`"));
-      let args' = Array.map codegen_expr (Array.of_list args) in
+      let codegen_expr' arg =
+        let arg' = codegen_expr arg in
+        const_inttoptr arg' (pointer_type i8_t) in
+      let args' = Array.map codegen_expr' (Array.of_list args) in
       build_call callee' args' "calltmp" builder
 
 and codegen_stm = function
@@ -94,8 +91,13 @@ and codegen_stm = function
 and codegen_module = function
   | FDec f -> List.map codegen_fdec f
 
+(** TODO: e need to think about how to do a stdlib better. This is just a hack to get it working *)
+and codegen_stdlib () =
+  let printf_ty = var_arg_function_type int_type [| pointer_type i8_t |] in
+  let printf = declare_function "printf" printf_ty the_module in
+  ()
+
 let codegen =
   let _ = print_string "Initializing codegen...\n" in
-  (*let printf_ty = var_arg_function_type int_type [| pointer_type i8_t |] in
-    let printf = declare_function "printf" printf_ty the_module in*)
+  let _ = codegen_stdlib () in
   codegen_module
