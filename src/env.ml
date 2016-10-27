@@ -7,6 +7,8 @@ type entry =
   | VarEntry of ventry
   | FunEntry of fentry
 
+type env = (string,entry) Hashtbl.t
+
 (** Create the environment *)
 let venv =
   let v = Hashtbl.create 10 in

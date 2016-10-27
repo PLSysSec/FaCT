@@ -7,4 +7,6 @@ type entry =
   | VarEntry of ventry
   | FunEntry of fentry
 
-val venv: (string,entry) Hashtbl.t
+type env = (string,entry) Hashtbl.t
+
+val venv: env
