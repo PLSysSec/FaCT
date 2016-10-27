@@ -33,3 +33,5 @@
 *.xdy
 *~
 _build/
+*.byte
+*.native
