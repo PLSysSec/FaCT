@@ -32,3 +32,6 @@
 *.vrb
 *.xdy
 *~
+_build/
+*.byte
+*.native
