@@ -1,3 +1,4 @@
+open Stdlib
 open Ast
 
 type ventry = { v_ty: constantc_type }
@@ -9,8 +10,9 @@ type entry =
 
 type env = (string,entry) Hashtbl.t
 
-(** Create the environment *)
 let venv =
   let v = Hashtbl.create 10 in
-  let _ = Hashtbl.add v "printf" (FunEntry { f_ty=Int; f_args=[ByteArr] }) in
+  let add_fun {name=n; ret_ty=ret; args_ty=args} =
+    Hashtbl.add v n (FunEntry {f_ty=ret; f_args=args}) in
+  let _ = List.map add_fun stdlib_funs in
   v
