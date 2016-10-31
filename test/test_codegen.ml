@@ -7,10 +7,6 @@ let prgm1 = FDec([FunctionDec("prgm1", [{name="x"; ty=Int}], Int, [
   VarDec("y", Int, Primitive(Number 2));
   Return (VarExp "y")])]);;
 
-let prgm2 = FDec([FunctionDec("prgm2", [{name="x"; ty=Int}], Int, [
-  VarDec("y", Int, Primitive(Number 2));
-  Return (VarExp "y")])]);;
-
 let ctx = global_context ()
 let m = create_module ctx "Test codegen"
 let a = (codegen ctx m prgm1);;
