@@ -26,7 +26,7 @@ In addition to tests, there is a main script. This contains a large AST to compi
 #### Setting up a custom utop
 
 For some reason, utop doesn't like working with LLVM. Fortunately, this is an easy fix.
-From the ```ml``` directory, execute ```ocamlfind ocamlmktop -o llvmutop -thread -linkpkg -package utop -package llvm -package llvm.passmgr_builder llvmutop.ml -cc g++```. This will build an executable, ```llvmutop```. Use this executable as the REPL.
+From the ```ml``` directory, execute ```ocamlfind ocamlmktop -o llvmutop -thread -linkpkg -package core -package utop -package llvm -package llvm.passmgr_builder llvmutop.ml -cc g++```. This will build an executable, ```llvmutop```. Use this executable as the REPL.
 
 #### Writing and running tests
 
