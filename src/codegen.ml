@@ -1,5 +1,6 @@
 open Llvm
 open Ast
+open Stdlib
 
 exception NotImplemented of string
 exception Error of string
@@ -61,9 +62,13 @@ let codegen ctx m =
     | Primitive p -> codegen_prim p
     | CallExp(callee, args) ->
       let callee' =
-        match lookup_function callee m with
+        (match lookup_function callee m with
         | Some callee -> callee
-        | None -> raise (Error("Unknown function referenced:\t" ^ callee)) in
+        | None -> let _ = (codegen_stdlib ctx m callee) in
+          match lookup_function callee m with
+          | Some callee -> callee
+          | None -> raise (Error ("Unknown function referenced:\t" ^ callee)))
+          in
         let params = params callee' in
         if Array.length params == List.length args then () else
           raise (Error("Arity mismatch for `" ^ callee ^ "`"));
@@ -85,13 +90,8 @@ let codegen ctx m =
       e'
 
   and codegen_module = function
-    | FDec f -> List.map codegen_fdec f
+    | FDec f -> let _ = List.map codegen_fdec f in ()
 
-  (** TODO: we need to think about how to do a stdlib better. This is just a hack to get it working *)
-  and codegen_stdlib () =
-    let printf_ty =
-      var_arg_function_type (i32_type ctx) [| pointer_type (i8_type ctx) |] in
-    let _ = declare_function "printf" printf_ty m in
-    () in
-  let _ = codegen_stdlib () in
+  in
+
   codegen_module
