@@ -1,0 +1,24 @@
+\input{mathassts.tex}
+\usepackage{semantic}
+\usepackage{textcomp}
+
+\newcommand\bigstep{\ensuremath\Longrightarrow}
+
+\begin{document}
+
+\begin{align*}
+\eval{e + e'}{} &= \textsc{Plus}(\eval{e}{}, \eval{e'}{}) \\
+\eval{e - e'}{} &= \textsc{Minus}(\eval{e}{}, \eval{e'}{}) \\
+\eval{e * e'}{} &= \textsc{Mult}(\eval{e}{}, \eval{e'}{}) \\
+\eval{e > e'}{} &= \textsc{GT}(\eval{e}{}, \eval{e'}{}) \\
+\eval{e == e'}{} &= \textsc{Eq}(\eval{e}{}, \eval{e'}{}) \\
+\eval{e != e'}{} &= \textsc{Neq}(\eval{e}{}, \eval{e'}{}) \\
+\eval{e \& e'}{} &= \textsc{BitAnd}(\eval{e}{}, \eval{e'}{}) \\
+\eval{e | e'}{} &= \textsc{BitOr}(\eval{e}{}, \eval{e'}{}) \\
+\eval{\~{} e}{} &= \textsc{BitNot}(\eval{e}{}) \\
+\eval{v}{} &= v \\
+\eval{n}{} &= n \\
+%\eval{fdec(e,e',\dots)\{body\}}{} &= fdec(\eval{e}{},\eval{e'}{},\dots)\{\eval{body}{}\}\rightarrow\eval{ret}{}\\
+\end{align*}
+
+\end{document}

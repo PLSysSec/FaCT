@@ -1,20 +1,20 @@
 
-type constantc_module = FDec of fdec list
+type constantc_module = CModule of fdec list
 
-and fdec = FunctionDec of string * param list * constantc_type * stm list
+and fdec = FunctionDec of string * param list * ctype * stm list
 
-and constantc_type =
+and ctype =
   | Int
   | Bool
   | ByteArr
 
-and param = { name: string; ty: constantc_type }
+and param = { name: string; ty: ctype }
 
 and stm =
-  | VarDec of string * constantc_type * expr
+  | VarDec of string * ctype * expr
   | Assign of string * expr
   | If of expr * stm list * stm list
-  | While of expr * stm list
+  | For of string * primitive * primitive * stm list (* TODO typecheck primitives: Number only *)
   | Return of expr
 
 and expr =
