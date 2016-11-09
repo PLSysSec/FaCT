@@ -22,6 +22,8 @@ let if_statement = If(cond,[then_branch],[else_branch]);;
 
 let hello = Primitive(ByteArray "hello");;
 
+let letter_e = hello;;
+
 (*let exclamation = chr (33);;*)
 (*let numbers = Primitive(ByteArray chr(5));;*)
 

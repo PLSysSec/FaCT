@@ -7,7 +7,7 @@ type stdlib_desc =
   {name:string; ret_ty:constantc_type; args_ty:constantc_type list}
 
 let stdlib_funs = [
-  {name="printf"; ret_ty=Int; args_ty=[ByteArr]}
+  {name="printf"; ret_ty=Int; args_ty=[ByteArr 8]} (* TODO: this needs to be fixed... *)
 ]
 
 let codegen_stdlib ctx m = function

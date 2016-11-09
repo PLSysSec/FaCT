@@ -17,11 +17,12 @@ exception TypeError of string
 exception UnknownType of string
 exception CallError of string
 
+(* order of this matters!!! i.e. (byte,int)->byte; (int,byte)->int; or viceversa *)
 let unify t t1 =
   match (t,t1) with
   | (Int,Int) -> Int
   | (Bool,Bool) -> Bool
-  | (ByteArr, ByteArr) -> ByteArr
+  | (ByteArr _, ByteArr _) -> (ByteArr 8) (* TODO: this needs to be fixed... *)
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with " ^ ty_to_string(t1)))
 
 let unify_fn (rt,arg_ts) ts =
@@ -41,7 +42,7 @@ and tc_binop = function
 
 and tc_prim = function
   | Number n -> Int
-  | ByteArray b -> ByteArr
+  | ByteArray b -> ByteArr 8 (* TODO: this needs to be fixed... *)
   | Boolean b -> Bool
 
 and tc_expr venv = function
@@ -52,6 +53,7 @@ and tc_expr venv = function
        | _ -> raise (VariableNotDefined(v))
      with
        Not_found -> raise (VariableNotDefined("Variable not defined:\t" ^ v)))
+  | ArrExp(v,i) -> Int (* we're saying that an element is of type bytearr??*)
   | Unop(op,expr) ->
     let op_ty = tc_unop op in
     let expr_ty = tc_expr venv expr in
@@ -81,6 +83,12 @@ and tc_stm fn_ty venv = function
      | VarEntry { v_ty=ty } ->
        let _ = unify ty (tc_expr venv expr) in ()
      | _ -> raise (VariableNotDefined(name)))
+  | ArrAssign(name,index,expr) ->
+   (match Hashtbl.find venv name with
+    | VarEntry { v_ty=arr_ty } ->
+      let _ = unify arr_ty (ByteArr 8) in (* TODO: this needs to be fixed... *)
+      let _ = unify Int (tc_expr venv expr) in ()
+    | _ -> raise (VariableNotDefined(name)))
   | If(cond,then',else') ->
     let _ = unify (tc_expr venv cond) Bool in
     let _ = tc_stms fn_ty venv then' in
