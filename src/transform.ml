@@ -41,7 +41,7 @@ and transform_expr = function
 
 and transform_primitive = function
   | Ast.Number n -> Cast.Number n
-  | Ast.Boolean true -> Cast.Number 1
+  | Ast.Boolean true -> Cast.Number max_int
   | Ast.Boolean false -> Cast.Number 0
   | Ast.ByteArray s -> raise (TransformError "Not implemented")
 
