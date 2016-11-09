@@ -26,7 +26,6 @@ and expr =
 
 and unop =
   | B_Not
-  | Negate
 
 and binop =
   | Plus

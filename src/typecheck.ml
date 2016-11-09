@@ -30,7 +30,6 @@ let unify_fn (rt,arg_ts) ts =
 
 let rec tc_unop = function
   | B_Not -> (Int, [Int])
-  | Negate -> (Int, [Int])
 
 and tc_binop = function
   | Plus -> (Int, [Int;Int])
@@ -85,8 +84,9 @@ and tc_stm fn_ty venv = function
     let _ = unify (tc_expr venv cond) Bool in
     let _ = tc_stms fn_ty venv then' in
     let _ = tc_stms fn_ty venv else' in ()
-  | While(cond,body) ->
-    let _ = unify (tc_expr venv cond) Bool in
+  | For(name,l,h,body) ->
+    let _ = unify (tc_expr venv (Primitive l)) Int in
+    let _ = unify (tc_expr venv (Primitive h)) Int in
     let _ = tc_stms fn_ty venv body in ()
   | Return(expr) ->
     let _ = unify fn_ty (tc_expr venv expr) in ()
@@ -101,5 +101,5 @@ and tc_fdec venv = function
     let _ = tc_stms ty venv' body in
     Hashtbl.add venv name (FunEntry { f_ty=ty; f_args=args_ty })
 
-and tc_module (FDec l) =
+and tc_module (CModule l) =
   List.fold_left (fun a f -> let _ = tc_fdec Env.venv f in ()) () l

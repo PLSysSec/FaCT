@@ -4,7 +4,7 @@ open Ast
 exception Error of string
 
 type stdlib_desc =
-  {name:string; ret_ty:constantc_type; args_ty:constantc_type list}
+  {name:string; ret_ty:ctype; args_ty:ctype list}
 
 let stdlib_funs = [
   {name="printf"; ret_ty=Int; args_ty=[ByteArr]}

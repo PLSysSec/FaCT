@@ -38,7 +38,6 @@ let codegen ctx m =
   and codegen_unop op e =
     match op with
     | B_Not -> build_neg (codegen_expr e) "nottmp" b
-    | Negate -> raise (NotImplemented "Negate unary op is not implemented")
 
   and codegen_binop op e e' =
     let lhs = (codegen_expr e) in
@@ -80,7 +79,7 @@ let codegen ctx m =
 
   and codegen_stm = function
     | Return e -> build_ret (codegen_expr e) b
-    | While _ -> raise (NotImplemented "Loops not implemented")
+    | For _ -> raise (NotImplemented "Loops not implemented")
     | If _ -> raise (NotImplemented "If statements not implemented")
     | Assign(n,e) -> raise (NotImplemented "Mutation not implemented yet")
     | VarDec(n,_,e) ->
@@ -90,7 +89,7 @@ let codegen ctx m =
       e'
 
   and codegen_module = function
-    | FDec f -> let _ = List.map codegen_fdec f in ()
+    | CModule f -> let _ = List.map codegen_fdec f in ()
 
   in
 

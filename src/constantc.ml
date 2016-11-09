@@ -1,25 +1,33 @@
 open Ast
 open Env
 open Typecheck
+open Transform
 
-let body = Return (CallExp("printf", [Primitive(ByteArray("vaer"))]))
+let body = Return (CallExp("printf", [Primitive(ByteArray("vaer\n"))]))
 
 let prgm2 = FunctionDec("main", [], Int, [body])
 
 let compile ast_module =
   let _ =  tc_module ast_module in
-  let _ = Codegen.codegen ast_module in
-  Llvm.print_module "out.ll" Codegen.the_module;
+  let core_ir = transform ast_module in
+  let llvm_ctx = Llvm.create_context () in
+  let llvm_mod = Llvm.create_module llvm_ctx "Module" in
+  let _ = Codegen.codegen llvm_ctx llvm_mod ast_module in
+  Llvm.print_module "out.ll" llvm_mod;
   ()
 
 let run () =
-  let args = Array.make 2 "" in
-  let _ = Array.set args 0 "lli" in
-  let _ = Array.set args 1 "out.ll" in
-  Unix.execv "lli" args
+  let a  = Unix.fork () in
+  match a with
+    | 0 -> (try
+          Unix.execvp "lli" [|"lli"; "out.ll"|]
+       with
+          _ -> Printf.printf "%s" "error while execv\n"; exit (-1))
+    | -1 -> Printf.printf "%s" "error accured on fork\n"
+    | _ -> ignore (Unix.wait ()); Printf.printf "%s" "Done...\n"
 
 let _ =
   match Sys.argv with
-  | [|_;"compile"|] -> compile (FDec[prgm2]); ()
-  | [|_;"run"|] -> run (); ()
+  | [|_;"compile"|] -> compile (CModule[prgm2]); ()
+  | [|_;"run"|] -> run ()
   | _ -> print_string "Unknown command\n"; ()
