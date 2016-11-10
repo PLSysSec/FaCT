@@ -1,9 +1,10 @@
+open Codegen2
 open Ast
 open Env
 open Typecheck
 open Transform
 
-let body = Return (CallExp("printf", [Primitive(ByteArray("vaer\n"))]))
+let body = Return (CallExp("printf", [Primitive(ByteArray("vaevaerwgr\n"))]))
 
 let prgm2 = FunctionDec("main", [], Int, [body])
 
@@ -12,7 +13,7 @@ let compile ast_module =
   let core_ir = transform ast_module in
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
-  let _ = Codegen.codegen llvm_ctx llvm_mod ast_module in
+  let _ = codegen llvm_ctx llvm_mod core_ir in
   Llvm.print_module "out.ll" llvm_mod;
   ()
 

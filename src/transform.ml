@@ -2,7 +2,9 @@
 exception TransformError of string
 
 let rec transform = function
-  | Ast.CModule fdecs -> let _ = List.map transform_fdec fdecs in ()
+  | Ast.CModule fdecs ->
+    let f = List.map transform_fdec fdecs in
+    Cast.CModule f
 
 and transform_type = function
   | Ast.Int -> Cast.Int
@@ -12,19 +14,31 @@ and transform_type = function
 and transform_arg {Ast.name=n; Ast.ty=t} =
   {Cast.name=n; Cast.ty=transform_type(t)}
 
+and transform_stm_ctx ctx = function
+  | Ast.VarDec(n,ty,v) as vardec -> transform_stm vardec
+  | Ast.Assign(n,v) as a -> transform_stm a
+  | Ast.If _ -> raise (TransformError "If transform not implemented")
+  | Ast.For(n,l,h,b) as f -> transform_stm f
+  | Ast.Return _ -> raise (TransformError "Return transform not implemented")
+
 and transform_stm = function
   | Ast.VarDec(n,ty,v) ->
     let ty' = transform_type(ty) in
     let v' = transform_expr(v) in
-    Cast.VarDec(n,ty',v')
-  | Ast.Assign(n,v) -> Cast.Assign(n,transform_expr(v))
+    [Cast.VarDec(n,ty',v')]
+  | Ast.Assign(n,v) -> [Cast.Assign(n,transform_expr(v))]
   | Ast.If _ -> raise (TransformError "If transform not implemented")
   | Ast.For(n,l,h,b) ->
     let l' = transform_primitive l in
     let h' = transform_primitive h in
-    let b' = List.map transform_stm b in
-    Cast.For(n,l',h',b')
-  | Ast.Return _ -> raise (TransformError "Return transform not implemented")
+    let b' = List.flatten(List.map transform_stm b) in
+    [Cast.For(n,l',h',b')]
+  | Ast.Return e ->
+    let rset = Cast.Primitive(Cast.Number Int32.max_int) in
+    let bnot = Cast.UnOp(Cast.BitNot,Cast.VarExp "rset") in
+    let bitand = Cast.BinOp(Cast.BitAnd, transform_expr e, bnot) in
+    let bitor = Cast.BinOp(Cast.BitOr,Cast.VarExp("rval"),bitand) in
+    [Cast.Assign("rval", bitor); Cast.Assign("rvset",rset)]
 
 and transform_expr = function
   | Ast.VarExp s -> Cast.VarExp s
@@ -43,7 +57,7 @@ and transform_primitive = function
   | Ast.Number n -> Cast.Number (Int32.of_int n)
   | Ast.Boolean true -> Cast.Number Int32.max_int
   | Ast.Boolean false -> Cast.Number (Int32.of_int 0)
-  | Ast.ByteArray s -> raise (TransformError "Not implemented")
+  | Ast.ByteArray s -> Cast.ByteArray s
 
 and transform_unop = function
   | Ast.B_Not -> Cast.BitNot
@@ -59,5 +73,5 @@ and transform_fdec = function
   | Ast.FunctionDec(name,args,rt,body) ->
     let args' = List.map transform_arg args in
     let rt' = transform_type(rt) in
-    let body' = List.map transform_stm body in
-    Cast.FunctionDec(name,args',rt',body',Cast.VarExp("TODO:GET RETURN VALUE"))
+    let body' = List.flatten(List.map transform_stm body) in
+    Cast.FunctionDec(name,args',rt',body',Cast.VarExp("rval"))

@@ -1,13 +1,12 @@
 open Llvm
-open Ast
 
 exception Error of string
 
 type stdlib_desc =
-  {name:string; ret_ty:ctype; args_ty:ctype list}
+  {name:string; ret_ty:Ast.ctype; args_ty:Ast.ctype list}
 
 let stdlib_funs = [
-  {name="printf"; ret_ty=Int; args_ty=[ByteArr]}
+  {name="printf"; ret_ty=Ast.Int; args_ty=[Ast.ByteArr]}
 ]
 
 let codegen_stdlib ctx m = function
