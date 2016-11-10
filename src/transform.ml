@@ -40,9 +40,9 @@ and transform_expr = function
     Cast.CallExp(n,args')
 
 and transform_primitive = function
-  | Ast.Number n -> Cast.Number n
-  | Ast.Boolean true -> Cast.Number max_int
-  | Ast.Boolean false -> Cast.Number 0
+  | Ast.Number n -> Cast.Number (Int32.of_int n)
+  | Ast.Boolean true -> Cast.Number Int32.max_int
+  | Ast.Boolean false -> Cast.Number (Int32.of_int 0)
   | Ast.ByteArray s -> raise (TransformError "Not implemented")
 
 and transform_unop = function

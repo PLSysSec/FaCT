@@ -16,7 +16,7 @@ and unop =
   | BitNot
 
 and primitive =
-  | Number of int
+  | Number of int32
   | ByteArray of string
 
 and expr =
