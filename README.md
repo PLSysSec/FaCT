@@ -30,13 +30,6 @@ Finally, use the ```clean``` command to remove all the old temporary files. This
 7. compile the program -> ```ocamlbuild -tag bin_annot -I src -I test -use-ocamlfind -pkgs llvm,oUnit main.byte```
 8. execute the program -> ```.main.byte```
 
-#### Run Main
-In addition to tests, there is a main script. This contains a large AST to compile, and integrates all of the pieces of the compiler.
-
-1. ```ocamlbuild -tag bin_annot -I src -I test -use-ocamlfind -pkgs llvm,oUnit main.byte```
-2. ```./main.byte```
-3. Execute the produced LLVM IR. ```lli out.ll```
-
 #### Setting up a custom utop
 
 For some reason, utop doesn't like working with LLVM. Fortunately, this is an easy fix.
