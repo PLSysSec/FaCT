@@ -10,6 +10,9 @@
 7. Link C and constantc programs ```./constantc.byte harness```
 8. Run C program! ```./final```
 
+Alternatively, you can use the ```all``` command to compile, link, and run all the steps in between.
+
+Finally, use the ```clean``` command to remove all the old temporary files. This is necessary in order to recompile the constantc compiler.
 
 #### Instructions for OS X
 
