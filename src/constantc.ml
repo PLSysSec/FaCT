@@ -1,4 +1,4 @@
-open Codegen2
+open Codegen
 open Ast
 open Env
 open Typecheck
@@ -6,8 +6,9 @@ open Transform
 
 let dec = VarDec("x", Int, Primitive(Number 666))
 let assign = Assign("x", Primitive(Number 10))
-let ret = Return(VarExp "x")
-let prgm2 = FunctionDec("get10", [], Int, [dec;assign;ret])
+let dec' = VarDec("x2", Int, Primitive(Number 100))
+let ret = Return(VarExp "x2")
+let prgm2 = FunctionDec("get10", [], Int, [dec;dec';assign;ret])
 
 let run_command c args =
   let a  = Unix.fork () in
@@ -34,12 +35,14 @@ let run = (fun () -> run_command "lli" [|"lli"; "out.ll"|])
 let link = (fun () -> run_command "llvm-as" [|"llvm-as"; "out.ll"|])
 let assemble = (fun () -> run_command "llc" [|"llc"; "out.bc"|])
 let share = (fun () -> run_command "clang" [|"clang"; "-c"; "out.s"|])
+let compile_harness = (fun () -> run_command "gcc" [|"gcc"; "-c"; "harness.c"|])
 let harness =
   (fun () -> run_command "gcc" [|"gcc"; "-o"; "final"; "harness.o"; "out.o"|])
 let clean = (fun () ->
-    run_command "rm" [|"rm"; "out.ll"; "out.bc"; "out.o"; "out.s"; "final"|])
+    run_command "rm"
+      [|"rm"; "out.ll"; "out.bc"; "out.o"; "out.s"; "final"; "harness.o"|])
 
-let commands = [compile'; run; link; assemble; share; harness;]
+let commands = [compile'; run; link; assemble; share; compile_harness; harness;]
 
 let _ =
   match Sys.argv with
