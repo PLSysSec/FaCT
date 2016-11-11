@@ -35,10 +35,15 @@ and transform_stm = function
     [Cast.For(n,l',h',b')]
   | Ast.Return e ->
     let rset = Cast.Primitive(Cast.Number Int32.max_int) in
+    let bnot = Cast.BinOp(Cast.Plus,Primitive(Number (Int32.of_int 10)),Cast.VarExp("x")) in
+    []
+    (*
+
     let bnot = Cast.UnOp(Cast.BitNot,Cast.VarExp "rset") in
     let bitand = Cast.BinOp(Cast.BitAnd, transform_expr e, bnot) in
     let bitor = Cast.BinOp(Cast.BitOr,Cast.VarExp("rval"),bitand) in
-    [Cast.Assign("rval", bitor); Cast.Assign("rvset",rset)]
+    [Cast.Assign("rval", bitor); Cast.Assign("rset",rset)]
+    *)
 
 and transform_expr = function
   | Ast.VarExp s -> Cast.VarExp s
@@ -74,4 +79,8 @@ and transform_fdec = function
     let args' = List.map transform_arg args in
     let rt' = transform_type(rt) in
     let body' = List.flatten(List.map transform_stm body) in
-    Cast.FunctionDec(name,args',rt',body',Cast.VarExp("rval"))
+    let zero = Int32.of_int 0 in
+    let rval = Cast.VarDec("rval",Cast.Int,Cast.Primitive(Cast.Number zero)) in
+    let rset = Cast.VarDec("rset",Cast.Int,Cast.Primitive(Cast.Number zero)) in
+    let body'' = [rval]@[rset]@body' in
+    Cast.FunctionDec(name,args',rt',body'',Cast.VarExp("rval"))

@@ -14,7 +14,7 @@ let codegen ctx m =
  * is used for mutable variables etc. *)
 let create_entry_block_alloca the_function var_name =
   let b' = builder_at ctx (instr_begin (entry_block the_function)) in
-  build_alloca (double_type ctx) var_name b' in
+  build_alloca (i32_type ctx) var_name b' in
 
   let rec codegen_module = function
     | CModule f -> let _ = List.map codegen_fdec f in ()
@@ -35,8 +35,11 @@ let create_entry_block_alloca the_function var_name =
                   (params the_function);
       let bb = append_block ctx "entry" the_function in
       let _ = position_at_end bb b in
+      let printstm = (fun s -> Format.printf "stm:\t%s\n" (Cast.show_stm s)) in
+      let _ = List.map printstm body in
       let _ = List.map codegen_stm body in
-      let _ = build_ret (codegen_expr ret) b in
+      let ret' = (codegen_expr ret) in
+      let _ = build_ret ret' b in
       let _ = Llvm_analysis.assert_valid_function the_function in
       the_function
 
@@ -45,37 +48,45 @@ let create_entry_block_alloca the_function var_name =
     | ByteArray str -> build_global_stringptr str "" b
 
   and codegen_unop op e =
-    match op with
-    | BitNot -> build_neg (codegen_expr e) "nottmp" b
+    let a = match op with
+      | BitNot -> const_not (codegen_expr e) in
+    print_string "yep";
+    a
 
   and codegen_binop op e e' =
+    print_string "\n\nbinop\n";
+    let _ = Format.printf "LEFT:\t%s\n" (Cast.show_expr e) in
+    let _ = Format.printf "RIGHT:\t%s\n" (Cast.show_expr e') in
     let lhs = (codegen_expr e) in
     let rhs = (codegen_expr e') in
+    print_string "geargniergbioergnioer\n\n";
     begin
       match op with
       | Plus -> build_add lhs rhs "addtmp" b
       | Minus -> build_sub lhs rhs "subtmp" b
       | GT -> build_icmp Icmp.Ugt lhs rhs "cmptmp" b
-      | BitAnd -> build_and lhs rhs "andtmp" b
-      | BitOr -> build_or lhs rhs "ortmp" b
+      | BitAnd -> const_and lhs rhs
+      | BitOr -> const_or lhs rhs
       | _ -> raise (Error "not implemented")
     end
 
   and codegen_expr = function
     | VarExp v ->
-      (try Hashtbl.find named_values v with
-       | Not_found -> raise (Error ("Unknown variable:\t" ^ v)))
+      let v' = (try Hashtbl.find named_values v with
+          | Not_found -> raise (Error ("Unknown variable: " ^ v))) in
+      build_load v' v b
     | UnOp(op,e) -> codegen_unop op e
     | BinOp(op,e,e') -> codegen_binop op e e'
     | Primitive p -> codegen_prim p
     | CallExp(callee, args) ->
+      print_string ("CALLING\t" ^ callee ^ "\n");
       let callee' =
         (match lookup_function callee m with
         | Some callee -> callee
         | None -> let _ = (codegen_stdlib ctx m callee) in
           match lookup_function callee m with
           | Some callee -> callee
-          | None -> raise (Error ("Unknown function referenced:\t" ^ callee)))
+          | None -> raise (Error ("Unknown function referenced: " ^ callee)))
           in
         let params = params callee' in
         if Array.length params == List.length args then () else
@@ -88,11 +99,18 @@ let create_entry_block_alloca the_function var_name =
 
   and codegen_stm = function
     | For _ -> raise (NotImplemented "Loops not implemented")
-    | Assign(n,e) -> raise (NotImplemented "Mutation not implemented yet")
+    | Assign(n,e) ->
+      let v = (try Hashtbl.find named_values n with
+          | Not_found ->
+            print_string "failedddddd\n\n"; raise (Error ("Unknown variable: " ^ n))) in
+      let _ = print_string ("\nstoring:\t" ^ n ^ "\n") in
+      ignore(build_store (codegen_expr e) v b)
+
     | VarDec(n,_,e) ->
-      let e' = codegen_expr e in
-      set_value_name n e';
-      Hashtbl.add named_values n e';
-      e'
+      let init_val = codegen_expr e in
+      let alloca = build_alloca (i32_type ctx) n b in
+      ignore(build_store init_val alloca b);
+      Hashtbl.add named_values n alloca;
+      ()
 
   in codegen_module

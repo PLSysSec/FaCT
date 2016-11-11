@@ -77,7 +77,9 @@ and tc_stm fn_ty venv = function
     let expr_ty = tc_expr venv expr in
     Hashtbl.add venv name (VarEntry { v_ty=unify ty expr_ty })
   | Assign(name,expr) ->
-    (match Hashtbl.find venv name with
+    let v = try Hashtbl.find venv name with
+      | Not_found -> raise (VariableNotDefined(name)) in
+    (match v with
      | VarEntry { v_ty=ty } ->
        let _ = unify ty (tc_expr venv expr) in ()
      | _ -> raise (VariableNotDefined(name)))
