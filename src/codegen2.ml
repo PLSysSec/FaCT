@@ -49,7 +49,7 @@ let create_entry_block_alloca the_function var_name =
 
   and codegen_unop op e =
     let a = match op with
-      | BitNot -> const_not (codegen_expr e) in
+      | BitNot -> build_not (codegen_expr e) "nottmp" b in
     print_string "yep";
     a
 
@@ -65,8 +65,8 @@ let create_entry_block_alloca the_function var_name =
       | Plus -> build_add lhs rhs "addtmp" b
       | Minus -> build_sub lhs rhs "subtmp" b
       | GT -> build_icmp Icmp.Ugt lhs rhs "cmptmp" b
-      | BitAnd -> const_and lhs rhs
-      | BitOr -> const_or lhs rhs
+      | BitAnd -> build_and lhs rhs "andtmp" b
+      | BitOr -> build_or lhs rhs "ortmp" b
       | _ -> raise (Error "not implemented")
     end
 
