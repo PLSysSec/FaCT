@@ -37,3 +37,7 @@ _build/
 *.native
 *.ll
 llvmutop
+*.o
+*.bc
+*.s
+final
