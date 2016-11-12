@@ -1,5 +1,12 @@
 ## OCaml + LLVM
 
+### Semantic tests
+The semantic tests are written in C and call constantc functions. The purpose is to make sure constantc functions return the right value.
+
+1. ```ocamlbuild -tag bin_annot -tag debug -I src -I test -use-ocamlfind -tag thread -pkgs llvm,oUnit,core test_semant_driver.byte```
+2. ```./test_semant_driver.byte```
+3. ```./final```
+
 ### Link to a C library
 1. Compile constantc ```ocamlbuild -tag bin_annot -tag debug -I src -I test -use-ocamlfind -tag thread -pkgs llvm,oUnit,core constantc.byte```
 2. Compile a constantc program ```./constantc.byte compile```. A default program is provided right now. This will change in the future.

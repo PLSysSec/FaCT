@@ -1,8 +1,15 @@
-#include <stdio.h>
+#include "Unity/src/unity.h"
 
-int get10();
+int get100();
 
-int main() {
-  int a = get10();
-  printf("hello world\t%d\n",a);
+void test_get(void)
+{
+TEST_ASSERT_EQUAL(100, get100());
+}
+
+int main(void)
+{
+UNITY_BEGIN();
+RUN_TEST(test_get);
+return UNITY_END();
 }
