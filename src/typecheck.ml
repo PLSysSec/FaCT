@@ -18,11 +18,12 @@ exception TypeError of string
 exception UnknownType of string
 exception CallError of string
 
+(* order of this matters!!! i.e. (byte,int)->byte; (int,byte)->int; or viceversa *)
 let unify t t1 =
   match (t,t1) with
   | (Int,Int) -> Int
   | (Bool,Bool) -> Bool
-  | (ByteArr, ByteArr) -> ByteArr
+  | (ByteArr x, ByteArr y) when x = y -> (ByteArr x)
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with " ^ ty_to_string(t1)))
 
 let unify_fn (rt,arg_ts) ts =
@@ -41,7 +42,7 @@ and tc_binop = function
 
 and tc_prim = function
   | Number n -> Int
-  | ByteArray b -> ByteArr
+  | ByteArray s -> ByteArr (String.length s)
   | Boolean b -> Bool
 
 and tc_expr venv = function
@@ -52,6 +53,7 @@ and tc_expr venv = function
        | _ -> raise (VariableNotDefined(v))
      with
        Not_found -> raise (VariableNotDefined("Variable not defined:\t" ^ v)))
+  | ArrExp(v,i) -> Int
   | Unop(op,expr) ->
     let op_ty = tc_unop op in
     let expr_ty = tc_expr venv expr in
@@ -82,6 +84,11 @@ and tc_stm fn_ty venv = function
     (match v with
      | VarEntry { v_ty=ty } ->
        let _ = unify ty (tc_expr venv expr) in ()
+     | _ -> raise (VariableNotDefined(name)))
+  | ArrAssign(name,index,expr) ->
+    (match Hashtbl.find venv name with
+     | VarEntry { v_ty=(ByteArr x) } ->
+       let _ = unify Int (tc_expr venv expr) in () (*TODO (maybz): use ignore instead of let*)
      | _ -> raise (VariableNotDefined(name)))
   | If(cond,then',else') ->
     let _ = unify (tc_expr venv cond) Bool in

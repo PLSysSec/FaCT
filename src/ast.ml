@@ -6,19 +6,21 @@ and fdec = FunctionDec of string * param list * ctype * stm list
 and ctype =
   | Int
   | Bool
-  | ByteArr
+  | ByteArr of int
 
 and param = { name: string; ty: ctype }
 
 and stm =
   | VarDec of string * ctype * expr
   | Assign of string * expr
+  | ArrAssign of string * int * expr
   | If of expr * stm list * stm list
   | For of string * primitive * primitive * stm list (* TODO typecheck primitives: Number only *)
   | Return of expr
 
 and expr =
   | VarExp of string
+  | ArrExp of string * int (* name of array, index *)
   | Unop of unop * expr
   | BinOp of binop * expr * expr
   | Primitive of primitive
@@ -35,11 +37,10 @@ and binop =
   | B_Or
 
 and primitive = Number of int
-              | ByteArray of string
               | Boolean of bool
-
+              | ByteArray of string
 
 let ty_to_string = function
   | Int -> "Int"
   | Bool -> "Bool"
-  | ByteArr -> "ByteArr"
+  | ByteArr _ -> "ByteArr"
