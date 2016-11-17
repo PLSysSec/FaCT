@@ -93,9 +93,12 @@ let codegen ctx m =
         | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
       ignore(build_store (codegen_expr e) v b)
     | ArrAssign(n,i,e) -> raise (NotImplemented "ArrAssign not implemented")
-      (*let v = (try Hashtbl.find named_values n with
+      (*
+      let arr = (try Hashtbl.find named_values n with
         | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
-      ignore(build_store (codegen_expr e) v b)*)
+      let elementptr = const_gep (const_null (pointer_type i8_type)) [|const_int i32_type 1|]
+      ignore(build_store (codegen_expr e) arr b)
+      *)
     | VarDec(n,t,e) ->
       let init_val = codegen_expr e in
       (match t with
@@ -104,7 +107,7 @@ let codegen ctx m =
         let alloca = build_array_alloca (i8_type ctx) len32 n b in
         ignore(build_store init_val alloca b); (*TODO: test if this actually initializes the array *)
         Hashtbl.add named_values n alloca; (*TODO: move duplicate lines between this and match branch below to after the match *)
-      | _ ->
+      | Int ->
         let alloca = build_alloca (i32_type ctx) n b in
         ignore(build_store init_val alloca b);
         Hashtbl.add named_values n alloca;
