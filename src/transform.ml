@@ -9,7 +9,7 @@ let rec transform = function
 and transform_type = function
   | Ast.Int -> Cast.Int
   | Ast.Bool -> Cast.Int
-  | Ast.ByteArr -> raise (TransformError "Cannot convert ByteArr type")
+  | Ast.ByteArr _ -> raise (TransformError "Cannot convert ByteArr type")
 
 and transform_arg {Ast.name=n; Ast.ty=t} =
   {Cast.name=n; Cast.ty=transform_type(t)}
@@ -17,6 +17,7 @@ and transform_arg {Ast.name=n; Ast.ty=t} =
 and transform_stm_ctx ctx = function
   | Ast.VarDec(n,ty,v) as vardec -> transform_stm vardec
   | Ast.Assign(n,v) as a -> transform_stm a
+  | Ast.ArrAssign(n,i,v) as aa -> transform_stm aa
   | Ast.If _ -> raise (TransformError "If transform not implemented")
   | Ast.For(n,l,h,b) as f -> transform_stm f
   | Ast.Return _ -> raise (TransformError "Return transform not implemented")
@@ -27,6 +28,7 @@ and transform_stm = function
     let v' = transform_expr(v) in
     [Cast.VarDec(n,ty',v')]
   | Ast.Assign(n,v) -> [Cast.Assign(n,transform_expr(v))]
+  | Ast.ArrAssign(n,i,v) -> raise (TransformError "ArrAssign transform not implemented")
   | Ast.If _ -> raise (TransformError "If transform not implemented")
   | Ast.For(n,l,h,b) ->
     let l' = transform_primitive l in
@@ -42,6 +44,7 @@ and transform_stm = function
 
 and transform_expr = function
   | Ast.VarExp s -> Cast.VarExp s
+  | Ast.ArrExp(s,i) -> raise (TransformError "ArrExp transform not implemented")
   | Ast.Unop(u,e) -> Cast.UnOp(transform_unop(u),transform_expr(e))
   | Ast.BinOp(b,e1,e2) ->
     let b' = transform_binop b in
