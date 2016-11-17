@@ -59,8 +59,12 @@ let codegen ctx m =
   and codegen_expr = function
     | VarExp v ->
       let v' = (try Hashtbl.find named_values v with
-          | Not_found -> raise (Error ("Unknown variable: " ^ v))) in
+        | Not_found -> raise (Error ("Unknown variable: " ^ v))) in
       build_load v' v b
+    | ArrExp(v,i) -> raise (NotImplemented "ArrExp not implemented")
+      (*let v' = (try Hashtbl.find named_values v with
+        | Not_found -> raise (Error ("Unknown variable: " ^ v))) in
+      build_load v' v b*)
     | UnOp(op,e) -> codegen_unop op e
     | BinOp(op,e,e') -> codegen_binop op e e'
     | Primitive p -> codegen_prim p
@@ -86,9 +90,12 @@ let codegen ctx m =
     | For _ -> raise (NotImplemented "Loops not implemented")
     | Assign(n,e) ->
       let v = (try Hashtbl.find named_values n with
-          | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
+        | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
       ignore(build_store (codegen_expr e) v b)
-
+    | ArrAssign(n,i,e) -> raise (NotImplemented "ArrAssign not implemented")
+      (*let v = (try Hashtbl.find named_values n with
+        | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
+      ignore(build_store (codegen_expr e) v b)*)
     | VarDec(n,_,e) ->
       let init_val = codegen_expr e in
       let alloca = build_alloca (i32_type ctx) n b in
