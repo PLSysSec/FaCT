@@ -37,7 +37,7 @@ let codegen ctx m =
 
   and codegen_prim = function
     | Number n -> const_int (i32_type ctx) (Int32.to_int n)
-    | ByteArray str -> build_global_stringptr str "" b
+    | ByteArray str -> const_string ctx str
 
   and codegen_unop op e =
     match op with
@@ -97,14 +97,17 @@ let codegen ctx m =
         | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
       ignore(build_store (codegen_expr e) v b)*)
     | VarDec(n,t,e) ->
+      let init_val = codegen_expr e in
       (match t with
-      | ByteArr s -> raise (NotImplemented "ByteArr declaration not implemented")
-      | _ -> raise (NotImplemented "Non-ByteArr declaration not implemented")
-        (*let init_val = codegen_expr e in
+      | ByteArr len ->
+        let len32 = const_int (i32_type ctx) len in (* TODO: log base 2 ceiling thing to bound the size *)
+        let alloca = build_array_alloca (i8_type ctx) len32 n b in
+        ignore(build_store init_val alloca b); (*TODO: test if this actually initializes the array *)
+        Hashtbl.add named_values n alloca; (*TODO: move duplicate lines between this and match branch below to after the match *)
+      | _ ->
         let alloca = build_alloca (i32_type ctx) n b in
         ignore(build_store init_val alloca b);
-        Hashtbl.add named_values n alloca;*)
+        Hashtbl.add named_values n alloca;
       )
-      ()
 
   in codegen_module
