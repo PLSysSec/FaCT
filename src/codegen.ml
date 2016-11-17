@@ -57,14 +57,14 @@ let codegen ctx m =
     end
 
   and codegen_expr = function
-    | VarExp v ->
-      let v' = (try Hashtbl.find named_values v with
-        | Not_found -> raise (Error ("Unknown variable: " ^ v))) in
-      build_load v' v b
-    | ArrExp(v,i) -> raise (NotImplemented "ArrExp not implemented")
-      (*let v' = (try Hashtbl.find named_values v with
-        | Not_found -> raise (Error ("Unknown variable: " ^ v))) in
-      build_load v' v b*)
+    | VarExp varname ->
+      let varval = (try Hashtbl.find named_values varname with
+        | Not_found -> raise (Error ("Unknown variable: " ^ varname))) in
+      build_load varval varname b
+    | ArrExp(arrname,i) -> raise (NotImplemented "ArrExp not implemented")
+      (*let arrval = (try Hashtbl.find named_values arrname with
+        | Not_found -> raise (Error ("Unknown variable: " ^ arrname))) in
+      build_load arrval arrname b*)
     | UnOp(op,e) -> codegen_unop op e
     | BinOp(op,e,e') -> codegen_binop op e e'
     | Primitive p -> codegen_prim p
@@ -96,11 +96,15 @@ let codegen ctx m =
       (*let v = (try Hashtbl.find named_values n with
         | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
       ignore(build_store (codegen_expr e) v b)*)
-    | VarDec(n,_,e) ->
-      let init_val = codegen_expr e in
-      let alloca = build_alloca (i32_type ctx) n b in
-      ignore(build_store init_val alloca b);
-      Hashtbl.add named_values n alloca;
+    | VarDec(n,t,e) ->
+      (match t with
+      | ByteArr s -> raise (NotImplemented "ByteArr declaration not implemented")
+      | _ -> raise (NotImplemented "Non-ByteArr declaration not implemented")
+        (*let init_val = codegen_expr e in
+        let alloca = build_alloca (i32_type ctx) n b in
+        ignore(build_store init_val alloca b);
+        Hashtbl.add named_values n alloca;*)
+      )
       ()
 
   in codegen_module
