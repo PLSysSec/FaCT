@@ -9,7 +9,7 @@ let rec transform = function
 and transform_type = function
   | Ast.Int -> Cast.Int
   | Ast.Bool -> Cast.Int
-  | Ast.ByteArr _ -> raise (TransformError "Cannot convert ByteArr type")
+  | Ast.ByteArr s -> Cast.ByteArr s
 
 and transform_arg {Ast.name=n; Ast.ty=t} =
   {Cast.name=n; Cast.ty=transform_type(t)}
