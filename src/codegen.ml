@@ -40,7 +40,8 @@ let codegen ctx m =
     | ByteArray str ->
       let arr = Core.Std.String.to_array str in
       let arr' = Array.map (fun i -> const_int (i32_type ctx) (Core.Std.Char.to_int i)) arr in
-      const_vector arr'
+      let arr_type = array_type (i32_type ctx) (String.length str) in
+      const_array arr_type arr'
 
   and codegen_unop op e =
     match op with
@@ -69,7 +70,7 @@ let codegen ctx m =
         | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
       let i_t = const_int (i32_type ctx) in
       let p = build_gep arr_val [| (i_t 0); (i_t i)|] "ptr" b in
-      build_load p "finalptr" b
+      build_load p "p" b
     | UnOp(op,e) -> codegen_unop op e
     | BinOp(op,e,e') -> codegen_binop op e e'
     | Primitive p -> codegen_prim p
@@ -101,10 +102,11 @@ let codegen ctx m =
     | VarDec(n,t,e) ->
       (match t with
        | ByteArr len ->
+         let arr_type = array_type (i32_type ctx) len in
          let vec = codegen_expr e in
-         let alloca = build_alloca (vector_type (i32_type ctx) len) n b in
-         ignore(build_store vec alloca b);
-         Hashtbl.add named_values n alloca;
+         let alloca' = build_alloca arr_type n b in
+         ignore(build_store vec alloca' b);
+         Hashtbl.add named_values n alloca';
       | Int ->
         let init_val = codegen_expr e in
         let alloca = build_alloca (i32_type ctx) n b in
