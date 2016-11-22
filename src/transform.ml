@@ -44,7 +44,7 @@ and transform_stm = function
 
 and transform_expr = function
   | Ast.VarExp s -> Cast.VarExp s
-  | Ast.ArrExp(s,i) -> raise (TransformError "ArrExp transform not implemented")
+  | Ast.ArrExp(s,i) -> Cast.ArrExp(s,i)
   | Ast.Unop(u,e) -> Cast.UnOp(transform_unop(u),transform_expr(e))
   | Ast.BinOp(b,e1,e2) ->
     let b' = transform_binop b in

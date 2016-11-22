@@ -9,9 +9,9 @@ let ret = Return(VarExp "x2")
 let prgm1 = FunctionDec("get100", [], Int, [dec;dec';assign;ret])
 
 (* Program 2 *)
-let bytearrdec = VarDec("arr", ByteArr(1), Primitive(ByteArray "a"))
-let ret' = Return(Primitive(Number 0))
-let prgm2 = FunctionDec("getByteArr", [], Int, [bytearrdec;ret'])
+let bytearrdec = VarDec("arr", ByteArr(11), Primitive(ByteArray "hello world"))
+let ret' = Return(ArrExp("arr", 4))
+let prgm2 = FunctionDec("getByteArrIndex", [], Int, [bytearrdec;ret'])
 
 (* Module 1 *)
 let m1 = CModule [prgm1;prgm2]

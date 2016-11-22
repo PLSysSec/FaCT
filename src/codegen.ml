@@ -37,7 +37,10 @@ let codegen ctx m =
 
   and codegen_prim = function
     | Number n -> const_int (i32_type ctx) (Int32.to_int n)
-    | ByteArray str -> const_string ctx str
+    | ByteArray str ->
+      let arr = Core.Std.String.to_array str in
+      let arr' = Array.map (fun i -> const_int (i32_type ctx) (Core.Std.Char.to_int i)) arr in
+      const_vector arr'
 
   and codegen_unop op e =
     match op with
@@ -57,14 +60,16 @@ let codegen ctx m =
     end
 
   and codegen_expr = function
-    | VarExp varname ->
-      let varval = (try Hashtbl.find named_values varname with
-        | Not_found -> raise (Error ("Unknown variable: " ^ varname))) in
-      build_load varval varname b
-    | ArrExp(arrname,i) -> raise (NotImplemented "ArrExp not implemented")
-      (*let arrval = (try Hashtbl.find named_values arrname with
-        | Not_found -> raise (Error ("Unknown variable: " ^ arrname))) in
-      build_load arrval arrname b*)
+    | VarExp n ->
+      let varval = (try Hashtbl.find named_values n with
+        | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
+      build_load varval n b
+    | ArrExp(n,i) ->
+      let arr_val  = (try Hashtbl.find named_values n with
+        | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
+      let i_t = const_int (i32_type ctx) in
+      let p = build_gep arr_val [| (i_t 0); (i_t i)|] "ptr" b in
+      build_load p "finalptr" b
     | UnOp(op,e) -> codegen_unop op e
     | BinOp(op,e,e') -> codegen_binop op e e'
     | Primitive p -> codegen_prim p
@@ -93,21 +98,15 @@ let codegen ctx m =
         | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
       ignore(build_store (codegen_expr e) v b)
     | ArrAssign(n,i,e) -> raise (NotImplemented "ArrAssign not implemented")
-      (*
-      let arr = (try Hashtbl.find named_values n with
-        | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
-      let elementptr = const_gep (const_null (pointer_type i8_type)) [|const_int i32_type 1|]
-      ignore(build_store (codegen_expr e) arr b)
-      *)
     | VarDec(n,t,e) ->
-      let init_val = codegen_expr e in
       (match t with
-      | ByteArr len ->
-        let len32 = const_int (i32_type ctx) len in (* TODO: log base 2 ceiling thing to bound the size *)
-        let alloca = build_array_alloca (i8_type ctx) len32 n b in
-        ignore(build_store init_val alloca b); (*TODO: test if this actually initializes the array *)
-        Hashtbl.add named_values n alloca; (*TODO: move duplicate lines between this and match branch below to after the match *)
+       | ByteArr len ->
+         let vec = codegen_expr e in
+         let alloca = build_alloca (vector_type (i32_type ctx) len) n b in
+         ignore(build_store vec alloca b);
+         Hashtbl.add named_values n alloca;
       | Int ->
+        let init_val = codegen_expr e in
         let alloca = build_alloca (i32_type ctx) n b in
         ignore(build_store init_val alloca b);
         Hashtbl.add named_values n alloca;
