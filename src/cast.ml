@@ -19,8 +19,8 @@ and unop =
 [@@deriving show]
 
 and primitive =
-  | Number of int32
-  | ByteArray of string
+  | Number of int
+  | ByteArray of int list
 [@@deriving show]
 
 and expr =

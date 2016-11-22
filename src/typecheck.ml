@@ -42,7 +42,7 @@ and tc_binop = function
 
 and tc_prim = function
   | Number n -> Int
-  | ByteArray s -> ByteArr (String.length s)
+  | ByteArray s -> ByteArr (List.length s)
   | Boolean b -> Bool
 
 and tc_expr venv = function

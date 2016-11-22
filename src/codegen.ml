@@ -36,11 +36,11 @@ let codegen ctx m =
       the_function
 
   and codegen_prim = function
-    | Number n -> const_int (i32_type ctx) (Int32.to_int n)
-    | ByteArray str ->
-      let arr = Core.Std.String.to_array str in
-      let arr' = Array.map (fun i -> const_int (i32_type ctx) (Core.Std.Char.to_int i)) arr in
-      let arr_type = array_type (i32_type ctx) (String.length str) in
+    | Number n -> const_int (i32_type ctx) n
+    | ByteArray l ->
+      let arr = Array.of_list l in
+      let arr' = Array.map (const_int (i32_type ctx)) arr in
+      let arr_type = array_type (i32_type ctx) (List.length l) in
       const_array arr_type arr'
 
   and codegen_unop op e =
@@ -98,7 +98,13 @@ let codegen ctx m =
       let v = (try Hashtbl.find named_values n with
         | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
       ignore(build_store (codegen_expr e) v b)
-    | ArrAssign(n,i,e) -> raise (NotImplemented "ArrAssign not implemented")
+    | ArrAssign(n,i,e) ->
+      let v = (try Hashtbl.find named_values n with
+        | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
+      let e' = codegen_expr e in
+      let i_t = const_int (i32_type ctx) in
+      let p = build_gep v [| (i_t 0); (i_t i)|] "ptr" b in
+      ignore(build_store e' p b)
     | VarDec(n,t,e) ->
       (match t with
        | ByteArr len ->

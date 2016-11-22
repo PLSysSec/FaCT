@@ -28,7 +28,7 @@ and transform_stm = function
     let v' = transform_expr(v) in
     [Cast.VarDec(n,ty',v')]
   | Ast.Assign(n,v) -> [Cast.Assign(n,transform_expr(v))]
-  | Ast.ArrAssign(n,i,v) -> raise (TransformError "ArrAssign transform not implemented")
+  | Ast.ArrAssign(n,i,v) -> [Cast.ArrAssign(n,i,(transform_expr v))]
   | Ast.If _ -> raise (TransformError "If transform not implemented")
   | Ast.For(n,l,h,b) ->
     let l' = transform_primitive l in
@@ -36,7 +36,7 @@ and transform_stm = function
     let b' = List.flatten(List.map transform_stm b) in
     [Cast.For(n,l',h',b')]
   | Ast.Return e ->
-    let rset = Cast.Primitive(Cast.Number Int32.max_int) in
+    let rset = Cast.Primitive(Cast.Number (Int32.to_int Int32.max_int)) in
     let bnot = Cast.UnOp(Cast.BitNot,Cast.VarExp "rset") in
     let bitand = Cast.BinOp(Cast.BitAnd, transform_expr e, bnot) in
     let bitor = Cast.BinOp(Cast.BitOr,Cast.VarExp("rval"),bitand) in
@@ -57,9 +57,9 @@ and transform_expr = function
     Cast.CallExp(n,args')
 
 and transform_primitive = function
-  | Ast.Number n -> Cast.Number (Int32.of_int n)
-  | Ast.Boolean true -> Cast.Number Int32.max_int
-  | Ast.Boolean false -> Cast.Number (Int32.of_int 0)
+  | Ast.Number n -> Cast.Number n
+  | Ast.Boolean true -> Cast.Number (Int32.to_int Int32.max_int)
+  | Ast.Boolean false -> Cast.Number 0
   | Ast.ByteArray s -> Cast.ByteArray s
 
 and transform_unop = function
@@ -77,8 +77,7 @@ and transform_fdec = function
     let args' = List.map transform_arg args in
     let rt' = transform_type(rt) in
     let body' = List.flatten(List.map transform_stm body) in
-    let zero = Int32.of_int 0 in
-    let rval = Cast.VarDec("rval",Cast.Int,Cast.Primitive(Cast.Number zero)) in
-    let rset = Cast.VarDec("rset",Cast.Int,Cast.Primitive(Cast.Number zero)) in
+    let rval = Cast.VarDec("rval",Cast.Int,Cast.Primitive(Cast.Number 0)) in
+    let rset = Cast.VarDec("rset",Cast.Int,Cast.Primitive(Cast.Number 0)) in
     let body'' = [rval]@[rset]@body' in
     Cast.FunctionDec(name,args',rt',body'',Cast.VarExp("rval"))

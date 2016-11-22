@@ -38,7 +38,7 @@ and binop =
 
 and primitive = Number of int
               | Boolean of bool
-              | ByteArray of string
+              | ByteArray of int list
 
 let ty_to_string = function
   | Int -> "Int"
