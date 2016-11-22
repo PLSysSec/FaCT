@@ -1,0 +1,39 @@
+% minimal
+
+grammar
+v :: 'v_' ::= {{ com values }}
+  | c ::   :: const  {{ com constant }}
+
+e :: 'e_' ::= {{ com expressions }}
+  | {e binop e} :: :: op {{ com binary operation }}
+    {{ tex e \oplus e }}
+  | x :: :: str {{ com string }}
+  | v :: :: const {{ com constant }}
+  | f(e,e,...) :: :: funcapp {{ com function application }}
+
+s :: 's_' ::= {{ com statements }}
+  | x := e :: :: assign {{ com variable assignment }}
+  | def x := v :: :: vardec {{ com variable declaration }}
+  | for x from v1 to v2 in s :: :: loop {{ com for loop }}
+  | s1 ; s2 :: :: seq {{ com sequence }}
+  | skip :: :: skip {{ com skip }}
+  | return e :: :: ret {{ com return statement }}
+
+fdef :: 'fdef_' ::= {{ com function definitions }}
+  | fdef f(x1, x2, ...) in s :: :: fdef
+
+program :: 'program_' ::= {{ com program }}
+  | fdef1 ; fdef2 ; expose fdef :: :: fdefs {{ com list of fdefs }}
+
+defns
+  Jop :: '' ::=
+
+    defn
+    e -> e' ::  :: Seq :: ''       by
+
+    e -> e'
+    -------------------------- :: Defexpr
+    def x := e -> def x := e'
+
+    ---------------------------- :: Defskip
+    def x := v -> skip
