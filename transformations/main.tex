@@ -45,14 +45,14 @@
 \newcommand{\otte}{
 \ottrulehead{\ottnt{e}}{::=}{\ottcom{expressions}}\ottprodnewline
 \ottfirstprodline{|}{ e \oplus e }{}{}{}{\ottcom{binary operation}}\ottprodnewline
-\ottprodline{|}{\ottkw{x}}{}{}{}{\ottcom{string}}\ottprodnewline
-\ottprodline{|}{\ottnt{v}}{}{}{}{\ottcom{constant}}\ottprodnewline
+\ottprodline{|}{\ottkw{x}}{}{}{}{\ottcom{variable}}\ottprodnewline
+\ottprodline{|}{\ottnt{v}}{}{}{}{\ottcom{value (constant)}}\ottprodnewline
 \ottprodline{|}{\ottsym{f(e,e,...)}}{}{}{}{\ottcom{function application}}}
 
 \newcommand{\otts}{
 \ottrulehead{\ottnt{s}}{::=}{\ottcom{statements}}\ottprodnewline
 \ottfirstprodline{|}{\ottkw{x} \, \ottsym{:=}  \ottnt{e}}{}{}{}{\ottcom{variable assignment}}\ottprodnewline
-\ottprodline{|}{\ottkw{def} \, \ottkw{x} \, \ottsym{:=}  \ottnt{v}}{}{}{}{\ottcom{variable declaration}}\ottprodnewline
+\ottprodline{|}{\ottkw{def} \, \ottkw{x} \, \ottsym{:=}  \ottnt{e}}{}{}{}{\ottcom{variable declaration}}\ottprodnewline
 \ottprodline{|}{\ottkw{for} \, \ottkw{x} \, \ottkw{from} \, \ottnt{v_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{v_{{\mathrm{2}}}} \, \ottkw{in} \, \ottnt{s}}{}{}{}{\ottcom{for loop}}\ottprodnewline
 \ottprodline{|}{\ottnt{s_{{\mathrm{1}}}}  \ottsym{;}  \ottnt{s_{{\mathrm{2}}}}}{}{}{}{\ottcom{sequence}}\ottprodnewline
 \ottprodline{|}{\ottkw{skip}}{}{}{}{\ottcom{skip}}\ottprodnewline
@@ -76,29 +76,38 @@
 
 % defnss
 % defns Jop
-%% defn Seq
-\newcommand{\ottdruleDefexpr}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{e}  \ottsym{->}  \ottnt{e'}}%
+%% defn pure_reduce
+\newcommand{\ottdrulePrXXappCtx}[1]{\ottdrule[#1]{%
+\ottpremise{\ottnt{s_{{\mathrm{1}}}}  \longrightarrow  \ottnt{s'_{{\mathrm{1}}}}}%
 }{
-\texttt{\textcolor{red}{<<no parses (char 5):     d***ef x := e -> def x := e' >>}}}{%
-{\ottdrulename{Defexpr}}{}%
+\ottnt{s_{{\mathrm{1}}}}  \ottsym{;}  \ottnt{s_{{\mathrm{2}}}}  \longrightarrow  \ottnt{s'_{{\mathrm{1}}}}  \ottsym{;}  \ottnt{s_{{\mathrm{2}}}}}{%
+{\ottdrulename{Pr\_appCtx}}{}%
 }}
 
 
-\newcommand{\ottdruleDefskip}[1]{\ottdrule[#1]{%
+\newcommand{\ottdrulePrXXDefexpr}[1]{\ottdrule[#1]{%
+\ottpremise{\ottnt{s}  \longrightarrow  \ottnt{s'}}%
 }{
-\texttt{\textcolor{red}{<<no parses (char 5):     d***ef x := v -> skip >>}}}{%
-{\ottdrulename{Defskip}}{}%
+\ottkw{def} \, \ottkw{x} \, \ottsym{:=}  \ottnt{e}  \longrightarrow  \ottkw{def} \, \ottkw{x} \, \ottsym{:=}  \ottnt{e'}}{%
+{\ottdrulename{Pr\_Defexpr}}{}%
 }}
 
-\newcommand{\ottdefnSeq}[1]{\begin{ottdefnblock}[#1]{$\ottnt{e}  \ottsym{->}  \ottnt{e'}$}{}
-\ottusedrule{\ottdruleDefexpr{}}
-\ottusedrule{\ottdruleDefskip{}}
+
+\newcommand{\ottdrulePrXXDefskip}[1]{\ottdrule[#1]{%
+}{
+\ottkw{def} \, \ottkw{x} \, \ottsym{:=}  \ottnt{v}  \longrightarrow  \ottkw{skip}}{%
+{\ottdrulename{Pr\_Defskip}}{}%
+}}
+
+\newcommand{\ottdefnpureXXreduce}[1]{\begin{ottdefnblock}[#1]{$\ottnt{s_{{\mathrm{1}}}}  \longrightarrow  \ottnt{s_{{\mathrm{2}}}}$}{\ottcom{$\ottnt{s_{{\mathrm{1}}}}$ reduces to $\ottnt{s_{{\mathrm{2}}}}$}}
+\ottusedrule{\ottdrulePrXXappCtx{}}
+\ottusedrule{\ottdrulePrXXDefexpr{}}
+\ottusedrule{\ottdrulePrXXDefskip{}}
 \end{ottdefnblock}}
 
 
 \newcommand{\ottdefnsJop}{
-\ottdefnSeq{}}
+\ottdefnpureXXreduce{}}
 
 \newcommand{\ottdefnss}{
 \ottdefnsJop
@@ -112,7 +121,7 @@
 \ottall
 
 \begin{verbatim}
-Definition rules:        0 good    2 bad
-Definition rule clauses: 1 good    2 bad
+Definition rules:        3 good    0 bad
+Definition rule clauses: 5 good    0 bad
 \end{verbatim}
 \end{document}
