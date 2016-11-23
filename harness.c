@@ -1,10 +1,12 @@
 #include "Unity/src/unity.h"
+#include <stdlib.h>
 
 int get100();
 int getByteArrIndex();
 int setByteArrIndex();
 int mutateArray();
-//int mutateArray2();
+int mutateArray2();
+int identity();
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -24,8 +26,16 @@ void test_mutate_array(void) {
 }
 
 void test_mutate_array2(void) {
-  int myarr[5] = {1,2,3,4,5};
-  //TEST_ASSERT_EQUAL(4,mutateArray2(*myarr,4));
+  int myarr2[5] = {1,2,3,4,5};
+  int *i = malloc(sizeof(int));
+  *i = 444;
+  TEST_ASSERT_EQUAL(444,mutateArray2(myarr2,i));
+}
+
+void test_identity(void) {
+  int *i = malloc(sizeof(int));
+  *i = 1;
+  TEST_ASSERT_EQUAL(1,identity(i));
 }
 
 int main(void) {
@@ -34,6 +44,7 @@ int main(void) {
   RUN_TEST(test_get_index);
   RUN_TEST(test_set_index);
   RUN_TEST(test_mutate_array);
-  //RUN_TEST(test_mutate_array2);
+  RUN_TEST(test_mutate_array2);
+  RUN_TEST(test_identity);
   return UNITY_END();
 }

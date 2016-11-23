@@ -86,10 +86,13 @@ and tc_stm fn_ty venv = function
        let _ = unify ty (tc_expr venv expr) in ()
      | _ -> raise (VariableNotDefined(name)))
   | ArrAssign(name,index,expr) ->
-    (match Hashtbl.find venv name with
-     | VarEntry { v_ty=(ByteArr x) } ->
-       let _ = unify Int (tc_expr venv expr) in () (*TODO (maybz): use ignore instead of let*)
-     | _ -> raise (VariableNotDefined(name)))
+    (try
+      (match Hashtbl.find venv name with
+       | VarEntry { v_ty=(ByteArr x) } ->
+         let _ = unify Int (tc_expr venv expr) in () (*TODO (maybz): use ignore instead of let*)
+       | _ -> raise (VariableNotDefined(name)))
+    with
+      Not_found -> raise (VariableNotDefined(name)))
   | If(cond,then',else') ->
     let _ = unify (tc_expr venv cond) Bool in
     let _ = tc_stms fn_ty venv then' in

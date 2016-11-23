@@ -10,7 +10,6 @@ let prgm1 = FunctionDec("get100", [], Int, [dec;dec';assign;ret])
 
 (* Array Access *)
 let l = List.map (fun c -> Char.code c) ['h';'e';'l';'l';'o';' ';'w';'o';'r';'l';'d']
-
 let bytearrdec = VarDec("arr", ByteArr(11), Primitive(ByteArray l))
 let ret' = Return(ArrExp("arr", 4))
 let prgm2 = FunctionDec("getByteArrIndex", [], Int, [bytearrdec;ret'])
@@ -19,18 +18,24 @@ let prgm2 = FunctionDec("getByteArrIndex", [], Int, [bytearrdec;ret'])
 let assign = ArrAssign("arr",4,Primitive(Number 44))
 let prgm3 = FunctionDec("setByteArrIndex", [], Int, [bytearrdec;assign;ret'])
 
+(* Int arg *)
+let int_param = { name="my_int"; ty=Int }
+let ret''' = Return(VarExp "my_int")
+let prgm4 = FunctionDec("identity", [int_param], Int, [ret'''])
+
 (* Array arg and set *)
 let arr_param = { name="arr"; ty=ByteArr(5) }
-let prgm4 = FunctionDec("mutateArray", [arr_param], Int, [assign;ret'])
+let prgm5 = FunctionDec("mutateArray", [arr_param], Int, [assign;ret'])
 
 (* Complex array arg set *)
+let arr_param' = { name="arr2"; ty=ByteArr(5) }
 let val_param = { name="val"; ty=Int }
-let assign' = ArrAssign("arr",0,VarExp("val"))
-let prgm5 = FunctionDec("mutateArray2", [arr_param;val_param], Int, [assign';ret'])
-
+let assign' = ArrAssign("arr2",4,VarExp("val"))
+let ret'' = Return(ArrExp("arr2", 4))
+let prgm6 = FunctionDec("mutateArray2", [arr_param';val_param], Int, [assign';ret''])
 
 (* Module 1 *)
-let m1 = CModule [prgm1;prgm2;prgm3;prgm4]
+let m1 = CModule [prgm1;prgm2;prgm3;prgm4;prgm5;prgm6]
 
 (* List of modules to test *)
 let programs = [m1]

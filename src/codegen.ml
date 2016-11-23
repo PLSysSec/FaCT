@@ -17,8 +17,8 @@ let codegen ctx m =
     | FunctionDec(n,args,ty,body,ret) ->
       let arg_to_type { name=s; ty=t } =
         (match t with
-        | Int -> i32_type ctx
-        | ByteArr(n) -> pointer_type(array_type (i32_type ctx) n)) in
+         | Int -> pointer_type(i32_type ctx)
+         | ByteArr(n) -> pointer_type(array_type (i32_type ctx) n)) in
       let arg_types = List.map arg_to_type args in
       let arg_types' = Array.of_list arg_types in
       let ft = function_type (i32_type ctx) arg_types' in
