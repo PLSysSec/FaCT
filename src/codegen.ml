@@ -15,8 +15,13 @@ let codegen ctx m =
 
   and codegen_fdec = function
     | FunctionDec(n,args,ty,body,ret) ->
-      let doubles = Array.make (List.length args) (i32_type ctx) in
-      let ft = function_type (i32_type ctx) doubles in
+      let arg_to_type { name=s; ty=t } =
+        (match t with
+        | Int -> i32_type ctx
+        | ByteArr(n) -> pointer_type(array_type (i32_type ctx) n)) in
+      let arg_types = List.map arg_to_type args in
+      let arg_types' = Array.of_list arg_types in
+      let ft = function_type (i32_type ctx) arg_types' in
       let the_function =
         match lookup_function n m with
         | None -> declare_function n ft m
@@ -70,6 +75,7 @@ let codegen ctx m =
         | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
       let i_t = const_int (i32_type ctx) in
       let p = build_gep arr_val [| (i_t 0); (i_t i)|] "ptr" b in
+      (*build_extractvalue arr_val i "ptr" b*)
       build_load p "p" b
     | UnOp(op,e) -> codegen_unop op e
     | BinOp(op,e,e') -> codegen_binop op e e'
@@ -104,6 +110,8 @@ let codegen ctx m =
       let e' = codegen_expr e in
       let i_t = const_int (i32_type ctx) in
       let p = build_gep v [| (i_t 0); (i_t i)|] "ptr" b in
+
+      (*let _ = build_insertvalue v e' i "ptr" b in*)
       ignore(build_store e' p b)
     | VarDec(n,t,e) ->
       (match t with

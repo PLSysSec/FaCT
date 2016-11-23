@@ -19,8 +19,18 @@ let prgm2 = FunctionDec("getByteArrIndex", [], Int, [bytearrdec;ret'])
 let assign = ArrAssign("arr",4,Primitive(Number 44))
 let prgm3 = FunctionDec("setByteArrIndex", [], Int, [bytearrdec;assign;ret'])
 
+(* Array arg and set *)
+let arr_param = { name="arr"; ty=ByteArr(5) }
+let prgm4 = FunctionDec("mutateArray", [arr_param], Int, [assign;ret'])
+
+(* Complex array arg set *)
+let val_param = { name="val"; ty=Int }
+let assign' = ArrAssign("arr",0,VarExp("val"))
+let prgm5 = FunctionDec("mutateArray2", [arr_param;val_param], Int, [assign';ret'])
+
+
 (* Module 1 *)
-let m1 = CModule [prgm1;prgm2;prgm3]
+let m1 = CModule [prgm1;prgm2;prgm3;prgm4]
 
 (* List of modules to test *)
 let programs = [m1]
