@@ -105,6 +105,8 @@ and tc_stms fn_ty venv stms =
   let _ = List.map (tc_stm fn_ty venv) stms in ()
 
 and tc_fdec venv = function
+  | FunctionDec(_,_,ByteArr(_),_) ->
+    raise (TypeError "Functions cannot return a ByteArray")
   | FunctionDec(name,args,ty,body) ->
     let venv' = Hashtbl.copy venv in
     let args_ty = List.map (fun { name=n; ty=t } -> Hashtbl.add venv' n (VarEntry {v_ty=t}); t) args in
