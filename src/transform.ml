@@ -47,7 +47,7 @@ and transform_stm ctx = function
   | Ast.ArrAssign(n,i,v) ->
     let c = ctx_expr ctx in
     let v' = transform_expr(v) in
-    let assign_ok = b_and c (Cast.VarExp "rset") in
+    let assign_ok = b_and c (b_not (Cast.VarExp "rset")) in
     let newval = b_and v' assign_ok in
     let oldval = b_and (Cast.ArrExp(n,i)) (b_not assign_ok) in
     [Cast.ArrAssign(n,i,(b_or newval oldval))]
