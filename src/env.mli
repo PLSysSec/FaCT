@@ -1,7 +1,6 @@
-open Ast
 
-type ventry = { v_ty: constantc_type }
-type fentry = { f_ty: constantc_type; f_args: constantc_type list }
+type ventry = { v_ty: Ast.ctype }
+type fentry = { f_ty: Ast.ctype; f_args: Ast.ctype list }
 
 type entry =
   | VarEntry of ventry

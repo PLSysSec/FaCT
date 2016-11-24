@@ -1,0 +1,81 @@
+\documentclass{article}
+
+\usepackage[margin=1.0in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,mathrsfs}
+\usepackage{graphicx}
+\usepackage[super]{nth}
+\usepackage{xargs}
+\usepackage{changepage}
+\usepackage{thmtools}
+\usepackage[hidelinks]{hyperref}
+\usepackage{cleveref}
+
+%\numberwithin{equation}{section}
+
+\newcounter{problem}
+\declaretheorem[name=Lemma,refname={lemma,lemmas},Refname={Lemma,Lemmas},numberwithin=problem]{lemmax}
+
+\newcommand{\problemtitle}[1]{\stepcounter{problem}\begin{flushleft}{\bfseries #1
+}\end{flushleft}}
+\newcommand{\subproblemtitle}[1]{\begin{adjustwidth}{1 pc}{0pt}\begin{flushleft}{\bfseries #1}\end{flushleft}\end{adjustwidth}}
+
+\newenvironmentx{noproblem}[1]{\problemtitle{#1}}{}
+\newenvironmentx{subnoproblem}[1]{\subproblemtitle{#1}\begin{adjustwidth}{1 pc}{0pt}}{\end{adjustwidth}}
+
+\newenvironmentx{problem}[2][2=Proof]{\problemtitle{#1}\proof[#2]}{\qed}
+\newenvironmentx{subproblem}[2][2=Proof]{\subproblemtitle{#1}\begin{adjustwidth}{1 pc}{0pt}\proof[#2]}{\qed\end{adjustwidth}}
+
+\newenvironmentx{puzzle}[2][2=Solution]{\problemtitle{#1}\proof[#2]}{\qed}
+\newenvironmentx{subpuzzle}[2][2=Solution]{\subproblemtitle{#1}\begin{adjustwidth}{1 pc}{0pt}\proof[#2]}{\qed\end{adjustwidth}}
+
+\newenvironmentx{lemma}[1]{\begin{adjustwidth}{1 pc}{0pt}\begin{lemmax}#1\end{lemmax}\begin{proof}}{\end{proof}\end{adjustwidth}}
+
+\let\avec\vec
+\renewcommand{\vec}{\ensuremath{\mathbf}}
+\newcommand\norm[1]{\lVert #1 \rVert}
+%\newcommand\C{\ensuremath{\mathbb{C}}}
+\newcommand\M{\ensuremath{\mathbb{M}}}
+\newcommand\N{\ensuremath{\mathbb{N}}}
+\newcommand\Q{\ensuremath{\mathbb{Q}}}
+\newcommand\R{\ensuremath{\mathbb{R}}}
+\newcommand\Z{\ensuremath{\mathbb{Z}}}
+
+\newcommand{\epsi}{\varepsilon}
+\newcommand\A{\ensuremath{\mathcal{A}}}
+\newcommand\B{\ensuremath{\mathcal{B}}}
+\newcommand\C{\ensuremath{\mathcal{C}}}
+\newcommand\D{\ensuremath{\mathcal{D}}}
+\newcommand\E{\ensuremath{\mathcal{E}}}
+\newcommand\F{\ensuremath{\mathcal{F}}}
+\newcommand\K{\ensuremath{\mathcal{K}}}
+\renewcommand\L{\ensuremath{\mathcal{L}}}
+\let\SS\S \renewcommand\S{\ensuremath{\mathcal{S}}}
+\newcommand\T{\ensuremath{\mathcal{T}}}
+
+\newcommand\ds\displaystyle
+\newcommand\ts\textstyle
+
+\newcommand\del\partial
+
+\renewcommand\preceq\preccurlyeq
+
+\DeclareMathOperator{\curl}{curl}
+\DeclareMathOperator{\diverge}{div}
+\DeclareMathOperator{\grad}{grad}
+
+\newcommand{\conj}{\overline}
+\renewcommand{\Re}{\operatorname{Re}}
+\renewcommand{\Im}{\operatorname{Im}}
+\newcommand{\Res}{\operatorname{Res}}
+
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\DeclarePairedDelimiter\abs{\lvert}{\rvert}
+\DeclarePairedDelimiter\nnorm{\lVert}{\rVert}
+\DeclarePairedDelimiter\vc{\langle}{\rangle}
+
+\newcommand\mat[1]{\left[\begin{matrix}#1\end{matrix}\right]}
+\newcommand\pmat[1]{\left(\begin{matrix}#1\end{matrix}\right)}
+\newcommand\dmat[1]{\left|\begin{matrix}#1\end{matrix}\right|}
+
+\newcommand\rgets{\stackrel{\$}{\gets}}

@@ -1,5 +1,6 @@
 open Ast
 open Env
+
 (*
 
   Type checker v2
@@ -17,11 +18,12 @@ exception TypeError of string
 exception UnknownType of string
 exception CallError of string
 
+(* order of this matters!!! i.e. (byte,int)->byte; (int,byte)->int; or viceversa *)
 let unify t t1 =
   match (t,t1) with
   | (Int,Int) -> Int
   | (Bool,Bool) -> Bool
-  | (ByteArr, ByteArr) -> ByteArr
+  | (ByteArr x, ByteArr y) when x = y -> (ByteArr x)
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with " ^ ty_to_string(t1)))
 
 let unify_fn (rt,arg_ts) ts =
@@ -30,7 +32,6 @@ let unify_fn (rt,arg_ts) ts =
 
 let rec tc_unop = function
   | B_Not -> (Int, [Int])
-  | Negate -> (Int, [Int])
 
 and tc_binop = function
   | Plus -> (Int, [Int;Int])
@@ -41,7 +42,7 @@ and tc_binop = function
 
 and tc_prim = function
   | Number n -> Int
-  | ByteArray b -> ByteArr
+  | ByteArray s -> ByteArr (List.length s)
   | Boolean b -> Bool
 
 and tc_expr venv = function
@@ -52,6 +53,7 @@ and tc_expr venv = function
        | _ -> raise (VariableNotDefined(v))
      with
        Not_found -> raise (VariableNotDefined("Variable not defined:\t" ^ v)))
+  | ArrExp(v,i) -> Int
   | Unop(op,expr) ->
     let op_ty = tc_unop op in
     let expr_ty = tc_expr venv expr in
@@ -77,16 +79,27 @@ and tc_stm fn_ty venv = function
     let expr_ty = tc_expr venv expr in
     Hashtbl.add venv name (VarEntry { v_ty=unify ty expr_ty })
   | Assign(name,expr) ->
-    (match Hashtbl.find venv name with
+    let v = try Hashtbl.find venv name with
+      | Not_found -> raise (VariableNotDefined(name)) in
+    (match v with
      | VarEntry { v_ty=ty } ->
        let _ = unify ty (tc_expr venv expr) in ()
      | _ -> raise (VariableNotDefined(name)))
+  | ArrAssign(name,index,expr) ->
+    (try
+      (match Hashtbl.find venv name with
+       | VarEntry { v_ty=(ByteArr x) } ->
+         let _ = unify Int (tc_expr venv expr) in () (*TODO (maybz): use ignore instead of let*)
+       | _ -> raise (VariableNotDefined(name)))
+    with
+      Not_found -> raise (VariableNotDefined(name)))
   | If(cond,then',else') ->
     let _ = unify (tc_expr venv cond) Bool in
     let _ = tc_stms fn_ty venv then' in
     let _ = tc_stms fn_ty venv else' in ()
-  | While(cond,body) ->
-    let _ = unify (tc_expr venv cond) Bool in
+  | For(name,l,h,body) ->
+    let _ = unify (tc_expr venv (Primitive l)) Int in
+    let _ = unify (tc_expr venv (Primitive h)) Int in
     let _ = tc_stms fn_ty venv body in ()
   | Return(expr) ->
     let _ = unify fn_ty (tc_expr venv expr) in ()
@@ -95,11 +108,13 @@ and tc_stms fn_ty venv stms =
   let _ = List.map (tc_stm fn_ty venv) stms in ()
 
 and tc_fdec venv = function
+  | FunctionDec(_,_,ByteArr(_),_) ->
+    raise (TypeError "Functions cannot return a ByteArray")
   | FunctionDec(name,args,ty,body) ->
     let venv' = Hashtbl.copy venv in
     let args_ty = List.map (fun { name=n; ty=t } -> Hashtbl.add venv' n (VarEntry {v_ty=t}); t) args in
     let _ = tc_stms ty venv' body in
     Hashtbl.add venv name (FunEntry { f_ty=ty; f_args=args_ty })
 
-and tc_module (FDec l) =
+and tc_module (CModule l) =
   List.fold_left (fun a f -> let _ = tc_fdec Env.venv f in ()) () l

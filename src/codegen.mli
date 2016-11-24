@@ -1,4 +1,4 @@
 open Llvm
-open Ast
+open Cast
 
-val codegen : llcontext -> llmodule -> constantc_module -> unit
+val codegen : llcontext -> llmodule -> cmodule -> unit
