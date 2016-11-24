@@ -59,7 +59,8 @@ let codegen ctx m =
       match op with
       | Plus -> build_add lhs rhs "addtmp" b
       | Minus -> build_sub lhs rhs "subtmp" b
-      | GT -> build_icmp Icmp.Ugt lhs rhs "cmptmp" b
+      | GT ->
+        build_sext (build_icmp Icmp.Ugt lhs rhs "derp" b) (i32_type ctx) "gtcmp" b
       | BitAnd -> build_and lhs rhs "andtmp" b
       | BitOr -> build_or lhs rhs "ortmp" b
       | _ -> raise (Error "not implemented")

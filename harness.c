@@ -7,6 +7,7 @@ int setByteArrIndex();
 int mutateArray();
 int mutateArray2();
 int identity();
+int simpleIf();
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -38,6 +39,15 @@ void test_identity(void) {
   TEST_ASSERT_EQUAL(1,identity(i));
 }
 
+void test_simple_if(void) {
+  int *one = malloc(sizeof(int));
+  *one = 1;
+  int *eleven = malloc(sizeof(int));
+  *eleven = 11;
+  TEST_ASSERT_EQUAL(1,simpleIf(one));
+  TEST_ASSERT_EQUAL(2,simpleIf(eleven));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_get);
@@ -46,5 +56,6 @@ int main(void) {
   RUN_TEST(test_mutate_array);
   RUN_TEST(test_mutate_array2);
   RUN_TEST(test_identity);
+  RUN_TEST(test_simple_if);
   return UNITY_END();
 }

@@ -34,8 +34,17 @@ let assign' = ArrAssign("arr2",4,VarExp("val"))
 let ret'' = Return(ArrExp("arr2", 4))
 let prgm6 = FunctionDec("mutateArray2", [arr_param';val_param], Int, [assign';ret''])
 
+(* Simple If *)
+let if_arg = { name="cond"; ty=Int }
+let cond = BinOp(GT, Primitive(Number 10), VarExp("cond"))
+let then' = Return(Primitive(Number 1))
+let else' = Return(Primitive(Number 2))
+let if' = If(cond,[then'],[else'])
+let prgm7 = FunctionDec("simpleIf",[if_arg],Int,[if'])
+
+
 (* Module 1 *)
-let m1 = CModule [prgm1;prgm2;prgm3;prgm4;prgm5;prgm6]
+let m1 = CModule [prgm1;prgm2;prgm3;prgm4;prgm5;prgm6;prgm7]
 
 (* List of modules to test *)
 let programs = [m1]
