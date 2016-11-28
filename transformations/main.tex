@@ -46,12 +46,15 @@
 
 \newcommand{\ottv}{
 \ottrulehead{\ottnt{v}}{::=}{\ottcom{values}}\ottprodnewline
-\ottfirstprodline{|}{\ottkw{c}}{}{}{}{\ottcom{constant}}}
+\ottfirstprodline{|}{\ottkw{c}}{}{}{}{\ottcom{numeric value}}\ottprodnewline
+\ottprodline{|}{\ottkw{a}}{}{}{}{\ottcom{bytearray}}}
 
 \newcommand{\otte}{
 \ottrulehead{\ottnt{e}}{::=}{\ottcom{expressions}}\ottprodnewline
 \ottfirstprodline{|}{\ottmv{x}}{}{}{}{\ottcom{variable}}\ottprodnewline
-\ottprodline{|}{\ottkw{c}}{}{}{}{\ottcom{constant}}\ottprodnewline
+\ottprodline{|}{\ottkw{c}}{}{}{}{\ottcom{numeric value}}\ottprodnewline
+\ottprodline{|}{\ottkw{a}}{}{}{}{\ottcom{bytearray}}\ottprodnewline
+\ottprodline{|}{\ottmv{x}  \ottsym{[}  \ottnt{e}  \ottsym{]}}{}{}{}{\ottcom{array access}}\ottprodnewline
 \ottprodline{|}{\sim\!\!\! \, \ottnt{e}}{}{}{}{\ottcom{unary operation}}\ottprodnewline
 \ottprodline{|}{\ottnt{e_{{\mathrm{1}}}} \, \oplus \, \ottnt{e_{{\mathrm{2}}}}}{}{}{}{\ottcom{binary operation}}\ottprodnewline
 \ottprodline{|}{\ottmv{f}  \ottsym{(}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{e_{\ottmv{n}}}  \ottsym{)}}{}{}{}{\ottcom{function application}}}
@@ -62,6 +65,7 @@
 \ottprodline{|}{\ottnt{s_{{\mathrm{1}}}}  \ottsym{;}  \ottnt{s_{{\mathrm{2}}}}}{}{}{}{\ottcom{sequence}}\ottprodnewline
 \ottprodline{|}{\ottkw{def} \, \ottmv{x}  \ottsym{:=}  \ottnt{e}}{}{}{}{\ottcom{variable declaration}}\ottprodnewline
 \ottprodline{|}{\ottmv{x}  \ottsym{:=}  \ottnt{e}}{}{}{}{\ottcom{variable assignment}}\ottprodnewline
+\ottprodline{|}{\ottmv{x}  \ottsym{[}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}}}{}{}{}{\ottcom{array assignment}}\ottprodnewline
 \ottprodline{|}{\ottkw{for} \, \ottmv{x} \, \ottkw{from} \, \ottnt{v_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{s}}{}{}{}{\ottcom{for loop}}\ottprodnewline
 \ottprodline{|}{\ottkw{return} \, \ottnt{e}}{}{}{}{\ottcom{return statement}}}
 
@@ -103,6 +107,24 @@
 }{
  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{v} }{%
 {\ottdrulename{Exr\_var}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXarrXXgetXXexpr}[1]{\ottdrule[#1]{%
+\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'} }%
+}{
+ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{[}  \ottnt{e}  \ottsym{]}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottmv{x}  \ottsym{[}  \ottnt{e'}  \ottsym{]} }{%
+{\ottdrulename{Exr\_arr\_get\_expr}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXarrXXgetXXval}[1]{\ottdrule[#1]{%
+\ottpremise{\ottnt{m}  \ottsym{=}   \ottnt{m'} [  \ottmv{x} := \ottkw{a}  ] }%
+\ottpremise{\ottnt{v'}  \ottsym{=}  \ottsym{a[v]}}%
+\ottpremise{ \ottmv{cnt'}  =  \ottmv{cnt}  + 1 }%
+}{
+ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{[}  \ottnt{v}  \ottsym{]}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{v'} }{%
+{\ottdrulename{Exr\_arr\_get\_val}}{}%
 }}
 
 
@@ -165,6 +187,8 @@
 
 \newcommand{\ottdefnexprXXreduce}[1]{\begin{ottdefnblock}[#1]{$ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e}   \longrightarrow  \{ \ottnt{fm'} , \ottnt{m'} , \ottmv{cnt'} \}  \ottnt{e'} $}{\ottcom{$\ottnt{e}$ reduces to $\ottnt{e'}$}}
 \ottusedrule{\ottdruleExrXXvar{}}
+\ottusedrule{\ottdruleExrXXarrXXgetXXexpr{}}
+\ottusedrule{\ottdruleExrXXarrXXgetXXval{}}
 \ottusedrule{\ottdruleExrXXunopXXexpr{}}
 \ottusedrule{\ottdruleExrXXunopXXval{}}
 \ottusedrule{\ottdruleExrXXbinopXXl{}}
@@ -229,6 +253,31 @@
 }}
 
 
+\newcommand{\ottdruleStrXXarrXXassignXXexprXXl}[1]{\ottdrule[#1]{%
+\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e_{{\mathrm{1}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'_{{\mathrm{1}}}} }%
+}{
+ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{[}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottmv{x}  \ottsym{[}  \ottnt{e'_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}} }{%
+{\ottdrulename{Str\_arr\_assign\_expr\_l}}{}%
+}}
+
+
+\newcommand{\ottdruleStrXXarrXXassignXXexprXXr}[1]{\ottdrule[#1]{%
+\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'_{{\mathrm{2}}}} }%
+}{
+ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{[}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottmv{x}  \ottsym{[}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e'_{{\mathrm{2}}}} }{%
+{\ottdrulename{Str\_arr\_assign\_expr\_r}}{}%
+}}
+
+
+\newcommand{\ottdruleStrXXarrXXassignXXval}[1]{\ottdrule[#1]{%
+\ottpremise{ \ottmv{cnt'}  =  \ottmv{cnt}  + 1 }%
+\ottpremise{\ottnt{m'}  \ottsym{=}   \ottnt{m} [  \ottmv{x} := \ottkw{a}  ] }%
+}{
+ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{[}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{v_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m'} , \ottmv{cnt'} \}  \ottkw{skip} }{%
+{\ottdrulename{Str\_arr\_assign\_val}}{}%
+}}
+
+
 \newcommand{\ottdruleStrXXfor}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{v_{{\mathrm{1}}}}  \ottsym{<}  \ottnt{v_{{\mathrm{2}}}}}%
 \ottpremise{ \ottnt{v'_{{\mathrm{1}}}}  =  \ottnt{v_{{\mathrm{1}}}}  + 1 }%
@@ -255,6 +304,9 @@
 \ottusedrule{\ottdruleStrXXdefXXval{}}
 \ottusedrule{\ottdruleStrXXassignXXexpr{}}
 \ottusedrule{\ottdruleStrXXassignXXval{}}
+\ottusedrule{\ottdruleStrXXarrXXassignXXexprXXl{}}
+\ottusedrule{\ottdruleStrXXarrXXassignXXexprXXr{}}
+\ottusedrule{\ottdruleStrXXarrXXassignXXval{}}
 \ottusedrule{\ottdruleStrXXfor{}}
 \ottusedrule{\ottdruleStrXXforXXbase{}}
 \end{ottdefnblock}}
@@ -276,7 +328,7 @@
 \ottall
 
 \begin{verbatim}
-Definition rules:        16 good    0 bad
-Definition rule clauses: 40 good    0 bad
+Definition rules:        21 good    0 bad
+Definition rule clauses: 53 good    0 bad
 \end{verbatim}
 \end{document}

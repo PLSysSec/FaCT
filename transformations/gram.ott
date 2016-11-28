@@ -11,11 +11,14 @@ indexvar k ::= {{ com index variable }}
 
 grammar
 v :: 'v_' ::= {{ com values }}
-  | c :: :: const  {{ com constant }}
+  | c :: :: const  {{ com numeric value }}
+  | a :: :: array  {{ com bytearray }}
 
 e :: 'e_' ::= {{ com expressions }}
   | x :: :: var {{ com variable }}
-  | c :: :: const  {{ com constant }}
+  | c :: :: const  {{ com numeric value }}
+  | a :: :: array  {{ com bytearray }}
+  | x [ e ] :: :: arr_get {{ com array access }}
   | unop e :: :: unop {{ com unary operation }}
   | e1 binop e2 :: :: binop {{ com binary operation }}
   | f ( e1 , .. , en ) :: :: funcapp {{ com function application }}
@@ -25,6 +28,7 @@ s :: 's_' ::= {{ com statements }}
   | s1 ; s2 :: :: seq {{ com sequence }}
   | def x := e :: :: vardec {{ com variable declaration }}
   | x := e :: :: assign {{ com variable assignment }}
+  | x [ e1 ] := e2 :: :: arr_assign {{ com array assignment }}
   | for x from v1 to v2 : s :: :: loop {{ com for loop }}
   | return e :: :: ret {{ com return statement }}
 
@@ -63,6 +67,7 @@ formula :: 'formula_' ::=
   | v = v' ::  :: eqv_v
   | v < v' ::  :: ltv
   | v' = succ v ::  :: succ_v {{ tex [[v']] = [[v]] + 1 }}
+  | v = a[v] ::  :: arr_elt
 
 subrules
   v <:: e
@@ -78,6 +83,16 @@ defns
     cnt' = succ cnt
     ---------------------------- :: var
     fm m cnt x --> fm m cnt' v
+
+    fm m cnt e --> fm m cnt' e'
+    ---------------------------- :: arr_get_expr
+    fm m cnt x[e] --> fm m cnt' x[e']
+
+    m = m' , x := a
+    v' = a[v]
+    cnt' = succ cnt
+    ---------------------------- :: arr_get_val
+    fm m cnt x[v] --> fm m cnt' v'
 
     fm m cnt e --> fm m cnt' e'
     -------------------------- :: unop_expr
@@ -141,6 +156,19 @@ defns
     m' = m , x := v
     --------------- :: assign_val
     fm m cnt x := v --> fm m' cnt' skip
+
+    fm m cnt e1 --> fm m cnt' e1'
+    --------------- :: arr_assign_expr_l
+    fm m cnt x[e1] := e2 --> fm m cnt' x[e1'] := e2
+
+    fm m cnt e2 --> fm m cnt' e2'
+    --------------- :: arr_assign_expr_r
+    fm m cnt x[v1] := e2 --> fm m cnt' x[v1] := e2'
+
+    cnt' = succ cnt
+    m' = m , x := a
+    --------------- :: arr_assign_val
+    fm m cnt x[v1] := v2 --> fm m' cnt' skip
 
     v1 < v2
     v1' = succ v1
