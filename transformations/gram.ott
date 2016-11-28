@@ -14,9 +14,10 @@ v :: 'v_' ::= {{ com values }}
   | c :: :: const  {{ com constant }}
 
 e :: 'e_' ::= {{ com expressions }}
-  | e1 binop e2 :: :: op {{ com binary operation }}
   | x :: :: var {{ com variable }}
   | c :: :: const  {{ com constant }}
+  | unop e :: :: unop {{ com unary operation }}
+  | e1 binop e2 :: :: binop {{ com binary operation }}
   | f ( e1 , .. , en ) :: :: funcapp {{ com function application }}
 
 s :: 's_' ::= {{ com statements }}
@@ -24,37 +25,39 @@ s :: 's_' ::= {{ com statements }}
   | s1 ; s2 :: :: seq {{ com sequence }}
   | def x := e :: :: vardec {{ com variable declaration }}
   | x := e :: :: assign {{ com variable assignment }}
-  | for x from v1 to v2 in s :: :: loop {{ com for loop }}
+  | for x from v1 to v2 : s :: :: loop {{ com for loop }}
   | return e :: :: ret {{ com return statement }}
 
 fdef :: 'fdef_' ::= {{ com function definitions }}
-  | fdef f ( x1 , .. , xn ) in s :: :: fdef
+  | fdef f ( x1 , .. , xn ) : s :: :: fdef
 
 program :: 'program_' ::= {{ com program }}
   | fdef1 ; .. ; fdefn ; expose fdef :: :: fdefs {{ com list of fdefs }}
 
 fm :: fm_ ::= {{ com function store }}
-  | fm_empty ::  :: efm {{ tex \emptyset }}
-  | fm , f = s ; return e ::  :: vfm
+  | fm_empty ::  :: efm {{ tex \emptyset_{fm} }} {{ com empty function store }}
+  | fm , f ( v1 , .. , vk ) = s ; return e ::  :: vfm {{ com define function }}
 
 m :: m_ ::= {{ com memory }}
-  | m_empty ::  :: em {{ tex \emptyset }}
-  | m , x = v ::  :: vm
-  | m / x ::  :: rm
+  | m_empty ::  :: em {{ tex \emptyset_m }} {{ com empty memory }}
+  | m , x := v ::  :: vm {{ com add/update variable }} {{ tex [[m]][ [[x]]:=[[v]] ] }}
+  | m / x ::  :: rm {{ com remove variable }}
 
 terminals :: 'terminals_' ::=
+  | unop :: :: core_unop {{ tex \sim\!\!\! }}
   | binop :: :: core_binop {{ tex \oplus }}
   | --> :: :: core_reduce {{ tex \longrightarrow }}
   | in :: :: in {{ tex \in }}
-  | notin :: :: not_in {{ tex \notin }}
+  | [[ :: :: lbrack {{ tex \llbracket }}
+  | ]] :: :: rbrack {{ tex \rrbracket }}
+  | === :: :: equiv {{ tex \equiv }}
 
 formula :: 'formula_' ::=
   | judgement ::  :: judgement
   | not ( formula ) ::  :: not {{ tex \neg ([[formula]]) }}
-  | v3 === [[ v1 binop v2 ]] ::  :: eqv_binop {{ tex [[v3]] \equiv \llbracket [[v1]] \oplus \rrbracket [[v2]] }}
+  | v' === [[ unop v ]] ::  :: eqv_unop
+  | v3 === [[ v1 binop v2 ]] ::  :: eqv_binop
   | cnt' = succ cnt ::  :: succ {{ tex [[cnt']] = [[cnt]] + 1 }}
-  | x in m ::  :: x_in_m
-  | x notin m ::  :: x_notin_m
   | fm' = fm ::  :: eqv_fm
   | m' = m ::  :: eqv_m
   | v = v' ::  :: eqv_v
@@ -68,74 +71,85 @@ defns
   Jop :: '' ::=
 
     defn
-    fm m cnt e --> cnt' e' ::  :: expr_reduce :: Exr_ {{ com [[e]] reduces to [[e']] }} by
+    fm m cnt e --> fm' m' cnt' e' ::  :: expr_reduce :: Exr_ {{ com [[e]] reduces to [[e']] }}
+    {{ tex \{[[fm]],[[m]],[[cnt]]\} [[e]] [[-->]] \{[[fm']],[[m']],[[cnt']]\} [[e']] }} by
 
-    fm m cnt e1 --> cnt' e1'
+    m = m' , x := v
+    cnt' = succ cnt
+    ---------------------------- :: var
+    fm m cnt x --> fm m cnt' v
+
+    fm m cnt e --> fm m cnt' e'
+    -------------------------- :: unop_expr
+    fm m cnt unop e --> fm m cnt' unop e'
+
+    v' === [[ unop v ]]
+    cnt' = succ cnt
+    ----------------- :: unop_val
+    fm m cnt unop v --> fm m cnt' v'
+
+    fm m cnt e1 --> fm m cnt' e1'
     --------------------------- :: binop_l
-    fm m cnt e1 binop e2 --> cnt' e1' binop e2
+    fm m cnt e1 binop e2 --> fm m cnt' e1' binop e2
 
-    fm m cnt e1 --> cnt' e1'
+    fm m cnt e2 --> fm m cnt' e2'
     -------------------------- :: binop_r
-    fm m cnt v binop e2 --> cnt' v binop e2'
+    fm m cnt v binop e2 --> fm m cnt' v binop e2'
 
     v3 === [[ v1 binop v2 ]]
     cnt' = succ cnt
-    ----------------- :: binop_v
-    fm m cnt v1 binop v2 --> cnt' v3
+    ----------------- :: binop_val
+    fm m cnt v1 binop v2 --> fm m cnt' v3
 
-    m = m' , x = v
-    cnt' = succ cnt
-    ---------------------------- :: var
-    fm m cnt x --> cnt' v
-
-    fm m cnt e1 --> cnt' e1'
+    fm m cnt e1 --> fm m cnt' e1'
     ---------------------------- :: fn_expr
-    fm m cnt f ( v1 , .. , vk , e1, e2 , .. , en ) --> cnt' f ( v1 , .. , vk , e1' , e2 , .. , en )
+    fm m cnt f ( v1 , .. , vk , e1, e2 , .. , en ) --> fm m cnt' f ( v1 , .. , vk , e1' , e2 , .. , en )
 
-    fm = fm' , f = s ; return e
+    fm = fm' , f ( v1 , .. , vk ) = s ; return e
     ------------------------------ :: fn_call
-    fm m cnt f ( v1 , .. , vk ) --> cnt' e
+    fm m cnt f ( v1 , .. , vk ) --> fm m cnt' e
 
 
 defns
   Jpop :: '' ::=
 
     defn
-    fm m cnt s --> m' cnt' s' ::  :: stmt_reduce :: Str_ {{ com [[s]] reduces to [[s']] }} by
+    fm m cnt s --> fm' m' cnt' s' ::  :: stmt_reduce :: Str_ {{ com [[s]] reduces to [[s']] }}
+    {{ tex \{[[fm]],[[m]],[[cnt]]\} [[s]] [[-->]] \{[[fm']],[[m']],[[cnt']]\} [[s']] }} by
 
     ------------------- :: skip
-    fm m cnt skip ; s --> m cnt s
+    fm m cnt skip ; s --> fm m cnt s
 
-    fm m cnt s1 --> m' cnt' s1'
+    fm m cnt s1 --> fm m' cnt' s1'
     -------------- :: seq
-    fm m cnt s1 ; s2 --> m' cnt' s1' ; s2
+    fm m cnt s1 ; s2 --> fm m' cnt' s1' ; s2
 
-    fm m cnt e --> cnt' e'
+    fm m cnt e --> fm m cnt' e'
     ------------- :: def_expr
-    fm m cnt def x := e --> m cnt' def x := e'
+    fm m cnt def x := e --> fm m cnt' def x := e'
 
     cnt' = succ cnt
-    m' = m , x = v
+    m' = m , x := v
     -----------------:: def_val
-    fm m cnt def x := v --> m' cnt' skip
+    fm m cnt def x := v --> fm m' cnt' skip
 
-    fm m cnt e --> cnt' e'
+    fm m cnt e --> fm m cnt' e'
     --------------- :: assign_expr
-    fm m cnt x := e --> m cnt' x := e'
+    fm m cnt x := e --> fm m cnt' x := e'
 
     cnt' = succ cnt
-    m' = m , x = v
+    m' = m , x := v
     --------------- :: assign_val
-    fm m cnt x := v --> m' cnt' skip
+    fm m cnt x := v --> fm m' cnt' skip
 
     v1 < v2
     v1' = succ v1
-    x notin m
-    m' = m , x = v1
+    not ( m = m' , x := v' )
+    m'' = m , x := v1
     ------------------------- :: for
-    fm m cnt for x from v2 to v2 in s --> m' cnt s ; for x from v1' to v2 in s
+    fm m cnt for x from v1 to v2 : s --> fm m'' cnt s ; for x from v1' to v2 : s
 
     v1 = v2
     m' = m / x
     ---------------- :: for_base
-    fm m cnt for x from v1 to v2 in s --> m' cnt skip
+    fm m cnt for x from v2 to v2 : s --> fm m' cnt skip
