@@ -17,6 +17,7 @@ exception VariableNotDefined of string
 exception TypeError of string
 exception UnknownType of string
 exception CallError of string
+exception ForError of string
 
 (* order of this matters!!! i.e. (byte,int)->byte; (int,byte)->int; or viceversa *)
 let unify t t1 =
@@ -106,6 +107,12 @@ and tc_stm fn_ty venv = function
   | For(name,l,h,body) ->
     let _ = unify (tc_expr venv (Primitive l)) Int in
     let _ = unify (tc_expr venv (Primitive h)) Int in
+    (match (l,h) with
+     | (Number l', Number h') ->
+       if l' >= h' then raise
+           (ForError "Low value must be smaller than high value in for loop")
+     | _ -> raise
+              (TypeError "Low and high values must be integers in for loop"));
     let _ = Hashtbl.add venv name (LoopEntry { v_ty=Int }) in
     tc_stms fn_ty venv body
   | Return(expr) ->
