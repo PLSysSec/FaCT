@@ -25,7 +25,7 @@ and primitive =
 
 and expr =
   | VarExp of string
-  | ArrExp of string * int
+  | ArrExp of string * expr
   | Primitive of primitive
   | UnOp of unop * expr
   | BinOp of binop * expr * expr
@@ -35,7 +35,7 @@ and expr =
 and stm =
   | VarDec of string * ctype * expr
   | Assign of string * expr
-  | ArrAssign of string * int * expr
+  | ArrAssign of string * expr * expr
   | For of string * primitive * primitive * stm list
 [@@deriving show]
 

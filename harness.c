@@ -12,6 +12,9 @@ int mediumComplexIf(int*);
 int mixedIf(int*);
 int mixedIf2(int*);
 int nestedIf(int*);
+int simpleLoop();
+int loopAcc();
+int loopAssignArray(int*);
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -94,6 +97,22 @@ void test_nested_if(void) {
   TEST_ASSERT_EQUAL(4,nestedIf(sixteen));
 }
 
+void test_simple_loop(void) {
+  TEST_ASSERT_EQUAL(10000, simpleLoop());
+}
+
+void test_loop_acc(void) {
+  TEST_ASSERT_EQUAL(5, loopAcc());
+}
+
+void test_loop_assign(void) {
+  int arr[5] = {0,0,0,0,0};
+  loopAssignArray(arr);
+  for(int i = 0; i < 5; i++) {
+    TEST_ASSERT_EQUAL(i,arr[i]);
+  }
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_get);
@@ -107,5 +126,8 @@ int main(void) {
   RUN_TEST(test_mixed_if);
   RUN_TEST(test_mixed_if2);
   RUN_TEST(test_nested_if);
+  RUN_TEST(test_simple_loop);
+  RUN_TEST(test_loop_acc);
+  RUN_TEST(test_loop_assign);
   return UNITY_END();
 }

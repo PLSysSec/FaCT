@@ -50,10 +50,13 @@ and tc_expr venv = function
     (try
        match Hashtbl.find venv v with
        | VarEntry { v_ty=ty } -> ty
+       | LoopEntry _ -> Int
        | _ -> raise (VariableNotDefined(v))
      with
        Not_found -> raise (VariableNotDefined("Variable not defined:\t" ^ v)))
-  | ArrExp(v,i) -> Int
+  | ArrExp(v,i) ->
+    (match i with
+     | Primitive _ -> Int)
   | Unop(op,expr) ->
     let op_ty = tc_unop op in
     let expr_ty = tc_expr venv expr in
@@ -67,7 +70,10 @@ and tc_expr venv = function
   | CallExp(name,args) ->
     (try
        match Hashtbl.find venv name with
-       | VarEntry _ -> raise (CallError ("Unable to call variable `" ^ name ^ "`"))
+       | VarEntry _ ->
+         raise (CallError ("Unable to call variable `" ^ name ^ "`"))
+       | LoopEntry _ ->
+         raise (CallError ("Unable to call loop variable `" ^ name ^ "`"))
        | FunEntry { f_ty=ty; f_args=args' } ->
          let fn_ty = (ty, args') in
          unify_fn fn_ty (List.map (tc_expr venv) args)
@@ -100,7 +106,8 @@ and tc_stm fn_ty venv = function
   | For(name,l,h,body) ->
     let _ = unify (tc_expr venv (Primitive l)) Int in
     let _ = unify (tc_expr venv (Primitive h)) Int in
-    let _ = tc_stms fn_ty venv body in ()
+    let _ = Hashtbl.add venv name (LoopEntry { v_ty=Int }) in
+    tc_stms fn_ty venv body
   | Return(expr) ->
     let _ = unify fn_ty (tc_expr venv expr) in ()
 

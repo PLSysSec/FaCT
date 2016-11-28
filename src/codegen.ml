@@ -6,6 +6,7 @@ exception NotImplemented of string
 exception Error of string
 
 let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
+let loop_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
 
 let codegen ctx m =
   let b = builder ctx in
@@ -68,15 +69,21 @@ let codegen ctx m =
 
   and codegen_expr = function
     | VarExp n ->
-      let varval = (try Hashtbl.find named_values n with
-        | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
-      build_load varval n b
+      (try build_load (Hashtbl.find named_values n) n b with
+          | Not_found -> (try Hashtbl.find loop_values n with
+              | Not_found -> raise (Error ("Unknown variable: " ^ n))))
     | ArrExp(n,i) ->
+      let get_index e =
+        (match e with
+         | Primitive(Number n) -> const_int (i32_type ctx) n
+         | VarExp n -> (try Hashtbl.find loop_values n with
+             | Not_found -> raise (Error ("Unknown variable: " ^ n)))
+         | _ -> raise (Error "Can only access arrays with loop values or int")
+        ) in
       let arr_val  = (try Hashtbl.find named_values n with
         | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
-      let i_t = const_int (i32_type ctx) in
-      let p = build_gep arr_val [| (i_t 0); (i_t i)|] "ptr" b in
-      (*build_extractvalue arr_val i "ptr" b*)
+      let p = build_gep arr_val
+          [| (const_int (i32_type ctx) 0); (get_index i)|] "ptr" b in
       build_load p "p" b
     | UnOp(op,e) -> codegen_unop op e
     | BinOp(op,e,e') -> codegen_binop op e e'
@@ -100,19 +107,34 @@ let codegen ctx m =
         build_call callee' args' "calltmp" b
 
   and codegen_stm = function
-    | For _ -> raise (NotImplemented "Loops not implemented")
+    | For(v,l,h,s) ->
+      let preheader = insertion_block b in
+      let the_function = block_parent preheader in
+      let loop_bb = append_block ctx "loop" the_function in
+      ignore(build_br loop_bb b);
+      ignore(position_at_end loop_bb b);
+      let l' = codegen_expr (Primitive l) in
+      let variable = build_phi [(l',preheader)] v b in
+      Hashtbl.add loop_values v variable;
+      ignore(List.map codegen_stm s);
+      let next_var =
+        build_add variable (const_int (i32_type ctx) 1) "nextvar" b in
+      let end_cond = build_icmp Icmp.Eq (codegen_prim h) next_var "loopcond" b in
+      let loop_end_bb = insertion_block b in
+      let after_bb = append_block ctx "postloop" the_function in
+      ignore(build_cond_br end_cond after_bb loop_bb b);
+      position_at_end after_bb b;
+      add_incoming (next_var,loop_end_bb) variable;
     | Assign(n,e) ->
       let v = (try Hashtbl.find named_values n with
-        | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
+        | Not_found -> raise (Error ("Unknown variable in var assign: " ^ n))) in
       ignore(build_store (codegen_expr e) v b)
     | ArrAssign(n,i,e) ->
       let v = (try Hashtbl.find named_values n with
-        | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
+        | Not_found -> raise (Error ("Unknown variable in array assign: " ^ n))) in
       let e' = codegen_expr e in
       let i_t = const_int (i32_type ctx) in
-      let p = build_gep v [| (i_t 0); (i_t i)|] "ptr" b in
-
-      (*let _ = build_insertvalue v e' i "ptr" b in*)
+      let p = build_gep v [| (i_t 0); (codegen_expr i)|] "ptr" b in
       ignore(build_store e' p b)
     | VarDec(n,t,e) ->
       (match t with
