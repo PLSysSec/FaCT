@@ -15,6 +15,8 @@ int nestedIf(int*);
 int simpleLoop();
 int loopAcc();
 int loopAssignArray(int*);
+int add(int*, int*);
+int add10And20();
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -113,6 +115,18 @@ void test_loop_assign(void) {
   }
 }
 
+void test_add(void) {
+  int *one = malloc(sizeof(int));
+  *one = 1;
+  int *two = malloc(sizeof(int));
+  *two = 2;
+  TEST_ASSERT_EQUAL(3,add(one,two));
+}
+
+void test_add_ten_and_twenty(void) {
+  TEST_ASSERT_EQUAL(30,add10And20());
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_get);
@@ -129,5 +143,7 @@ int main(void) {
   RUN_TEST(test_simple_loop);
   RUN_TEST(test_loop_acc);
   RUN_TEST(test_loop_assign);
+  RUN_TEST(test_add);
+  RUN_TEST(test_add_ten_and_twenty);
   return UNITY_END();
 }

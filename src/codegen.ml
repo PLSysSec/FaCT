@@ -102,7 +102,12 @@ let codegen ctx m =
           raise (Error("Arity mismatch for `" ^ callee ^ "`"));
         let codegen_expr' arg =
           let arg' = (codegen_expr arg) in
-          const_inttoptr arg' (pointer_type (i8_type ctx)) in
+          let i_t = const_int (i32_type ctx) in
+          (*build_in_bounds_gep arg' [| (i_t 0); (i_t 0) |] "arg" b*)
+          (*build_inttoptr arg' (pointer_type (i8_type ctx)) "arg" b*)
+          let a = build_alloca (i32_type ctx) "arg" b in
+          ignore(build_store arg' a b);
+          a in
         let args' = Array.map codegen_expr' (Array.of_list args) in
         build_call callee' args' "calltmp" b
 

@@ -89,6 +89,17 @@ let loop_body = ArrAssign("arr", VarExp("i"), VarExp("i"))
 let loop' = For("i",Number 0,Number 5,[loop_body])
 let prgm14 = FunctionDec("loopAssignArray",[arr_param],Int,[loop';ret''''])
 
+(* Add function *)
+let add_body = Return(BinOp(Plus,VarExp("a"),VarExp("b")))
+let add_arg_a = { name="a"; ty=Int }
+let add_arg_b = { name="b"; ty=Int }
+let prgm15 = FunctionDec("add",[add_arg_a;add_arg_b],Int,[add_body])
+
+(* Add 10 and 20 using the add function *)
+let add_body' =
+  Return(CallExp("add",[Primitive(Number 10);Primitive(Number 20)]))
+let prgm16 = FunctionDec("add10And20",[],Int,[add_body'])
+
 (* Module 1 *)
 let m1 = CModule
     [prgm1;
@@ -104,7 +115,9 @@ let m1 = CModule
      prgm11;
      prgm12;
      prgm13;
-     prgm14]
+     prgm14;
+     prgm15;
+     prgm16]
 
 (* List of modules to test *)
 let programs = [m1]
