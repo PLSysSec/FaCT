@@ -34,67 +34,89 @@
 \newcommand{\ottinterrule}{\\[5.0mm]}
 \newcommand{\ottafterlastrule}{\\}
 \usepackage{stmaryrd}
+\usepackage{graphicx}
+\newcommand\cnt{\kappa}
+\newcommand\fm{\Lambda}
+\newcommand\g{\Gamma}
+\newcommand\m{\mu}
 
 \newcommand{\ottmetavars}{
 \ottmetavartabular{
+ $ \ottmv{c} $ & \ottcom{numeric value} \\
+ $ \ottmv{a} $ & \ottcom{array} \\
  $ \ottmv{x} $ & \ottcom{term variable} \\
  $ \ottmv{f} $ & \ottcom{function declaration?} \\
- $ \ottmv{cnt} $ & \ottcom{program counter} \\
+ $ \cnt $ & \ottcom{program counter} \\
  $ \ottmv{n} $ & \ottcom{index variable} \\
  $ \ottmv{k} $ & \ottcom{index variable} \\
 }}
 
 \newcommand{\ottv}{
 \ottrulehead{\ottnt{v}}{::=}{\ottcom{values}}\ottprodnewline
-\ottfirstprodline{|}{\ottkw{c}}{}{}{}{\ottcom{numeric value}}\ottprodnewline
-\ottprodline{|}{\ottkw{a}}{}{}{}{\ottcom{bytearray}}}
+\ottfirstprodline{|}{\ottmv{c}}{}{}{}{\ottcom{numeric value}}\ottprodnewline
+\ottprodline{|}{\ottmv{a}}{}{}{}{\ottcom{bytearray}}}
 
 \newcommand{\otte}{
 \ottrulehead{\ottnt{e}}{::=}{\ottcom{expressions}}\ottprodnewline
-\ottfirstprodline{|}{\ottmv{x}}{}{}{}{\ottcom{variable}}\ottprodnewline
-\ottprodline{|}{\ottkw{c}}{}{}{}{\ottcom{numeric value}}\ottprodnewline
-\ottprodline{|}{\ottkw{a}}{}{}{}{\ottcom{bytearray}}\ottprodnewline
-\ottprodline{|}{\ottmv{x}  \ottsym{[}  \ottnt{e}  \ottsym{]}}{}{}{}{\ottcom{array access}}\ottprodnewline
+\ottfirstprodline{|}{\ottmv{c}}{}{}{}{\ottcom{numeric value}}\ottprodnewline
+\ottprodline{|}{\ottmv{a}}{}{}{}{\ottcom{bytearray}}\ottprodnewline
+\ottprodline{|}{\ottmv{x}}{}{}{}{\ottcom{variable}}\ottprodnewline
+\ottprodline{|}{\ottmv{a}  \ottsym{[}  \ottnt{e}  \ottsym{]}}{}{}{}{\ottcom{array access}}\ottprodnewline
 \ottprodline{|}{\sim\!\!\! \, \ottnt{e}}{}{}{}{\ottcom{unary operation}}\ottprodnewline
 \ottprodline{|}{\ottnt{e_{{\mathrm{1}}}} \, \oplus \, \ottnt{e_{{\mathrm{2}}}}}{}{}{}{\ottcom{binary operation}}\ottprodnewline
-\ottprodline{|}{\ottmv{f}  \ottsym{(}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{e_{\ottmv{n}}}  \ottsym{)}}{}{}{}{\ottcom{function application}}}
+\ottprodline{|}{\ottmv{f}  \ottsym{(}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{e_{\ottmv{n}}}  \ottsym{)}}{}{}{}{\ottcom{function application}}\ottprodnewline
+\ottprodline{|}{\ottnt{s}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e}}{}{}{}{\ottcom{function body}}}
 
 \newcommand{\otts}{
 \ottrulehead{\ottnt{s}}{::=}{\ottcom{statements}}\ottprodnewline
 \ottfirstprodline{|}{\ottkw{skip}}{}{}{}{\ottcom{skip}}\ottprodnewline
 \ottprodline{|}{\ottnt{s_{{\mathrm{1}}}}  \ottsym{;}  \ottnt{s_{{\mathrm{2}}}}}{}{}{}{\ottcom{sequence}}\ottprodnewline
+\ottprodline{|}{\ottsym{(}  \ottnt{s}  \ottsym{)}}{}{}{}{\ottcom{parens}}\ottprodnewline
+\ottprodline{|}{\ottsym{\{}  \ottmv{x_{{\mathrm{1}}}}  \ottsym{/}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottmv{x_{\ottmv{k}}}  \ottsym{/}  \ottnt{v_{\ottmv{k}}}  \ottsym{\}}  \ottnt{s}}{}{}{}{\ottcom{variable substitution}}\ottprodnewline
 \ottprodline{|}{\ottkw{def} \, \ottmv{x}  \ottsym{:=}  \ottnt{e}}{}{}{}{\ottcom{variable declaration}}\ottprodnewline
+\ottprodline{|}{\ottkw{def} \, \ottmv{x}  \ottsym{:=}  \ottmv{a}}{}{}{}{\ottcom{array declaration}}\ottprodnewline
 \ottprodline{|}{\ottmv{x}  \ottsym{:=}  \ottnt{e}}{}{}{}{\ottcom{variable assignment}}\ottprodnewline
-\ottprodline{|}{\ottmv{x}  \ottsym{[}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}}}{}{}{}{\ottcom{array assignment}}\ottprodnewline
-\ottprodline{|}{\ottkw{for} \, \ottmv{x} \, \ottkw{from} \, \ottnt{v_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{s}}{}{}{}{\ottcom{for loop}}\ottprodnewline
-\ottprodline{|}{\ottkw{return} \, \ottnt{e}}{}{}{}{\ottcom{return statement}}}
+\ottprodline{|}{\ottmv{a}  \ottsym{[}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}}}{}{}{}{\ottcom{array assignment}}\ottprodnewline
+\ottprodline{|}{\ottkw{for} \, \ottmv{x} \, \ottkw{from} \, \ottnt{v_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{s}}{}{}{}{\ottcom{for loop}}}
+
+\newcommand{\ottfval}{
+\ottrulehead{\ottnt{fval}}{::=}{\ottcom{function spec}}\ottprodnewline
+\ottfirstprodline{|}{\ottsym{(}  \ottmv{x_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottmv{x_{\ottmv{n}}}  \ottsym{)}  \ottsym{:}  \ottnt{s}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e}}{}{}{}{}}
 
 \newcommand{\ottfdef}{
-\ottrulehead{\ottnt{fdef}}{::=}{\ottcom{function definitions}}\ottprodnewline
-\ottfirstprodline{|}{\ottnt{fdef} \, \ottmv{f}  \ottsym{(}  \ottmv{x_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottmv{x_{\ottmv{n}}}  \ottsym{)}  \ottsym{:}  \ottnt{s}}{}{}{}{}}
+\ottrulehead{\ottnt{fdef}}{::=}{\ottcom{function definition}}\ottprodnewline
+\ottfirstprodline{|}{\ottnt{fdef} \, \ottmv{f} \, \ottnt{fval}}{}{}{}{}}
 
 \newcommand{\ottprogram}{
 \ottrulehead{\ottnt{program}}{::=}{\ottcom{program}}\ottprodnewline
 \ottfirstprodline{|}{\ottnt{fdef_{{\mathrm{1}}}}  \ottsym{;} \, .. \, \ottsym{;}  \ottnt{fdef_{\ottmv{n}}}  \ottsym{;} \, \ottkw{expose} \, \ottnt{fdef}}{}{}{}{\ottcom{list of fdefs}}}
 
 \newcommand{\ottfm}{
-\ottrulehead{\ottnt{fm}}{::=}{\ottcom{function store}}\ottprodnewline
-\ottfirstprodline{|}{ \emptyset_{fm} }{}{}{}{\ottcom{empty function store}}\ottprodnewline
-\ottprodline{|}{\ottnt{fm}  \ottsym{,}  \ottmv{f}  \ottsym{(}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{v_{\ottmv{k}}}  \ottsym{)}  \ottsym{=}  \ottnt{s}  \ottsym{;} \, \ottkw{return} \, \ottnt{e}}{}{}{}{\ottcom{define function}}}
+\ottrulehead{\fm}{::=}{\ottcom{function store}}\ottprodnewline
+\ottfirstprodline{|}{ \emptyset_{\Lambda} }{}{}{}{\ottcom{empty function store}}\ottprodnewline
+\ottprodline{|}{\fm  \ottsym{[}  \ottmv{f}  \mapsto  \ottnt{fval}  \ottsym{]}}{}{}{}{\ottcom{define function}}}
+
+\newcommand{\ottg}{
+\ottrulehead{\g}{::=}{\ottcom{global memory}}\ottprodnewline
+\ottfirstprodline{|}{ \emptyset_{\Gamma} }{}{}{}{}\ottprodnewline
+\ottprodline{|}{\g  \ottsym{[}  \ottmv{a}  \mapsto  \!\texttt{[]}  \ottsym{]}}{}{}{}{\ottcom{new array}}\ottprodnewline
+\ottprodline{|}{\g  \ottsym{(}  \ottmv{a}  \ottsym{)}  \ottsym{[}  \ottnt{v_{{\mathrm{1}}}}  \mapsto  \ottnt{v_{{\mathrm{2}}}}  \ottsym{]}}{}{}{}{\ottcom{array update}}}
 
 \newcommand{\ottm}{
-\ottrulehead{\ottnt{m}}{::=}{\ottcom{memory}}\ottprodnewline
-\ottfirstprodline{|}{ \emptyset_m }{}{}{}{\ottcom{empty memory}}\ottprodnewline
-\ottprodline{|}{ \ottnt{m} [  \ottmv{x} := \ottnt{v}  ] }{}{}{}{\ottcom{add/update variable}}\ottprodnewline
-\ottprodline{|}{\ottnt{m}  \ottsym{/}  \ottmv{x}}{}{}{}{\ottcom{remove variable}}}
+\ottrulehead{\m}{::=}{\ottcom{local memory}}\ottprodnewline
+\ottfirstprodline{|}{ \emptyset_{\mu} }{}{}{}{\ottcom{empty memory}}\ottprodnewline
+\ottprodline{|}{\m  \ottsym{[}  \ottmv{x}  \mapsto  \ottnt{v}  \ottsym{]}}{}{}{}{\ottcom{add/update variable}}\ottprodnewline
+\ottprodline{|}{\m_{{\mathrm{1}}}  \ottsym{\mbox{$\mid$}}  \m_{{\mathrm{2}}}}{}{}{}{\ottcom{push stack frame}}}
 
 \newcommand{\ottgrammar}{\ottgrammartabular{
 \ottv\ottinterrule
 \otte\ottinterrule
 \otts\ottinterrule
+\ottfval\ottinterrule
 \ottfdef\ottinterrule
 \ottprogram\ottinterrule
 \ottfm\ottinterrule
+\ottg\ottinterrule
 \ottm\ottafterlastrule
 }}
 
@@ -102,90 +124,210 @@
 % defns Jop
 %% defn expr_reduce
 \newcommand{\ottdruleExrXXvar}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{m}  \ottsym{=}   \ottnt{m'} [  \ottmv{x} := \ottnt{v}  ] }%
-\ottpremise{ \ottmv{cnt'}  =  \ottmv{cnt}  + 1 }%
+\ottpremise{\m  \ottsym{=}  \m'  \ottsym{[}  \ottmv{x}  \mapsto  \ottnt{v}  \ottsym{]}}%
+\ottpremise{ \cnt'  =  \cnt  + 1 }%
 }{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{v} }{%
+ \{ \fm , \g , \m , \cnt \}\,  \ottmv{x}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{v} }{%
 {\ottdrulename{Exr\_var}}{}%
 }}
 
 
 \newcommand{\ottdruleExrXXarrXXgetXXexpr}[1]{\ottdrule[#1]{%
-\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'} }%
+\ottpremise{ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{e'} }%
 }{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{[}  \ottnt{e}  \ottsym{]}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottmv{x}  \ottsym{[}  \ottnt{e'}  \ottsym{]} }{%
+ \{ \fm , \g , \m , \cnt \}\,  \ottmv{a}  \ottsym{[}  \ottnt{e}  \ottsym{]}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottmv{a}  \ottsym{[}  \ottnt{e'}  \ottsym{]} }{%
 {\ottdrulename{Exr\_arr\_get\_expr}}{}%
 }}
 
 
 \newcommand{\ottdruleExrXXarrXXgetXXval}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{m}  \ottsym{=}   \ottnt{m'} [  \ottmv{x} := \ottkw{a}  ] }%
-\ottpremise{\ottnt{v'}  \ottsym{=}  \ottsym{a[v]}}%
-\ottpremise{ \ottmv{cnt'}  =  \ottmv{cnt}  + 1 }%
+\ottpremise{\ottnt{v'}  \ottsym{=}  \g  \ottsym{(}  \ottmv{a}  \ottsym{)}  \ottsym{[}  \ottnt{v}  \ottsym{]}}%
+\ottpremise{ \cnt'  =  \cnt  + 1 }%
 }{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{[}  \ottnt{v}  \ottsym{]}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{v'} }{%
+ \{ \fm , \g , \m , \cnt \}\,  \ottmv{a}  \ottsym{[}  \ottnt{v}  \ottsym{]}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{v'} }{%
 {\ottdrulename{Exr\_arr\_get\_val}}{}%
 }}
 
 
 \newcommand{\ottdruleExrXXunopXXexpr}[1]{\ottdrule[#1]{%
-\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'} }%
+\ottpremise{ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{e'} }%
 }{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \sim\!\!\! \, \ottnt{e}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \sim\!\!\! \, \ottnt{e'} }{%
+ \{ \fm , \g , \m , \cnt \}\,  \sim\!\!\! \, \ottnt{e}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \sim\!\!\! \, \ottnt{e'} }{%
 {\ottdrulename{Exr\_unop\_expr}}{}%
 }}
 
 
 \newcommand{\ottdruleExrXXunopXXval}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{v'}  \equiv  \llbracket \, \sim\!\!\! \, \ottnt{v}  \rrbracket}%
-\ottpremise{ \ottmv{cnt'}  =  \ottmv{cnt}  + 1 }%
+\ottpremise{ \cnt'  =  \cnt  + 1 }%
 }{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \sim\!\!\! \, \ottnt{v}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{v'} }{%
+ \{ \fm , \g , \m , \cnt \}\,  \sim\!\!\! \, \ottnt{v}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{v'} }{%
 {\ottdrulename{Exr\_unop\_val}}{}%
 }}
 
 
 \newcommand{\ottdruleExrXXbinopXXl}[1]{\ottdrule[#1]{%
-\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e_{{\mathrm{1}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'_{{\mathrm{1}}}} }%
+\ottpremise{ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e_{{\mathrm{1}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{e'_{{\mathrm{1}}}} }%
 }{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e_{{\mathrm{1}}}} \, \oplus \, \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'_{{\mathrm{1}}}} \, \oplus \, \ottnt{e_{{\mathrm{2}}}} }{%
+ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e_{{\mathrm{1}}}} \, \oplus \, \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{e'_{{\mathrm{1}}}} \, \oplus \, \ottnt{e_{{\mathrm{2}}}} }{%
 {\ottdrulename{Exr\_binop\_l}}{}%
 }}
 
 
 \newcommand{\ottdruleExrXXbinopXXr}[1]{\ottdrule[#1]{%
-\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'_{{\mathrm{2}}}} }%
+\ottpremise{ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{e'_{{\mathrm{2}}}} }%
 }{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{v} \, \oplus \, \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{v} \, \oplus \, \ottnt{e'_{{\mathrm{2}}}} }{%
+ \{ \fm , \g , \m , \cnt \}\,  \ottnt{v} \, \oplus \, \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{v} \, \oplus \, \ottnt{e'_{{\mathrm{2}}}} }{%
 {\ottdrulename{Exr\_binop\_r}}{}%
 }}
 
 
 \newcommand{\ottdruleExrXXbinopXXval}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{v_{{\mathrm{3}}}}  \equiv  \llbracket  \ottnt{v_{{\mathrm{1}}}} \, \oplus \, \ottnt{v_{{\mathrm{2}}}}  \rrbracket}%
-\ottpremise{ \ottmv{cnt'}  =  \ottmv{cnt}  + 1 }%
+\ottpremise{ \cnt'  =  \cnt  + 1 }%
 }{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{v_{{\mathrm{1}}}} \, \oplus \, \ottnt{v_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{v_{{\mathrm{3}}}} }{%
+ \{ \fm , \g , \m , \cnt \}\,  \ottnt{v_{{\mathrm{1}}}} \, \oplus \, \ottnt{v_{{\mathrm{2}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{v_{{\mathrm{3}}}} }{%
 {\ottdrulename{Exr\_binop\_val}}{}%
 }}
 
 
 \newcommand{\ottdruleExrXXfnXXexpr}[1]{\ottdrule[#1]{%
-\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e_{{\mathrm{1}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'_{{\mathrm{1}}}} }%
+\ottpremise{ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e_{{\mathrm{1}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{e'_{{\mathrm{1}}}} }%
 }{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{f}  \ottsym{(}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{v_{\ottmv{k}}}  \ottsym{,}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{,}  \ottnt{e_{{\mathrm{2}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{e_{\ottmv{n}}}  \ottsym{)}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottmv{f}  \ottsym{(}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{v_{\ottmv{k}}}  \ottsym{,}  \ottnt{e'_{{\mathrm{1}}}}  \ottsym{,}  \ottnt{e_{{\mathrm{2}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{e_{\ottmv{n}}}  \ottsym{)} }{%
+ \{ \fm , \g , \m , \cnt \}\,  \ottmv{f}  \ottsym{(}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{v_{\ottmv{k}}}  \ottsym{,}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{,}  \ottnt{e_{{\mathrm{2}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{e_{\ottmv{n}}}  \ottsym{)}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottmv{f}  \ottsym{(}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{v_{\ottmv{k}}}  \ottsym{,}  \ottnt{e'_{{\mathrm{1}}}}  \ottsym{,}  \ottnt{e_{{\mathrm{2}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{e_{\ottmv{n}}}  \ottsym{)} }{%
 {\ottdrulename{Exr\_fn\_expr}}{}%
 }}
 
 
 \newcommand{\ottdruleExrXXfnXXcall}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{fm}  \ottsym{=}  \ottnt{fm'}  \ottsym{,}  \ottmv{f}  \ottsym{(}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{v_{\ottmv{k}}}  \ottsym{)}  \ottsym{=}  \ottnt{s}  \ottsym{;} \, \ottkw{return} \, \ottnt{e}}%
+\ottpremise{\fm  \ottsym{=}  \fm'  \ottsym{[}  \ottmv{f}  \mapsto  \ottsym{(}  \ottmv{x_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottmv{x_{\ottmv{k}}}  \ottsym{)}  \ottsym{:}  \ottnt{s}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e}  \ottsym{]}}%
+\ottpremise{\m'  \ottsym{=}  \m  \ottsym{\mbox{$\mid$}}   \emptyset_{\mu} }%
+\ottpremise{ \cnt'  =  \cnt  + 1 }%
 }{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{f}  \ottsym{(}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{v_{\ottmv{k}}}  \ottsym{)}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e} }{%
+ \{ \fm , \g , \m , \cnt \}\,  \ottmv{f}  \ottsym{(}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{v_{\ottmv{k}}}  \ottsym{)}   \longrightarrow  \{ \fm , \g , \m' , \cnt' \}\,  \ottsym{\{}  \ottmv{x_{{\mathrm{1}}}}  \ottsym{/}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottmv{x_{\ottmv{k}}}  \ottsym{/}  \ottnt{v_{\ottmv{k}}}  \ottsym{\}}  \ottnt{s}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e} }{%
 {\ottdrulename{Exr\_fn\_call}}{}%
 }}
 
-\newcommand{\ottdefnexprXXreduce}[1]{\begin{ottdefnblock}[#1]{$ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e}   \longrightarrow  \{ \ottnt{fm'} , \ottnt{m'} , \ottmv{cnt'} \}  \ottnt{e'} $}{\ottcom{$\ottnt{e}$ reduces to $\ottnt{e'}$}}
+
+\newcommand{\ottdruleExrXXskipXXexpr}[1]{\ottdrule[#1]{%
+\ottpremise{ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{e'} }%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottkw{skip}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e}   \longrightarrow  \{ \fm , \g , \m , \cnt \}\,  \ottnt{e'} }{%
+{\ottdrulename{Exr\_skip\_expr}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXskipXXval}[1]{\ottdrule[#1]{%
+\ottpremise{\m  \ottsym{=}  \m_{{\mathrm{1}}}  \ottsym{\mbox{$\mid$}}  \m_{{\mathrm{2}}}}%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottkw{skip}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{v}   \longrightarrow  \{ \fm , \g , \m_{{\mathrm{1}}} , \cnt \}\,  \ottnt{v} }{%
+{\ottdrulename{Exr\_skip\_val}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXseq}[1]{\ottdrule[#1]{%
+\ottpremise{ \{ \fm , \g , \m , \cnt \}\,  \ottnt{s_{{\mathrm{1}}}}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g , \m' , \cnt' \}\,  \ottnt{s'_{{\mathrm{1}}}}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottnt{s_{{\mathrm{1}}}}  \ottsym{;}  \ottnt{s_{{\mathrm{2}}}}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g , \m' , \cnt' \}\,  \ottnt{s'_{{\mathrm{1}}}}  \ottsym{;}  \ottnt{s_{{\mathrm{2}}}}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_seq}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXseqXXskip}[1]{\ottdrule[#1]{%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottkw{skip}  \ottsym{;}  \ottnt{s}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt \}\,  \ottnt{s}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_seq\_skip}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXdefXXexpr}[1]{\ottdrule[#1]{%
+\ottpremise{ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{e'} }%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottkw{def} \, \ottmv{x}  \ottsym{:=}  \ottnt{e}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottkw{def} \, \ottmv{x}  \ottsym{:=}  \ottnt{e'}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_def\_expr}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXdefXXval}[1]{\ottdrule[#1]{%
+\ottpremise{\m'  \ottsym{=}  \m  \ottsym{[}  \ottmv{x}  \mapsto  \ottnt{v}  \ottsym{]}}%
+\ottpremise{ \cnt'  =  \cnt  + 1 }%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottkw{def} \, \ottmv{x}  \ottsym{:=}  \ottnt{v}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g , \m' , \cnt' \}\,  \ottkw{skip}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_def\_val}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXdefXXarr}[1]{\ottdrule[#1]{%
+\ottpremise{\g'  \ottsym{=}  \g  \ottsym{[}  \ottmv{a}  \mapsto  \!\texttt{[]}  \ottsym{]}}%
+\ottpremise{\m'  \ottsym{=}  \m  \ottsym{[}  \ottmv{x}  \mapsto  \ottmv{a}  \ottsym{]}}%
+\ottpremise{ \cnt'  =  \cnt  + 1 }%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottkw{def} \, \ottmv{x}  \ottsym{:=}  \ottmv{a}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g' , \m' , \cnt' \}\,  \ottkw{skip}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_def\_arr}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXassignXXexpr}[1]{\ottdrule[#1]{%
+\ottpremise{ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{e'} }%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottmv{x}  \ottsym{:=}  \ottnt{e}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottmv{x}  \ottsym{:=}  \ottnt{e'}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_assign\_expr}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXassignXXval}[1]{\ottdrule[#1]{%
+\ottpremise{\m'  \ottsym{=}  \m  \ottsym{[}  \ottmv{x}  \mapsto  \ottnt{v}  \ottsym{]}}%
+\ottpremise{ \cnt'  =  \cnt  + 1 }%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottmv{x}  \ottsym{:=}  \ottnt{v}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g , \m' , \cnt' \}\,  \ottkw{skip}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_assign\_val}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXarrXXassignXXexprXXl}[1]{\ottdrule[#1]{%
+\ottpremise{ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e_{{\mathrm{1}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{e'_{{\mathrm{1}}}} }%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottmv{a}  \ottsym{[}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottmv{a}  \ottsym{[}  \ottnt{e'_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_arr\_assign\_expr\_l}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXarrXXassignXXexprXXr}[1]{\ottdrule[#1]{%
+\ottpremise{ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottnt{e'_{{\mathrm{2}}}} }%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottmv{a}  \ottsym{[}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottmv{a}  \ottsym{[}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e'_{{\mathrm{2}}}}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_arr\_assign\_expr\_r}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXarrXXassignXXval}[1]{\ottdrule[#1]{%
+\ottpremise{\g'  \ottsym{=}  \g  \ottsym{(}  \ottmv{a}  \ottsym{)}  \ottsym{[}  \ottnt{v_{{\mathrm{1}}}}  \mapsto  \ottnt{v_{{\mathrm{2}}}}  \ottsym{]}}%
+\ottpremise{ \cnt'  =  \cnt  + 1 }%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottmv{a}  \ottsym{[}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{v_{{\mathrm{2}}}}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g' , \m , \cnt' \}\,  \ottkw{skip}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_arr\_assign\_val}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXfor}[1]{\ottdrule[#1]{%
+\ottpremise{\ottmv{x} \, \notin \, \m}%
+\ottpremise{\ottnt{v_{{\mathrm{1}}}}  \ottsym{<}  \ottnt{v_{{\mathrm{2}}}}}%
+\ottpremise{ \ottnt{v'_{{\mathrm{1}}}}  =  \ottnt{v_{{\mathrm{1}}}}  + 1 }%
+\ottpremise{ \cnt'  =  \cnt  + 1 }%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottkw{for} \, \ottmv{x} \, \ottkw{from} \, \ottnt{v_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{s}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g , \m , \cnt' \}\,  \ottsym{\{}  \ottmv{x}  \ottsym{/}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{\}}  \ottnt{s}  \ottsym{;}  \ottkw{for} \, \ottmv{x} \, \ottkw{from} \, \ottnt{v'_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{s}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_for}}{}%
+}}
+
+
+\newcommand{\ottdruleExrXXforXXbase}[1]{\ottdrule[#1]{%
+\ottpremise{\ottnt{v_{{\mathrm{1}}}}  \ottsym{=}  \ottnt{v_{{\mathrm{2}}}}}%
+}{
+ \{ \fm , \g , \m , \cnt \}\,  \ottkw{for} \, \ottmv{x} \, \ottkw{from} \, \ottnt{v_{{\mathrm{2}}}} \, \ottkw{to} \, \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{s}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}}   \longrightarrow  \{ \fm , \g , \m' , \cnt \}\,  \ottkw{skip}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottnt{e_{{\mathrm{0}}}} }{%
+{\ottdrulename{Exr\_for\_base}}{}%
+}}
+
+\newcommand{\ottdefnexprXXreduce}[1]{\begin{ottdefnblock}[#1]{$ \{ \fm , \g , \m , \cnt \}\,  \ottnt{e}   \longrightarrow  \{ \fm' , \g' , \m' , \cnt' \}\,  \ottnt{e'} $}{\ottcom{$\ottnt{e}$ reduces to $\ottnt{e'}$}}
 \ottusedrule{\ottdruleExrXXvar{}}
 \ottusedrule{\ottdruleExrXXarrXXgetXXexpr{}}
 \ottusedrule{\ottdruleExrXXarrXXgetXXval{}}
@@ -196,128 +338,28 @@
 \ottusedrule{\ottdruleExrXXbinopXXval{}}
 \ottusedrule{\ottdruleExrXXfnXXexpr{}}
 \ottusedrule{\ottdruleExrXXfnXXcall{}}
+\ottusedrule{\ottdruleExrXXskipXXexpr{}}
+\ottusedrule{\ottdruleExrXXskipXXval{}}
+\ottusedrule{\ottdruleExrXXseq{}}
+\ottusedrule{\ottdruleExrXXseqXXskip{}}
+\ottusedrule{\ottdruleExrXXdefXXexpr{}}
+\ottusedrule{\ottdruleExrXXdefXXval{}}
+\ottusedrule{\ottdruleExrXXdefXXarr{}}
+\ottusedrule{\ottdruleExrXXassignXXexpr{}}
+\ottusedrule{\ottdruleExrXXassignXXval{}}
+\ottusedrule{\ottdruleExrXXarrXXassignXXexprXXl{}}
+\ottusedrule{\ottdruleExrXXarrXXassignXXexprXXr{}}
+\ottusedrule{\ottdruleExrXXarrXXassignXXval{}}
+\ottusedrule{\ottdruleExrXXfor{}}
+\ottusedrule{\ottdruleExrXXforXXbase{}}
 \end{ottdefnblock}}
 
 
 \newcommand{\ottdefnsJop}{
 \ottdefnexprXXreduce{}}
 
-% defns Jpop
-%% defn stmt_reduce
-\newcommand{\ottdruleStrXXskip}[1]{\ottdrule[#1]{%
-}{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottkw{skip}  \ottsym{;}  \ottnt{s}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{s} }{%
-{\ottdrulename{Str\_skip}}{}%
-}}
-
-
-\newcommand{\ottdruleStrXXseq}[1]{\ottdrule[#1]{%
-\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{s_{{\mathrm{1}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m'} , \ottmv{cnt'} \}  \ottnt{s'_{{\mathrm{1}}}} }%
-}{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{s_{{\mathrm{1}}}}  \ottsym{;}  \ottnt{s_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m'} , \ottmv{cnt'} \}  \ottnt{s'_{{\mathrm{1}}}}  \ottsym{;}  \ottnt{s_{{\mathrm{2}}}} }{%
-{\ottdrulename{Str\_seq}}{}%
-}}
-
-
-\newcommand{\ottdruleStrXXdefXXexpr}[1]{\ottdrule[#1]{%
-\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'} }%
-}{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottkw{def} \, \ottmv{x}  \ottsym{:=}  \ottnt{e}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottkw{def} \, \ottmv{x}  \ottsym{:=}  \ottnt{e'} }{%
-{\ottdrulename{Str\_def\_expr}}{}%
-}}
-
-
-\newcommand{\ottdruleStrXXdefXXval}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottmv{cnt'}  =  \ottmv{cnt}  + 1 }%
-\ottpremise{\ottnt{m'}  \ottsym{=}   \ottnt{m} [  \ottmv{x} := \ottnt{v}  ] }%
-}{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottkw{def} \, \ottmv{x}  \ottsym{:=}  \ottnt{v}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m'} , \ottmv{cnt'} \}  \ottkw{skip} }{%
-{\ottdrulename{Str\_def\_val}}{}%
-}}
-
-
-\newcommand{\ottdruleStrXXassignXXexpr}[1]{\ottdrule[#1]{%
-\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'} }%
-}{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{:=}  \ottnt{e}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottmv{x}  \ottsym{:=}  \ottnt{e'} }{%
-{\ottdrulename{Str\_assign\_expr}}{}%
-}}
-
-
-\newcommand{\ottdruleStrXXassignXXval}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottmv{cnt'}  =  \ottmv{cnt}  + 1 }%
-\ottpremise{\ottnt{m'}  \ottsym{=}   \ottnt{m} [  \ottmv{x} := \ottnt{v}  ] }%
-}{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{:=}  \ottnt{v}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m'} , \ottmv{cnt'} \}  \ottkw{skip} }{%
-{\ottdrulename{Str\_assign\_val}}{}%
-}}
-
-
-\newcommand{\ottdruleStrXXarrXXassignXXexprXXl}[1]{\ottdrule[#1]{%
-\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e_{{\mathrm{1}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'_{{\mathrm{1}}}} }%
-}{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{[}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottmv{x}  \ottsym{[}  \ottnt{e'_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}} }{%
-{\ottdrulename{Str\_arr\_assign\_expr\_l}}{}%
-}}
-
-
-\newcommand{\ottdruleStrXXarrXXassignXXexprXXr}[1]{\ottdrule[#1]{%
-\ottpremise{ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottnt{e'_{{\mathrm{2}}}} }%
-}{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{[}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt'} \}  \ottmv{x}  \ottsym{[}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{e'_{{\mathrm{2}}}} }{%
-{\ottdrulename{Str\_arr\_assign\_expr\_r}}{}%
-}}
-
-
-\newcommand{\ottdruleStrXXarrXXassignXXval}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottmv{cnt'}  =  \ottmv{cnt}  + 1 }%
-\ottpremise{\ottnt{m'}  \ottsym{=}   \ottnt{m} [  \ottmv{x} := \ottkw{a}  ] }%
-}{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottmv{x}  \ottsym{[}  \ottnt{v_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottnt{v_{{\mathrm{2}}}}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m'} , \ottmv{cnt'} \}  \ottkw{skip} }{%
-{\ottdrulename{Str\_arr\_assign\_val}}{}%
-}}
-
-
-\newcommand{\ottdruleStrXXfor}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{v_{{\mathrm{1}}}}  \ottsym{<}  \ottnt{v_{{\mathrm{2}}}}}%
-\ottpremise{ \ottnt{v'_{{\mathrm{1}}}}  =  \ottnt{v_{{\mathrm{1}}}}  + 1 }%
-\ottpremise{ \neg ( \ottnt{m}  \ottsym{=}   \ottnt{m'} [  \ottmv{x} := \ottnt{v'}  ]  ) }%
-\ottpremise{\ottnt{m''}  \ottsym{=}   \ottnt{m} [  \ottmv{x} := \ottnt{v_{{\mathrm{1}}}}  ] }%
-}{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottkw{for} \, \ottmv{x} \, \ottkw{from} \, \ottnt{v_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{s}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m''} , \ottmv{cnt} \}  \ottnt{s}  \ottsym{;}  \ottkw{for} \, \ottmv{x} \, \ottkw{from} \, \ottnt{v'_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{s} }{%
-{\ottdrulename{Str\_for}}{}%
-}}
-
-
-\newcommand{\ottdruleStrXXforXXbase}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{v_{{\mathrm{1}}}}  \ottsym{=}  \ottnt{v_{{\mathrm{2}}}}}%
-\ottpremise{\ottnt{m'}  \ottsym{=}  \ottnt{m}  \ottsym{/}  \ottmv{x}}%
-}{
- \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottkw{for} \, \ottmv{x} \, \ottkw{from} \, \ottnt{v_{{\mathrm{2}}}} \, \ottkw{to} \, \ottnt{v_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{s}   \longrightarrow  \{ \ottnt{fm} , \ottnt{m'} , \ottmv{cnt} \}  \ottkw{skip} }{%
-{\ottdrulename{Str\_for\_base}}{}%
-}}
-
-\newcommand{\ottdefnstmtXXreduce}[1]{\begin{ottdefnblock}[#1]{$ \{ \ottnt{fm} , \ottnt{m} , \ottmv{cnt} \}  \ottnt{s}   \longrightarrow  \{ \ottnt{fm'} , \ottnt{m'} , \ottmv{cnt'} \}  \ottnt{s'} $}{\ottcom{$\ottnt{s}$ reduces to $\ottnt{s'}$}}
-\ottusedrule{\ottdruleStrXXskip{}}
-\ottusedrule{\ottdruleStrXXseq{}}
-\ottusedrule{\ottdruleStrXXdefXXexpr{}}
-\ottusedrule{\ottdruleStrXXdefXXval{}}
-\ottusedrule{\ottdruleStrXXassignXXexpr{}}
-\ottusedrule{\ottdruleStrXXassignXXval{}}
-\ottusedrule{\ottdruleStrXXarrXXassignXXexprXXl{}}
-\ottusedrule{\ottdruleStrXXarrXXassignXXexprXXr{}}
-\ottusedrule{\ottdruleStrXXarrXXassignXXval{}}
-\ottusedrule{\ottdruleStrXXfor{}}
-\ottusedrule{\ottdruleStrXXforXXbase{}}
-\end{ottdefnblock}}
-
-
-\newcommand{\ottdefnsJpop}{
-\ottdefnstmtXXreduce{}}
-
 \newcommand{\ottdefnss}{
 \ottdefnsJop
-\ottdefnsJpop
 }
 
 \newcommand{\ottall}{\ottmetavars\\[0pt]
@@ -328,7 +370,7 @@
 \ottall
 
 \begin{verbatim}
-Definition rules:        21 good    0 bad
-Definition rule clauses: 53 good    0 bad
+Definition rules:        24 good    0 bad
+Definition rule clauses: 61 good    0 bad
 \end{verbatim}
 \end{document}
