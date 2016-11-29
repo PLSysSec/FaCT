@@ -1,14 +1,14 @@
 type ctype =
-  | Int (* have (u)int[8|16|32|64]? *)
+  | Int
   | ByteArr of int
 [@@deriving show]
 
 and binop =
   | Plus
   | Minus
-  | Mult (* figure out if this is truly const *)
-  | GT (* do comparisons short-circuit? *)
-  | Eq (* more hardware question marks *)
+  | Mult
+  | GT
+  | Eq
   | Neq
   | BitAnd
   | BitOr
@@ -25,17 +25,17 @@ and primitive =
 
 and expr =
   | VarExp of string
-  | ArrExp of string * int
+  | ArrExp of string * expr
   | Primitive of primitive
   | UnOp of unop * expr
   | BinOp of binop * expr * expr
-  | CallExp of string * expr list (* because we're not monsters *)
+  | CallExp of string * expr list
 [@@deriving show]
 
 and stm =
   | VarDec of string * ctype * expr
   | Assign of string * expr
-  | ArrAssign of string * int * expr
+  | ArrAssign of string * expr * expr
   | For of string * primitive * primitive * stm list
 [@@deriving show]
 

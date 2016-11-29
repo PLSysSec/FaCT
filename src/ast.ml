@@ -13,14 +13,14 @@ and param = { name: string; ty: ctype }
 and stm =
   | VarDec of string * ctype * expr
   | Assign of string * expr
-  | ArrAssign of string * int * expr
+  | ArrAssign of string * expr * expr
   | If of expr * stm list * stm list
-  | For of string * primitive * primitive * stm list (* TODO typecheck primitives: Number only *)
+  | For of string * primitive * primitive * stm list
   | Return of expr
 
 and expr =
   | VarExp of string
-  | ArrExp of string * int (* name of array, index *)
+  | ArrExp of string * expr
   | Unop of unop * expr
   | BinOp of binop * expr * expr
   | Primitive of primitive

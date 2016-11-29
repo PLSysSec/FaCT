@@ -49,8 +49,9 @@ and transform_stm ctx = function
     let v' = transform_expr(v) in
     let assign_ok = b_and c (b_not (Cast.VarExp "rset")) in
     let newval = b_and v' assign_ok in
-    let oldval = b_and (Cast.ArrExp(n,i)) (b_not assign_ok) in
-    [Cast.ArrAssign(n,i,(b_or newval oldval))]
+    let i' = transform_expr i in
+    let oldval = b_and (Cast.ArrExp(n,i')) (b_not assign_ok) in
+    [Cast.ArrAssign(n,i',(b_or newval oldval))]
   | Ast.If(e,bt,bf) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
@@ -79,7 +80,7 @@ and transform_stm ctx = function
 
 and transform_expr = function
   | Ast.VarExp s -> Cast.VarExp s
-  | Ast.ArrExp(s,i) -> Cast.ArrExp(s,i)
+  | Ast.ArrExp(s,i) -> Cast.ArrExp(s,transform_expr i)
   | Ast.Unop(u,e) -> Cast.UnOp(transform_unop(u),transform_expr(e))
   | Ast.BinOp(b,e1,e2) ->
     let b' = transform_binop b in

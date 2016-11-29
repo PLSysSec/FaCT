@@ -1,4 +1,5 @@
 open Llvm
+open Ast
 
 exception Error of string
 
@@ -6,7 +7,6 @@ type stdlib_desc =
   {name:string; ret_ty:Ast.ctype; args_ty:Ast.ctype list}
 
 let stdlib_funs = [
-  (* RIP printf *)
 ]
 
 let codegen_stdlib ctx m = function
