@@ -7,6 +7,7 @@ exception Error of string
 
 let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
 let loop_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
+let function_params:(string, param list) Hashtbl.t = Hashtbl.create 10
 
 let codegen ctx m =
   let b = builder ctx in
@@ -27,6 +28,7 @@ let codegen ctx m =
         match lookup_function n m with
         | None -> declare_function n ft m
         | Some f -> raise (Error ("Function already defined:\t" ^ n)) in
+      ignore(Hashtbl.add function_params n args);
       let args_array = Array.of_list args in
       Array.iteri (fun i a ->
                     let { name=n; ty=_ } = args_array.(i) in
@@ -100,15 +102,17 @@ let codegen ctx m =
         let params = params callee' in
         if Array.length params == List.length args then () else
           raise (Error("Arity mismatch for `" ^ callee ^ "`"));
-        let codegen_expr' arg =
+        let codegen_expr' arg {name=_;ty=t} =
           let arg' = (codegen_expr arg) in
-          let i_t = const_int (i32_type ctx) in
-          (*build_in_bounds_gep arg' [| (i_t 0); (i_t 0) |] "arg" b*)
-          (*build_inttoptr arg' (pointer_type (i8_type ctx)) "arg" b*)
-          let a = build_alloca (i32_type ctx) "arg" b in
+          let ty = match t with
+            | Int -> (i32_type ctx)
+            | ByteArr n -> array_type (i32_type ctx) n in
+          let a = build_alloca ty "arg" b in
           ignore(build_store arg' a b);
           a in
-        let args' = Array.map codegen_expr' (Array.of_list args) in
+        let f_args = Array.of_list(Hashtbl.find function_params callee) in
+        let args' =
+          Core.Std.Array.map2_exn (Array.of_list args) f_args codegen_expr' in
         build_call callee' args' "calltmp" b
 
   and codegen_stm = function

@@ -100,6 +100,19 @@ let add_body' =
   Return(CallExp("add",[Primitive(Number 10);Primitive(Number 20)]))
 let prgm16 = FunctionDec("add10And20",[],Int,[add_body'])
 
+(* Add all numbers in a given byte array *)
+let arr_arg = { name="bytearr"; ty=ByteArr 5}
+let acc_dec = VarDec("acc", Int, Primitive(Number 0))
+let acc_body = Assign("acc",BinOp(Plus,VarExp("acc"),ArrExp("bytearr",VarExp("i"))))
+let acc_loop = For("i",Number 0,Number 5,[acc_body])
+let ret_acc = Return(VarExp "acc")
+let prgm17 = FunctionDec("addAll",[arr_arg],Int,[acc_dec;acc_loop;ret_acc])
+
+(* Call addAll *)
+let byte_arr = VarDec("arr",ByteArr 5,Primitive(ByteArray[1;1;1;1;1]))
+let add_all = Return(CallExp("addAll",[VarExp("arr")]))
+let prgm18 = FunctionDec("callAddAll",[],Int,[byte_arr;add_all])
+
 (* Module 1 *)
 let m1 = CModule
     [prgm1;
@@ -117,7 +130,9 @@ let m1 = CModule
      prgm13;
      prgm14;
      prgm15;
-     prgm16]
+     prgm16;
+     prgm17;
+     prgm18]
 
 (* List of modules to test *)
 let programs = [m1]

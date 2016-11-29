@@ -17,6 +17,8 @@ int loopAcc();
 int loopAssignArray(int*);
 int add(int*, int*);
 int add10And20();
+int addAll(int*);
+int callAddAll();
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -127,6 +129,15 @@ void test_add_ten_and_twenty(void) {
   TEST_ASSERT_EQUAL(30,add10And20());
 }
 
+void test_add_all(void) {
+  int arr[5] = {1,2,3,4,5};
+  TEST_ASSERT_EQUAL(15,addAll(arr));
+}
+
+void test_call_add_all(void) {
+  TEST_ASSERT_EQUAL(5,callAddAll());
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_get);
@@ -145,5 +156,7 @@ int main(void) {
   RUN_TEST(test_loop_assign);
   RUN_TEST(test_add);
   RUN_TEST(test_add_ten_and_twenty);
+  RUN_TEST(test_add_all);
+  RUN_TEST(test_call_add_all);
   return UNITY_END();
 }
