@@ -1,0 +1,60 @@
+\section{Related Work}
+\label{sec:related}
+
+The importance of the world web in our daily lives is a well worn
+justification for its study. Of particular importance to this work is
+the comprehensively studied area of web caching in which researchers
+observe that popular websites exist and that storing local copies of
+these sites can provide performance gains and bandwidth
+reductions\cite{breslau1999web}. There are a myriad of techniques for
+performing caching that rely on locality of reference for pages and
+objects \cite{rabinovich2002web}. While exploring the long history of
+web caching is beyond the scope of the paper, we note several pieces
+of work that tease out specific properties of web pages. For example,
+researchers have noted that caching can be performed at finer-grained
+levels than pervious discussed \cite{Wang:2014:MWM:2663716.2663739}
+and others have pointed out that pages consist of extraneous content
+that might be suitable for filtering
+\cite{Krishnamurthy:2006:CMC:1135777.1135829}. Further, recent studies
+in this area explore interesting properties of web pages and objects
+for use in specific areas such as the broadband domain
+\cite{sundaresan2013measuring} as well as for use by mobile devices
+\cite{Qian:2012:WCS:2307636.2307649}.
+
+Several measurement papers have explored the recent trends in
+page-level characteristics as well as in redundancy and caching
+\cite{ihm2011towards}. A striking finding that shares motivation with
+this work is the increased complexity of web pages. Ihm et
+al. \cite{butkiewicz2011understanding,ihm2011towards}, for example,
+explore metrics for measuring website complexity and characterize
+object types as well as their locations, servers, origins. Much of
+this complexity and third-party content has been attributed to online
+advertising. Several papers explore this space, but most notably
+Barford et al.  \cite{Barford:2014:AHA:2566486.2567992} and Guha et
+al. \cite{Guha:2010:CMO:1879141.1879152}.
+
+One implication of this complexity is an increase in the opaque nature
+of the interactions on the web. Several pieces of work shine light on
+this problem at a coarse-grained level, for example, by using DNS to
+understand transactions \cite{Bermudez:2012:DRD:2398776.2398819} or by
+examining interactions and dependancies between websites
+\cite{Pujol:2014:BWT:2663716.2663756}. An additional consequence of
+complexity is performance. A new body of work explores how to
+understand and improve web page load performance \cite{180330}. A
+particularly relevant piece of work in this domain is \cite{194916},
+which creates fine-grained dependency graphs in order to help
+prioritize object loads.
+
+The potential security and privacy consequences of third-party content
+are well explored. Initial work in the drive by download arena
+\cite{Provos:2008:YIP:1496711.1496712,Cova:2010:DAD:1772690.1772720,Provos:2007:GBA:1323128.1323132}
+note that in addtion to web-page compromise, inclusion of object from
+other domains create risk. Malicious advertising, as a particular form
+of third party content on a website, has received considerable
+attention
+\cite{Zarras:2014:DAM:2663716.2663719,Li:2012:KYE:2382196.2382267}. Another
+form of third-party content that has been an active area of
+measurement is exploring the privacy implications of online tracking
+\cite{mayer2012third,roesner2012detecting}.
+
+
