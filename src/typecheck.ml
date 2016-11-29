@@ -1,17 +1,6 @@
 open Ast
 open Env
 
-(*
-
-  Type checker v2
-  This is very similar to the one before except it uses statements.
-
-  The type checker still unifies types. Unification is great because it
-  works well with a real type system with type declarations. If we ever have
-  type declarations, unify will need to be updated to address these needs.
-
-*)
-
 exception NotImplemented
 exception VariableNotDefined of string
 exception TypeError of string
@@ -19,7 +8,6 @@ exception UnknownType of string
 exception CallError of string
 exception ForError of string
 
-(* order of this matters!!! i.e. (byte,int)->byte; (int,byte)->int; or viceversa *)
 let unify t t1 =
   match (t,t1) with
   | (Int,Int) -> Int
@@ -57,7 +45,15 @@ and tc_expr venv = function
        Not_found -> raise (VariableNotDefined("Variable not defined:\t" ^ v)))
   | ArrExp(v,i) ->
     (match i with
-     | Primitive _ -> Int)
+     | Primitive _ -> Int
+     | VarExp n ->
+       (try
+          match Hashtbl.find venv n with
+          | LoopEntry { v_ty=Int } -> Int
+          | _ -> raise (TypeError "Arrays can only be accessed with constant numbers or loop variables")
+       with
+       | Not_found -> raise (VariableNotDefined("Variable not defined:\t" ^ n)))
+     | _ -> raise (TypeError "Arrays can only be accessed with constant numbers or loop variables"))
   | Unop(op,expr) ->
     let op_ty = tc_unop op in
     let expr_ty = tc_expr venv expr in
@@ -90,23 +86,23 @@ and tc_stm fn_ty venv = function
       | Not_found -> raise (VariableNotDefined(name)) in
     (match v with
      | VarEntry { v_ty=ty } ->
-       let _ = unify ty (tc_expr venv expr) in ()
+       ignore(unify ty (tc_expr venv expr))
      | _ -> raise (VariableNotDefined(name)))
   | ArrAssign(name,index,expr) ->
     (try
       (match Hashtbl.find venv name with
        | VarEntry { v_ty=(ByteArr x) } ->
-         let _ = unify Int (tc_expr venv expr) in () (*TODO (maybz): use ignore instead of let*)
+         ignore(unify Int (tc_expr venv expr))
        | _ -> raise (VariableNotDefined(name)))
     with
       Not_found -> raise (VariableNotDefined(name)))
   | If(cond,then',else') ->
-    let _ = unify (tc_expr venv cond) Bool in
-    let _ = tc_stms fn_ty venv then' in
-    let _ = tc_stms fn_ty venv else' in ()
+    ignore(unify (tc_expr venv cond) Bool);
+    ignore(tc_stms fn_ty venv then');
+    ignore(tc_stms fn_ty venv else')
   | For(name,l,h,body) ->
-    let _ = unify (tc_expr venv (Primitive l)) Int in
-    let _ = unify (tc_expr venv (Primitive h)) Int in
+    ignore(unify (tc_expr venv (Primitive l)) Int);
+    ignore(unify (tc_expr venv (Primitive h)) Int);
     (match (l,h) with
      | (Number l', Number h') ->
        if l' >= h' then raise
@@ -116,10 +112,10 @@ and tc_stm fn_ty venv = function
     let _ = Hashtbl.add venv name (LoopEntry { v_ty=Int }) in
     tc_stms fn_ty venv body
   | Return(expr) ->
-    let _ = unify fn_ty (tc_expr venv expr) in ()
+    ignore(unify fn_ty (tc_expr venv expr))
 
 and tc_stms fn_ty venv stms =
-  let _ = List.map (tc_stm fn_ty venv) stms in ()
+  ignore(List.map (tc_stm fn_ty venv) stms)
 
 and tc_fdec venv = function
   | FunctionDec(_,_,ByteArr(_),_) ->
@@ -131,4 +127,4 @@ and tc_fdec venv = function
     Hashtbl.add venv name (FunEntry { f_ty=ty; f_args=args_ty })
 
 and tc_module (CModule l) =
-  List.fold_left (fun a f -> let _ = tc_fdec Env.venv f in ()) () l
+  List.fold_left (fun a f -> ignore(tc_fdec Env.venv f)) () l
