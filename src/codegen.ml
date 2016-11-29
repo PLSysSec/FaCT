@@ -43,7 +43,7 @@ let codegen ctx m =
                     set_value_name n a;
                     let a' = (match t with
                       | Int -> Val a
-                      | ByteArr n -> Ref a) in
+                      | ByteArr _ -> Ref a) in
                     Hashtbl.add named_values n a')
                   (params the_function);
       let bb = append_block ctx "entry" the_function in
