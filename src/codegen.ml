@@ -5,12 +5,20 @@ open Stdlib
 exception NotImplemented of string
 exception Error of string
 
-let named_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
-let loop_values:(string, llvalue) Hashtbl.t = Hashtbl.create 10
+type var =
+  | Ref of llvalue
+  | Val of llvalue
+
+let named_values:(string, var) Hashtbl.t = Hashtbl.create 10
+let loop_values:(string, var) Hashtbl.t = Hashtbl.create 10
 let function_params:(string, param list) Hashtbl.t = Hashtbl.create 10
 
 let codegen ctx m =
   let b = builder ctx in
+
+  let extract_value = function
+    | Ref v -> v
+    | Val v -> v in
 
   let rec codegen_module = function
     | CModule f -> let _ = List.map codegen_fdec f in ()
@@ -19,7 +27,7 @@ let codegen ctx m =
     | FunctionDec(n,args,ty,body,ret) ->
       let arg_to_type { name=s; ty=t } =
         (match t with
-         | Int -> pointer_type(i32_type ctx)
+         | Int -> i32_type ctx
          | ByteArr(n) -> pointer_type(array_type (i32_type ctx) n)) in
       let arg_types = List.map arg_to_type args in
       let arg_types' = Array.of_list arg_types in
@@ -31,9 +39,12 @@ let codegen ctx m =
       ignore(Hashtbl.add function_params n args);
       let args_array = Array.of_list args in
       Array.iteri (fun i a ->
-                    let { name=n; ty=_ } = args_array.(i) in
+                    let { name=n; ty=t } = args_array.(i) in
                     set_value_name n a;
-                    Hashtbl.add named_values n a)
+                    let a' = (match t with
+                      | Int -> Val a
+                      | ByteArr n -> Ref a) in
+                    Hashtbl.add named_values n a')
                   (params the_function);
       let bb = append_block ctx "entry" the_function in
       let _ = position_at_end bb b in
@@ -71,20 +82,29 @@ let codegen ctx m =
 
   and codegen_expr = function
     | VarExp n ->
-      (try build_load (Hashtbl.find named_values n) n b with
+      let v =
+        (try (Hashtbl.find named_values n) with
           | Not_found -> (try Hashtbl.find loop_values n with
-              | Not_found -> raise (Error ("Unknown variable: " ^ n))))
+             | Not_found -> raise (Error ("Unknown variable: " ^ n)))) in
+      (match v with
+        | Val v' -> v'
+        | Ref v' -> build_load v' n b)
     | ArrExp(n,i) ->
       let get_index e =
         (match e with
          | Primitive(Number n) -> const_int (i32_type ctx) n
-         | VarExp n -> (try Hashtbl.find loop_values n with
-             | Not_found -> raise (Error ("Unknown variable: " ^ n)))
+         | VarExp n -> let v = (try Hashtbl.find loop_values n with
+             | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
+           (match v with
+            | Val v' -> v'
+            | Ref v' ->
+              raise (Error ("Loop variables cannot be passed by reference")))
          | _ -> raise (Error "Can only access arrays with loop values or int")
         ) in
-      let arr_val  = (try Hashtbl.find named_values n with
-        | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
-      let p = build_gep arr_val
+      let arr_val = (try Hashtbl.find named_values n with
+          | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
+      let arr_val' = extract_value arr_val in
+      let p = build_gep arr_val'
           [| (const_int (i32_type ctx) 0); (get_index i)|] "ptr" b in
       build_load p "p" b
     | UnOp(op,e) -> codegen_unop op e
@@ -104,12 +124,12 @@ let codegen ctx m =
           raise (Error("Arity mismatch for `" ^ callee ^ "`"));
         let codegen_expr' arg {name=_;ty=t} =
           let arg' = (codegen_expr arg) in
-          let ty = match t with
-            | Int -> (i32_type ctx)
-            | ByteArr n -> array_type (i32_type ctx) n in
-          let a = build_alloca ty "arg" b in
-          ignore(build_store arg' a b);
-          a in
+          (match t with
+            | Int -> arg'
+            | ByteArr n ->
+              let a = build_alloca (array_type (i32_type ctx) n) "arg" b in
+              ignore(build_store arg' a b);
+              a) in
         let f_args = Array.of_list(Hashtbl.find function_params callee) in
         let args' =
           Core.Std.Array.map2_exn (Array.of_list args) f_args codegen_expr' in
@@ -124,7 +144,7 @@ let codegen ctx m =
       ignore(position_at_end loop_bb b);
       let l' = codegen_expr (Primitive l) in
       let variable = build_phi [(l',preheader)] v b in
-      Hashtbl.add loop_values v variable;
+      Hashtbl.add loop_values v (Val variable);
       ignore(List.map codegen_stm s);
       let next_var =
         build_add variable (const_int (i32_type ctx) 1) "nextvar" b in
@@ -137,13 +157,15 @@ let codegen ctx m =
     | Assign(n,e) ->
       let v = (try Hashtbl.find named_values n with
         | Not_found -> raise (Error ("Unknown variable in var assign: " ^ n))) in
-      ignore(build_store (codegen_expr e) v b)
+      let v' = extract_value v in
+      ignore(build_store (codegen_expr e) v' b)
     | ArrAssign(n,i,e) ->
       let v = (try Hashtbl.find named_values n with
         | Not_found -> raise (Error ("Unknown variable in array assign: " ^ n))) in
+      let v' = extract_value v in
       let e' = codegen_expr e in
       let i_t = const_int (i32_type ctx) in
-      let p = build_gep v [| (i_t 0); (codegen_expr i)|] "ptr" b in
+      let p = build_gep v' [| (i_t 0); (codegen_expr i)|] "ptr" b in
       ignore(build_store e' p b)
     | VarDec(n,t,e) ->
       (match t with
@@ -152,12 +174,12 @@ let codegen ctx m =
          let vec = codegen_expr e in
          let alloca' = build_alloca arr_type n b in
          ignore(build_store vec alloca' b);
-         Hashtbl.add named_values n alloca';
+         Hashtbl.add named_values n (Ref alloca');
       | Int ->
         let init_val = codegen_expr e in
         let alloca = build_alloca (i32_type ctx) n b in
         ignore(build_store init_val alloca b);
-        Hashtbl.add named_values n alloca;
+        Hashtbl.add named_values n (Ref alloca);
       )
 
   in codegen_module
