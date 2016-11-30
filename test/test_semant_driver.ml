@@ -51,7 +51,8 @@ let ret''' = Return(VarExp "complex_ret")
 let prgm8 = FunctionDec("mediumComplexIf", [if_arg], Int, [if_dec;if'';ret'''])
 
 (* Mixed If *)
-let if''' = If(cond,[then'],[else''])
+let cond' = BinOp(Equal, Primitive(Number 10), VarExp("cond"))
+let if''' = If(cond',[then'],[else''])
 let prgm9 = FunctionDec("mixedIf", [if_arg], Int, [if_dec;if''';ret'''])
 
 (* Mixed If 2 *)
