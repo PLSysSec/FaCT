@@ -104,9 +104,14 @@ and transform_unop = function
 and transform_binop = function
   | Ast.Plus -> Cast.Plus
   | Ast.Minus -> Cast.Minus
+  | Ast.Multiply -> Cast.Mult
+  | Ast.Equal -> Cast.Eq
+  | Ast.NEqual -> Cast.Neq
   | Ast.GT -> Cast.GT
   | Ast.B_And -> Cast.BitAnd
   | Ast.B_Or -> Cast.BitOr
+  | Ast.LeftShift -> Cast.LeftShift
+  | Ast.RightShift -> Cast.RightShift
 
 and transform_fdec = function
   | Ast.FunctionDec(name,args,rt,body) ->

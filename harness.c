@@ -19,6 +19,11 @@ int add(int, int);
 int add10And20();
 int addAll(int*);
 int callAddAll();
+int multiply(int,int);
+int equal(int,int);
+int nequal(int,int);
+int lshift(int,int);
+int rshift(int,int);
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -122,6 +127,38 @@ void test_call_add_all(void) {
   TEST_ASSERT_EQUAL(5,callAddAll());
 }
 
+void test_multiply(void) {
+  TEST_ASSERT_EQUAL(1,multiply(1,1));
+  TEST_ASSERT_EQUAL(5,multiply(1,5));
+  TEST_ASSERT_EQUAL(11111155,multiply(1,11111155));
+  TEST_ASSERT_EQUAL(18,multiply(2,9));
+  TEST_ASSERT_EQUAL(0,multiply(1,0));
+}
+
+void test_equal(void) {
+  TEST_ASSERT_EQUAL(1,equal(1,1));
+  TEST_ASSERT_EQUAL(0,equal(1,11));
+}
+
+void test_nequal(void) {
+  TEST_ASSERT_EQUAL(0,nequal(1,1));
+  TEST_ASSERT_EQUAL(1,nequal(1,11));
+}
+
+void test_lshfit(void) {
+  TEST_ASSERT_EQUAL(0,lshift(0,1));
+  TEST_ASSERT_EQUAL(2,lshift(1,1));
+  TEST_ASSERT_EQUAL(8,lshift(1,3));
+  TEST_ASSERT_EQUAL(64,lshift(4,4));
+}
+
+void test_rshfit(void) {
+  TEST_ASSERT_EQUAL(0,rshift(0,1));
+  TEST_ASSERT_EQUAL(0,rshift(1,1));
+  TEST_ASSERT_EQUAL(4,rshift(8,1));
+  TEST_ASSERT_EQUAL(4,rshift(64,4));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_get);
@@ -142,5 +179,10 @@ int main(void) {
   RUN_TEST(test_add_ten_and_twenty);
   RUN_TEST(test_add_all);
   RUN_TEST(test_call_add_all);
+  RUN_TEST(test_multiply);
+  RUN_TEST(test_equal);
+  RUN_TEST(test_nequal);
+  RUN_TEST(test_lshfit);
+  RUN_TEST(test_rshfit);
   return UNITY_END();
 }

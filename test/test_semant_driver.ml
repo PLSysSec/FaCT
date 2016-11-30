@@ -113,6 +113,36 @@ let byte_arr = VarDec("arr",ByteArr 5,Primitive(ByteArray[1;1;1;1;1]))
 let add_all = Return(CallExp("addAll",[VarExp("arr")]))
 let prgm18 = FunctionDec("callAddAll",[],Int,[byte_arr;add_all])
 
+(* Multiply *)
+let mul_arg1 = { name="a"; ty=Int }
+let mul_arg2 = { name="b"; ty=Int }
+let mul = Return(BinOp(Multiply,VarExp("a"),VarExp("b")))
+let prgm19 = FunctionDec("multiply",[mul_arg1;mul_arg2],Int,[mul])
+
+(* Equal *)
+let eq_arg1 = { name="a"; ty=Int }
+let eq_arg2 = { name="b"; ty=Int }
+let eq = Return(BinOp(Equal,VarExp("a"),VarExp("b")))
+let prgm20 = FunctionDec("equal",[eq_arg1;eq_arg2],Int,[eq])
+
+(* Not Equal *)
+let neq_arg1 = { name="a"; ty=Int }
+let neq_arg2 = { name="b"; ty=Int }
+let neq = Return(BinOp(NEqual,VarExp("a"),VarExp("b")))
+let prgm21 = FunctionDec("nequal",[neq_arg1;neq_arg2],Int,[neq])
+
+(* Left Shift *)
+let ls_arg1 = { name="num"; ty=Int }
+let ls_arg2 = { name="shift"; ty=Int }
+let lshift = Return(BinOp(LeftShift,VarExp("num"),VarExp("shift")))
+let prgm22 = FunctionDec("lshift",[ls_arg1;ls_arg2],Int,[lshift])
+
+(* Left Shift *)
+let rs_arg1 = { name="num"; ty=Int }
+let rs_arg2 = { name="shift"; ty=Int }
+let rshift = Return(BinOp(RightShift,VarExp("num"),VarExp("shift")))
+let prgm23 = FunctionDec("rshift",[rs_arg1;rs_arg2],Int,[rshift])
+
 (* Module 1 *)
 let m1 = CModule
     [prgm1;
@@ -132,7 +162,12 @@ let m1 = CModule
      prgm15;
      prgm16;
      prgm17;
-     prgm18]
+     prgm18;
+     prgm19;
+     prgm20;
+     prgm21;
+     prgm22;
+     prgm23]
 
 (* List of modules to test *)
 let programs = [m1]

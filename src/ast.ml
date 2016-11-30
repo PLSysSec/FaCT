@@ -32,9 +32,14 @@ and unop =
 and binop =
   | Plus
   | Minus
+  | Multiply
+  | Equal
+  | NEqual
   | GT
   | B_And
   | B_Or
+  | LeftShift
+  | RightShift
 
 and primitive = Number of int
               | Boolean of bool

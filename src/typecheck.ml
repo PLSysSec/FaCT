@@ -25,9 +25,14 @@ let rec tc_unop = function
 and tc_binop = function
   | Plus -> (Int, [Int;Int])
   | Minus -> (Int, [Int;Int])
+  | Multiply -> (Int, [Int;Int])
+  | Equal -> (Int, [Int;Int])
+  | NEqual -> (Int, [Int;Int])
   | GT -> (Bool, [Int;Int])
   | B_And -> (Int, [Int;Int])
   | B_Or -> (Int, [Int;Int])
+  | LeftShift -> (Int, [Int;Int])
+  | RightShift -> (Int, [Int;Int])
 
 and tc_prim = function
   | Number n -> Int

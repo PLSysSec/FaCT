@@ -74,10 +74,19 @@ let codegen ctx m =
       | Plus -> build_add lhs rhs "addtmp" b
       | Minus -> build_sub lhs rhs "subtmp" b
       | GT ->
-        build_sext (build_icmp Icmp.Ugt lhs rhs "derp" b) (i32_type ctx) "gtcmp" b
+        let cmp = (build_icmp Icmp.Ugt lhs rhs "gt" b) in
+        build_sext cmp (i32_type ctx) "gtcmp" b
       | BitAnd -> build_and lhs rhs "andtmp" b
       | BitOr -> build_or lhs rhs "ortmp" b
-      | _ -> raise (Error "not implemented")
+      | Mult -> build_mul lhs rhs "multtmp" b
+      | Eq ->
+        let cmp = build_icmp Icmp.Eq lhs rhs "eq" b in
+        build_zext cmp (i32_type ctx) "eqtmp" b
+      | Neq ->
+        let cmp = (build_icmp Icmp.Ne lhs rhs "neq" b) in
+        build_zext cmp (i32_type ctx) "neqtmp" b
+      | LeftShift -> build_shl lhs rhs "lshift" b
+      | RightShift -> build_lshr lhs rhs "rshift" b
     end
 
   and codegen_expr = function
