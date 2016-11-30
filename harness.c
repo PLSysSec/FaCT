@@ -68,9 +68,9 @@ void test_medium_complex_if(void) {
 }
 
 void test_mixed_if(void) {
-  int one = 1;
+  int ten = 10;
   int eleven = 11;
-  TEST_ASSERT_EQUAL(1,mixedIf(one));
+  TEST_ASSERT_EQUAL(1,mixedIf(ten));
   TEST_ASSERT_EQUAL(2,mixedIf(eleven));
 }
 
@@ -136,23 +136,23 @@ void test_multiply(void) {
 }
 
 void test_equal(void) {
-  TEST_ASSERT_EQUAL(1,equal(1,1));
+  TEST_ASSERT_EQUAL(-1,equal(1,1));
   TEST_ASSERT_EQUAL(0,equal(1,11));
 }
 
 void test_nequal(void) {
   TEST_ASSERT_EQUAL(0,nequal(1,1));
-  TEST_ASSERT_EQUAL(1,nequal(1,11));
+  TEST_ASSERT_EQUAL(-1,nequal(1,11));
 }
 
-void test_lshfit(void) {
+void test_lshift(void) {
   TEST_ASSERT_EQUAL(0,lshift(0,1));
   TEST_ASSERT_EQUAL(2,lshift(1,1));
   TEST_ASSERT_EQUAL(8,lshift(1,3));
   TEST_ASSERT_EQUAL(64,lshift(4,4));
 }
 
-void test_rshfit(void) {
+void test_rshift(void) {
   TEST_ASSERT_EQUAL(0,rshift(0,1));
   TEST_ASSERT_EQUAL(0,rshift(1,1));
   TEST_ASSERT_EQUAL(4,rshift(8,1));
@@ -182,7 +182,7 @@ int main(void) {
   RUN_TEST(test_multiply);
   RUN_TEST(test_equal);
   RUN_TEST(test_nequal);
-  RUN_TEST(test_lshfit);
-  RUN_TEST(test_rshfit);
+  RUN_TEST(test_lshift);
+  RUN_TEST(test_rshift);
   return UNITY_END();
 }

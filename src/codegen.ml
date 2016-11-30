@@ -81,10 +81,10 @@ let codegen ctx m =
       | Mult -> build_mul lhs rhs "multtmp" b
       | Eq ->
         let cmp = build_icmp Icmp.Eq lhs rhs "eq" b in
-        build_zext cmp (i32_type ctx) "eqtmp" b
+        build_sext cmp (i32_type ctx) "eqtmp" b
       | Neq ->
         let cmp = (build_icmp Icmp.Ne lhs rhs "neq" b) in
-        build_zext cmp (i32_type ctx) "neqtmp" b
+        build_sext cmp (i32_type ctx) "neqtmp" b
       | LeftShift -> build_shl lhs rhs "lshift" b
       | RightShift -> build_lshr lhs rhs "rshift" b
     end

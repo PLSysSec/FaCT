@@ -13,6 +13,8 @@ let unify t t1 =
   | (Int,Int) -> Int
   | (Bool,Bool) -> Bool
   | (ByteArr x, ByteArr y) when x = y -> (ByteArr x)
+  | (Bool,Int) -> Int
+  | (Int,Bool) -> Int
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with " ^ ty_to_string(t1)))
 
 let unify_fn (rt,arg_ts) ts =
@@ -26,8 +28,8 @@ and tc_binop = function
   | Plus -> (Int, [Int;Int])
   | Minus -> (Int, [Int;Int])
   | Multiply -> (Int, [Int;Int])
-  | Equal -> (Int, [Int;Int])
-  | NEqual -> (Int, [Int;Int])
+  | Equal -> (Bool, [Int;Int])
+  | NEqual -> (Bool, [Int;Int])
   | GT -> (Bool, [Int;Int])
   | B_And -> (Int, [Int;Int])
   | B_Or -> (Int, [Int;Int])
