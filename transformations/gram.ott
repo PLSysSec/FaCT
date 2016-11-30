@@ -6,26 +6,52 @@ embed
 \newcommand\fm{\Lambda}
 \newcommand\g{\Gamma}
 \newcommand\m{\mu}
+\newcommand\sext{_{\texttt{s}\hskip0pt}\hskip0pt}
 }}
 
 metavar c ::= {{ com numeric value }}
 metavar a ::= {{ com array }}
 metavar x ::= {{ com term variable }}
-metavar f ::= {{ com function declaration? }}
+metavar f ::= {{ com function name }}
 metavar cnt ::= {{ com program counter }} {{ tex \[[cnt]] }}
 indexvar n ::= {{ com index variable }}
 indexvar k ::= {{ com index variable }}
 
 grammar
+l :: 'l_' ::= {{ com literals }}
+  | true :: :: true  {{ com bitmask true (\texttt{0b1111...}) }} {{ tex \textsc{True} }}
+  | false :: :: false  {{ com bitmask false (\texttt{0b0000...}) }} {{ tex \textsc{False} }}
+
 v :: 'v_' ::= {{ com values }}
+  | l :: :: literal  {{ com numeric literal }}
   | c :: :: const  {{ com numeric value }}
   | a :: :: array  {{ com bytearray }}
 
+unop :: 'unop_' ::= {{ com unary operations }} {{ tex \ominus\! }}
+  | bnot :: :: bnot {{ com bitwise not }} {{ tex {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\! }}
+
+binop :: 'binop_' ::= {{ com binary operations }} {{ tex \oplus }}
+  | iadd :: :: iadd {{ tex \texttt{+} }}
+  | isub :: :: isub {{ tex \texttt{-} }}
+  | imul :: :: imul {{ tex \texttt{*} }}
+  | shl :: :: shl {{ tex \texttt{<<} }}
+  | shr :: :: shr {{ tex \texttt{>>} }}
+  | band :: :: band {{ com bitwise and }} {{ tex \scalebox{1.25}[1]{\texttt{\&}\hskip0pt} }}
+  | bor :: :: bor {{ com bitwise or }} {{ tex \texttt{|} }}
+  | eq :: :: eq {{ tex \texttt{==}\sext }} {{ com equals (sign extended) }}
+  | neq :: :: neq {{ tex \texttt{!=}\sext }}
+  | gt :: :: gt {{ tex \texttt{>}\sext }}
+  | lt :: :: lt {{ tex \texttt{<}\sext }}
+  | gte :: :: gte {{ tex \texttt{>=}\sext }}
+  | lte :: :: lte {{ tex \texttt{<=}\sext }}
+
 e :: 'e_' ::= {{ com expressions }}
+  | l :: :: literal  {{ com numeric literal }}
   | c :: :: const  {{ com numeric value }}
   | a :: :: array  {{ com bytearray }}
   | x :: :: var {{ com variable }}
   | a [ e ] :: :: arr_get {{ com array access }}
+  | ( e ) :: M :: parens {{ com parens }}
   | unop e :: :: unop {{ com unary operation }}
   | e1 binop e2 :: :: binop {{ com binary operation }}
   | f ( e1 , .. , en ) :: :: funcapp {{ com function application }}
@@ -34,7 +60,6 @@ e :: 'e_' ::= {{ com expressions }}
 s :: 's_' ::= {{ com statements }}
   | skip :: :: skip {{ com skip }}
   | s1 ; s2 :: :: seq {{ com sequence }}
-  | ( s ) :: :: parens {{ com parens }}
   | { x1 / v1 , .. , xk / vk } s :: :: subst {{ com variable substitution }}
   | def x := e :: :: vardec {{ com variable declaration }}
   | def x := a :: :: arrdec {{ com array declaration }}
@@ -45,11 +70,11 @@ s :: 's_' ::= {{ com statements }}
 fval :: 'fval_' ::= {{ com function spec }}
   | ( x1 , .. , xn ) : s @ e :: :: fval
 
-fdef :: 'fdef_' ::= {{ com function definition }}
+fndef :: 'fndef_' ::= {{ com function definition }}
   | fdef f fval :: :: fdef
 
 program :: 'program_' ::= {{ com program }}
-  | fdef1 ; .. ; fdefn ; expose fdef :: :: fdefs {{ com list of fdefs }}
+  | fndef1 ; .. ; fndefn ; expose fndef :: :: fdefs {{ com list of fdefs }}
 
 fm :: fm_ ::= {{ com function store }} {{ tex \[[fm]] }}
   | fm_empty ::  :: efm {{ tex \emptyset_{\Lambda} }} {{ com empty function store }}
@@ -66,8 +91,6 @@ m :: m_ ::= {{ com local memory }} {{ tex \[[m]] }}
   | m1 | m2 ::  :: pushm {{ com push stack frame }}
 
 terminals :: 'terminals_' ::=
-  | unop :: :: core_unop {{ tex \sim\!\!\! }}
-  | binop :: :: core_binop {{ tex \oplus }}
   | --> :: :: core_reduce {{ tex \longrightarrow }}
   | in :: :: in {{ tex \in }}
   | notin :: :: notin {{ tex \notin }}
@@ -80,6 +103,7 @@ terminals :: 'terminals_' ::=
 
 formula :: 'formula_' ::=
   | judgement ::  :: judgement
+  | formula1 .. formulan ::  :: dots
   | not ( formula ) ::  :: not {{ tex \neg ([[formula]]) }}
   | v' === [[ unop v ]] ::  :: eqv_unop
   | v3 === [[ v1 binop v2 ]] ::  :: eqv_binop
