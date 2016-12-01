@@ -124,13 +124,13 @@ let prgm19 = FunctionDec("multiply",[mul_arg1;mul_arg2],Int,[mul])
 let eq_arg1 = { name="a"; ty=Int }
 let eq_arg2 = { name="b"; ty=Int }
 let eq = Return(BinOp(Equal,VarExp("a"),VarExp("b")))
-let prgm20 = FunctionDec("equal",[eq_arg1;eq_arg2],Int,[eq])
+let prgm20 = FunctionDec("equal",[eq_arg1;eq_arg2],Bool,[eq])
 
 (* Not Equal *)
 let neq_arg1 = { name="a"; ty=Int }
 let neq_arg2 = { name="b"; ty=Int }
 let neq = Return(BinOp(NEqual,VarExp("a"),VarExp("b")))
-let prgm21 = FunctionDec("nequal",[neq_arg1;neq_arg2],Int,[neq])
+let prgm21 = FunctionDec("nequal",[neq_arg1;neq_arg2],Bool,[neq])
 
 (* Left Shift *)
 let ls_arg1 = { name="num"; ty=Int }

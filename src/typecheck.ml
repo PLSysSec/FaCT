@@ -13,8 +13,6 @@ let unify t t1 =
   | (Int,Int) -> Int
   | (Bool,Bool) -> Bool
   | (ByteArr x, ByteArr y) when x = y -> (ByteArr x)
-  | (Bool,Int) -> Int
-  | (Int,Bool) -> Int
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with " ^ ty_to_string(t1)))
 
 let unify_fn (rt,arg_ts) ts =
