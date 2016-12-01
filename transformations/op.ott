@@ -3,7 +3,7 @@ defns
 
     defn
     hunop -t> unop ::  :: unop_transform :: Unopt_ {{ com [[hunop]] is transformed to [[unop]] }}
-    {{ tex [[hunop]] \xrightarrow{\ominus} [[unop]] }} by
+    {{ tex \llbracket [[hunop]] \rrbracket_t = [[unop]] }} by
 
     ------------------- :: lnot
     hlnot -t> bnot
@@ -13,7 +13,7 @@ defns
 
     defn
     hbinop -t> binop ::  :: binop_transform :: Binopt_ {{ com [[hbinop]] is transformed to [[binop]] }}
-    {{ tex [[hbinop]] \xrightarrow{\oplus} [[binop]] }} by
+    {{ tex \llbracket [[hbinop]] \rrbracket_t = [[binop]] }} by
 
     ------------------- :: land
     hland -t> band

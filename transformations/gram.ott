@@ -7,6 +7,7 @@ embed
 \newcommand\g{\Gamma}
 \newcommand\m{\mu}
 \newcommand\sext{_{\texttt{s}\hskip0pt}\hskip0pt}
+\newcommand\subst{\sigma}
 }}
 
 metavar c ::= {{ com numeric value }}
@@ -16,6 +17,7 @@ metavar f ::= {{ com function name }}
 metavar cnt ::= {{ com program counter }} {{ tex \[[cnt]] }}
 indexvar n ::= {{ com index variable }}
 indexvar k ::= {{ com index variable }}
+indexvar i ::= {{ com index variable }}
 
 grammar
 l :: 'l_' ::= {{ com literals }}
@@ -55,17 +57,23 @@ e :: 'e_' ::= {{ com expressions }}
   | unop e :: :: unop {{ com unary operation }}
   | e1 binop e2 :: :: binop {{ com binary operation }}
   | f ( e1 , .. , en ) :: :: funcapp {{ com function application }}
-  | s @ e :: :: stmt_expr {{ com function body }}
+  | subst e :: :: subst {{ com variable substitution }}
+  | subst s @ e :: :: stmt_expr {{ com function body }}
+
+subst :: 'subst_' ::= {{ com variable substitution }} {{ tex \{\[[subst]]\} }}
+  | { x1 / v1 , .. , xk / vk } :: :: subst
+  | subst1 union subst2 :: :: union
+  | subst1 intersect subst2 :: :: intersect
 
 s :: 's_' ::= {{ com statements }}
   | skip :: :: skip {{ com skip }}
   | s1 ; s2 :: :: seq {{ com sequence }}
-  | { x1 / v1 , .. , xk / vk } s :: :: subst {{ com variable substitution }}
   | def x := e :: :: vardec {{ com variable declaration }}
-  | def x := a :: :: arrdec {{ com array declaration }}
+  | adef x := a :: :: arrdec {{ com array declaration }}
   | x := e :: :: assign {{ com variable assignment }}
   | a [ e1 ] := e2 :: :: arr_assign {{ com array assignment }}
   | for x from v1 to v2 : s :: :: loop {{ com for loop }}
+  | ( subst s ) :: :: add_subst {{ com additional variable substitution }}
 
 fval :: 'fval_' ::= {{ com function spec }}
   | ( x1 , .. , xn ) : s @ e :: :: fval
@@ -83,12 +91,12 @@ fm :: fm_ ::= {{ com function store }} {{ tex \[[fm]] }}
 g :: g_ ::= {{ com global memory }} {{ tex \[[g]] }}
   | g_empty ::  :: eG {{ tex \emptyset_{\Gamma} }}
   | g [ a -> [] ] ::  :: aG {{ com new array }}
-  | g ( a ) [ v1 -> v2 ] ::  :: vG {{ com array update }}
+  | g ( a ) [ v1 -> v2 ] ::  :: vG {{ com array update }} {{ tex [[g]][ [[a]] [[->]] [[g]]([[a]])[ [[v1]] [[->]] [[v2]] ] ] }}
 
 m :: m_ ::= {{ com local memory }} {{ tex \[[m]] }}
   | m_empty ::  :: em {{ tex \emptyset_{\mu} }} {{ com empty memory }}
   | m [ x -> v ] ::  :: vm {{ com add/update variable }}
-  | m1 | m2 ::  :: pushm {{ com push stack frame }}
+  | m1 push m2 ::  :: pushm {{ com push stack frame }}
 
 terminals :: 'terminals_' ::=
   | --> :: :: core_reduce {{ tex \longrightarrow }}
@@ -100,6 +108,9 @@ terminals :: 'terminals_' ::=
   | -> :: :: mapsto {{ tex \mapsto }}
   | @ :: :: at {{ tex \scalebox{0.5}[0.75]{ \textbf{ @}\!\,} }}
   | [] :: :: new_arr {{ tex \!\texttt{[]} }}
+  | push :: :: push {{ tex \triangleright }}
+  | union :: :: union {{ tex \cup }}
+  | intersect :: :: intersect {{ tex \cap }}
 
 formula :: 'formula_' ::=
   | judgement ::  :: judgement
@@ -117,6 +128,7 @@ formula :: 'formula_' ::=
   | v < v' ::  :: ltv
   | v' = succ v ::  :: succ_v {{ tex [[v']] = [[v]] + 1 }}
   | v' = g ( a ) [ v ] ::  :: arr_elt
+  | subst' = subst ::  :: eqv_subst
 
 subrules
   v <:: e
@@ -164,76 +176,98 @@ defns
     ----------------------------------- :: binop_val
     fm g m cnt v1 binop v2 --> fm g m cnt' v3
 
+
+    ----------------------------------- :: subst_empty
+    fm g m cnt {} e --> fm g m cnt e
+
+    fm g m cnt e --> fm g m cnt' e'
+    ----------------------------------- :: subst_expr
+    fm g m cnt subst e --> fm g m cnt' subst e'
+
+    cnt' = succ cnt
+    ----------------------------------- :: subst_var
+    fm g m cnt {x1/v1,...,xk/vk} xi --> fm g m cnt' vi
+
+    ----------------------------------- :: subst_no_var
+    fm g m cnt subst x --> fm g m cnt x
+
+    ----------------------------------- :: subst_val
+    fm g m cnt subst v --> fm g m cnt v
+
     fm g m cnt e1 --> fm g m cnt' e1'
     ---------------------------------- :: fn_expr
     fm g m cnt f(v1,..,vk,e1,e2,..,en) --> fm g m cnt' f(v1,..,vk,e1',e2,..,en)
 
     fm = fm'[f -> (x1,..,xk) : s @ e]
-    m' = m | m_empty
+    m' = m push m_empty
     cnt' = succ cnt
     ---------------------------------------- :: fn_call
     fm g m cnt f(v1,..,vk) --> fm g m' cnt' {x1/v1,..,xk/vk} s @ e
 
 
-    fm g m cnt e --> fm g m cnt' e'
+    fm g m cnt subst e --> fm g m cnt' e'
     ----------------------------------- :: skip_expr
-    fm g m cnt skip @ e --> fm g m cnt e'
+    fm g m cnt subst skip @ e --> fm g m cnt subst skip @ e'
 
-    m = m1 | m2
+    m = m1 push m2
     ----------------------------------- :: skip_val
-    fm g m cnt skip @ v --> fm g m1 cnt v
+    fm g m cnt subst skip @ v --> fm g m1 cnt v
 
-    fm g m cnt s1 @ e0 --> fm g m' cnt' s1'@ e0
+    fm g m cnt subst s1 @ e0 --> fm g m' cnt' subst' s1'@ e0
     ---------------------------- :: seq
-    fm g m cnt s1 ; s2 @ e0 --> fm g m' cnt' s1' ; s2 @ e0
+    fm g m cnt subst s1 ; s2 @ e0 --> fm g m' cnt' subst' s1' ; s2 @ e0
 
     ------------------- :: seq_skip
-    fm g m cnt skip ; s @ e0 --> fm g m cnt s @ e0
+    fm g m cnt subst skip ; s @ e0 --> fm g m cnt subst s @ e0
 
-    fm g m cnt e --> fm g m cnt' e'
+    fm g m cnt subst e --> fm g m cnt' e'
     --------------------------- :: def_expr
-    fm g m cnt def x := e @ e0 --> fm g m cnt' def x := e' @ e0
+    fm g m cnt subst def x := e @ e0 --> fm g m cnt' subst def x := e' @ e0
 
     m' = m[x -> v]
     cnt' = succ cnt
     -------------------------------:: def_val
-    fm g m cnt def x := v @ e0 --> fm g m' cnt' skip @ e0
+    fm g m cnt subst def x := v @ e0 --> fm g m' cnt' subst skip @ e0
 
     g' = g[a -> []]
     m' = m[x -> a]
     cnt' = succ cnt
     -------------------------------:: def_arr
-    fm g m cnt def x := a @ e0 --> fm g' m' cnt' skip @ e0
+    fm g m cnt subst adef x := a @ e0 --> fm g' m' cnt' subst skip @ e0
 
-    fm g m cnt e --> fm g m cnt' e'
+    fm g m cnt subst e --> fm g m cnt' e'
     ----------------------------- :: assign_expr
-    fm g m cnt x := e @ e0 --> fm g m cnt' x := e' @e0
+    fm g m cnt subst x := e @ e0 --> fm g m cnt' subst x := e' @e0
 
     m' = m[x -> v]
     cnt' = succ cnt
     ----------------------------- :: assign_val
-    fm g m cnt x := v @ e0 --> fm g m' cnt' skip @ e0
+    fm g m cnt subst x := v @ e0 --> fm g m' cnt' subst skip @ e0
 
-    fm g m cnt e1 --> fm g m cnt' e1'
+    fm g m cnt subst e1 --> fm g m cnt' e1'
     ----------------------------- :: arr_assign_expr_l
-    fm g m cnt a[e1] := e2 @ e0 --> fm g m cnt' a[e1'] := e2 @ e0
+    fm g m cnt subst a[e1] := e2 @ e0 --> fm g m cnt' subst a[e1'] := e2 @ e0
 
-    fm g m cnt e2 --> fm g m cnt' e2'
+    fm g m cnt subst e2 --> fm g m cnt' e2'
     ----------------------------- :: arr_assign_expr_r
-    fm g m cnt a[v1] := e2 @ e0 --> fm g m cnt' a[v1] := e2' @ e0
+    fm g m cnt subst a[v1] := e2 @ e0 --> fm g m cnt' subst a[v1] := e2' @ e0
 
     g' = g(a)[v1 -> v2]
     cnt' = succ cnt
     ----------------------------- :: arr_assign_val
-    fm g m cnt a[v1] := v2 @ e0 --> fm g' m cnt' skip @ e0
+    fm g m cnt subst a[v1] := v2 @ e0 --> fm g' m cnt' subst skip @ e0
 
-    x notin m
     v1 < v2
     v1' = succ v1
     cnt' = succ cnt
     --------------------------------------- :: for
-    fm g m cnt for x from v1 to v2 : s @ e0 --> fm g m cnt' {x/v1} s ; for x from v1' to v2 : s @ e0
+    fm g m cnt subst for x from v1 to v2 : s @ e0 --> fm g m cnt' subst ({x/v1} s) ; for x from v1' to v2 : s @ e0
+
+    subst1 intersect subst2 = {}
+    subst3 = subst1 union subst2
+    --------------------------------------- :: add_subst
+    fm g m cnt subst1 (subst2 s) @ e0 --> fm g m cnt' subst3 s @ e0
 
     v1 = v2
     ------------------------------ :: for_base
-    fm g m cnt for x from v2 to v2 : s @ e0 --> fm g m' cnt skip @ e0
+    fm g m cnt subst for x from v2 to v2 : s @ e0 --> fm g m' cnt subst skip @ e0
