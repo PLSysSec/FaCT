@@ -20,12 +20,9 @@ indexvar k ::= {{ com index variable }}
 indexvar i ::= {{ com index variable }}
 
 grammar
-l :: 'l_' ::= {{ com literals }}
+v :: 'v_' ::= {{ com values }}
   | true :: :: true  {{ com bitmask true (\texttt{0b1111...}) }} {{ tex \textsc{True} }}
   | false :: :: false  {{ com bitmask false (\texttt{0b0000...}) }} {{ tex \textsc{False} }}
-
-v :: 'v_' ::= {{ com values }}
-  | l :: :: literal  {{ com numeric literal }}
   | c :: :: const  {{ com numeric value }}
   | a :: :: array  {{ com bytearray }}
 
@@ -48,7 +45,8 @@ binop :: 'binop_' ::= {{ com binary operations }} {{ tex \oplus }}
   | lte :: :: lte {{ tex \texttt{<=}\sext }}
 
 e :: 'e_' ::= {{ com expressions }}
-  | l :: :: literal  {{ com numeric literal }}
+  | true :: :: true  {{ com bitmask true (\texttt{0b1111...}) }} {{ tex \textsc{True} }}
+  | false :: :: false  {{ com bitmask false (\texttt{0b0000...}) }} {{ tex \textsc{False} }}
   | c :: :: const  {{ com numeric value }}
   | a :: :: array  {{ com bytearray }}
   | x :: :: var {{ com variable }}

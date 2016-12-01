@@ -66,14 +66,10 @@
  $ \ottmv{rnset} $ & \ottcom{``rval-not-set'' variable} \\
 }}
 
-\newcommand{\ottl}{
-\ottrulehead{\ottnt{l}}{::=}{\ottcom{literals}}\ottprodnewline
-\ottfirstprodline{|}{ \textsc{True} }{}{}{}{\ottcom{bitmask true (\texttt{0b1111...})}}\ottprodnewline
-\ottprodline{|}{ \textsc{False} }{}{}{}{\ottcom{bitmask false (\texttt{0b0000...})}}}
-
 \newcommand{\ottv}{
 \ottrulehead{\ottnt{v}}{::=}{\ottcom{values}}\ottprodnewline
-\ottfirstprodline{|}{\ottnt{l}}{}{}{}{\ottcom{numeric literal}}\ottprodnewline
+\ottfirstprodline{|}{ \textsc{True} }{}{}{}{\ottcom{bitmask true (\texttt{0b1111...})}}\ottprodnewline
+\ottprodline{|}{ \textsc{False} }{}{}{}{\ottcom{bitmask false (\texttt{0b0000...})}}\ottprodnewline
 \ottprodline{|}{\ottmv{c}}{}{}{}{\ottcom{numeric value}}\ottprodnewline
 \ottprodline{|}{\ottmv{a}}{}{}{}{\ottcom{bytearray}}}
 
@@ -134,7 +130,8 @@
 
 \newcommand{\otte}{
 \ottrulehead{\ottnt{e}}{::=}{\ottcom{expressions}}\ottprodnewline
-\ottfirstprodline{|}{\ottnt{l}}{}{}{}{\ottcom{numeric literal}}\ottprodnewline
+\ottfirstprodline{|}{ \textsc{True} }{}{}{}{\ottcom{bitmask true (\texttt{0b1111...})}}\ottprodnewline
+\ottprodline{|}{ \textsc{False} }{}{}{}{\ottcom{bitmask false (\texttt{0b0000...})}}\ottprodnewline
 \ottprodline{|}{\ottmv{c}}{}{}{}{\ottcom{numeric value}}\ottprodnewline
 \ottprodline{|}{\ottmv{a}}{}{}{}{\ottcom{bytearray}}\ottprodnewline
 \ottprodline{|}{\ottmv{x}}{}{}{}{\ottcom{variable}}\ottprodnewline
@@ -159,7 +156,8 @@
 \newcommand{\otthv}{
 \ottrulehead{\hv}{::=}{\ottcom{values}}\ottprodnewline
 \ottfirstprodline{|}{\hb}{}{}{}{\ottcom{boolean value}}\ottprodnewline
-\ottprodline{|}{\hc}{}{}{}{\ottcom{numeric value}}}
+\ottprodline{|}{\hc}{}{}{}{\ottcom{numeric value}}\ottprodnewline
+\ottprodline{|}{\ottmv{a}}{}{}{}{\ottcom{bytearray}}}
 
 \newcommand{\otthunop}{
 \ottrulehead{\ominus_h\!}{::=}{\ottcom{unary operations}}\ottprodnewline
@@ -188,6 +186,7 @@
 \ottrulehead{\he}{::=}{\ottcom{expressions}}\ottprodnewline
 \ottfirstprodline{|}{\hb}{}{}{}{\ottcom{boolean value}}\ottprodnewline
 \ottprodline{|}{\hc}{}{}{}{\ottcom{numeric value}}\ottprodnewline
+\ottprodline{|}{\ottmv{a}}{}{}{}{\ottcom{bytearray}}\ottprodnewline
 \ottprodline{|}{\ottmv{x}}{}{}{}{\ottcom{variable}}\ottprodnewline
 \ottprodline{|}{\ottmv{a}  \ottsym{[}  \he  \ottsym{]}}{}{}{}{\ottcom{array access}}\ottprodnewline
 \ottprodline{|}{\ominus_h\! \, \he}{}{}{}{\ottcom{unary operation}}\ottprodnewline
@@ -220,13 +219,11 @@
 
 \newcommand{\ottctx}{
 \ottrulehead{\ottnt{ctx}}{::=}{\ottcom{branch context}}\ottprodnewline
-\ottfirstprodline{|}{\ottnt{l}}{}{}{}{\ottcom{numeric literal}}\ottprodnewline
-\ottprodline{|}{\ottmv{x}}{}{}{}{\ottcom{variable}}\ottprodnewline
+\ottfirstprodline{|}{\ottmv{x}}{}{}{}{\ottcom{variable}}\ottprodnewline
 \ottprodline{|}{\ominus\! \, \ottnt{ctx}}{}{}{}{\ottcom{unary operation}}\ottprodnewline
 \ottprodline{|}{\ottnt{ctx_{{\mathrm{1}}}} \, \oplus \, \ottnt{ctx_{{\mathrm{2}}}}}{}{}{}{\ottcom{binary operation}}}
 
 \newcommand{\ottgrammar}{\ottgrammartabular{
-\ottl\ottinterrule
 \ottv\ottinterrule
 \ottunop\ottinterrule
 \ottbinop\ottinterrule
@@ -556,6 +553,13 @@
 }}
 
 
+\newcommand{\ottdruleExtXXarr}[1]{\ottdrule[#1]{%
+}{
+ \llbracket  \ottmv{a}  \rrbracket_t =  \ottmv{a} }{%
+{\ottdrulename{Ext\_arr}}{}%
+}}
+
+
 \newcommand{\ottdruleExtXXarrXXget}[1]{\ottdrule[#1]{%
 \ottpremise{ \llbracket  \he  \rrbracket_t =  \ottnt{e} }%
 }{
@@ -575,6 +579,7 @@
 \newcommand{\ottdefnexprXXtransform}[1]{\begin{ottdefnblock}[#1]{$ \llbracket  \he  \rrbracket_t =  \ottnt{e} $}{\ottcom{$\he$ is transformed to $\ottnt{e}$}}
 \ottusedrule{\ottdruleExtXXval{}}
 \ottusedrule{\ottdruleExtXXvar{}}
+\ottusedrule{\ottdruleExtXXarr{}}
 \ottusedrule{\ottdruleExtXXarrXXget{}}
 \ottusedrule{\ottdruleExtXXfnXXcall{}}
 \end{ottdefnblock}}
@@ -804,7 +809,7 @@
 \ottall
 
 \begin{verbatim}
-Definition rules:        55 good    0 bad
-Definition rule clauses: 121 good    0 bad
+Definition rules:        56 good    0 bad
+Definition rule clauses: 122 good    0 bad
 \end{verbatim}
 \end{document}

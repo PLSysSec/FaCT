@@ -31,6 +31,7 @@ s :: 's_' ::= {{ com statements }}
 hv :: 'hv_' ::= {{ com values }} {{ tex \[[hv]] }}
   | hb :: :: bool  {{ com boolean value }}
   | hc :: :: const  {{ com numeric value }}
+  | a :: :: array  {{ com bytearray }}
 
 hunop :: 'hunop_' ::= {{ com unary operations }} {{ tex \ominus_h\! }}
   | hlnot :: :: lnot {{ tex \texttt{!} }} {{ com logical not }}
@@ -56,6 +57,7 @@ hbinop :: 'hbinop_' ::= {{ com binary operations }} {{ tex \oplus_h }}
 he :: 'he_' ::= {{ com expressions }} {{ tex \[[he]] }}
   | hb :: :: bool  {{ com boolean value }}
   | hc :: :: const  {{ com numeric value }}
+  | a :: :: array  {{ com bytearray }}
   | x :: :: var {{ com variable }}
   | a [ he ] :: :: arr_get {{ com array access }}
   | hunop he :: :: unop {{ com unary operation }}
@@ -83,7 +85,7 @@ hprogram :: 'hprogram_' ::= {{ com program }}
   | hfndef1 ; .. ; hfndefn ; expose hfndef :: :: fdefs {{ com list of fdefs }}
 
 ctx :: 'ctx_' ::= {{ com branch context }}
-  | l :: :: literal  {{ com numeric literal }}
+  | true :: M :: true  {{ com bitmask true (\texttt{0b1111...}) }} {{ tex \textsc{True} }}
   | x :: :: var {{ com variable }}
   | ( ctx ) :: M :: parens {{ com parens }}
   | unop ctx :: :: unop {{ com unary operation }}
@@ -117,6 +119,9 @@ defns
 
     ------------------------------- :: var
     x -t> x
+
+    ------------------------------- :: arr
+    a -t> a
 
     he -t> e
     ------------------------------- :: arr_get
