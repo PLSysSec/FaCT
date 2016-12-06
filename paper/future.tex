@@ -1,2 +1,26 @@
 \section{Future Work}
 \label{sec:future}
+
+Our goal for this quarter was to create a few implementations in our language to
+show that this concept is feasible and work further research. As such, we have a
+plethora of future work that we would like to explore in the months to folow.
+The first, which is seemingly intuitive, is that we want to implement more
+functions in our language, so that it becomes a full fledged library, instead of
+the test library as it stands now. Moreover, we need to create a syntax for our
+language --- in it's current implementation, we have an AST, which can transform
+into IR. Having a corresponding syntax is key to stabilize our language.
+
+Currently, our language has only private labels --- we would like to expand it
+to also utilize public labels. Along these lines, we also would like to expand
+the notion of our side channel safety --- in it's current form, our language
+prevents timing attacks. We would like to expand it to include memory safety and
+prevention against memory side channels. This includes fixing our language so
+that it does not index based on a secret value. 
+
+Finally, a big future goal of this project is to determine a method of usability
+testing for programming languages. A huge impediment in this task is that there
+is no good way to test programming languages --- it is not a simple task that
+you can assign humans, such as with mechanical turk \TK{reference}. One needs to
+be able to find the key group of users, and be able to test it at a large scale
+in order to get data about it. This is an open question that we are hoping to
+address in the following months.
