@@ -24,6 +24,10 @@ int equal(int,int);
 int nequal(int,int);
 int lshift(int,int);
 int rshift(int,int);
+int gt(int,int);
+int gte(int,int);
+int lt(int,int);
+int lte(int,int);
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -159,6 +163,34 @@ void test_rshift(void) {
   TEST_ASSERT_EQUAL(4,rshift(64,4));
 }
 
+void test_gt(void) {
+  TEST_ASSERT_EQUAL(0,gt(1,1));
+  TEST_ASSERT_EQUAL(0,gt(0,1));
+  TEST_ASSERT_EQUAL(-1,gt(1,0));
+  TEST_ASSERT_EQUAL(-1,gt(111,11));
+}
+
+void test_gte(void) {
+  TEST_ASSERT_EQUAL(-1,gte(1,1));
+  TEST_ASSERT_EQUAL(0,gte(0,1));
+  TEST_ASSERT_EQUAL(-1,gte(1,0));
+  TEST_ASSERT_EQUAL(-1,gte(111,11));
+}
+
+void test_lt(void) {
+  TEST_ASSERT_EQUAL(0,lt(1,1));
+  TEST_ASSERT_EQUAL(-1,lt(0,1));
+  TEST_ASSERT_EQUAL(0,lt(1,0));
+  TEST_ASSERT_EQUAL(0,lt(111,11));
+}
+
+void test_lte(void) {
+  TEST_ASSERT_EQUAL(-1,lte(1,1));
+  TEST_ASSERT_EQUAL(-1,lte(0,1));
+  TEST_ASSERT_EQUAL(0,lte(1,0));
+  TEST_ASSERT_EQUAL(0,lte(111,11));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_get);
@@ -184,5 +216,9 @@ int main(void) {
   RUN_TEST(test_nequal);
   RUN_TEST(test_lshift);
   RUN_TEST(test_rshift);
+  RUN_TEST(test_gt);
+  RUN_TEST(test_gte);
+  RUN_TEST(test_lt);
+  RUN_TEST(test_lte);
   return UNITY_END();
 }

@@ -76,6 +76,15 @@ let codegen ctx m =
       | GT ->
         let cmp = (build_icmp Icmp.Ugt lhs rhs "gt" b) in
         build_sext cmp (i32_type ctx) "gtcmp" b
+      | GTE ->
+        let cmp = (build_icmp Icmp.Uge lhs rhs "gte" b) in
+        build_sext cmp (i32_type ctx) "gtecmp" b
+      | LT ->
+        let cmp = (build_icmp Icmp.Ult lhs rhs "lt" b) in
+        build_sext cmp (i32_type ctx) "ltcmp" b
+      | LTE ->
+        let cmp = (build_icmp Icmp.Ule lhs rhs "lte" b) in
+        build_sext cmp (i32_type ctx) "ltecmp" b
       | BitAnd -> build_and lhs rhs "andtmp" b
       | BitOr -> build_or lhs rhs "ortmp" b
       | Mult -> build_mul lhs rhs "multtmp" b
