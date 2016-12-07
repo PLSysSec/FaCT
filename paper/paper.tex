@@ -97,8 +97,6 @@
 % TODO, TK, etc. (AH 4/12)
 \usepackage{xspace}
 \newcommand{\todo}[1]{{\color{red}{\textbf{\em [TODO: #1]}}}\xspace}
-\newcommand{\kurt}[1]{{\color{blue}{\textbf{\em [#1 --KT]}}}\xspace}
-\newcommand{\nico}[1]{{\color{green}{\textbf{\em [#1 --NL]}}}\xspace}
 \newcommand{\TODO}[1]{\todo{#1}}
 \newcommand{\tk}{{\color{red}{\bf TK}}\xspace}
 \newcommand{\TK}{\tk}
@@ -108,7 +106,14 @@
 \newcommand{\mycaption}[2]{\caption{\textbf{#1.} #2}}
 \newcommand{\hostfont}[1]{\texttt{#1}}
 
-\newcommand{\starttls}{STARTTLS\@\xspace}
+\newcommand{\constc}{\textsc{ConstanC}\@\xspace}
+\newcommand{\ccore}{\textsc{ConstCore}\@\xspace}
+\newcommand{\bnot}{\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}}}\@}
+\newcommand{\band}{\scalebox{1.25}[1]{\texttt{\&}}\@\xspace}
+\newcommand{\bor}{\texttt{|}\@\xspace}
+\newcommand{\bandx}{\,\scalebox{1.25}[1]{\texttt{\&}}\,}
+\newcommand{\borx}{\,\texttt{|}\,}
+
 
 \iftrue
 %\iffalse
