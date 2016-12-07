@@ -1,6 +1,5 @@
 open Llvm
 open Ast
-open Constpass
 open Codegen
 open Typecheck
 
