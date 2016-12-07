@@ -1,2 +1,87 @@
+\newcommand{\constc}{\textsc{ConstanC}\@\xspace}
+\newcommand{\ccore}{\textsc{ConstCore}\@\xspace}
+\newcommand{\bnot}{\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}}}\@}
+\newcommand{\band}{\scalebox{1.25}[1]{\texttt{\&}}\@\xspace}
+\newcommand{\bor}{\texttt{|}\@\xspace}
+\newcommand{\bandx}{\,\scalebox{1.25}[1]{\texttt{\&}}\,}
+\newcommand{\borx}{\,\texttt{|}\,}
+
+
 \section{Formalization}
 \label{sec:formalization}
+
+We formalize \constc by first proving the constant-time properties of a new
+language (\ccore), then showing the transformation from \constc to \ccore.
+
+The language \ccore is a \textsc{While}-like language with highly limited
+control flow. Notably, there are no conditional branching instructions, and the
+only loop construct is a for loop with static loop bounds. We adopt the
+\emph{program-counter security model} from Molnar et al. \cite{pcsecmodel},
+keeping an instruction count as part of our small-step semantics (see
+\autoref{coresemantics}). We then show that every function in \ccore has the
+following property: For every function $f$, there exists an instruction count
+$f_\kappa$ such that for any input $x_1,\dots,x_n$ to $f$ and current
+instruction count $\kappa$, the instruction count $\kappa'$ when $f$ returns is
+exactly $\kappa + f_\kappa$. That is to say, the number of instructions executed
+by any function in \ccore does not depend on the inputs to the function.
+\todo{program-transcript model instead?}
+
+We then construct a transformation from \constc to \ccore. Since both \ccore and
+\constc are side effect-free languages, we simply need to prove that for every
+function $f$ in \constc, the corresponding transformed function
+$f_{\textnormal{core}}$ returns an equivalent value given equivalent arguments.
+
+We ensure this equivalence by keeping a ``context'', which is a bitmask
+representing the control flow the of the function at the current statement. This
+bitmask is either high (all 1s) or low (all 0s).  Any variable assignment
+~\texttt{x := v}~ in \constc is transformed to the following statement in
+\ccore:
+\begin{center}
+  \texttt{x := ((ctx\bandx rnset)\bandx v)\borx(\bnot (ctx\bandx rnset)\bandx x)}
+\end{center}
+where \texttt{ctx} is the context bitmask and ~\band, \bor, \bnot\ represent
+bitwise \emph{and}, \emph{or}, and \emph{not} operations respectively. The
+\texttt{rnset} variable is an additional bitmask used for tracking early
+function return and is described below.  With this transformation, variables are
+only updated to new values if the context at the time of execution indicates
+that the original program control flow would have made it to that statement.
+
+Conditional branches are transformed by executing the statements in both
+branches. However, before each block is executed, the context bitmask is updated
+with the branch condition. Thus the statement ~\texttt{if bexpr then s1 else
+s2}~ is transformed to:
+\begin{center}
+  \pbox{\textwidth}{
+    \texttt{b := bexpr} \\
+    \texttt{oldctx := ctx} \\
+    \texttt{ctx := oldctx \band b} \\
+    \texttt{s1} \\
+    \texttt{ctx := oldctx \band (\bnot b)} \\
+    \texttt{s2} \\
+    \texttt{ctx := oldctx}
+  }
+\end{center}
+where \texttt{b} is a fresh temporary variable for each instance of a branching
+statement. This ensures that nested conditionals still function as expected.
+
+Return statements in \constc are dealt with by constructing two additional
+variables for every function: $rval$ (initialized low) and $rnset$ (initialized
+high). A return statement in \constc is translated to an assignment to $rval$,
+gated by the context as above.  Additionally, $rnset$ (``return value not set'')
+is updated as follows:
+\begin{center}
+  \texttt{rnset := rnset \band (\bnot ctx)}
+\end{center}
+In this way, $rnset$ remains high until a ``return statement'' is executed under
+an active control flow path, at which point it is set low and remains low for
+the rest of the function. Since all variable assignments are gated with $rnset$
+in addition to the context, no further variable assignments will cause updates.
+
+We have one final problem: even if two functions execute the same number of
+instructions, they can take different amounts of time \todo{cite}. Our compiler
+currently targets Intel x86 assembly, and it is currently unknown \todo{fact
+check} which instructions in this architecture are truly constant time. Our
+mitigation strategy is to restrict ourselves to assumed ``safe'' instructions,
+such as basic arithmetic (except division) and comparison operators, as well as
+simple loads, stores, and calls. Thus the constant-time nature of compiled
+\ccore is no less secure than the set of chosen instructions.
