@@ -10,16 +10,12 @@ further into the project, our parser might change rapidly, and decided that, to
 save time and effort, we would determine our lexer and parser after the language
 was more stable
 
-Everything is implemented in OCaml\cite{ocaml}, because of the existing llvm
+Everything is implemented in OCaml\cite{ocaml}, because of the existing LLVM
 bindings between OCaml and LLVM.  We have implemented a constantC AST as well as
 the transformations needed to convert our AST into our constcore AST, which is
 the representation of the core language.  We have created the codegen that
 converts our constcore code into LLVM IR, as well as a typechecker. A list of
-our supported operations is listed the Table ~\ref{table:functions}. We are able
-to support if statements by removing the branch when converting from out AST to
-constcoreAST. Moreover, we support return statements by preserving the value of
-the return if one is encourtered early and executing the remainder of the
-function. Both of these implementations are to preserve constant-time.
+our supported operations is listed the Table ~\ref{table:functions}.
 
 We have implemented functions from openssl in our language, to show that our
 system can be practical. We implemented ssl3\_cbc\_remove\_padding.c. Our
