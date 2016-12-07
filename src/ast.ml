@@ -36,6 +36,9 @@ and binop =
   | Equal
   | NEqual
   | GT
+  | GTE
+  | LT
+  | LTE
   | B_And
   | B_Or
   | LeftShift

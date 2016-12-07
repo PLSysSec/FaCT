@@ -105,6 +105,9 @@ and transform_binop = function
   | Ast.Minus -> Cast.Minus
   | Ast.Multiply -> Cast.Mult
   | Ast.GT -> Cast.GT
+  | Ast.GTE -> Cast.GTE
+  | Ast.LT -> Cast.LT
+  | Ast.LTE -> Cast.LTE
   | Ast.Equal -> Cast.Eq
   | Ast.NEqual -> Cast.Neq
   | Ast.LeftShift -> Cast.LeftShift

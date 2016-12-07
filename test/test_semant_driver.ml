@@ -144,6 +144,22 @@ let rs_arg2 = { name="shift"; ty=Int }
 let rshift = Return(BinOp(RightShift,VarExp("num"),VarExp("shift")))
 let prgm23 = FunctionDec("rshift",[rs_arg1;rs_arg2],Int,[rshift])
 
+(* Greater Than *)
+let gt = Return(BinOp(GT,VarExp("a"),VarExp("b")))
+let prgm24 = FunctionDec("gt",[neq_arg1;neq_arg2],Bool,[gt])
+
+(* Greater Than Or Equal To *)
+let gte = Return(BinOp(GTE,VarExp("a"),VarExp("b")))
+let prgm25 = FunctionDec("gte",[neq_arg1;neq_arg2],Bool,[gte])
+
+(* Less Than *)
+let lt = Return(BinOp(LT,VarExp("a"),VarExp("b")))
+let prgm26 = FunctionDec("lt",[neq_arg1;neq_arg2],Bool,[lt])
+
+(* Less Than Or Equal To*)
+let lte = Return(BinOp(LTE,VarExp("a"),VarExp("b")))
+let prgm27 = FunctionDec("lte",[neq_arg1;neq_arg2],Bool,[lte])
+
 (* Module 1 *)
 let m1 = CModule
     [prgm1;
@@ -168,7 +184,11 @@ let m1 = CModule
      prgm20;
      prgm21;
      prgm22;
-     prgm23]
+     prgm23;
+     prgm24;
+     prgm25;
+     prgm26;
+     prgm27]
 
 (* List of modules to test *)
 let programs = [m1]

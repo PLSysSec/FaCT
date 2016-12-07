@@ -8,6 +8,9 @@ and binop =
   | Minus
   | Mult
   | GT
+  | GTE
+  | LT
+  | LTE
   | Eq
   | Neq
   | BitAnd
