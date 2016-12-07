@@ -1,2 +1,45 @@
 \section{Implementation}
 \label{sec:implementation}
+
+Knowing that we only had eight weeks to implement this project, we made a few
+key decisions. The first was to go straight from an AST to LLVM to our library.
+We decided to forego creating a lexer and parser for lack of time and also to
+show that our preliminary implementations of the language worked and this
+project was worth pursuing further. Moreover, we figured that as we progressed
+further into the project, our parser might change rapidly, and decided that, to
+save time and effort, we would determine our lexer and parser after the language
+was more stable
+
+Everything is implemented in OCaml\cite{ocaml}, because of the existing llvm
+bindings between OCaml and LLVM.  We have implemented a constantC AST as well as
+the transformations needed to convert our AST into our constcore AST, which is
+the representation of the core language.  We have created the codegen that
+converts our constcore code into LLVM IR, as well as a typechecker. A list of
+our supported operations is listed the Table ~\ref{table:functions}. We are able
+to support if statements by removing the branch when converting from out AST to
+constcoreAST. Moreover, we support return statements by preserving the value of
+the return if one is encourtered early and executing the remainder of the
+function. Both of these implementations are to preserve constant-time.
+
+We have implemented functions from openssl in our language, to show that our
+system can be practical. We implemented ssl3\_cbc\_remove\_padding.c. Our
+comparison shows up in Section~\ref{sec:evaluation}.
+
+\begin{figure}
+        \centering
+        \small
+        \begin{tabularx}{\columnwidth}{lr}
+        \toprule
+        Label & Supported Operations\\
+        \midrule
+        Types &  Int/Bool/ByteArr \\
+        Statements & VarDec/Assign/ArrAssign/If/For/Return \\
+        Expressions & VarExp/ArrExp/Unop/Binop/Primitive/CallExp \\
+        Unary Op &  B\_not \\
+        Binary Op & Plus/Minus/GT/B\_and/B\_or \\
+        \bottomrule
+        \end{tabularx}
+        \caption{\textbf{Supported Language}---We show the different types,
+        statements, expressions, and operators our language supports.}
+    \label{table:functions}
+\end{figure}
