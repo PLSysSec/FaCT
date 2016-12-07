@@ -12,6 +12,8 @@ and binop =
   | Neq
   | BitAnd
   | BitOr
+  | LeftShift
+  | RightShift
 [@@deriving show]
 
 and unop =

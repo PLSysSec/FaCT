@@ -1,4 +1,3 @@
-
 exception TransformError of string
 
 type context = Context of Cast.expr
@@ -104,7 +103,12 @@ and transform_unop = function
 and transform_binop = function
   | Ast.Plus -> Cast.Plus
   | Ast.Minus -> Cast.Minus
+  | Ast.Multiply -> Cast.Mult
   | Ast.GT -> Cast.GT
+  | Ast.Equal -> Cast.Eq
+  | Ast.NEqual -> Cast.Neq
+  | Ast.LeftShift -> Cast.LeftShift
+  | Ast.RightShift -> Cast.RightShift
   | Ast.B_And -> Cast.BitAnd
   | Ast.B_Or -> Cast.BitOr
 
