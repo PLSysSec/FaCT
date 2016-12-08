@@ -30,10 +30,9 @@ let link = (fun () -> run_command "llvm-as" [|"llvm-as"; "out.ll"|])
 let assemble = (fun () -> run_command "llc" [|"llc"; "out.bc"|])
 let share = (fun () -> run_command "clang" [|"clang"; "-c"; "out.s"|])
 let compile_harness = (fun () -> run_command "gcc" [|"gcc"; "-c"; "harness.c"|])
-let harness =
-  (fun () -> run_command "gcc" [|"gcc"; "Unity/src/unity.c"; "-o"; "final"; "harness.o"; "out.o"|])
+let compile_ssl = (fun () -> run_command "gcc" [|"gcc"; "-c"; "ssl.c"|])
+let compile_c cf =
+  (fun () -> run_command "gcc" [|"gcc"; "Unity/src/unity.c"; "-o"; "final"; cf; "out.o"|])
 let clean = (fun () ->
     run_command "rm"
       [|"rm"; "out.ll"; "out.bc"; "out.o"; "out.s"; "final"; "harness.o"|])
-
-let commands = [run; link; assemble; share; compile_harness; harness;]

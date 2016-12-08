@@ -197,4 +197,6 @@ let test p =
   let _ = compile p in
   let _ = List.map (fun c -> c ()) commands in ()
 
+let commands = [run; link; assemble; share; compile_harness; compile_c "harness.o";]
+
 let _ = ignore(List.map test programs)
