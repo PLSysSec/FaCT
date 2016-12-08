@@ -14,7 +14,6 @@ metavar c ::= {{ com numeric value }}
 metavar a ::= {{ com array }}
 metavar x ::= {{ com term variable }}
 metavar f ::= {{ com function name }}
-metavar cnt ::= {{ com program counter }} {{ tex \[[cnt]] }}
 indexvar n ::= {{ com index variable }}
 indexvar k ::= {{ com index variable }}
 indexvar i ::= {{ com index variable }}
@@ -55,6 +54,8 @@ e :: 'e_' ::= {{ com expressions }}
   | unop e :: :: unop {{ com unary operation }}
   | e1 binop e2 :: :: binop {{ com binary operation }}
   | f ( e1 , .. , en ) :: :: funcapp {{ com function application }}
+  | f ( x'1 / v'1 , .. , x'k / v'k , v1 , .. , vn ) :: M :: func_subst {{ com function substitution }}
+  | f ( x'1 / v'1 , .. , x'k / v'k ) :: M :: func_subst_done {{ com function substitution }}
   | subst e :: M :: subst {{ com variable substitution }}
   | subst s @ e :: M :: stmt_expr {{ com function body }}
 
@@ -96,6 +97,15 @@ m :: m_ ::= {{ com local memory }} {{ tex \[[m]] }}
   | m [ x -> v ] ::  :: vm {{ com add/update variable }}
   | m1 push m2 ::  :: pushm {{ com push stack frame }}
 
+cnt :: cnt_ ::= {{ com program transcript }} {{ tex \[[cnt]] }}
+  | cnt_empty ::  :: empty {{ tex \emptyset_{\cnt} }} {{ com empty transcript }}
+  | cnt push unop ::  :: unop {{ com add [[unop]] to transcript }}
+  | cnt push binop ::  :: binop {{ com add [[binop]] to transcript }}
+  | cnt push load ::  :: load {{ com add memory load to transcript }}
+  | cnt push store ::  :: store {{ com add memory store to transcript }}
+  | cnt push f ::  :: call {{ com add call to [[f]] to transcript }}
+  | cnt push ret ::  :: ret {{ com add function return to transcript }}
+
 terminals :: 'terminals_' ::=
   | --> :: :: core_reduce {{ tex \longrightarrow }}
   | in :: :: in {{ tex \in }}
@@ -116,7 +126,7 @@ formula :: 'formula_' ::=
   | not ( formula ) ::  :: not {{ tex \neg ([[formula]]) }}
   | v' === [[ unop v ]] ::  :: eqv_unop
   | v3 === [[ v1 binop v2 ]] ::  :: eqv_binop
-  | cnt' = succ cnt ::  :: succ {{ tex [[cnt']] = [[cnt]] + 1 }}
+  | cnt' = cnt ::  :: eqv_cnt
   | g' = g ::  :: eqv_g
   | fm' = fm ::  :: eqv_fm
   | m' = m ::  :: eqv_m
@@ -139,7 +149,7 @@ defns
     {{ tex \{[[fm]],[[g]],[[m]],[[cnt]]\}\, [[e]] [[-->]] \{[[fm']],[[g']],[[m']],[[cnt']]\}\, [[e']] }} by
 
     m = m'[x -> v]
-    cnt' = succ cnt
+    cnt' = cnt push load
     ----------------------------------- :: var
     fm g m cnt x --> fm g m cnt' v
 
@@ -148,7 +158,7 @@ defns
     fm g m cnt a[e] --> fm g m cnt' a[e']
 
     v' = g(a)[v]
-    cnt' = succ cnt
+    cnt' = cnt push load
     ----------------------------------- :: arr_get_val
     fm g m cnt a[v] --> fm g m cnt' v'
 
@@ -157,7 +167,7 @@ defns
     fm g m cnt unop e --> fm g m cnt' unop e'
 
     v' === [[ unop v ]]
-    cnt' = succ cnt
+    cnt' = cnt push unop
     ----------------- :: unop_val
     fm g m cnt unop v --> fm g m cnt' v'
 
@@ -170,7 +180,7 @@ defns
     fm g m cnt v binop e2 --> fm g m cnt' v binop e2'
 
     v3 === [[ v1 binop v2 ]]
-    cnt' = succ cnt
+    cnt' = cnt push binop
     ----------------------------------- :: binop_val
     fm g m cnt v1 binop v2 --> fm g m cnt' v3
 
@@ -182,7 +192,7 @@ defns
     ----------------------------------- :: subst_expr
     fm g m cnt subst e --> fm g m cnt' subst e'
 
-    cnt' = succ cnt
+    cnt' = cnt push load
     ----------------------------------- :: subst_var
     fm g m cnt {x1/v1,...,xk/vk} xi --> fm g m cnt' vi
 
@@ -196,11 +206,15 @@ defns
     ---------------------------------- :: fn_expr
     fm g m cnt f(v1,..,vk,e1,e2,..,en) --> fm g m cnt' f(v1,..,vk,e1',e2,..,en)
 
+    cnt' = cnt push store
+    ---------------------------------------- :: fn_subst
+    fm g m cnt f(x'1/v'1,..,x'k/v'k,v1,v2,..,vn) --> fm g m cnt' f(x'1/v'1,..,x'k/v'k,x1/v1,v2,..,vn)
+
     fm = fm'[f -> (x1,..,xk) : s @ e]
     m' = m push m_empty
-    cnt' = succ cnt
+    cnt' = cnt push f
     ---------------------------------------- :: fn_call
-    fm g m cnt f(v1,..,vk) --> fm g m' cnt' {x1/v1,..,xk/vk} s @ e
+    fm g m cnt f(x1/v1,..,xk/vk) --> fm g m' cnt' {x1/v1,..,xk/vk} s @ e
 
 
     fm g m cnt subst e --> fm g m cnt' e'
@@ -208,8 +222,9 @@ defns
     fm g m cnt subst skip @ e --> fm g m cnt subst skip @ e'
 
     m = m1 push m2
+    cnt' = cnt push ret
     ----------------------------------- :: skip_val
-    fm g m cnt subst skip @ v --> fm g m1 cnt v
+    fm g m cnt subst skip @ v --> fm g m1 cnt' v
 
     fm g m cnt subst s1 @ e0 --> fm g m' cnt' subst' s1'@ e0
     ---------------------------- :: seq
@@ -223,13 +238,13 @@ defns
     fm g m cnt subst def x := e @ e0 --> fm g m cnt' subst def x := e' @ e0
 
     m' = m[x -> v]
-    cnt' = succ cnt
+    cnt' = cnt push store
     -------------------------------:: def_val
     fm g m cnt subst def x := v @ e0 --> fm g m' cnt' subst skip @ e0
 
     g' = g[a -> []]
     m' = m[x -> a]
-    cnt' = succ cnt
+    cnt' = cnt push store
     -------------------------------:: def_arr
     fm g m cnt subst adef x := a @ e0 --> fm g' m' cnt' subst skip @ e0
 
@@ -238,7 +253,7 @@ defns
     fm g m cnt subst x := e @ e0 --> fm g m cnt' subst x := e' @e0
 
     m' = m[x -> v]
-    cnt' = succ cnt
+    cnt' = cnt push store
     ----------------------------- :: assign_val
     fm g m cnt subst x := v @ e0 --> fm g m' cnt' subst skip @ e0
 
@@ -251,13 +266,13 @@ defns
     fm g m cnt subst a[v1] := e2 @ e0 --> fm g m cnt' subst a[v1] := e2' @ e0
 
     g' = g(a)[v1 -> v2]
-    cnt' = succ cnt
+    cnt' = cnt push store
     ----------------------------- :: arr_assign_val
     fm g m cnt subst a[v1] := v2 @ e0 --> fm g' m cnt' subst skip @ e0
 
     v1 < v2
     v1' = succ v1
-    cnt' = succ cnt
+    cnt' = cnt push store
     --------------------------------------- :: for
     fm g m cnt subst for x from v1 to v2 : s @ e0 --> fm g m cnt' subst ({x/v1} s) ; for x from v1' to v2 : s @ e0
 
