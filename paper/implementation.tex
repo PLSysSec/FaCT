@@ -20,7 +20,6 @@ our supported operations is listed the Table ~\ref{table:functions}.
 We have implemented functions from openssl in our language, to show that our
 system can be practical. We implemented ssl3\_cbc\_remove\_padding.c. Our
 comparison shows up in Section~\ref{sec:evaluation}.
-
 \begin{figure}
         \centering
         \small
@@ -39,3 +38,14 @@ comparison shows up in Section~\ref{sec:evaluation}.
         statements, expressions, and operators our language supports.}
     \label{table:functions}
 \end{figure}
+
+\subsection{ssl3\_cbc\_remove\_padding}
+We implemented the ssl3\_cbc\_remove\_padding.c in our language to show that
+more implementations are possible. Since our language is not fully fleshed out
+with all the desired features, we ran into a few problems when replicating this
+function. The original function utilizes structs --- instead, we broke up the
+structs into individual variables, and any mutable objects that needed to be
+modified were passed in and modified in a byte array. Since we do not support
+memory referencing or public labels, we had to hardcode the size of the arrays.
+Moreover, we do not support unsigned types in our language, so wherever an
+unsigned was used in the original function, we used an int in our code. 
