@@ -44,7 +44,8 @@ open Command_util
       good = (length >= padding_length+overhead) && (block_size >= padding_length + 1);
 
       if(good) padding_length = padding_length + 1;
-      else padding_length = 0;
+      else padding_
+       = 0;
 
       length = length - padding_length;
       type = type | (padding_length << 8); // doing (padding_length * 256) instad of (padding_length << 8); jk doing (padding_length + 420)
@@ -55,18 +56,20 @@ open Command_util
 *)
 
 let ssl3_cbc_remove_padding = FunctionDec("ssl3_cbc_remove_padding",
-  [{name="length"; ty=Int}; {name="data"; ty=(ByteArr 1024)}; {name="type"; ty=Int};
+  [{name="data"; ty=(ByteArr 1024)};
   {name="input"; ty=(ByteArr 1024)}; {name="block_size"; ty=Int};
-  {name="mac_size"; ty=Int}], Int,
+  {name="mac_size"; ty=Int}; {name="lengthtype_array"; ty=(ByteArr 2)}], Int,
   [
   VarDec("padding_length", Int, Primitive(Number 4));
   VarDec("good1", Bool, Primitive(Boolean false));
   VarDec("good2", Bool, Primitive(Boolean false));
   VarDec("overhead", Int, BinOp(Plus, Primitive(Number 1), VarExp("mac_size")));
 
-  If(BinOp(GT, VarExp("overhead"), VarExp("length")), [Return(Primitive(Number 0))], [Assign("good1", Primitive(Boolean false))]);
+  If(BinOp(GT, VarExp("overhead"), ArrExp("lengthtype_array", Primitive(Number 0))),
+    [Return(Primitive(Number 0))],
+    [Assign("good1", Primitive(Boolean false))]);
 
-  Assign("good1", BinOp(GTE, VarExp("length"), BinOp(Plus, VarExp("padding_length"), VarExp("overhead"))));
+  Assign("good1", BinOp(GTE, ArrExp("lengthtype_array", Primitive(Number 0)), BinOp(Plus, VarExp("padding_length"), VarExp("overhead"))));
   Assign("good2", BinOp(GTE, VarExp("block_size"), BinOp(Plus, VarExp("padding_length"), Primitive(Number 1))));
 
   If(VarExp("good1"),
@@ -75,15 +78,15 @@ let ssl3_cbc_remove_padding = FunctionDec("ssl3_cbc_remove_padding",
       [Assign("padding_length", Primitive(Number 0))])],
     [Assign("padding_length", Primitive(Number 0))]);
 
-  (*Assign("length", BinOp(Minus, VarExp("length"), VarExp("padding_length")));
+  ArrAssign("lengthtype_array", Primitive(Number 0), BinOp(Minus, ArrExp("lengthtype_array", Primitive(Number 0)), VarExp("padding_length")));
+  ArrAssign("lengthtype_array", Primitive(Number 1),  BinOp(B_Or, ArrExp("lengthtype_array", Primitive(Number 1)), BinOp(LeftShift, VarExp("padding_length"), Primitive(Number 8))));
 
-  Assign("type", BinOp(B_Or, VarExp("type"), BinOp(LeftShift, VarExp("padding_length"), Primitive(Number 8))));
-  *)
   If(VarExp("good1"),
     [If(VarExp("good2"),
       [Return(Primitive(Number 1))],
       [Return(Primitive(Number (-1)))])],
     [Return(Primitive(Number (-1)))]);
+
   ]);;
 
 
