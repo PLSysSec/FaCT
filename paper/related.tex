@@ -6,16 +6,27 @@ Over the years, we have seen an increase in potential attack vectors for
 malicious parties. One such attack vector is side channel attacks --- utlizing
 leaked information to undermine the security of applications and systems.
 Our related work is split into two main areas: a discussion on side channel
-attakcs and mitigations as well as a discussion on constant time
+attacks and mitigations as well as a discussion on constant time
 implementations.
 
 Starting over 40 years ago \cite{lampson1973, wray1991, lipner1975}, there has
 been a plethora of work on the prevalence of side channel attacks and the
-problem of confinement. The detection of side channel has become a solidified
-methodology, while the protections against these covert channels has not increased
-at a reliable pace\cite{kemmerer2002}.
+problem of confinement. Side channels can be used in power
+analysis\cite{Vaudenay2016,koziel2016} to detect certain computations, or in
+networking and the TCP/IP protocol\cite{zander2007,cabuk2004,rowland1997} and
+also in memory\cite{liu20152,hund2013,liu2015}. Moreover, there has been a
+extensive amount of work on timing attacks\cite{wang2004,kopf2009}. Our focus
+is on timing attacks and memory attacks and is thus more closely related to
+those works. 
 
 Moverover, there has been plenty of work completed on avoiding these
-side-channel attacks, mainly through variosu constant time implementations.
-
-\cite{ocaml}
+side-channel attacks, mainly through various programming language institutions.
+For example, there has been a vast array of work that looks at information flow
+control in order to avoid or control the covert channels for both timing and
+memory\cite{planul2013,mitchell2012,stefan2013,stefan2012,buiras2014}. We
+decide to take a slightly different approach and attack this problem at the
+language level, instead of employing information flow control tactics. The work
+that is most closely related to us\cite{molnar2005} also uses transformations
+to avoid side channel attacks in C code. The main difference in our work and
+theirs is that we plan to create a library so that developers do not need to
+write in our language if they do not desire to do so.
