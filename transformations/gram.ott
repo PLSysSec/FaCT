@@ -55,13 +55,13 @@ e :: 'e_' ::= {{ com expressions }}
   | unop e :: :: unop {{ com unary operation }}
   | e1 binop e2 :: :: binop {{ com binary operation }}
   | f ( e1 , .. , en ) :: :: funcapp {{ com function application }}
-  | subst e :: :: subst {{ com variable substitution }}
-  | subst s @ e :: :: stmt_expr {{ com function body }}
+  | subst e :: M :: subst {{ com variable substitution }}
+  | subst s @ e :: M :: stmt_expr {{ com function body }}
 
 subst :: 'subst_' ::= {{ com variable substitution }} {{ tex \{\[[subst]]\} }}
   | { x1 / v1 , .. , xk / vk } :: :: subst
-  | subst1 union subst2 :: :: union
-  | subst1 intersect subst2 :: :: intersect
+  | subst1 union subst2 :: M :: union
+  | subst1 intersect subst2 :: M :: intersect
 
 s :: 's_' ::= {{ com statements }}
   | skip :: :: skip {{ com skip }}
@@ -71,7 +71,7 @@ s :: 's_' ::= {{ com statements }}
   | x := e :: :: assign {{ com variable assignment }}
   | a [ e1 ] := e2 :: :: arr_assign {{ com array assignment }}
   | for x from v1 to v2 : s :: :: loop {{ com for loop }}
-  | ( subst s ) :: :: add_subst {{ com additional variable substitution }}
+  | ( subst s ) :: M :: add_subst {{ com additional variable substitution }}
 
 fval :: 'fval_' ::= {{ com function spec }}
   | ( x1 , .. , xn ) : s @ e :: :: fval

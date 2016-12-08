@@ -7,9 +7,9 @@ language (\ccore), then showing the transformation from \constc to \ccore.
 The language \ccore is a \textsc{While}-like language with highly limited
 control flow. Notably, there are no conditional branching instructions, and the
 only loop construct is a for loop with static loop bounds. We adopt the
-\emph{program-counter security model} from Molnar et al. \cite{pcsecmodel},
+\emph{program-counter security model} from Molnar et al. \cite{molnar2005},
 keeping an instruction count as part of our small-step semantics (see
-\autoref{coresemantics}). We then show that every function in \ccore has the
+\autoref{sec:ottsemantics}). We then show that every function in \ccore has the
 following property: For every function $f$, there exists an instruction count
 $f_\kappa$ such that for any input $x_1,\dots,x_n$ to $f$ and current
 instruction count $\kappa$, the instruction count $\kappa'$ when $f$ returns is
@@ -31,7 +31,7 @@ bitmask is either high (all 1s) or low (all 0s).  Any variable assignment
   \texttt{x := ((ctx\bandx rnset)\bandx v)\borx(\bnot (ctx\bandx rnset)\bandx x)}
 \end{center}
 where \texttt{ctx} is the context bitmask and ~\band, \bor, \bnot\ represent
-bitwise \emph{and}, \emph{or}, and \emph{not} operations respectively. The
+bitwise \emph{and}, \emph{or}, and \emph{not} operations respectively. The formal transformation is given in \rref{Stt-var-assign}. The
 \texttt{rnset} variable is an additional bitmask used for tracking early
 function return and is described below.  With this transformation, variables are
 only updated to new values if the context at the time of execution indicates
@@ -53,7 +53,7 @@ s2}~ is transformed to:
   }
 \end{center}
 where \texttt{b} is a fresh temporary variable for each instance of a branching
-statement. This ensures that nested conditionals still function as expected.
+statement. This ensures that nested conditionals still function as expected. The formal transformation is given in \rref{Stt-if}.
 
 Return statements in \constc are dealt with by constructing two additional
 variables for every function: $rval$ (initialized low) and $rnset$ (initialized
@@ -67,6 +67,7 @@ In this way, $rnset$ remains high until a ``return statement'' is executed under
 an active control flow path, at which point it is set low and remains low for
 the rest of the function. Since all variable assignments are gated with $rnset$
 in addition to the context, no further variable assignments will cause updates.
+The formal transformation is given in \rref{Stt-ret}.
 
 We have one final problem: even if two functions execute the same number of
 instructions, they can take different amounts of time \todo{cite}. Our compiler

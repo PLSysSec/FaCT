@@ -65,21 +65,21 @@ he :: 'he_' ::= {{ com expressions }} {{ tex \[[he]] }}
   | hf ( he1 , .. , hen ) :: :: funcapp {{ com function application }}
 
 hs :: 'hs_' ::= {{ com statements }} {{ tex \[[hs]] }}
-  | hskip :: :: skip {{ com skip }}
+  | hskip :: :: skip {{ com skip }} {{ tex \textbf{skip}_h }}
   | hs1 ; hs2 :: :: seq {{ com sequence }}
-  | hdef x := he :: :: vardec {{ com variable declaration }}
-  | hadef x := a :: :: arrdec {{ com array declaration }}
+  | hdef x := he :: :: vardec {{ com variable declaration }} {{ tex \textbf{def}_h\textbf{ } [[x]] [[:=]] [[he]] }}
+  | hadef x := a :: :: arrdec {{ com array declaration }} {{ tex \textbf{adef}_h\textbf{ } [[x]] [[:=]] [[a]] }}
   | x := he :: :: assign {{ com variable assignment }}
   | a [ he1 ] := he2 :: :: arr_assign {{ com array assignment }}
-  | hfor x from hv1 to hv2 : hs :: :: loop {{ com for loop }}
-  | hif he then hs1 else hs2 :: :: if {{ com conditional branch }}
-  | hreturn he :: :: ret {{ com return }}
+  | hfor x from hv1 to hv2 : hs :: :: loop {{ com for loop }} {{ tex \textbf{for}_h\textbf{ } [[x]] \textbf{ from } [[hv1]] \textbf{ to } [[hv2]] }}
+  | hif he then hs1 else hs2 :: :: if {{ com conditional branch }} {{ tex \textbf{if}_h\textbf{ } [[he]] \textbf{ then } [[hs1]] \textbf{ else } [[hs2]] }}
+  | hreturn he :: :: ret {{ com return }} {{ tex \textbf{return}_h\textbf{ } [[he]] }}
 
 hfval :: 'hfval_' ::= {{ com function spec }}
   | ( x1 , .. , xn ) : hs :: :: fval
 
 hfndef :: 'hfndef_' ::= {{ com function definition }}
-  | fdef hf hfval :: :: fdef
+  | fdef hf hfval :: :: fdef {{ tex \textbf{fdef}_h\textbf{ } [[hf]]~[[hfval]] }}
 
 hprogram :: 'hprogram_' ::= {{ com program }}
   | hfndef1 ; .. ; hfndefn ; expose hfndef :: :: fdefs {{ com list of fdefs }}

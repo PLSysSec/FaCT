@@ -18,13 +18,14 @@
 \usepackage{listings}
 \usepackage{cite}
 \usepackage{footnote}
+%\usepackage[toc,page,titletoc,title]{appendix}
 \makesavenoteenv{tabular}
 \makesavenoteenv{table}
 
 \usepackage{paralist}
 \usepackage{balance}
 \usepackage{tabularx}
-\usepackage{adjustbox}
+\usepackage{adjustbox}\pagebreak
 \usepackage[protrusion=true,expansion=true,kerning]{microtype}
 \SetExtraKerning{encoding=*,font=*}{\textemdash={120,120}} % Add space around emdashes
 \usepackage{multirow}
@@ -38,6 +39,9 @@
 \usepackage{pifont}
 
 \usepackage{pbox}
+
+\usepackage{ottalt}
+\inputott{semantics}
 
 %\usepackage[symbol]{footmisc}
 %\DefineFNsymbolsTM{authorasterisk}{
@@ -191,3 +195,6 @@ Keywords
 \input{conclusion}
 
 \input{footers}
+\input{coresemantics}
+
+\end{document}
