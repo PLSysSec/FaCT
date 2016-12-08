@@ -676,10 +676,9 @@
 
 \newcommand{\ottdruleSttXXret}[1]{\ottdrule[#1]{%
 \ottpremise{ \llbracket  \he  \rrbracket_t =  \ottnt{e} }%
-\ottpremise{\ottnt{e'}  \ottsym{=}  \ottnt{ctx} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottmv{rnset}}%
-\ottpremise{\ottnt{e''}  \ottsym{=}  \ottnt{e} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottnt{e'}}%
+\ottpremise{\ottnt{e'}  \ottsym{=}  \ottnt{e} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottsym{(}  \ottnt{ctx} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottmv{rnset}  \ottsym{)}}%
 }{
- \llbracket   \textbf{return}_h\textbf{ }  \he   \rrbracket_{ \ottnt{ctx} } =  \ottmv{rval}  \ottsym{:=}  \ottsym{(}  \ottnt{e''} \,  \texttt{|}  \, \ottmv{rval}  \ottsym{)}  \ottsym{;}  \ottmv{rnset}  \ottsym{:=}  \ottsym{(}  \ottmv{rnset} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottsym{(}   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\!  \, \ottnt{ctx}  \ottsym{)}  \ottsym{)} }{%
+ \llbracket   \textbf{return}_h\textbf{ }  \he   \rrbracket_{ \ottnt{ctx} } =  \ottmv{rval}  \ottsym{:=}  \ottsym{(}  \ottnt{e'} \,  \texttt{|}  \, \ottmv{rval}  \ottsym{)}  \ottsym{;}  \ottmv{rnset}  \ottsym{:=}  \ottsym{(}  \ottmv{rnset} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottsym{(}   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\!  \, \ottnt{ctx}  \ottsym{)}  \ottsym{)} }{%
 {\ottdrulename{Stt\_ret}}{}%
 }}
 
@@ -825,6 +824,6 @@
 
 \begin{verbatim}
 Definition rules:        57 good    0 bad
-Definition rule clauses: 125 good    0 bad
+Definition rule clauses: 124 good    0 bad
 \end{verbatim}
 \end{document}

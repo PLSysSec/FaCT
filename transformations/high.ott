@@ -179,10 +179,9 @@ defns
     ctx hif he then hs1 else hs2 -t> def ctx' := e ; s1 ; ctx' := (bnot ctx') ; s2
 
     he -t> e
-    e' = ctx band rnset
-    e'' = e band e'
+    e' = e band (ctx band rnset)
     ------------------------------- :: ret
-    ctx hreturn he -t> rval := (e'' bor rval) ; rnset := (rnset band (bnot ctx))
+    ctx hreturn he -t> rval := (e' bor rval) ; rnset := (rnset band (bnot ctx))
 
     defn
     hfndef -t> fndef ::  :: fdef_transform :: Fdeft_ {{ com [[hfndef]] is transformed to [[fndef]] }}

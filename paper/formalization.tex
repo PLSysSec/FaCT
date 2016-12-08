@@ -23,7 +23,7 @@ $f_{\textnormal{core}}$ returns an equivalent value given equivalent arguments.
 
 We ensure this equivalence by keeping a ``context'', which is a bitmask
 representing the control flow the of the function at the current statement.
-This bitmask is either high (all 1s) or low (all 0s).  Any variable assignment
+This bitmask is either \emph{high} (all 1s) or \emph{low} (all 0s).  Any variable assignment
 ~\texttt{x := v}~ in \constc is transformed to the following statement in
 \ccore:
 \begin{center}
@@ -46,13 +46,13 @@ else s2}~ is transformed to:
     \texttt{b := bexpr} \\
     \texttt{oldctx := ctx} \\
     \texttt{ctx := oldctx \band b} \\
-    \texttt{s1} \\
+    \texttt{\textlangle{}s1\textrangle} \\
     \texttt{ctx := oldctx \band (\bnot b)} \\
-    \texttt{s2} \\
+    \texttt{\textlangle{}s2\textrangle} \\
     \texttt{ctx := oldctx}
   }
 \end{center}
-where \texttt{b} is a fresh temporary variable for each instance of a branching
+where \texttt{\textlangle{}s1\textrangle} and \texttt{\textlangle{}s2\textrangle} are the transformations of \texttt{s1} and \texttt{s2}, and \texttt{b} is a fresh temporary variable for each instance of a branching
 statement. This ensures that nested conditionals still function as expected.
 The formal transformation is given in \rref{Stt-if}.
 
