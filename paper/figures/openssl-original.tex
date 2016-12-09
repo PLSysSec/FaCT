@@ -11,17 +11,17 @@ int ssl3_cbc_remove_padding(const SSL *s,
   if (overhead > rec->length) return 0;
   padding_length = rec->data[rec->length - 1];
 
-  \textcolor{purple}{good = constant_time_ge(}
-    \textcolor{purple}{rec->length, padding_length + overhead);}
-  \textcolor{purple}{good &= constant_time_ge(}
-    \textcolor{purple}{block_size, padding_length + 1);}
-    
-  \textcolor{blue}{padding_length = good & (padding_length + 1);}
-  
+  \textcolor{blue}{good = constant_time_ge(}
+    \textcolor{blue}{rec->length, padding_length + overhead);}
+  \textcolor{blue}{good &= constant_time_ge(}
+    \textcolor{blue}{block_size, padding_length + 1);}
+
+  \textcolor{purple}{padding_length = good & (padding_length + 1);}
+
   rec->length -= padding_length;
   rec->type |= padding_length << 8;
-  
-  \textcolor{red}{return constant_time_select_int(good, 1, -1);}
+
+  \textcolor{GaryGreen}{return constant_time_select_int(good, 1, -1);}
 \}
 \end{Verbatim}
 \end{minipage}

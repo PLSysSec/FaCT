@@ -6,7 +6,7 @@ embed
 \newcommand\fm{\Lambda}
 \newcommand\g{\Gamma}
 \newcommand\m{\mu}
-\newcommand\sext{_{\texttt{s}\hskip0pt}\hskip0pt}
+\newcommand\sext{_{\texttt{s}\relax}\relax}
 \newcommand\subst{\sigma}
 }}
 
@@ -26,22 +26,22 @@ v :: 'v_' ::= {{ com values }}
   | a :: :: array  {{ com bytearray }}
 
 unop :: 'unop_' ::= {{ com unary operations }} {{ tex \ominus\! }}
-  | bnot :: :: bnot {{ com bitwise not }} {{ tex {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\! }}
+  | bnot :: :: bnot {{ com bitwise not }} {{ tex {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\relax}\relax}\relax}\!\! }}
 
 binop :: 'binop_' ::= {{ com binary operations }} {{ tex \oplus }}
-  | iadd :: :: iadd {{ tex \texttt{+} }}
-  | isub :: :: isub {{ tex \texttt{-} }}
-  | imul :: :: imul {{ tex \texttt{*} }}
-  | shl :: :: shl {{ tex \texttt{<<} }}
-  | shr :: :: shr {{ tex \texttt{>>} }}
-  | band :: :: band {{ com bitwise and }} {{ tex \scalebox{1.25}[1]{\texttt{\&}\hskip0pt} }}
+  | iadd :: :: iadd {{ tex \texttt{+} }} {{ com integer addition }}
+  | isub :: :: isub {{ tex \texttt{-} }} {{ com integer subtraction }}
+  | imul :: :: imul {{ tex \texttt{*} }} {{ com integer multiplication }}
+  | shl :: :: shl {{ tex \texttt{<\relax<} }} {{ com bitshift left }}
+  | shr :: :: shr {{ tex \texttt{>\relax>} }} {{ com bitshift right }}
+  | band :: :: band {{ com bitwise and }} {{ tex \scalebox{1.25}[1]{\texttt{\&}\relax} }}
   | bor :: :: bor {{ com bitwise or }} {{ tex \texttt{|} }}
   | eq :: :: eq {{ tex \texttt{==}\sext }} {{ com equals (sign extended) }}
-  | neq :: :: neq {{ tex \texttt{!=}\sext }}
-  | gt :: :: gt {{ tex \texttt{>}\sext }}
-  | lt :: :: lt {{ tex \texttt{<}\sext }}
-  | gte :: :: gte {{ tex \texttt{>=}\sext }}
-  | lte :: :: lte {{ tex \texttt{<=}\sext }}
+  | neq :: :: neq {{ tex \texttt{!=}\sext }} {{ com not equals (sign extended) }}
+  | gt :: :: gt {{ tex \texttt{>}\sext }} {{ com greater than (sign extended) }}
+  | lt :: :: lt {{ tex \texttt{<}\sext }} {{ com less than (sign extended) }}
+  | gte :: :: gte {{ tex \texttt{>=}\sext }} {{ com greater than or equal (sign extended) }}
+  | lte :: :: lte {{ tex \texttt{<=}\sext }} {{ com less than or equal (sign extended) }}
 
 e :: 'e_' ::= {{ com expressions }}
   | true :: :: true  {{ com bitmask true (\texttt{0b1111...}) }} {{ tex \textsc{True} }}
@@ -67,8 +67,8 @@ subst :: 'subst_' ::= {{ com variable substitution }} {{ tex \{\[[subst]]\} }}
 s :: 's_' ::= {{ com statements }}
   | skip :: :: skip {{ com skip }}
   | s1 ; s2 :: :: seq {{ com sequence }}
-  | def x := e :: :: vardec {{ com variable declaration }}
-  | adef x := a :: :: arrdec {{ com array declaration }}
+  | def x := e :: :: vardec {{ com variable declaration }}% {{ tex \textbf{def } [[x]] [[:=]] [[e]] }}
+  | adef x := a :: :: arrdec {{ com array declaration }}% {{ tex \textbf{adef } [[x]] [[:=]] [[a]] }}
   | x := e :: :: assign {{ com variable assignment }}
   | a [ e1 ] := e2 :: :: arr_assign {{ com array assignment }}
   | for x from v1 to v2 : s :: :: loop {{ com for loop }}
@@ -78,7 +78,7 @@ fval :: 'fval_' ::= {{ com function spec }}
   | ( x1 , .. , xn ) : s @ e :: :: fval
 
 fndef :: 'fndef_' ::= {{ com function definition }}
-  | fdef f fval :: :: fdef
+  | fdef f fval :: :: fdef {{ tex \textbf{fdef } [[f]]~[[fval]] }}
 
 program :: 'program_' ::= {{ com program }}
   | fndef1 ; .. ; fndefn ; expose fndef :: :: fdefs {{ com list of fdefs }}

@@ -2,23 +2,19 @@
 \label{sec:future}
 
 Our goal for this quarter was to create a few implementations in our language to
-show that this concept is feasible and worth further research. As such, we have a
-plethora of future work that we would like to explore in the months to follow.
-The simplest to tackle is the creation of a syntax for our
-language --- currently we must write programs directly in the AST.
-Having a corresponding syntax is key to stabilizing our language.
+show that this concept is feasible and worth further research. As such, we have
+a plethora of future work that we would like to explore in the months to follow.
+The simplest to tackle is the creation of a syntax for our language ---
+currently we must write programs directly in the AST. Having a corresponding
+syntax is key to stabilizing our language.
 
 Another useful feature will be the concept of public and private labels on data.
-Our language currently treats all values as private --- we would like to augment it
-to be able to relax restrictions on data that does not need protection.
-Along these lines, we also would also like to expand
-the notion of our side channel safety to domains beyond timing, such as memory safety and
-prevention against caching side channels.
+Our language currently treats all values as private --- we would like to augment
+it to be able to relax restrictions on data that does not need protection which allow for more programmer flexibility.
 
 Finally, an important goal of this project is to determine a method of usability
 testing for programming languages. A huge impediment in this task is that there
-are currently no meaningful ways of testing programming languages at scale --- it is not a task that
-one can easily part out, such as with Amazon Mechanical Turk\cite{mechanicalturk}. One needs to
-be able to find a key group of users and be able to test in-depth at a large scale
-in order to get proper data. This is an open question that we are hoping to
-address in the following months.
+are currently no meaningful ways of user testing programming languages at scale.
+One needs to be able to find a key group of users and be able to test in-depth
+at a large scale in order to get proper data. This is an open question that we
+are hoping to address in the following months.
