@@ -40,8 +40,27 @@
 
 \usepackage{pbox}
 \usepackage{textcomp}
+\usepackage{cleveref}
 
 \usepackage{ottalt}
+\newenvironment{rulesectionx}[1][\relax]
+  {\trivlist\item
+   \ifx#1\relax\else\def\ottalt@rulesection@prefix{#1-}\fi
+   \nopagebreak[4]%
+   \noindent}
+  {\endtrivlist}
+\newenvironment{druleparx}[1][\relax]
+{\begin{rulesectionx}[#1]%
+  \begin{mathparpagebreakable}}
+{\end{mathparpagebreakable}%
+  \end{rulesectionx}}
+\newcommand*{\drulesx}[2][\relax]{%
+  \begin{druleparx}[#1]
+    \@for\@ottalt@each:=#2\do{%
+      \expandafter\drule\expandafter{\@ottalt@each}
+    }
+  \end{druleparx}%
+}
 \inputott{semantics}
 
 %\usepackage[symbol]{footmisc}
@@ -147,17 +166,17 @@ DOI: http://dx.doi.org/10.1145/2815675.2815695}
 \widowpenalty=10000
 
 \begin{document}
-\title{It's About Time: Implementing a Verified Constant-Time Library}
+\title{It's About Time: A Language-Based Approach to Constant-Time Programming}
 
 \author{
 % Getting all the authors onto the page for spacing purposes.  Please discuss order.
 \alignauthor%
-Sunjay Cauligi$^\dagger$\qquad
-Brian Johannesmeyer$^\dagger$\qquad
-Ariana Mirian$^\dagger$\qquad
-Gary Soeller$^\dagger$\qquad
+Sunjay Cauligi\qquad
+Brian Johannesmeyer\qquad
+Ariana Mirian\qquad
+Gary Soeller\qquad
 \smallskip\\\affaddr{%
-  $^\dagger$ University of California, San Diego\quad
+  University of California, San Diego\quad
 }\\%
 \affaddr{\smallskip\rm\{scauligi, bjohanne, amirian, gsoeller\}@cs.ucsd.edu }
 }
