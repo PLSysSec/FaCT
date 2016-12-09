@@ -38,11 +38,11 @@ The full grammar of \constc can be found in \Cref{sec:constcgrammar}.
 
 \subsection{ConstCore}
 
-The \ccore language is a \textsc{While}-like language with highly limited
+The \ccore language is a \textsc{While}-like language \cite{ref:while} with highly limited
 control flow. Notably, there are no conditional branching instructions, and the
 only loop construct is a for loop with static loop bounds. The type system
 is also more restrictive than that of \constc: we support only 32-bit
-signed integers and byte-arrays.
+signed integers and \bytearrays.
 
 Comparison operators in \ccore evaluate integer-width bitmasks of either all
 high bits (if the comparison is true) or all low bits (if false). The resulting
@@ -57,7 +57,7 @@ either leaving the value \texttt{3} as-is (if the bitmask was all \texttt{1}s) o
 it out (if the bitmask was all \texttt{0}s). Thus \texttt{x} gets incremented only
 if the condition holds.
 
-To prove the constant-time nature of \ccore, we adopt the
+To show the constant-time nature of \ccore, we adopt the
 \emph{program-transcript security model} from Molnar et al. \cite{molnar2005},
 keeping a log of executed instructions as part of our small-step
 semantics (see \autoref{sec:ottsemantics}). We then show that every function in
@@ -83,10 +83,10 @@ simple loads, stores, and calls. The constant-time nature of compiled
 \subsection{Transformations}
 
 If we can transform any program in \constc to an equivalent program in \ccore, then
-we can compile any \constc program to a program with the timing guarantees proven in \ccore.
+we can compile any \constc program to a program with the timing guarantees shown in \ccore.
 
 Since both \ccore
-and \constc are side effect-free languages, we simply need to prove that for
+and \constc are side effect-free languages, we simply need to show that for
 every function $f$ in \constc, the corresponding transformed function
 $f_{\textnormal{core}}$ returns an equivalent value given equivalent arguments.
 
