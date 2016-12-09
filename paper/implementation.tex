@@ -1,21 +1,20 @@
 \section{Implementation}
 \label{sec:implementation}
 
-Knowing that we only had eight weeks to implement this project, we made a few
-key decisions. The first was to go straight from an AST to LLVM to our library.
-We decided to forego creating a lexer and parser for lack of time and also to
-show that our preliminary implementations of the language worked and this
-project was worth pursuing further. Moreover, we figured that as we progressed
-further into the project, our parser might change rapidly, and decided that, to
-save time and effort, we would determine our lexer and parser after the language
-was more stable
+After we formalized the \constc and \ccore languages we implemented both a compiler for \constc and constant time cryptographic code using \constc.
 
-Everything is implemented in OCaml\cite{ocaml}, because of the existing LLVM
-bindings between OCaml and LLVM.  We have implemented a constantC AST as well as
-the transformations needed to convert our AST into our constcore AST, which is
-the representation of the core language.  We have created the codegen that
-converts our constcore code into LLVM IR, as well as a typechecker. A list of
-our supported operations is listed the Table ~\ref{table:functions}.
+\subsection{\constc Compiler}
+We implemented a compiler using OCaml and LLVM for the \constc language. Due to timing constraints, we leave the lexer and parser for future work, but otherwise have a working compiler. This allowed fast iteration on the AST with minimal code changes. There are four main parts of the \constc compiler: the \textit{driver}, \textit{type system}, \textit{transformer}, and \textit{IR generator}.
+
+\para{Driver.} The \textit{driver} controls the compilation process and is the interface between the developer and the compiler. It is a standard compiler driver, so we will omit all other details about it.
+
+\para{Type System.} \constc is a statically typed language. The type system is rather primitive because the only types are booleans, ints, and \bytearrays. We guarantee type safety by type checking the \constc AST. Types are checked again during IR generation, as LLVM IR is also typed. At the moment, there is not a way to create new types or structs. In the future we look to add support for C structs.
+
+Most code requires the need to loop. \constc allows a \textit{for} loop, but ensures that it runs a constant number of cycles. Furthermore, \constc does not allow access to byte arrays using secret data. The only supported ways to index into a byte array are with a constant or a loop value. The type checker ensures this property, guaranteeing that array access do not depend on secret values. The type checker also prevents \textit{index out of bounds} errors by checking the index of the constant or loop value against the byte array size, which is known at compile time.
+
+\para{Transformer.} The transformer converts the \constc AST to \ccore following the rules provided in Section \ref{sec:formalization}. Since \ccore is built using known constant time primitives, we can generate our LLVM IR using this language, ensuring our output runs in constant time.
+
+\para{IR Generator.} The IR generator takes a \ccore program and produces LLVM IR. The primitives used in the IR are critical to the resulting code running in constant time. For this reason, all ints are 32 bits. To the best of our knowledge, all of the allowed operations run in constant time with 32 bit ints. This is not necessarily the case with 64 bits. For the same reason, each element of a \bytearray is 32 bits.
 
 We have implemented functions from openssl in our language, to show that our
 system can be practical. We implemented ssl3\_cbc\_remove\_padding.c. Our
@@ -28,14 +27,18 @@ comparison shows up in Section~\ref{sec:evaluation}.
         \toprule
         Label & Supported Operations\\
         \midrule
-        Types &  Int/Bool/ByteArr \\
-        Statements & VarDec/Assign/ArrAssign/If/For/Return \\
-        Expressions & VarExp/ArrExp/Unop/Binop/Primitive/CallExp \\
-        Unary Op &  B\_not \\
-        Binary Op & Plus/Minus/GT/B\_and/B\_or \\
+        Types &  Int/Bool/Byte Array \\
+        Bitwise Op & Not/And/Or/Left Shift/Right Shift \\
+        Arithmetic Op & Plus/Minus/Multiply \\
+        Comparison Op & Equal/Not Equal/Greater Than/Greater Than or Equal \\
+        & To/Less Than/Less Than or Equal To \\
         \bottomrule
         \end{tabularx}
         \caption{\textbf{Supported Language}---We show the different types,
         statements, expressions, and operators our language supports.}
     \label{table:functions}
 \end{figure}
+
+\subsection{Cryptographic Functions}
+
+\para{ssl3\_cbc\_remove\_padding} We implemented the ssl3\_cbc\_remove\_padding.c in our language to show that more implementations are possible. Since our language is not fully fleshed out with all the desired features, we ran into a few problems when replicating this function. The original function utilizes structs --- instead, we broke up the structs into individual variables, and any mutable objects that needed to be modified were passed in and modified in a \bytearray. Since we do not support memory referencing or public labels, we had to hardcode the size of the arrays. Moreover, we do not support unsigned types in our language, so wherever an unsigned was used in the original function, we used an int in our code.

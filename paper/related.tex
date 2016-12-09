@@ -2,20 +2,17 @@
 \label{sec:related}
 
 
-Over the years, we have seen an increase in potential attack vectors for
-malicious parties. One such attack vector is side channel attacks --- utlizing
-leaked information to undermine the security of applications and systems.
-Our related work is split into two main areas: a discussion on side channel
-attakcs and mitigations as well as a discussion on constant time
-implementations.
+The security community has been aware of side channel attacks for over 40 years
+\cite{lampson1973, wray1991, lipner1975}. Recently, side channels have been
+shown to leak information via power analysis\cite{Vaudenay2016}. Furthermore,
+timing side channels have been shown to leak information from the
+cache\cite{liu2015} or other aspects of processor architecture\cite{wang2004}.
 
-Starting over 40 years ago \cite{lampson1973, wray1991, lipner1975}, there has
-been a plethora of work on the prevalence of side channel attacks and the
-problem of confinement. The detection of side channel has become a solidified
-methodology, while the protections against these covert channels has not increased
-at a reliable pace\cite{kemmerer2002}.
-
-Moverover, there has been plenty of work completed on avoiding these
-side-channel attacks, mainly through variosu constant time implementations.
-
-\cite{ocaml}
+Due to the rise in the number of side channel attacks, there has recently been a
+rise in defenses. \cite{planul2013,mitchell2012} uses information flow control
+to prevent information leaks on encrypted data. \cite{stefan2013} uses
+instruction-based scheduling to address cache based timing attacks.
+\cite{stefan2012,buiras2014} address timing attacks in LIO, a concurrent
+information flow control system for Haskell. Most closely related to \constc,
+\cite{molnar2005} uses C to C code transformations to avoid timing side
+channels.

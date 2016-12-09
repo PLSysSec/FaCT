@@ -18,13 +18,14 @@
 \usepackage{listings}
 \usepackage{cite}
 \usepackage{footnote}
+%\usepackage[toc,page,titletoc,title]{appendix}
 \makesavenoteenv{tabular}
 \makesavenoteenv{table}
 
 \usepackage{paralist}
 \usepackage{balance}
 \usepackage{tabularx}
-\usepackage{adjustbox}
+\usepackage{adjustbox}\pagebreak
 \usepackage[protrusion=true,expansion=true,kerning]{microtype}
 \SetExtraKerning{encoding=*,font=*}{\textemdash={120,120}} % Add space around emdashes
 \usepackage{multirow}
@@ -38,6 +39,29 @@
 \usepackage{pifont}
 
 \usepackage{pbox}
+\usepackage{textcomp}
+\usepackage{cleveref}
+
+\usepackage{ottalt}
+\newenvironment{rulesectionx}[1][\relax]
+  {\trivlist\item
+   \ifx#1\relax\else\def\ottalt@rulesection@prefix{#1-}\fi
+   \nopagebreak[4]%
+   \noindent}
+  {\endtrivlist}
+\newenvironment{druleparx}[1][\relax]
+{\begin{rulesectionx}[#1]%
+  \begin{mathparpagebreakable}}
+{\end{mathparpagebreakable}%
+  \end{rulesectionx}}
+\newcommand*{\drulesx}[2][\relax]{%
+  \begin{druleparx}[#1]
+    \@for\@ottalt@each:=#2\do{%
+      \expandafter\drule\expandafter{\@ottalt@each}
+    }
+  \end{druleparx}%
+}
+\inputott{semantics}
 
 %\usepackage[symbol]{footmisc}
 %\DefineFNsymbolsTM{authorasterisk}{
@@ -113,7 +137,10 @@
 \newcommand{\bor}{\texttt{|}\@\xspace}
 \newcommand{\bandx}{\,\scalebox{1.25}[1]{\texttt{\&}}\,}
 \newcommand{\borx}{\,\texttt{|}\,}
-
+\newcommand{\para}[1]{{\vspace{4pt} \bf \noindent #1 \hspace{10pt}}}
+\newcommand{\eg}{e.g.,\ }
+\newcommand{\bytearray}{byte array\@\xspace}
+\newcommand{\bytearrays}{byte arrays\@\xspace}
 
 \iftrue
 %\iffalse
@@ -141,17 +168,17 @@ DOI: http://dx.doi.org/10.1145/2815675.2815695}
 \widowpenalty=10000
 
 \begin{document}
-\title{It's About Time: Implementing a Verified Constant-Time Library}
+\title{It's About Time: A Language-Based Approach to Constant-Time Programming}
 
 \author{
 % Getting all the authors onto the page for spacing purposes.  Please discuss order.
 \alignauthor%
-Sunjay Cauligi$^\dagger$\qquad
-Brian Johannesmeyer$^\dagger$\qquad
-Ariana Mirian$^\dagger$\qquad
-Gary Soeller$^\dagger$\qquad
+Sunjay Cauligi\qquad
+Brian Johannesmeyer\qquad
+Ariana Mirian\qquad
+Gary Soeller\qquad
 \smallskip\\\affaddr{%
-  $^\dagger$ University of California, San Diego\quad
+  University of California, San Diego\quad
 }\\%
 \affaddr{\smallskip\rm\{scauligi, bjohanne, amirian, gsoeller\}@cs.ucsd.edu }
 }
@@ -160,15 +187,13 @@ Gary Soeller$^\dagger$\qquad
 \maketitle
 \thispagestyle{empty}
 
-\newcommand{\update}[1]{{\color{black}#1}\xspace}
+\newcommand{\update}[1]{{\color{blue}#1}\xspace}
 
 \newcommand{\twolinecell}[2][r]{%
   \begin{tabular}[#1]{@{}c@{}}#2\end{tabular}}
 
 %\category{C.2.2}{Computer-Communication Networks}[Network Protocols]
 %\category{C.2.3}{Computer-Communication Networks}[Network Operations]
-
-%\keywords{E-mail; SMTP; Security; Internet-wide Scanning}
 
 \pagenumbering{arabic}
 \pagestyle{plain}
@@ -177,17 +202,19 @@ Gary Soeller$^\dagger$\qquad
 \begin{abstract}
 \TK when rest of paper is done
 
-\begin{keywords} 
-Keywords
-\end{keywords}
 \end{abstract}
 
+\keywords{Covert Channels; Constant Time Programming; Security; Compilers}
+
 \input{introduction}
-\input{related}
 \input{formalization}
 \input{implementation}
 \input{evaluation}
 \input{future}
+\input{related}
 \input{conclusion}
 
 \input{footers}
+\input{coresemantics}
+
+\end{document}

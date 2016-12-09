@@ -1,0 +1,192 @@
+embed
+{{ tex-preamble
+\newcommand\hv{v{_h} }
+\newcommand\he{e{_h} }
+\newcommand\hf{f\!{_h} }
+\newcommand\hs{s{_h} }
+\newcommand\hb{b{_h} }
+\newcommand\hc{c{_h} }
+}}
+
+metavar hb ::= {{ com boolean value }} {{ tex \[[hb]] }}
+metavar hc ::= {{ com numeric value }} {{ tex \[[hc]] }}
+metavar hf ::= {{ com function name }} {{ tex \[[hf]] }}
+metavar rval ::= {{ com ``return value'' variable }}
+metavar rnset ::= {{ com ``rval-not-set'' variable }}
+
+grammar
+e :: 'e_' ::= {{ com expressions }}
+  | rval :: M :: rval
+  | rnset :: M :: rnset
+  | ctx :: M :: ctx
+
+s :: 's_' ::= {{ com statements }}
+  | def rval := e :: M :: rval_dec {{ com rval declaration }}
+  | def rnset := e :: M :: rnset_dec {{ com rnset declaration }}
+  | def ctx := e :: M :: ctx_dec {{ com context declaration }}
+  | rval := e :: M :: rval_assign {{ com rval assignment }}
+  | rnset := e :: M :: rnset_assign {{ com rnset assignment }}
+  | ctx := e :: M :: ctx_assign {{ com context assignment }}
+
+hv :: 'hv_' ::= {{ com values }} {{ tex \[[hv]] }}
+  | hb :: :: bool  {{ com boolean value }}
+  | hc :: :: const  {{ com numeric value }}
+  | a :: :: array  {{ com bytearray }}
+
+hunop :: 'hunop_' ::= {{ com unary operations }} {{ tex \ominus_h\! }}
+  | hlnot :: :: lnot {{ tex \texttt{!} }} {{ com logical not }}
+  | hbnot :: :: bnot {{ com bitwise not }} {{ tex {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\! }}
+
+hbinop :: 'hbinop_' ::= {{ com binary operations }} {{ tex \oplus_h }}
+  | hiadd :: :: iadd {{ tex \texttt{+} }}
+  | hisub :: :: isub {{ tex \texttt{-} }}
+  | himul :: :: imul {{ tex \texttt{*} }}
+  | hshl :: :: shl {{ tex \texttt{<<} }}
+  | hshr :: :: shr {{ tex \texttt{>>} }}
+  | hband :: :: band {{ tex \scalebox{1.25}[1]{\texttt{\&} } }}
+  | hbor :: :: bor {{ tex \texttt{|} }}
+  | hland :: :: land {{ tex \scalebox{1.25}[1]{\texttt{\&\&} } }}
+  | hlor :: :: lor {{ tex \texttt{||} }}
+  | heq :: :: eq {{ tex \texttt{==} }}
+  | hneq :: :: neq {{ tex \texttt{!=} }}
+  | hgt :: :: gt {{ tex \texttt{>} }}
+  | hlt :: :: lt {{ tex \texttt{<} }}
+  | hgte :: :: gte {{ tex \texttt{>=} }}
+  | hlte :: :: lte {{ tex \texttt{<=} }}
+
+he :: 'he_' ::= {{ com expressions }} {{ tex \[[he]] }}
+  | hb :: :: bool  {{ com boolean value }}
+  | hc :: :: const  {{ com numeric value }}
+  | a :: :: array  {{ com bytearray }}
+  | x :: :: var {{ com variable }}
+  | a [ he ] :: :: arr_get {{ com array access }}
+  | hunop he :: :: unop {{ com unary operation }}
+  | he1 binop he2 :: :: binop {{ com binary operation }}
+  | hf ( he1 , .. , hen ) :: :: funcapp {{ com function application }}
+
+hs :: 'hs_' ::= {{ com statements }} {{ tex \[[hs]] }}
+  | hskip :: :: skip {{ com skip }} {{ tex \textbf{skip}_h }}
+  | hs1 ; hs2 :: :: seq {{ com sequence }}
+  | hdef x := he :: :: vardec {{ com variable declaration }} {{ tex \textbf{def}_h\textbf{ } [[x]] [[:=]] [[he]] }}
+  | hadef x := a :: :: arrdec {{ com array declaration }} {{ tex \textbf{adef}_h\textbf{ } [[x]] [[:=]] [[a]] }}
+  | x := he :: :: assign {{ com variable assignment }}
+  | a [ he1 ] := he2 :: :: arr_assign {{ com array assignment }}
+  | hfor x from hv1 to hv2 : hs :: :: loop {{ com for loop }} {{ tex \textbf{for}_h\textbf{ } [[x]] \textbf{ from } [[hv1]] \textbf{ to } [[hv2]] }}
+  | hif he then hs1 else hs2 :: :: if {{ com conditional branch }} {{ tex \textbf{if}_h\textbf{ } [[he]] \textbf{ then } [[hs1]] \textbf{ else } [[hs2]] }}
+  | hreturn he :: :: ret {{ com return }} {{ tex \textbf{return}_h\textbf{ } [[he]] }}
+
+hfval :: 'hfval_' ::= {{ com function spec }}
+  | ( x1 , .. , xn ) : hs :: :: fval
+
+hfndef :: 'hfndef_' ::= {{ com function definition }}
+  | fdef hf hfval :: :: fdef {{ tex \textbf{fdef}_h\textbf{ } [[hf]]~[[hfval]] }}
+
+hprogram :: 'hprogram_' ::= {{ com program }}
+  | hfndef1 ; .. ; hfndefn ; expose hfndef :: :: fdefs {{ com list of fdefs }}
+
+ctx :: 'ctx_' ::= {{ com branch context }}
+  | true :: M :: true  {{ com bitmask true (\texttt{0b1111...}) }} {{ tex \textsc{True} }}
+  | x :: :: var {{ com variable }}
+  | ( ctx ) :: M :: parens {{ com parens }}
+  | unop ctx :: :: unop {{ com unary operation }}
+  | ctx1 binop ctx2 :: :: binop {{ com binary operation }}
+
+terminals :: 'terminals_' ::=
+  | -t> :: :: transform {{ tex \longrightarrow_t }}
+  | [t[ :: :: ltbrack {{ tex \llbracket }}
+  | ]t] :: :: rtbrack {{ tex \rrbracket_{int} }}
+
+formula :: 'formula_' ::=
+  | v === [t[ hv ]t] ::  :: eqv_hval
+  | e' = e ::  :: eqv_e
+  | ctx' = ctx ::  :: ctx_update
+
+subrules
+  hv <:: he
+  ctx <:: e
+
+
+defns
+  Jtrans :: '' ::=
+
+    defn
+    he -t> e ::  :: expr_transform :: Ext_ {{ com [[he]] is transformed to [[e]] }}
+    {{ tex \llbracket [[he]] \rrbracket_t = [[e]] }} by
+
+    v === [t[ hv ]t]
+    ------------------------------- :: val
+    hv -t> v
+
+    ------------------------------- :: var
+    x -t> x
+
+    ------------------------------- :: arr
+    a -t> a
+
+    he -t> e
+    ------------------------------- :: arr_get
+    a[he] -t> a[e]
+
+    fdef hf hfval -t> fdef f fval
+    he1 -t> e1 .. hek -t> ek
+    ------------------------------- :: fn_call
+    hf(he1,..,hek) -t> f(e1,..,ek)
+
+    defn
+    ctx hs -t> s ::  :: stmt_transform :: Stt_ {{ com [[hs]] is transformed to [[s]] }}
+    {{ tex \llbracket [[hs]] \rrbracket_{[[ctx]]} = [[s]] }} by
+
+    ------------------------------- :: skip
+    ctx hskip -t> skip
+
+    ctx hs1 -t> s1
+    ctx hs2 -t> s2
+    ------------------------------- :: seq
+    ctx hs1 ; hs2 -t> s1 ; s2
+
+    he -t> e
+    ------------------------------- :: var_dec
+    ctx hdef x := he -t> def x := e
+
+    ------------------------------- :: arr_dec
+    ctx hadef x := a -t> adef x := a
+
+    he -t> e
+    e' = ctx band rnset
+    e'' = e band e'
+    e''' = x band (bnot e')
+    ------------------------------- :: var_assign
+    ctx x := he -t> x := (e'' bor e''')
+
+    he1 -t> e1
+    he2 -t> e2
+    e' = ctx band rnset
+    e'' = e2 band e'
+    e''' = a[e1] band (bnot e')
+    ------------------------------- :: arr_assign
+    ctx a[he1] := he2 -t> a[e1] := (e'' bor e''')
+
+    hv1 -t> v1
+    hv2 -t> v2
+    ctx hs -t> s
+    ------------------------------- :: for
+    ctx hfor x from hv1 to hv2 : hs -t> for x from v1 to v2 : s
+
+    he -t> e
+    (ctx' band ctx) hs1 -t> s1
+    (ctx' band ctx) hs2 -t> s2
+    ------------------------------- :: if
+    ctx hif he then hs1 else hs2 -t> def ctx' := e ; s1 ; ctx' := (bnot ctx') ; s2
+
+    he -t> e
+    e' = e band (ctx band rnset)
+    ------------------------------- :: ret
+    ctx hreturn he -t> rval := (e' bor rval) ; rnset := (rnset band (bnot ctx))
+
+    defn
+    hfndef -t> fndef ::  :: fdef_transform :: Fdeft_ {{ com [[hfndef]] is transformed to [[fndef]] }}
+    {{ tex \llbracket [[hfndef]] \rrbracket_t = [[fndef]] }} by
+
+    true hs -t> s
+    ------------------------------- :: fdef
+    fdef hf(x1,..,xk) : hs -t> fdef f(x1,..,xk) : def rval := false ; def rnset := true ; s @ rval
