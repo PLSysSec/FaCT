@@ -9,3 +9,20 @@ it would not have been fair. We only implemented one function that cannot stand
 on it's own --- in order to truly test this, we would like to implement the
 functinos needed to encrypt and decrypt, so that we can test the function is
 it's full form.
+
+TODO: Note that the branch in~\ref{fig:openssl-original} is legal since the lengths in the conditional are public.
+
+\begin{figure*}
+    \centering
+    \begin{subfigure}[b]{0.49\textwidth}
+		\dbox{\input{figures/openssl-original}}
+		\caption{The original OpenSSL function.\newline}
+		\label{fig:openssl-original}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.49\textwidth}
+		\dbox{\input{figures/openssl-intuitive}}
+		\caption{The OpenSSL function expressed more intuitively, without using their constant-time branch-avoiding routines.}
+		\label{fig:openssl-intuitive}
+    \end{subfigure}
+    \caption{OpenSSL function used to evaluate Constanc.}\label{fig:openssl}\floatspace
+\end{figure*}

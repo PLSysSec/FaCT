@@ -1,0 +1,27 @@
+\begin{minipage}[t]{3.1in}
+\small
+\begin{Verbatim}
+int ssl3_cbc_remove_padding(const SSL *s, 
+  SSL3_RECORD *rec, unsigned block_size, 
+  unsigned mac_size)\{
+
+  unsigned padding_length, good;
+  const unsigned overhead = 1 + mac_size;
+
+  if (overhead > rec->length) return 0;
+  padding_length = rec->data[rec->length - 1];
+
+  \textcolor{purple}{good = (rec->length >= padding_length + overhead)}
+    \textcolor{purple}{&& (block_size >= (padding_length + 1));}
+    
+  \textcolor{blue}{if(good) padding_length = padding_length + 1;}
+  \textcolor{blue}{else padding_length = 0;}
+
+  rec->length -= padding_length;
+  rec->type |= padding_length << 8;
+
+  \textcolor{red}{if(good) return 1;}
+  \textcolor{red}{else return -1;}
+\}
+\end{Verbatim}
+\end{minipage}

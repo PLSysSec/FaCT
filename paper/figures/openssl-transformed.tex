@@ -1,0 +1,33 @@
+\begin{minipage}[t]{3.1in}
+\small
+\begin{Verbatim}
+int ssl3_cbc_remove_padding(int* data, int* input, 
+  int block_size, int mac_size, int* arr) \{
+
+  int padding_length = 4, 
+    good1 = false, good2 = false;
+  int overhead = 1 + mac_size;
+
+  if (overhead > arr[0]) return 0;
+  else good1 = false;
+
+  good1 = (arr[0] >= padding_length + overhead);
+  good2 = (block_size >= (padding_length + 1));
+  
+  if(good1) \{
+    if(good2) padding_length = padding_length + 1;
+    else padding_length = 0;
+  \}
+  else padding_length = 0;
+
+  arr[0] -= padding_length;
+  arr[1] |= padding_length << 8;
+
+  if(good1) \{
+    if(good2) return 1;
+    else return -1;
+  \}
+  else return -1;
+\}
+\end{Verbatim}
+\end{minipage}
