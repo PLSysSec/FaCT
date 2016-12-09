@@ -39,7 +39,7 @@
 \newcommand\fm{\Lambda}
 \newcommand\g{\Gamma}
 \newcommand\m{\mu}
-\newcommand\sext{_{\texttt{s}\hskip0pt}\hskip0pt}
+\newcommand\sext{_{\texttt{s}\relax}\relax}
 \newcommand\subst{\sigma}
 
 \newcommand\hv{v{_h} }
@@ -74,23 +74,23 @@
 
 \newcommand{\ottunop}{
 \ottrulehead{\ominus\!}{::=}{\ottcom{unary operations}}\ottprodnewline
-\ottfirstprodline{|}{ {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\! }{}{}{}{\ottcom{bitwise not}}}
+\ottfirstprodline{|}{ {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\relax}\relax}\relax}\!\! }{}{}{}{\ottcom{bitwise not}}}
 
 \newcommand{\ottbinop}{
 \ottrulehead{\oplus}{::=}{\ottcom{binary operations}}\ottprodnewline
-\ottfirstprodline{|}{ \texttt{+} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{-} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{*} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{<<} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{>>} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \scalebox{1.25}[1]{\texttt{\&}\hskip0pt} }{}{}{}{\ottcom{bitwise and}}\ottprodnewline
+\ottfirstprodline{|}{ \texttt{+} }{}{}{}{\ottcom{integer addition}}\ottprodnewline
+\ottprodline{|}{ \texttt{-} }{}{}{}{\ottcom{integer subtraction}}\ottprodnewline
+\ottprodline{|}{ \texttt{*} }{}{}{}{\ottcom{integer multiplication}}\ottprodnewline
+\ottprodline{|}{ \texttt{<\relax<} }{}{}{}{\ottcom{bitshift left}}\ottprodnewline
+\ottprodline{|}{ \texttt{>\relax>} }{}{}{}{\ottcom{bitshift right}}\ottprodnewline
+\ottprodline{|}{ \scalebox{1.25}[1]{\texttt{\&}\relax} }{}{}{}{\ottcom{bitwise and}}\ottprodnewline
 \ottprodline{|}{ \texttt{|} }{}{}{}{\ottcom{bitwise or}}\ottprodnewline
 \ottprodline{|}{ \texttt{==}\sext }{}{}{}{\ottcom{equals (sign extended)}}\ottprodnewline
-\ottprodline{|}{ \texttt{!=}\sext }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{>}\sext }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{<}\sext }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{>=}\sext }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{<=}\sext }{}{}{}{}}
+\ottprodline{|}{ \texttt{!=}\sext }{}{}{}{\ottcom{not equals (sign extended)}}\ottprodnewline
+\ottprodline{|}{ \texttt{>}\sext }{}{}{}{\ottcom{greater than (sign extended)}}\ottprodnewline
+\ottprodline{|}{ \texttt{<}\sext }{}{}{}{\ottcom{less than (sign extended)}}\ottprodnewline
+\ottprodline{|}{ \texttt{>=}\sext }{}{}{}{\ottcom{greater than or equal (sign extended)}}\ottprodnewline
+\ottprodline{|}{ \texttt{<=}\sext }{}{}{}{\ottcom{less than or equal (sign extended)}}}
 
 \newcommand{\ottsubst}{
 \ottrulehead{\{\subst\}}{::=}{\ottcom{variable substitution}}\ottprodnewline
@@ -102,7 +102,7 @@
 
 \newcommand{\ottfndef}{
 \ottrulehead{\ottnt{fndef}}{::=}{\ottcom{function definition}}\ottprodnewline
-\ottfirstprodline{|}{\ottkw{fdef} \, \ottmv{f} \, \ottnt{fval}}{}{}{}{}}
+\ottfirstprodline{|}{ \textbf{fdef }  \ottmv{f} ~ \ottnt{fval} }{}{}{}{}}
 
 \newcommand{\ottprogram}{
 \ottrulehead{\ottnt{program}}{::=}{\ottcom{program}}\ottprodnewline
@@ -166,25 +166,25 @@
 \newcommand{\otthunop}{
 \ottrulehead{\ominus_h\!}{::=}{\ottcom{unary operations}}\ottprodnewline
 \ottfirstprodline{|}{ \texttt{!} }{}{}{}{\ottcom{logical not}}\ottprodnewline
-\ottprodline{|}{ {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\! }{}{}{}{\ottcom{bitwise not}}}
+\ottprodline{|}{ {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\relax}\relax}\relax}\!\! }{}{}{}{\ottcom{bitwise not}}}
 
 \newcommand{\otthbinop}{
 \ottrulehead{\oplus_h}{::=}{\ottcom{binary operations}}\ottprodnewline
-\ottfirstprodline{|}{ \texttt{+} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{-} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{*} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{<<} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{>>} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \scalebox{1.25}[1]{\texttt{\&} } }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{|} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \scalebox{1.25}[1]{\texttt{\&\&} } }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{||} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{==} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{!=} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{>} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{<} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{>=} }{}{}{}{}\ottprodnewline
-\ottprodline{|}{ \texttt{<=} }{}{}{}{}}
+\ottfirstprodline{|}{ \texttt{+} }{}{}{}{\ottcom{integer addition}}\ottprodnewline
+\ottprodline{|}{ \texttt{-} }{}{}{}{\ottcom{integer subtraction}}\ottprodnewline
+\ottprodline{|}{ \texttt{*} }{}{}{}{\ottcom{integer multiplication}}\ottprodnewline
+\ottprodline{|}{ \texttt{<\relax<} }{}{}{}{\ottcom{bitshift left}}\ottprodnewline
+\ottprodline{|}{ \texttt{>\relax>} }{}{}{}{\ottcom{bitshift right}}\ottprodnewline
+\ottprodline{|}{ \scalebox{1.25}[1]{\texttt{\&}\relax} }{}{}{}{\ottcom{bitwise and}}\ottprodnewline
+\ottprodline{|}{ \texttt{|} }{}{}{}{\ottcom{bitwise or}}\ottprodnewline
+\ottprodline{|}{ \scalebox{1.25}[1]{\texttt{\&\&}\relax} }{}{}{}{\ottcom{logical and}}\ottprodnewline
+\ottprodline{|}{ \texttt{||} }{}{}{}{\ottcom{logical or}}\ottprodnewline
+\ottprodline{|}{ \texttt{==} }{}{}{}{\ottcom{equals}}\ottprodnewline
+\ottprodline{|}{ \texttt{!=} }{}{}{}{\ottcom{not equals}}\ottprodnewline
+\ottprodline{|}{ \texttt{>} }{}{}{}{\ottcom{greater than}}\ottprodnewline
+\ottprodline{|}{ \texttt{<} }{}{}{}{\ottcom{less than}}\ottprodnewline
+\ottprodline{|}{ \texttt{>=} }{}{}{}{\ottcom{greater than or equals}}\ottprodnewline
+\ottprodline{|}{ \texttt{<=} }{}{}{}{\ottcom{less than or equals}}}
 
 \newcommand{\otthe}{
 \ottrulehead{\he}{::=}{\ottcom{expressions}}\ottprodnewline
@@ -584,7 +584,7 @@
 
 
 \newcommand{\ottdruleExtXXfnXXcall}[1]{\ottdrule[#1]{%
-\ottpremise{ \llbracket   \textbf{fdef}_h\textbf{ }  \hf ~ \ottnt{hfval}   \rrbracket_t =  \ottkw{fdef} \, \ottmv{f} \, \ottnt{fval} }%
+\ottpremise{ \llbracket   \textbf{fdef}_h\textbf{ }  \hf ~ \ottnt{hfval}   \rrbracket_t =   \textbf{fdef }  \ottmv{f} ~ \ottnt{fval}  }%
 \ottpremise{ \llbracket  \he_{{\mathrm{1}}}  \rrbracket_t =  \ottnt{e_{{\mathrm{1}}}}  \quad .. \quad  \llbracket  \he_{\ottmv{k}}  \rrbracket_t =  \ottnt{e_{\ottmv{k}}} }%
 }{
  \llbracket  \hf  \ottsym{(}  \he_{{\mathrm{1}}}  \ottsym{,} \, .. \, \ottsym{,}  \he_{\ottmv{k}}  \ottsym{)}  \rrbracket_t =  \ottmv{f}  \ottsym{(}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottnt{e_{\ottmv{k}}}  \ottsym{)} }{%
@@ -633,9 +633,9 @@
 
 \newcommand{\ottdruleSttXXvarXXassign}[1]{\ottdrule[#1]{%
 \ottpremise{ \llbracket  \he  \rrbracket_t =  \ottnt{e} }%
-\ottpremise{\ottnt{e'}  \ottsym{=}  \ottnt{ctx} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottmv{rnset}}%
-\ottpremise{\ottnt{e''}  \ottsym{=}  \ottnt{e} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottnt{e'}}%
-\ottpremise{\ottnt{e'''}  \ottsym{=}  \ottmv{x} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottsym{(}   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\!  \, \ottnt{e'}  \ottsym{)}}%
+\ottpremise{\ottnt{e'}  \ottsym{=}  \ottnt{ctx} \,  \scalebox{1.25}[1]{\texttt{\&}\relax}  \, \ottmv{rnset}}%
+\ottpremise{\ottnt{e''}  \ottsym{=}  \ottnt{e} \,  \scalebox{1.25}[1]{\texttt{\&}\relax}  \, \ottnt{e'}}%
+\ottpremise{\ottnt{e'''}  \ottsym{=}  \ottmv{x} \,  \scalebox{1.25}[1]{\texttt{\&}\relax}  \, \ottsym{(}   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\relax}\relax}\relax}\!\!  \, \ottnt{e'}  \ottsym{)}}%
 }{
  \llbracket  \ottmv{x}  \ottsym{:=}  \he  \rrbracket_{ \ottnt{ctx} } =  \ottmv{x}  \ottsym{:=}  \ottsym{(}  \ottnt{e''} \,  \texttt{|}  \, \ottnt{e'''}  \ottsym{)} }{%
 {\ottdrulename{Stt\_var\_assign}}{}%
@@ -645,9 +645,9 @@
 \newcommand{\ottdruleSttXXarrXXassign}[1]{\ottdrule[#1]{%
 \ottpremise{ \llbracket  \he_{{\mathrm{1}}}  \rrbracket_t =  \ottnt{e_{{\mathrm{1}}}} }%
 \ottpremise{ \llbracket  \he_{{\mathrm{2}}}  \rrbracket_t =  \ottnt{e_{{\mathrm{2}}}} }%
-\ottpremise{\ottnt{e'}  \ottsym{=}  \ottnt{ctx} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottmv{rnset}}%
-\ottpremise{\ottnt{e''}  \ottsym{=}  \ottnt{e_{{\mathrm{2}}}} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottnt{e'}}%
-\ottpremise{\ottnt{e'''}  \ottsym{=}  \ottmv{a}  \ottsym{[}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{]} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottsym{(}   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\!  \, \ottnt{e'}  \ottsym{)}}%
+\ottpremise{\ottnt{e'}  \ottsym{=}  \ottnt{ctx} \,  \scalebox{1.25}[1]{\texttt{\&}\relax}  \, \ottmv{rnset}}%
+\ottpremise{\ottnt{e''}  \ottsym{=}  \ottnt{e_{{\mathrm{2}}}} \,  \scalebox{1.25}[1]{\texttt{\&}\relax}  \, \ottnt{e'}}%
+\ottpremise{\ottnt{e'''}  \ottsym{=}  \ottmv{a}  \ottsym{[}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{]} \,  \scalebox{1.25}[1]{\texttt{\&}\relax}  \, \ottsym{(}   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\relax}\relax}\relax}\!\!  \, \ottnt{e'}  \ottsym{)}}%
 }{
  \llbracket  \ottmv{a}  \ottsym{[}  \he_{{\mathrm{1}}}  \ottsym{]}  \ottsym{:=}  \he_{{\mathrm{2}}}  \rrbracket_{ \ottnt{ctx} } =  \ottmv{a}  \ottsym{[}  \ottnt{e_{{\mathrm{1}}}}  \ottsym{]}  \ottsym{:=}  \ottsym{(}  \ottnt{e''} \,  \texttt{|}  \, \ottnt{e'''}  \ottsym{)} }{%
 {\ottdrulename{Stt\_arr\_assign}}{}%
@@ -666,19 +666,19 @@
 
 \newcommand{\ottdruleSttXXif}[1]{\ottdrule[#1]{%
 \ottpremise{ \llbracket  \he  \rrbracket_t =  \ottnt{e} }%
-\ottpremise{ \llbracket  \hs_{{\mathrm{1}}}  \rrbracket_{ \ottsym{(}  \ottnt{ctx'} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottnt{ctx}  \ottsym{)} } =  \ottnt{s_{{\mathrm{1}}}} }%
-\ottpremise{ \llbracket  \hs_{{\mathrm{2}}}  \rrbracket_{ \ottsym{(}  \ottnt{ctx'} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottnt{ctx}  \ottsym{)} } =  \ottnt{s_{{\mathrm{2}}}} }%
+\ottpremise{ \llbracket  \hs_{{\mathrm{1}}}  \rrbracket_{ \ottsym{(}  \ottnt{ctx'} \,  \scalebox{1.25}[1]{\texttt{\&}\relax}  \, \ottnt{ctx}  \ottsym{)} } =  \ottnt{s_{{\mathrm{1}}}} }%
+\ottpremise{ \llbracket  \hs_{{\mathrm{2}}}  \rrbracket_{ \ottsym{(}  \ottnt{ctx'} \,  \scalebox{1.25}[1]{\texttt{\&}\relax}  \, \ottnt{ctx}  \ottsym{)} } =  \ottnt{s_{{\mathrm{2}}}} }%
 }{
- \llbracket   \textbf{if}_h\textbf{ }  \he  \textbf{ then }  \hs_{{\mathrm{1}}}  \textbf{ else }  \hs_{{\mathrm{2}}}   \rrbracket_{ \ottnt{ctx} } =  \ottkw{def} \, \ottnt{ctx'}  \ottsym{:=}  \ottnt{e}  \ottsym{;}  \ottnt{s_{{\mathrm{1}}}}  \ottsym{;}  \ottnt{ctx'}  \ottsym{:=}  \ottsym{(}   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\!  \, \ottnt{ctx'}  \ottsym{)}  \ottsym{;}  \ottnt{s_{{\mathrm{2}}}} }{%
+ \llbracket   \textbf{if}_h\textbf{ }  \he  \textbf{ then }  \hs_{{\mathrm{1}}}  \textbf{ else }  \hs_{{\mathrm{2}}}   \rrbracket_{ \ottnt{ctx} } =  \ottkw{def} \, \ottnt{ctx'}  \ottsym{:=}  \ottnt{e}  \ottsym{;}  \ottnt{s_{{\mathrm{1}}}}  \ottsym{;}  \ottnt{ctx'}  \ottsym{:=}  \ottsym{(}   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\relax}\relax}\relax}\!\!  \, \ottnt{ctx'}  \ottsym{)}  \ottsym{;}  \ottnt{s_{{\mathrm{2}}}} }{%
 {\ottdrulename{Stt\_if}}{}%
 }}
 
 
 \newcommand{\ottdruleSttXXret}[1]{\ottdrule[#1]{%
 \ottpremise{ \llbracket  \he  \rrbracket_t =  \ottnt{e} }%
-\ottpremise{\ottnt{e'}  \ottsym{=}  \ottnt{e} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottsym{(}  \ottnt{ctx} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottmv{rnset}  \ottsym{)}}%
+\ottpremise{\ottnt{e'}  \ottsym{=}  \ottnt{e} \,  \scalebox{1.25}[1]{\texttt{\&}\relax}  \, \ottsym{(}  \ottnt{ctx} \,  \scalebox{1.25}[1]{\texttt{\&}\relax}  \, \ottmv{rnset}  \ottsym{)}}%
 }{
- \llbracket   \textbf{return}_h\textbf{ }  \he   \rrbracket_{ \ottnt{ctx} } =  \ottmv{rval}  \ottsym{:=}  \ottsym{(}  \ottnt{e'} \,  \texttt{|}  \, \ottmv{rval}  \ottsym{)}  \ottsym{;}  \ottmv{rnset}  \ottsym{:=}  \ottsym{(}  \ottmv{rnset} \,  \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  \, \ottsym{(}   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\!  \, \ottnt{ctx}  \ottsym{)}  \ottsym{)} }{%
+ \llbracket   \textbf{return}_h\textbf{ }  \he   \rrbracket_{ \ottnt{ctx} } =  \ottmv{rval}  \ottsym{:=}  \ottsym{(}  \ottnt{e'} \,  \texttt{|}  \, \ottmv{rval}  \ottsym{)}  \ottsym{;}  \ottmv{rnset}  \ottsym{:=}  \ottsym{(}  \ottmv{rnset} \,  \scalebox{1.25}[1]{\texttt{\&}\relax}  \, \ottsym{(}   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\relax}\relax}\relax}\!\!  \, \ottnt{ctx}  \ottsym{)}  \ottsym{)} }{%
 {\ottdrulename{Stt\_ret}}{}%
 }}
 
@@ -698,7 +698,7 @@
 \newcommand{\ottdruleFdeftXXfdef}[1]{\ottdrule[#1]{%
 \ottpremise{ \llbracket  \hs  \rrbracket_{  \textsc{True}  } =  \ottnt{s} }%
 }{
- \llbracket   \textbf{fdef}_h\textbf{ }  \hf ~ \ottsym{(}  \ottmv{x_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottmv{x_{\ottmv{k}}}  \ottsym{)}  \ottsym{:}  \hs   \rrbracket_t =  \ottkw{fdef} \, \ottmv{f} \, \ottsym{(}  \ottmv{x_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottmv{x_{\ottmv{k}}}  \ottsym{)}  \ottsym{:}  \ottkw{def} \, \ottmv{rval}  \ottsym{:=}   \textsc{False}   \ottsym{;}  \ottkw{def} \, \ottmv{rnset}  \ottsym{:=}   \textsc{True}   \ottsym{;}  \ottnt{s}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottmv{rval} }{%
+ \llbracket   \textbf{fdef}_h\textbf{ }  \hf ~ \ottsym{(}  \ottmv{x_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottmv{x_{\ottmv{k}}}  \ottsym{)}  \ottsym{:}  \hs   \rrbracket_t =   \textbf{fdef }  \ottmv{f} ~ \ottsym{(}  \ottmv{x_{{\mathrm{1}}}}  \ottsym{,} \, .. \, \ottsym{,}  \ottmv{x_{\ottmv{k}}}  \ottsym{)}  \ottsym{:}  \ottkw{def} \, \ottmv{rval}  \ottsym{:=}   \textsc{False}   \ottsym{;}  \ottkw{def} \, \ottmv{rnset}  \ottsym{:=}   \textsc{True}   \ottsym{;}  \ottnt{s}  \scalebox{0.5}[0.75]{ \textbf{ @}\!\,}  \ottmv{rval}  }{%
 {\ottdrulename{Fdeft\_fdef}}{}%
 }}
 
@@ -714,7 +714,7 @@
 %% defn unop_transform
 \newcommand{\ottdruleUnoptXXlnot}[1]{\ottdrule[#1]{%
 }{
- \llbracket   \texttt{!}   \rrbracket_t =   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\!  }{%
+ \llbracket   \texttt{!}   \rrbracket_t =   {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\relax}\relax}\relax}\!\!  }{%
 {\ottdrulename{Unopt\_lnot}}{}%
 }}
 
@@ -733,7 +733,7 @@
 %% defn binop_transform
 \newcommand{\ottdruleBinoptXXland}[1]{\ottdrule[#1]{%
 }{
- \llbracket   \scalebox{1.25}[1]{\texttt{\&\&} }   \rrbracket_t =   \scalebox{1.25}[1]{\texttt{\&}\hskip0pt}  }{%
+ \llbracket   \scalebox{1.25}[1]{\texttt{\&\&}\relax}   \rrbracket_t =   \scalebox{1.25}[1]{\texttt{\&}\relax}  }{%
 {\ottdrulename{Binopt\_land}}{}%
 }}
 

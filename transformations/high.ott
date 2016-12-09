@@ -35,24 +35,24 @@ hv :: 'hv_' ::= {{ com values }} {{ tex \[[hv]] }}
 
 hunop :: 'hunop_' ::= {{ com unary operations }} {{ tex \ominus_h\! }}
   | hlnot :: :: lnot {{ tex \texttt{!} }} {{ com logical not }}
-  | hbnot :: :: bnot {{ com bitwise not }} {{ tex {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\hskip0pt}\hskip0pt}\hskip0pt}\!\! }}
+  | hbnot :: :: bnot {{ com bitwise not }} {{ tex {\raise-.6ex\hbox{\scalebox{1.1}[1]{\texttt{\~}\relax}\relax}\relax}\!\! }}
 
 hbinop :: 'hbinop_' ::= {{ com binary operations }} {{ tex \oplus_h }}
-  | hiadd :: :: iadd {{ tex \texttt{+} }}
-  | hisub :: :: isub {{ tex \texttt{-} }}
-  | himul :: :: imul {{ tex \texttt{*} }}
-  | hshl :: :: shl {{ tex \texttt{<<} }}
-  | hshr :: :: shr {{ tex \texttt{>>} }}
-  | hband :: :: band {{ tex \scalebox{1.25}[1]{\texttt{\&} } }}
-  | hbor :: :: bor {{ tex \texttt{|} }}
-  | hland :: :: land {{ tex \scalebox{1.25}[1]{\texttt{\&\&} } }}
-  | hlor :: :: lor {{ tex \texttt{||} }}
-  | heq :: :: eq {{ tex \texttt{==} }}
-  | hneq :: :: neq {{ tex \texttt{!=} }}
-  | hgt :: :: gt {{ tex \texttt{>} }}
-  | hlt :: :: lt {{ tex \texttt{<} }}
-  | hgte :: :: gte {{ tex \texttt{>=} }}
-  | hlte :: :: lte {{ tex \texttt{<=} }}
+  | hiadd :: :: iadd {{ tex \texttt{+} }} {{ com integer addition }}
+  | hisub :: :: isub {{ tex \texttt{-} }} {{ com integer subtraction }}
+  | himul :: :: imul {{ tex \texttt{*} }} {{ com integer multiplication }}
+  | hshl :: :: shl {{ tex \texttt{<\relax<} }} {{ com bitshift left }}
+  | hshr :: :: shr {{ tex \texttt{>\relax>} }} {{ com bitshift right }}
+  | hband :: :: band {{ tex \scalebox{1.25}[1]{\texttt{\&}\relax} }} {{ com bitwise and }}
+  | hbor :: :: bor {{ tex \texttt{|} }} {{ com bitwise or }}
+  | hland :: :: land {{ tex \scalebox{1.25}[1]{\texttt{\&\&}\relax} }} {{ com logical and }}
+  | hlor :: :: lor {{ tex \texttt{||} }} {{ com logical or }}
+  | heq :: :: eq {{ tex \texttt{==} }} {{ com equals }}
+  | hneq :: :: neq {{ tex \texttt{!=} }} {{ com not equals }}
+  | hgt :: :: gt {{ tex \texttt{>} }} {{ com greater than }}
+  | hlt :: :: lt {{ tex \texttt{<} }} {{ com less than }}
+  | hgte :: :: gte {{ tex \texttt{>=} }} {{ com greater than or equals }}
+  | hlte :: :: lte {{ tex \texttt{<=} }} {{ com less than or equals }}
 
 he :: 'he_' ::= {{ com expressions }} {{ tex \[[he]] }}
   | hb :: :: bool  {{ com boolean value }}
