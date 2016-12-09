@@ -5,7 +5,7 @@ The \constc system is comprised of two distinct languages: \constc proper, which
 will develop programs in, and \ccore, an internal language with specific timing guarantees. Before diving into the languages, we briefly outline our threat model.
 
 \subsection{Threat Model}
-For \constc, we assume an adversary has remote access to the machine running the code. The adversary has the ability to measure the amount of time it takes for \constc code to run. We also assume the caller has not been compromised and that they are invoking \constc functions with valid values(as opposed to null values).
+For \constc, we assume an adversary has remote access to the machine running the code. The adversary has the ability to measure the amount of time it takes for \constc code to run. We also assume the caller has not been compromised and that they are invoking \constc functions with valid values (as opposed to null values).
 
 \subsection{ConstanC}
 
@@ -71,12 +71,12 @@ exactly $\kappa + f_\kappa$. That is to say, the program path through any
 function in \ccore does not depend on the inputs to the function.
 
 However, even if a function always follows the same program transcript,
-it might still take varying amounts of real-world time, depending
-on how the physical CPU implements its instructions \todo{cite}. Our compiler
-currently targets LLVM IR, but with Intel x86 assembly in mind; it is currently unknown \todo{fact
-check} which instructions in this architecture are truly constant time. However, certain
+it might still take varying amounts of real-world time, as physical instructions
+themselves may have timing variations depending on input registers \cite{kaufmann2016constant}. Our compiler
+currently targets LLVM IR, but with Intel x86 assembly in mind; it is currently difficult
+which instructions in this architecture are truly constant time without support from Intel. However, certain
 instructions, such as integer division (\texttt{idiv}), are known to have timing variations
-based on the input values \todo{cite}. Our
+based on the input values \cite{intel2016manual}. Our
 mitigation strategy is to restrict ourselves to instructions that, to the best of our knowledge,
 run in constant time with respect to arguments.
 These include basic arithmetic (excluding division and modulo) and comparison operators, as well as
@@ -88,10 +88,12 @@ simple loads, stores, and calls. The constant-time nature of compiled
 If we can transform any program in \constc to an equivalent program in \ccore, then
 we can compile any \constc program to a program with the timing guarantees shown in \ccore.
 
-Since both \ccore
-and \constc are side effect-free languages, we simply need to show that for
+Since the inputs and outputs of both \ccore
+and \constc are restricted to function parameters, return values, and memory access,
+we simply need to show that for
 every function $f$ in \constc, the corresponding transformed function
-$f_{\textnormal{core}}$ returns an equivalent value given equivalent arguments.
+$f_{\textnormal{core}}$ returns an equivalent value and sets equivalent memory values
+when given equivalent arguments and starting memory state.
 
 We ensure this equivalence by keeping a ``context'', which is a bitmask
 representing the control flow the of the function at the current statement.

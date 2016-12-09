@@ -1,35 +1,33 @@
 \section{Introduction}
-Side channels are a mechanism to communicate information about a computation.
-Various attacks exist on side channels, including timing and power analysis
-attacks. Timing attacks are among the most common. This is where an adversary is
-able to measure the amount of time required to complete a computation. By doing
-so, information about the data being computed on is leaked. Among many, one
-notable timing attack has been shown to leak a complete AES key from a remote
-server\cite{brumley2005remote}.
 
-Due to the sensitive data that is leaked from timing attacks, various defenses
-have been implemented in libraries like LIO\cite{stefan2012}. Since libraries
-like this are not available in C, many developers that work on cryptographic
-code use a technique called constant time programming instead. The idea behind
-constant time programming is to structure the code so that the executable runs
-in constant time with respect to sensitive data. There are three main issues
-with constant time programming. \textit{First}, it restricts how the developer
+Timing side channels are an important class of security bugs whereby an attacker
+is able use the timing of events in a system to discern secret data. One well-known
+timing attack was the ``Lucky 13'' attack against various SSL implementations \cite{al2013lucky},
+which used minute differences in the duration between a malicious request to a server and
+the resulting error message to recover an SSL session key.
+
+Due to the sensitive nature of data that can be leaked from timing attacks, developers
+must take extra care to defend against such attacks. The current state-of-the-art
+used in many cryptographic libraries is constant-time programming. The idea behind
+constant-time programming is to structure code so that the time a program
+takes to run is not influenced by sensitive data. There are three main issues
+with constant-time programming: First, it restricts how the developer
 can use high level constructs like if-statements and loops, making the code
 difficult to read and write. This level of complexity can easily cause the
-developer to write buggy code if it is not tested properly. \textit{Second},
-since the code is written in a high level language, they may be using primitives
-that are not actually constant time(\eg floating point division).
-\textit{Finally}, the compiler may optimize any constant time code to a form
+developer to write buggy code if it is not tested properly. Second,
+since the code is written in a high level language, a developer may be using operations
+that are not actually constant time (\eg floating point division).
+Finally, the compiler may optimize constant-time code to form a program
 that is not actually constant time.
 
-We address the need to easily write verified constant time code by making four
-contributions to constant time programming. \textit{First}, we formalize a core
-language, built using low level primitives that are constant time.
-\textit{Second}, we formalize code transformations from our high level language,
-\constc, to our core language, \ccore. \textit{Third}, we build a compiler for
-\constc that produces constant time libraries. \textit{Finally}, we write
-cryptographic libraries in \constc and verify they run in constant time with
-ct-verif\cite{almeida2016}.
+We address the need to easily write verified constant-time code by making several
+contributions to constant-time programming: We formalize a core
+language, \ccore, built using constant-time low-level primitives;
+we formalize code transformations from our high-level language,
+\constc, to our core language; we build a compiler for
+\constc that produces constant-time programs; and finally, we implement
+cryptographic functions in \constc and verify they run in constant time with
+\emph{ct-verif} tool\cite{almeida2016}.
 
 %para 1
 %  introduce side channels
@@ -44,7 +42,7 @@ ct-verif\cite{almeida2016}.
 %para3
 %  how do we address timing side channels?
 %  what are our contributions?
-%    formalize a constant time language
+%    formalize a constant-time language
 %    formalize a transformation from non-ct to ct
 %    build a compiler that uses this formalization to output ct code
 %    verify our compiled code with ct-verif
