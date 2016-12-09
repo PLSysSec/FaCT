@@ -2,6 +2,17 @@
 \label{sec:related}
 
 
-The security community has been aware of side channel attacks for over 40 years \cite{lampson1973, wray1991, lipner1975}. Recently, side channels have been shown to leak information via power analysis\cite{Vaudenay2016}. Furthermore, timing side channels have been shown to leak information from the cache\cite{liu2015} or other aspects of processor architecture\cite{wang2004}.
+The security community has been aware of side channel attacks for over 40 years
+\cite{lampson1973, wray1991, lipner1975}. Recently, side channels have been
+shown to leak information via power analysis\cite{Vaudenay2016}. Furthermore,
+timing side channels have been shown to leak information from the
+cache\cite{liu2015} or other aspects of processor architecture\cite{wang2004}.
 
-Due to the rise in the number of side channel attacks, there has recently been a rise in defenses. \cite{planul2013,mitchell2012} uses information flow control to prevent information leaks on encrypted data. \cite{stefan2013} uses instruction-based scheduling to address cache based timing attacks. \cite{stefan2012,buiras2014} address timing attacks in LIO, a concurrent information flow control system for Haskell. Most closely related to \constc, \cite{molnar2005} uses C to C code transformations to avoid timing side channels.
+Due to the rise in the number of side channel attacks, there has recently been a
+rise in defenses. \cite{planul2013,mitchell2012} uses information flow control
+to prevent information leaks on encrypted data. \cite{stefan2013} uses
+instruction-based scheduling to address cache based timing attacks.
+\cite{stefan2012,buiras2014} address timing attacks in LIO, a concurrent
+information flow control system for Haskell. Most closely related to \constc,
+\cite{molnar2005} uses C to C code transformations to avoid timing side
+channels.

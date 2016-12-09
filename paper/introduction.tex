@@ -1,9 +1,35 @@
 \section{Introduction}
-Side channels are a mechanism to communicate information about a computation. Various attacks exist on side channels, including timing and power analysis attacks. Timing attacks are among the most common. This is where an adversary is able to measure the amount of time required to complete a computation. By doing so, information about the data being computed on is leaked. Among many, one notable timing attack has been shown to leak a complete AES key from a remote server\cite{brumley2005remote}.
+Side channels are a mechanism to communicate information about a computation.
+Various attacks exist on side channels, including timing and power analysis
+attacks. Timing attacks are among the most common. This is where an adversary is
+able to measure the amount of time required to complete a computation. By doing
+so, information about the data being computed on is leaked. Among many, one
+notable timing attack has been shown to leak a complete AES key from a remote
+server\cite{brumley2005remote}.
 
-Due to the sensitive data that is leaked from timing attacks, various defenses have been implemented in libraries like LIO\cite{stefan2012}. Since libraries like this are not available in C, many developers that work on cryptographic code use a technique called constant time programming instead. The idea behind constant time programming is to structure the code so that the executable runs in constant time with respect to sensitive data. There are three main issues with constant time programming. \textit{First}, it restricts how the developer can use high level constructs like if-statements and loops, making the code difficult to read and write. This level of complexity can easily cause the developer to write buggy code if it is not tested properly. \textit{Second}, since the code is written in a high level language, they may be using primitives that are not actually constant time(\eg floating point division). \textit{Finally}, the compiler may optimize any constant time code to a form that is not actually constant time.
+Due to the sensitive data that is leaked from timing attacks, various defenses
+have been implemented in libraries like LIO\cite{stefan2012}. Since libraries
+like this are not available in C, many developers that work on cryptographic
+code use a technique called constant time programming instead. The idea behind
+constant time programming is to structure the code so that the executable runs
+in constant time with respect to sensitive data. There are three main issues
+with constant time programming. \textit{First}, it restricts how the developer
+can use high level constructs like if-statements and loops, making the code
+difficult to read and write. This level of complexity can easily cause the
+developer to write buggy code if it is not tested properly. \textit{Second},
+since the code is written in a high level language, they may be using primitives
+that are not actually constant time(\eg floating point division).
+\textit{Finally}, the compiler may optimize any constant time code to a form
+that is not actually constant time.
 
-We address the need to easily write verified constant time code by making four contributions to constant time programming. \textit{First}, we formalize a core language, built using low level primitives that are constant time. \textit{Second}, we formalize code transformations from our high level language, \constc, to our core language, \ccore. \textit{Third}, we build a compiler for \constc that produces constant time libraries. \textit{Finally}, we write cryptographic libraries in \constc and verify they run in constant time with ct-verif\cite{almeida2016}.
+We address the need to easily write verified constant time code by making four
+contributions to constant time programming. \textit{First}, we formalize a core
+language, built using low level primitives that are constant time.
+\textit{Second}, we formalize code transformations from our high level language,
+\constc, to our core language, \ccore. \textit{Third}, we build a compiler for
+\constc that produces constant time libraries. \textit{Finally}, we write
+cryptographic libraries in \constc and verify they run in constant time with
+ct-verif\cite{almeida2016}.
 
 %para 1
 %  introduce side channels
