@@ -16,7 +16,7 @@ int ssl3_cbc_remove_padding(const SSL *s,
   \textcolor{blue}{if(block_size < padding_length + 1)}
     \textcolor{GaryGreen}{return -1;}
 
-  \textcolor{purple}{padding_length = padding_length + 1;}
+  \textcolor{purple}{padding_length += 1;}
 
   rec->length -= padding_length;
   rec->type |= padding_length << 8;
