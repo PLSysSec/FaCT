@@ -2,7 +2,10 @@
 \label{sec:design}
 
 The \constc system is comprised of two distinct languages: \constc proper, which end-users
-will develop programs in, and \ccore, an internal language with specific timing guarantees.
+will develop programs in, and \ccore, an internal language with specific timing guarantees. Before diving into the languages, we briefly outline our threat model.
+
+\subsection{Threat Model}
+For \constc, we assume an adversary has remote access to the machine running the code. The adversary has the ability to measure the amount of time it takes for \constc code to run. We also assume the caller has not been compromised and that they are invoking \constc functions with valid values(as opposed to null values).
 
 \subsection{ConstanC}
 
@@ -92,7 +95,7 @@ $f_{\textnormal{core}}$ returns an equivalent value given equivalent arguments.
 
 We ensure this equivalence by keeping a ``context'', which is a bitmask
 representing the control flow the of the function at the current statement.
-This bitmask is either \emph{high} (all 1s) or \emph{low} (all 0s). 
+This bitmask is either \emph{high} (all 1s) or \emph{low} (all 0s).
 Any variable assignment
 %~\texttt{x := v}~
 in \constc is transformed
