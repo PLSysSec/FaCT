@@ -11,4 +11,6 @@ Verifying a constanc bc file (out-3.5.ll):
 
 Converting a 3.9-compatible .ll file into 3.5-compatible .ll file:
 - Find "load i32,"; replace with "load"
-- (there's another one too I can't recall; getelementptr I think?)
+    - In vim: :%s/load i32,/load/g
+- Find "getelementptr [2 x i32],"; replace with "getelementptr"
+    - In vim: :%s/getelementptr \[2 x i32\],/getelementptr/g
