@@ -1,28 +1,37 @@
 \section{Evaluation}
 \label{sec:evaluation}
-We were not able to evaluate our implementation due to a variety of reasons.
 
-\cite{almeida2016}
-
-Moreover, we were not able to perform microbenchmarks on this fucntion because
-it would not have been fair. We only implemented one function that cannot stand
-on it's own --- in order to truly test this, we would like to implement the
-functinos needed to encrypt and decrypt, so that we can test the function is
-it's full form.
-
-TODO: Note that the branch in~\ref{fig:openssl-original} is legal since the lengths in the conditional are public.
+\begin{figure}
+	\input{figures/llvm-instr-syntax}
+	\caption{\textbf{LLVM version compliance}---Instructions produced by \constc with syntax changes from LLVM 3.5 to LLVM 3.9.}
+	\label{table:llvm-instr-syntax}\floatspace
+\end{figure}
 
 \begin{figure*}
     \centering
     \begin{subfigure}[b]{0.49\textwidth}
 		\dbox{\input{figures/openssl-original}}
-		\caption{The original OpenSSL function.\newline}
+		\caption{The original constant-time OpenSSL function written in C.\newline}
 		\label{fig:openssl-original}
     \end{subfigure}
     \begin{subfigure}[b]{0.49\textwidth}
 		\dbox{\input{figures/openssl-intuitive}}
-		\caption{The OpenSSL function expressed more intuitively, without using their constant-time branch-avoiding routines.}
+		\caption{The OpenSSL function expressed more intuitively, without using its constant-time branch-avoiding routines.}
 		\label{fig:openssl-intuitive}
     \end{subfigure}
     \caption{OpenSSL function used to evaluate Constanc.}\label{fig:openssl}\floatspace
 \end{figure*}
+
+\para{Methodology}
+In order to evaluate the correctness of \constc we used \emph{ct-verif}\cite{almeida2016}, a contant-time verification tool that leverages the SMACK and Boogie tools to verify LLVM intermediate representation. Since \constc was built on LLVM 3.9 and \emph{ct-verif} requires LLVM 3.5 (because its version of SMACK requires 3.5), the IR \constc produced needed to be slightly modified in order to be LLVM 3.5-compliant and hence be verified with \emph{ct-verif}. In particular, the \path{load} and \path{getelementpr} instructions output by \constc -- whose syntax is given in Figure~\ref{table:llvm-instr-syntax} -- were modified to be LLVM 3.5-compliant.
+
+\para{Test Code}
+OpenSSL's \path{ssl3_cbc_remove_padding} function -- given in Figure~\ref{fig:openssl-original} -- removes padding from a decrypted SSLv3 CBC record by updating the record's length in constant time. It provides an extensive yet concise test case for \constc since it encapsulates many C language features, such as structs, branches, and memory references; and constant-time features such as a notion of public and private data. In \path{ssl3_cbc_remove_padding}, inputs \path{rec->length}, \path{rec->data}, \path{block_size}, and \path{mac_size} are private while \path{s} and \path{rec->type} are public. Note that the branch in Figure~\ref{fig:openssl-original} does not violate the constant-time property because its condition is based on public values.
+
+The intuitive version of this code is given in Figure~\ref{fig:openssl-intuitive}, without OpenSSL's constant-time routines that avoid branching. Routines \path{constant_time_ge} and \path{constant_time_select_int} compute in constant time a greater-than-or-equal-to condition and a conditional selection, respectively. Figure~\ref{fig:openssl-intuitive} is truer to the programmer's original intended semantics of \path{ssl3_cbc_remove_padding}, without muddying its structure in order to be constant-time. The colored lines of code in Figure~\ref{fig:openssl} correspond to code that is modified in this transformation into a more intuitive structure.
+
+\para{Limitations}
+There are several limitations of \constc that will be resolved in future work -- given in Section~\ref{sec:future} -- and these limitations affect how much \path{ssl3_cbc_remove_padding} can be expressed by \ccore. First, \ccore does not yet support C structs; thus, \path{rec}'s fields were passed in via elements of a \bytearray. Second, \ccore does not yet have any notion of public labels, so all data is conservatively assumed to be private; thus however, memory cannot be referenced by a non-constant value, meaning \path{rec->data[rec->length - 1]} cannot yet be represented. Next, \ccore only supports "if-then-else" and not "if" statements (this is a straightforward fix for future work); thus however, an "if" statement must be represented as "if-then-else" with an "else" branch that performs some dummy statement. As a result, Figure~\ref{fig:openssl-intuitive} was altered slightly in order to be able to be represented by \ccore.
+
+\para{Result}
+The altered \path{ssl3_cbc_remove_padding} AST was turned into LLVM IR by \constc and verified by \emph{ct-verif} to be constant-time.
