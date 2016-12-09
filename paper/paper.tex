@@ -8,6 +8,7 @@
     ,pdftex]{hyperref}
 \usepackage{mathptmx}\renewcommand{\ttdefault}{cmtt}
 \usepackage{graphicx}
+\usepackage[usenames,dvipsnames]{xcolor}
 \usepackage{tikz}
 \usepackage{afterpage}
 \usepackage{color}
@@ -118,6 +119,16 @@
  \do\)\do\,\do\?\do\'\do+\do\=\do\#}
 \def\UrlBigBreaks{\do\:\do\/}%
 
+% Figure negative spacing
+\newcommand\floatspace{\vspace{-0.125in}}
+
+% For fancy verbatim text
+\usepackage{fancyvrb} 
+%\usepackage[usenames,dvipsnames]{xcolor}
+\fvset{commandchars=\\\{\}} % see http://stackoverflow.com/a/15190498/5942354 example for more options for this
+\usepackage{dashbox}
+
+
 % TODO, TK, etc. (AH 4/12)
 \usepackage{xspace}
 \newcommand{\todo}[1]{{\color{red}{\textbf{\em [TODO: #1]}}}\xspace}
@@ -138,7 +149,7 @@
 \newcommand{\bandx}{\,\scalebox{1.25}[1]{\texttt{\&}}\,}
 \newcommand{\borx}{\,\texttt{|}\,}
 \newcommand{\para}[1]{{\vspace{4pt} \bf \noindent #1 \hspace{10pt}}}
-\newcommand{\eg}{e.g.\ }
+\newcommand{\eg}{e.g.,\ }
 \newcommand{\bytearray}{byte array\@\xspace}
 \newcommand{\bytearrays}{byte arrays\@\xspace}
 
@@ -199,7 +210,13 @@ Gary Soeller\qquad
 \pagestyle{plain}
 \thispagestyle{empty}
 
-\input{abstract}
+\begin{abstract}
+\TK when rest of paper is done
+
+\end{abstract}
+
+\keywords{Covert Channels; Constant Time Programming; Security; Compilers}
+
 \input{introduction}
 \input{formalization}
 \input{implementation}
