@@ -1,0 +1,6 @@
+\begin{abstract}
+Timing side channel attacks are prevalent on security critical code. They are performed when an attacker can measure the time required to run a computation with respect to sensitive data. A standard defense is to write constant time code. Often, constant time code is difficult to read and maintain requiring a highly skilled developer in order to get it right.
+
+In this paper we present \constc: a domain specific language for writing constant time code. We describe the two main aspects of \constc: the high and low level languages. The high level language includes normal general purpose programming constructs, like conditionals and loops while the low level language is built off of constant time primitives. We formalize a translation between the two languages which preserves functionally equivalency. We then describe the compiler we built for \constc. Using the \constc compiler, we implement various cryptographic functions and verify they are constant time with ct-verif.
+
+\end{abstract}
