@@ -20,11 +20,11 @@ We implemented a compiler for the \constc language in OCaml, targeting LLVM byte
         \toprule
         Label & Supported Operations\\
         \midrule
-        Types &  Int/Bool/ByteArr \\
-        Statements & VarDec/Assign/ArrAssign/If/For/Return \\
-        Expressions & VarExp/ArrExp/Unop/Binop/Primitive/CallExp \\
-        Unary Op &  Bitwise Not \\
-        Binary Op & Plus/Minus/GT/Bitwise And/Bitwise Or \\
+        Types &  Int/Bool/Byte Array \\
+        Bitwise Op & Not/And/Or/Left Shift/Right Shift \\
+        Arithmetic Op & Plus/Minus/Multiply \\
+        Comparison Op & Equal/Not Equal/Greater Than/Greater Than or Equal \\
+        & To/Less Than/Less Than or Equal To \\
         \bottomrule
         \end{tabularx}
         \caption{\textbf{Supported Language}---We show the different types,

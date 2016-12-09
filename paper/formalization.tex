@@ -15,12 +15,12 @@ feel very similar to C, to make it more accessible for developers.
 
 There are, however, some necessary restrictions on what can be expressed in \constc.
 For example, recursion of any sort is disallowed. Loop constructs are restricted to
-for-loops, and loop bounds can only be constants. While these would be onerous restrictions for a general
+for-loops where loop bounds can only be constants. While these would be onerous restrictions for a general
 programming language, \constc is intended for a very specific domain where these
 features of a language are generally unnecessary.
 
 The language supports 32-bit signed integers, boolean values, and arrays of bytes.
-Most standard operations on these values are supported.
+Most arithmetic and bitwise operations on these values are supported.
 
 We do not prove timing guarantees directly in \constc; instead, we show
 that the \ccore language has the security guarantees we require, and transform all programs
@@ -64,9 +64,9 @@ To show the constant-time nature of \ccore, we adopt the
 \emph{program-transcript security model} from Molnar et al. \cite{molnar2005},
 keeping a log of executed instructions as part of our small-step
 semantics (see \autoref{sec:ottsemantics}). We then show that every function in
-\ccore has the following property: For every function $f$, there exists an
+\ccore has the following property: For every function $f$, there exists a
 transcript $f_\kappa$ such that for any input $x_1,\dots,x_n$ to $f$ and
-current transcript $\kappa$, the transcript $\kappa'$ when $f$ returns is
+current transcript $\kappa$, the transcript $\kappa'$, when $f$ returns, is
 exactly $\kappa + f_\kappa$. That is to say, the program path through any
 function in \ccore does not depend on the inputs to the function.
 

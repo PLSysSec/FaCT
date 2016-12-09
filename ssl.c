@@ -2,9 +2,7 @@
 #include <stdlib.h>
 
 int ssl3_cbc_remove_padding(char*,char*,int,int,char*);
-[{name="data"; ty=(ByteArr 1024)};
-{name="input"; ty=(ByteArr 1024)}; {name="block_size"; ty=Int};
-{name="mac_size"; ty=Int}; {name="lengthtype_array"; ty=(ByteArr 2)}], Int,
+
 void test_openssl(void){
   char data[5] = {0,0,0,0,0};
   char input[5] = {0,0,0,0,0};
