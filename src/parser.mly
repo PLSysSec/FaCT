@@ -66,8 +66,8 @@ const_type:
     { let ty_info = { ty=$1; attr=None } in
       to_type ty_info }
   | IDENT LPAREN INT RPAREN
-  { let ty_info = { ty=$1; attr=(Some $3) } in
-    to_type ty_info }
+    { let ty_info = { ty=$1; attr=(Some $3) } in
+      to_type ty_info }
 
 fargs:
   | fargs COMMA const_type IDENT

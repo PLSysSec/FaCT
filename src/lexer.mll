@@ -61,5 +61,6 @@ rule token = parse
   | '{'            { LBRACK }
   | '}'            { RBRACK }
   | ';'            { SEMICOLON }
+  | ','            { COMMA }
   | eof            { EOF }
   | _              { raise_token_error lexbuf }
