@@ -1,8 +1,6 @@
 (** Compile a constantc program. *)
-val compile : Ast.constantc_module -> unit
+val compile : string-> unit
 
-(* Commands in the compilation process *)
-val compile' : Ast.constantc_module -> unit
 val run : unit -> unit
 val link : unit -> unit
 val assemble : unit -> unit

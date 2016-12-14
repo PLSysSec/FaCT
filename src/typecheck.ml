@@ -62,7 +62,7 @@ and tc_expr venv = function
        with
        | Not_found -> raise (VariableNotDefined("Variable not defined:\t" ^ n)))
      | _ -> raise (TypeError "Arrays can only be accessed with constant numbers or loop variables"))
-  | Unop(op,expr) ->
+  | UnOp(op,expr) ->
     let op_ty = tc_unop op in
     let expr_ty = tc_expr venv expr in
     unify_fn op_ty [expr_ty]
@@ -126,9 +126,9 @@ and tc_stms fn_ty venv stms =
   ignore(List.map (tc_stm fn_ty venv) stms)
 
 and tc_fdec venv = function
-  | FunctionDec(_,_,ByteArr(_),_) ->
+  | FunctionDec(_,_,ByteArr(_),_,_) ->
     raise (TypeError "Functions cannot return a ByteArray")
-  | FunctionDec(name,args,ty,body) ->
+  | FunctionDec(name,args,ty,body,_) ->
     let venv' = Hashtbl.copy venv in
     let args_ty = List.map (fun { name=n; ty=t } -> Hashtbl.add venv' n (VarEntry {v_ty=t}); t) args in
     let _ = tc_stms ty venv' body in

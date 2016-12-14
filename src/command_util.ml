@@ -15,16 +15,18 @@ let run_command c args =
   | -1 -> Printf.printf "%s" "error accured on fork\n"
   | _ -> ignore (Unix.wait ())
 
-let compile ast_module =
-  let _ =  tc_module ast_module in
-  let core_ir = transform ast_module in
+let compile f =
+  Lexer.file := Some f;
+  let lexbuf = Lexing.from_channel (open_in f) in
+  let ast = CModule (Parser.main Lexer.token lexbuf) in
+  let _ =  tc_module ast in
+  let core_ir = transform ast in
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let _ = codegen llvm_ctx llvm_mod core_ir in
   Llvm.print_module "out.ll" llvm_mod;
   ()
 
-let compile' ast = ignore(compile ast)
 let run = (fun () -> run_command "lli" [|"lli"; "out.ll"|])
 let link = (fun () -> run_command "llvm-as" [|"llvm-as"; "out.ll"|])
 let assemble = (fun () -> run_command "llc" [|"llc"; "out.bc"|])

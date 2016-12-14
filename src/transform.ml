@@ -80,7 +80,7 @@ and transform_stm ctx = function
 and transform_expr = function
   | Ast.VarExp s -> Cast.VarExp s
   | Ast.ArrExp(s,i) -> Cast.ArrExp(s,transform_expr i)
-  | Ast.Unop(u,e) -> Cast.UnOp(transform_unop(u),transform_expr(e))
+  | Ast.UnOp(u,e) -> Cast.UnOp(transform_unop(u),transform_expr(e))
   | Ast.BinOp(b,e1,e2) ->
     let b' = transform_binop b in
     let e1' = transform_expr e1 in
@@ -116,7 +116,7 @@ and transform_binop = function
   | Ast.B_Or -> Cast.BitOr
 
 and transform_fdec = function
-  | Ast.FunctionDec(name,args,rt,body) ->
+  | Ast.FunctionDec(name,args,rt,body,_) ->
     let args' = List.map transform_arg args in
     let rt' = transform_type(rt) in
     let ctx = Context(Cast.Primitive(Cast.Number (-1))) in
