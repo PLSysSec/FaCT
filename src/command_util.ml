@@ -4,6 +4,10 @@ open Ast
 open Env
 open Typecheck
 open Transform
+open Lexing
+
+exception Exception of string
+exception SyntaxError of string
 
 let run_command c args =
   let a  = Unix.fork () in
@@ -17,8 +21,12 @@ let run_command c args =
 
 let compile f =
   Lexer.file := Some f;
-  let lexbuf = Lexing.from_channel (open_in f) in
-  let ast = CModule (Parser.main Lexer.token lexbuf) in
+  let lexbuf = (try Lexing.from_channel (open_in f) with
+    | _ -> raise (Exception "gvres")) in
+  ignore(lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = f });
+  let ast = (try CModule (Parser.main Lexer.token lexbuf) with
+      | _ -> let message = pos_string(to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p) in
+           raise (SyntaxError ("Syntax error @ " ^ message))) in
   let _ =  tc_module ast in
   let core_ir = transform ast in
   let llvm_ctx = Llvm.create_context () in

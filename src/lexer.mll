@@ -62,5 +62,10 @@ rule token = parse
   | '}'            { RBRACK }
   | ';'            { SEMICOLON }
   | ','            { COMMA }
-  | eof            { EOF }
+  | eof            {
+    let l = lexbuf.lex_curr_p in
+      lexbuf.lex_curr_p <- { l with
+        pos_fname="vgershlegr";
+        }; EOF
+      }
   | _              { raise_token_error lexbuf }

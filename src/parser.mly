@@ -11,9 +11,6 @@ let to_type = function
   | { ty="bool"; attr=None } -> Bool
   | { ty="bytearr"; attr=(Some n) } -> ByteArr(n)
 
-let to_pos { pos_fname=f; pos_lnum=l; pos_bol=b; pos_cnum=c } =
-  { file=f; line=l; lpos=b; rpos=c }
-
 %}
 
 %token <int> INT
@@ -58,7 +55,7 @@ fdeclist:
 
 fdec:
   | const_type IDENT LPAREN fargs RPAREN LBRACK stmlist RBRACK
-    { FunctionDec($2,List.rev($4),$1,[$7],to_pos($startpos)) }
+    { FunctionDec($2,List.rev($4),$1,[$7],(to_pos $startpos)) }
 ;
 
 const_type:
@@ -71,63 +68,63 @@ const_type:
 
 fargs:
   | fargs COMMA const_type IDENT
-    { {name=$4; ty=$3}::$1}
+    { {name=$4; ty=$3; p=(to_pos $startpos)}::$1}
   | const_type IDENT
-    { [{name=($2); ty=$1}] }
+    { [{name=($2); ty=$1; p=(to_pos $startpos)}] }
   | { [] }
 
 expr:
   | INT
-    { Primitive(Number $1) }
+    { Primitive((Number $1),Some(to_pos $startpos)) }
   | BOOL
-    { Primitive(Boolean $1) }
+    { Primitive((Boolean $1),Some(to_pos $startpos)) }
   | LPAREN expr RPAREN
     { $2 }
   | expr binopexpr
     { let (b,e) = $2 in
-      BinOp(b,$1,e) }
+      BinOp(b,$1,e,(to_pos $startpos)) }
   | unopexpr { $1 }
   | varexpr { $1 }
 ;
 
 stmlist:
   | RETURN expr SEMICOLON
-    { Return($2) }
+    { Return($2,(to_pos $startpos)) }
 
 binopexpr:
   | PLUS expr
-    { (Plus,$2) }
+    { ((Plus(to_pos $startpos)),$2) }
   | MINUS expr
-    { (Minus,$2) }
+    { (Minus(to_pos $startpos),$2) }
   | TIMES expr
-    { (Multiply,$2) }
+    { (Multiply(to_pos $startpos),$2) }
   | EQUAL expr
-    { (Equal,$2) }
+    { (Equal(to_pos $startpos),$2) }
   | NEQUAL expr
-    { (NEqual,$2) }
+    { (NEqual(to_pos $startpos),$2) }
   | GREATERTHAN expr
-    { (GT,$2) }
+    { (GT(to_pos $startpos),$2) }
   | GREATERTHANEQ expr
-    { (GTE,$2) }
+    { (GTE(to_pos $startpos),$2) }
   | LESSTHAN expr
-    { (LT,$2) }
+    { (LT(to_pos $startpos),$2) }
   | LESSTHANEQ expr
-    { (LTE,$2) }
+    { (LTE(to_pos $startpos),$2) }
   | BITOR expr
-    { (B_Or,$2) }
+    { (B_Or(to_pos $startpos),$2) }
   | BITAND expr
-    { (B_And,$2) }
+    { (B_And(to_pos $startpos),$2) }
   | LEFTSHIFT expr
-    { (LeftShift,$2) }
+    { (LeftShift(to_pos $startpos),$2) }
   | RIGHTSHIFT expr
-    { (RightShift,$2) }
+    { (RightShift(to_pos $startpos),$2) }
 ;
 
 unopexpr:
   | BITNOT expr
-    { UnOp(B_Not,$2)}
+    { UnOp((B_Not (to_pos $startpos)),$2,(to_pos $startpos)) }
 ;
 
 varexpr:
-  | IDENT { VarExp($1) }
+  | IDENT { VarExp($1,(to_pos $startpos)) }
 ;
