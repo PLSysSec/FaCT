@@ -26,7 +26,8 @@ let compile f =
   ignore(lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = f });
   let ast = (try CModule (Parser.main Lexer.token lexbuf) with
       | _ -> let message = pos_string(to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p) in
-           raise (SyntaxError ("Syntax error @ " ^ message))) in
+        raise (SyntaxError ("Syntax error @ " ^ message))) in
+  Format.printf "%s\n" (show_constantc_module ast);
   let _ =  tc_module ast in
   let core_ir = transform ast in
   let llvm_ctx = Llvm.create_context () in

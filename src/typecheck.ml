@@ -3,6 +3,7 @@ open Env
 
 exception NotImplemented
 exception VariableNotDefined of string
+exception FunctionNotDefined of string
 exception TypeError of string
 exception UnknownType of string
 exception CallError of string
@@ -83,7 +84,7 @@ and tc_expr venv = function
          let fn_ty = (ty, args') in
          unify_fn fn_ty (List.map (tc_expr venv) args) p
      with
-       Not_found -> raise NotImplemented)
+       Not_found -> raise (FunctionNotDefined("Function, `" ^ name ^ "`, not defined at function call @ " ^ (pos_string p))))
 
 and tc_stm fn_ty venv = function
   | VarDec(name,ty,expr,p) ->

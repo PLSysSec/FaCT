@@ -1,19 +1,13 @@
-int meh() {
-  return 1;
-}
-
-int derp() {
-  return 10 + 1;
-}
-
-bool derppp() {
-  return true;
-}
-
-bytearr(5) mehhhhh() {
-  return 7;
-}
-
-bytearr(1) m(int a, int b) {
-  return 1;
+int meh(bytearr[10] b) {
+  b[1] = 1;
+  int a = 5;
+  if(a > 1) {
+    b[1] = 2;
+  } else {
+    a = 1;
+  }
+  for(i=0 to 5) {
+    b[i] = i;
+  }
+  return derp(1,2);
 }

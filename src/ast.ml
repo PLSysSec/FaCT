@@ -10,7 +10,7 @@ let to_pos ?buf:(b=None)
   | Some lb ->
     let start = (lexeme_start lb) - lb.lex_curr_p.pos_bol in
     let ends = (lexeme_end lb) - lb.lex_curr_p.pos_bol in
-    { file=f; line=l; lpos=start; rpos=ends }
+    { file=f; line=l; lpos=start+1; rpos=ends+1 }
 
 let pos_string { file=f; line=l; lpos=lp; rpos=rp } =
   "file " ^ f ^ ", line " ^ string_of_int(l) ^

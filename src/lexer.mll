@@ -22,6 +22,9 @@ let add_keyword (k,v) = Hashtbl.add keywords_table k v
 (* TODO: This is incomplete *)
 let keywords = [
   ("if",IF);
+  ("else",ELSE);
+  ("for",FOR);
+  ("to",TO);
   ("return",RETURN);
 ]
 let _ = List.map add_keyword keywords
@@ -58,8 +61,10 @@ rule token = parse
   | "~"            { BITNOT }
   | '('            { LPAREN }
   | ')'            { RPAREN }
-  | '{'            { LBRACK }
-  | '}'            { RBRACK }
+  | '{'            { LBRACE }
+  | '}'            { RBRACE }
+  | '['            { LBRACK }
+  | ']'            { RBRACK }
   | ';'            { SEMICOLON }
   | ','            { COMMA }
   | eof            {
