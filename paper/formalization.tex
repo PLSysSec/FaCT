@@ -2,31 +2,13 @@
 \label{sec:design}
 
 The \constc system is comprised of two distinct languages: \constc proper, which end-users
-will develop programs in, and \ccore, an internal language with specific timing guarantees. Before diving into the languages, we briefly outline our threat model.
+will develop programs in, and \ccore, an internal language with specific timing guarantees.
+Before diving into the languages, we briefly outline our threat model.
 
 \subsection{Threat Model}
-For \constc, we assume an adversary has remote access to the machine running the code. The adversary has the ability to measure the amount of time it takes for \constc code to run. We also assume the caller has not been compromised and that they are invoking \constc functions with valid values (as opposed to null values).
+For \constc, we assume an adversary has remote access to the machine running the code. The adversary has the ability to measure the amount of time it takes for \constc code to run. However, we assume the calling program has not been compromised and that it is invoking \constc functions using valid parameters.
 
 \subsection{ConstanC}
-
-The \constc language is the language we intend end-users of our system to program in.
-As \constc is intended to replace low-level code, the language is designed to
-feel very similar to C, to make it more accessible for developers.
-
-There are, however, some necessary restrictions on what can be expressed in \constc.
-For example, recursion of any sort is disallowed. Loop constructs are restricted to
-for-loops where loop bounds can only be constants. While these would be onerous restrictions for a general
-programming language, \constc is intended for a very specific domain where these
-features of a language are generally unnecessary.
-
-The language supports 32-bit signed integers, boolean values, and arrays of bytes.
-Most arithmetic and bitwise operations on these values are supported.
-
-We do not prove timing guarantees directly in \constc; instead, we show
-that the \ccore language has the security guarantees we require, and transform all programs
-in \constc to functionally equivalent programs in \ccore.
-
-The full grammar of \constc can be found in \Cref{sec:constcgrammar}.
 
 \begin{figure*}[t]
 \begin{druleparx}[Stt]
@@ -38,6 +20,26 @@ The full grammar of \constc can be found in \Cref{sec:constcgrammar}.
         \caption{Excerpt of semantic transformations from \constc to \ccore. Full rule set can be found in \Cref{sec:coretransform}.}
     \label{fig:transform}
 \end{figure*}
+
+The \constc language is the language we intend end-users of our system to program in.
+As \constc is intended to replace low-level code, the language is designed to
+feel very similar to C, to make it more accessible for developers.
+
+There are, however, some necessary restrictions on what can be expressed in \constc.
+For example, recursion of any sort is disallowed. Loop constructs are restricted to
+for-loops where loop bounds can only be constants. While these would be onerous restrictions for a general
+programming language, \constc is intended for a very specific domain; a survey of typical functions
+indicates these language features are generally unnecessary. As we develop the language, we expect
+to relax some of these restrictions.
+
+The language supports 32-bit signed integers, boolean values, and arrays of bytes.
+Most arithmetic and bitwise operations on these values are supported.
+
+We do not prove timing guarantees directly in \constc; instead, we show
+that the \ccore language has the security guarantees we require, and transform all programs
+in \constc to functionally equivalent programs in \ccore.
+
+The full grammar of \constc can be found in \Cref{sec:constcgrammar}.
 
 \subsection{ConstCore}
 
@@ -88,15 +90,13 @@ simple loads, stores, and calls. The constant-time nature of compiled
 If we can transform any program in \constc to an equivalent program in \ccore, then
 we can compile any \constc program to a program with the timing guarantees shown in \ccore.
 
-Since the inputs and outputs of both \ccore
-and \constc are restricted to function parameters, return values, and memory access,
-we simply need to show that for
-every function $f$ in \constc, the corresponding transformed function
-$f_{\textnormal{core}}$ returns an equivalent value and sets equivalent memory values
-when given equivalent arguments and starting memory state.
+The only possible side effect of any \ccore or \constc function is memory access.
+Thus we need to show that for every function $f$ in \constc, the corresponding
+transformed function $f_{\textnormal{core}}$ returns an equivalent value and sets
+equivalent memory values when given equivalent arguments and starting memory state.
 
-We ensure this equivalence by keeping a ``context'', which is a bitmask
-representing the control flow the of the function at the current statement.
+We ensure this equivalence by keeping track of a ``context'', which is a bitmask
+representing the control flow of the function at the current statement.
 This bitmask is either \emph{high} (all 1s) or \emph{low} (all 0s).
 Any variable assignment
 %~\texttt{x := v}~
@@ -119,7 +119,7 @@ Conditional branches are transformed by executing the statements in both
 branches. However, before each block is executed, the context bitmask is
 updated with the branch condition. Thus the statement
 %~\texttt{if bexpr then s1 else s2}~
-is transformed via the \rref{Stt-if} in \autoref{fig:transform},
+is transformed via the \rref{Stt-if} in \autoref{fig:transform}.
 %is transformed to:
 %\begin{center}
 %  \pbox{\textwidth}{
@@ -132,8 +132,9 @@ is transformed via the \rref{Stt-if} in \autoref{fig:transform},
 %    \texttt{ctx := oldctx}
 %  }
 %\end{center}
-where \texttt{\textlangle{}s1\textrangle} and \texttt{\textlangle{}s2\textrangle} are the transformations of \texttt{s1} and \texttt{s2}, and \texttt{b} is a fresh temporary variable for each instance of a branching
-statement. This ensures that nested conditionals still function as expected.
+%where \texttt{\textlangle{}s1\textrangle} and \texttt{\textlangle{}s2\textrangle} are the transformations of \texttt{s1} %and \texttt{s2}, and \texttt{b} is a fresh temporary variable for each instance of a branching
+%statement.
+This ensures that nested conditionals still function as expected.
 %The formal transformation is given in \rref{Stt-if}.
 
 Return statements in \constc are dealt with by constructing two additional

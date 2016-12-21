@@ -279,8 +279,7 @@ defns
     subst1 intersect subst2 = {}
     subst3 = subst1 union subst2
     --------------------------------------- :: add_subst
-    fm g m cnt subst1 (subst2 s) @ e0 --> fm g m cnt' subst3 s @ e0
+    fm g m cnt subst1 (subst2 s) @ e0 --> fm g m cnt subst3 s @ e0
 
-    v1 = v2
     ------------------------------ :: for_base
     fm g m cnt subst for x from v2 to v2 : s @ e0 --> fm g m' cnt subst skip @ e0

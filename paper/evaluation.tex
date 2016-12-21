@@ -3,7 +3,7 @@
 
 \begin{figure}
 	\input{figures/llvm-instr-syntax}
-	\caption{\textbf{LLVM version compliance}---Instructions produced by \constc with syntax changes from LLVM 3.5 to LLVM 3.9.}
+	\caption{Instructions produced by \constc with syntax changes from LLVM 3.5 to LLVM 3.9.}
 	\label{table:llvm-instr-syntax}\floatspace
 \end{figure}
 
@@ -19,19 +19,21 @@
 		\caption{The OpenSSL function expressed more intuitively, without using its constant-time branch-avoiding routines.}
 		\label{fig:openssl-intuitive}
     \end{subfigure}
-    \caption{OpenSSL function used to evaluate Constanc.}\label{fig:openssl}\floatspace
+    \caption{OpenSSL function used to evaluate \constc.}\label{fig:openssl}\floatspace
 \end{figure*}
 
 \para{Methodology}
-In order to evaluate the correctness of \constc we used \emph{ct-verif}\cite{almeida2016}, a contant-time verification tool that leverages the SMACK and Boogie tools to verify LLVM intermediate representation. Since \constc was built on LLVM 3.9 and \emph{ct-verif} requires LLVM 3.5 (because its version of SMACK requires 3.5), the IR \constc produced needed to be slightly modified in order to be LLVM 3.5-compliant and hence be verified with \emph{ct-verif}. In particular, the \path{load} and \path{getelementpr} instructions output by \constc -- whose syntax is given in Figure~\ref{table:llvm-instr-syntax} -- were modified to be LLVM 3.5-compliant.
+In order to evaluate the correctness of \constc we used \emph{ct-verif}\cite{almeida2016}, a contant-time verification tool that leverages the SMACK and Boogie tools to verify LLVM intermediate representation. Since \constc was built on LLVM 3.9 and \emph{ct-verif} requires LLVM 3.5, the IR \constc produced needed to be slightly modified in order to be LLVM 3.5-compliant and hence be verified with \emph{ct-verif}. In particular, the \texttt{load} and \texttt{getelementpr} instructions output by \constc---whose syntax is given in Figure~\ref{table:llvm-instr-syntax}---were modified to be LLVM 3.5-compliant.
 
 \para{Test Code}
-OpenSSL's \path{ssl3_cbc_remove_padding} function -- given in Figure~\ref{fig:openssl-original} -- removes padding from a decrypted SSLv3 CBC record by updating the record's length in constant time. It provides an extensive yet concise test case for \constc since it encapsulates many C language features, such as structs, branches, and memory references; and constant-time features such as a notion of public and private data. In \path{ssl3_cbc_remove_padding}, inputs \path{rec->length}, \path{rec->data}, \path{block_size}, and \path{mac_size} are private while \path{s} and \path{rec->type} are public. Note that the branch in Figure~\ref{fig:openssl-original} does not violate the constant-time property because its condition is based on public values.
+OpenSSL's \path{ssl3_cbc_remove_padding} \linebreak function---given in Figure~\ref{fig:openssl-original}---removes padding from a decrypted SSLv3 CBC record by updating the record's length in constant time. It provides an extensive yet concise test case for \constc since it encapsulates many C language features, such as structs, branches, and memory references; and constant-time features such as a notion of public and private data. In \path{ssl3_cbc_remove_padding}, inputs \texttt{rec->length}, \texttt{rec->data}, \path{block_size}, and \path{mac_size} are private while \path{s} and \texttt{rec->type} are public. Note that the branch in Figure~\ref{fig:openssl-original} does not violate the constant-time property because its condition is based on public values.
 
 The intuitive version of this code is given in Figure~\ref{fig:openssl-intuitive}, without OpenSSL's constant-time routines that avoid branching. Routines \path{constant_time_ge} and \path{constant_time_select_int} compute in constant time a greater-than-or-equal-to condition and a conditional selection, respectively. Figure~\ref{fig:openssl-intuitive} is truer to the programmer's original intended semantics of \path{ssl3_cbc_remove_padding}, without muddying its structure in order to be constant-time. The colored lines of code in Figure~\ref{fig:openssl} correspond to code that is modified in this transformation into a more intuitive structure.
 
 \para{Limitations}
-There are several limitations of \constc that will be resolved in future work -- given in Section~\ref{sec:future} -- and these limitations affect how much \path{ssl3_cbc_remove_padding} can be expressed by \ccore. First, \ccore does not yet support C structs; thus, \path{rec}'s fields were passed in via elements of a \bytearray. Second, \ccore does not yet have any notion of public labels, so all data is conservatively assumed to be private; thus however, memory cannot be referenced by a non-constant value, meaning \path{rec->data[rec->length - 1]} cannot yet be represented. Next, \ccore only supports ``if-then-else'' and not ``if'' statements (this is a straightforward fix for future work); thus however, an ``if'' statement must be represented as ``if-then-else'' with an ``else'' branch that performs some dummy statement. As a result, Figure~\ref{fig:openssl-intuitive} was altered slightly in order to be able to be represented by \ccore.
+There are several limitations of \constc that will be resolved in future work (Section~\ref{sec:future}) and these limitations affect how much of \path{ssl3_cbc_remove_padding} was expressable in \constc. First, \constc does not yet support C structs; thus, \path{rec}'s fields were passed in via elements of a \bytearray. Second, \constc does not yet have any notion of public labels, so all data is conservatively assumed to be private; since memory cannot be referenced by a non-constant value, the expression \path{rec->data[rec->length - 1]} could yet be represented without a workaround. Next, \constc currently only supports ``if-then-else'' and not ``if'' statements; an ``if'' statement must be represented as ``if-then-else'' with a dummy ``else'' branch.
+As a result, Figure~\ref{fig:openssl-intuitive} was altered slightly in order to be able to be represented in \constc.
 
 \para{Result}
-The altered \path{ssl3_cbc_remove_padding} AST was turned into LLVM IR by \constc and verified by \emph{ct-verif} to be constant-time.
+As we don't yet have a syntax for \constc, we wrote the altered \path{ssl3_cbc_remove_padding}
+directly in \constc AST. After compilation, we verified using \emph{ct-verif} that the generated LLVM IR was constant time.
