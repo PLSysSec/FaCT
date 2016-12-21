@@ -13,8 +13,12 @@ let raise_token_error lexbuf =
   | { pos_fname=fn; pos_lnum=pl; pos_bol=pb; pos_cnum=pc } ->
     match !file with
     | Some f ->
-      raise (TokenError("Unknown token, `" ^ lexeme lexbuf ^ "`, in file " ^ f ^ ", line number " ^ (string_of_int pl) ^ ", position " ^ (string_of_int start) ^ "-" ^ (string_of_int ends) ))
-    | None -> raise (TokenError("Unknown token, `" ^ lexeme lexbuf ^ "`, at line number " ^ (string_of_int pl) ^ ", position " ^ (string_of_int start) ^ "-" ^ (string_of_int ends)))
+      raise (TokenError("Unknown token, `" ^ lexeme lexbuf ^ "`, in file " ^ 
+      f ^ ", line number " ^ (string_of_int pl) ^ ", position " ^ 
+      (string_of_int start) ^ "-" ^ (string_of_int ends) ))
+    | None -> raise (TokenError("Unknown token, `" ^ lexeme lexbuf ^ 
+      "`, at line number " ^ (string_of_int pl) ^ ", position " ^ 
+      (string_of_int start) ^ "-" ^ (string_of_int ends)))
 
 let keywords_table = Hashtbl.create 10
 let add_keyword (k,v) = Hashtbl.add keywords_table k v

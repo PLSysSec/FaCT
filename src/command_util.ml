@@ -20,6 +20,7 @@ let run_command c args =
   | _ -> ignore (Unix.wait ())
 
 let compile f =
+  ignore(Llvm_X86.initialize());
   Lexer.file := Some f;
   let lexbuf = (try Lexing.from_channel (open_in f) with
     | _ -> raise (Exception "gvres")) in
@@ -33,7 +34,15 @@ let compile f =
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let _ = codegen llvm_ctx llvm_mod core_ir in
+  let triple = Llvm_target.Target.default_triple () in
+  let lltarget = Llvm_target.Target.by_triple triple in
+  let llmachine = Llvm_target.TargetMachine.create ~triple:triple lltarget in
+  let lldly = Llvm_target.TargetMachine.data_layout llmachine in
+  Llvm.set_target_triple (Llvm_target.TargetMachine.triple llmachine) llvm_mod;
+  Llvm.set_data_layout (Llvm_target.DataLayout.as_string lldly) llvm_mod;
+  Llvm_analysis.assert_valid_module llvm_mod |> ignore;
   Llvm.print_module "out.ll" llvm_mod;
+  Llvm_bitwriter.write_bitcode_file llvm_mod "meh.bc" |> ignore;
   ()
 
 let run = (fun () -> run_command "lli" [|"lli"; "out.ll"|])
