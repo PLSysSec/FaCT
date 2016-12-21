@@ -10,27 +10,19 @@ For \constc, we assume an adversary has remote access to the machine running the
 
 \subsection{ConstanC}
 
-\begin{figure*}[t]
-\begin{druleparx}[Stt]
-\drule{Stt-var-assign}
-\drule{Stt-if}
-\drule{Stt-ret}
-\end{druleparx}
-%\drulesx[Stt]{var-assign,if,ret}
-        \caption{Excerpt of semantic transformations from \constc to \ccore. Full rule set can be found in \Cref{sec:coretransform}.}
-    \label{fig:transform}
-\end{figure*}
-
 The \constc language is the language we intend end-users of our system to program in.
 As \constc is intended to replace low-level code, the language is designed to
 feel very similar to C, to make it more accessible for developers.
 
-There are, however, some necessary restrictions on what can be expressed in \constc.
-For example, recursion of any sort is disallowed. Loop constructs are restricted to
-for-loops where loop bounds can only be constants. While these would be onerous restrictions for a general
-programming language, \constc is intended for a very specific domain; a survey of typical functions
-indicates these language features are generally unnecessary. As we develop the language, we expect
-to relax some of these restrictions.
+There are, however, some necessary restrictions on what can be expressed in \constc:
+For example, recursion of any sort is disallowed. While these would be onerous restrictions for a general
+programming language, \constc is intended for a very specific domain.
+From our anecdotal experiences, these language features are generally unnecessary.
+We plan on conducting a formal survey of constant-time functions to see which features are truly required.
+
+Other restrictions exist due our current implementation. For example,
+loop bounds on for-loops are restricted to constants. As we develop the
+language, we plan on introducing a public/private labeling system to relax these constraints.
 
 The language supports 32-bit signed integers, boolean values, and arrays of bytes.
 Most arithmetic and bitwise operations on these values are supported.
@@ -42,6 +34,17 @@ in \constc to functionally equivalent programs in \ccore.
 The full grammar of \constc can be found in \Cref{sec:constcgrammar}.
 
 \subsection{ConstCore}
+
+\begin{figure*}[t]
+\begin{druleparx}[Stt]
+\drule{Stt-var-assign}
+\drule{Stt-if}
+\drule{Stt-ret}
+\end{druleparx}
+%\drulesx[Stt]{var-assign,if,ret}
+        \caption{Excerpt of semantic transformations from \constc to \ccore. Full rule set can be found in \Cref{sec:coretransform}.}
+    \label{fig:transform}
+\end{figure*}
 
 The \ccore language is a \textsc{While}-like language \cite{molnar2005} with highly limited
 control flow. Notably, there are no conditional branching instructions, and the

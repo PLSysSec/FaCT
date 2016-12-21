@@ -30,10 +30,9 @@ OpenSSL's \path{ssl3_cbc_remove_padding} \linebreak function---given in Figure~\
 
 The intuitive version of this code is given in Figure~\ref{fig:openssl-intuitive}, without OpenSSL's constant-time routines that avoid branching. Routines \path{constant_time_ge} and \path{constant_time_select_int} compute in constant time a greater-than-or-equal-to condition and a conditional selection, respectively. Figure~\ref{fig:openssl-intuitive} is truer to the programmer's original intended semantics of \path{ssl3_cbc_remove_padding}, without muddying its structure in order to be constant-time. The colored lines of code in Figure~\ref{fig:openssl} correspond to code that is modified in this transformation into a more intuitive structure.
 
+As we don't yet have a syntax for \constc, we wrote the altered \path{ssl3_cbc_remove_padding}
+directly in \constc AST. After compilation, we verified using \emph{ct-verif} that the generated LLVM IR was constant time.
+
 \para{Limitations}
 There are several limitations of \constc that will be resolved in future work (Section~\ref{sec:future}) and these limitations affect how much of \path{ssl3_cbc_remove_padding} was expressable in \constc. First, \constc does not yet support C structs; thus, \path{rec}'s fields were passed in via elements of a \bytearray. Second, \constc does not yet have any notion of public labels, so all data is conservatively assumed to be private; since memory cannot be referenced by a non-constant value, the expression \path{rec->data[rec->length - 1]} could yet be represented without a workaround. Next, \constc currently only supports ``if-then-else'' and not ``if'' statements; an ``if'' statement must be represented as ``if-then-else'' with a dummy ``else'' branch.
 As a result, Figure~\ref{fig:openssl-intuitive} was altered slightly in order to be able to be represented in \constc.
-
-\para{Result}
-As we don't yet have a syntax for \constc, we wrote the altered \path{ssl3_cbc_remove_padding}
-directly in \constc AST. After compilation, we verified using \emph{ct-verif} that the generated LLVM IR was constant time.
