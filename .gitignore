@@ -41,3 +41,4 @@ llvmutop
 *.bc
 *.s
 final
+.vscode
