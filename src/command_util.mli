@@ -1,5 +1,5 @@
 (** Compile a constantc program. *)
-val compile : string-> unit
+val compile : (string * string * string) -> bool -> bool -> bool -> unit
 
 val run : unit -> unit
 val link : unit -> unit
