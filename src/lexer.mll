@@ -34,8 +34,8 @@ let keywords = [
 let _ = List.map add_keyword keywords
 }
 
-let chars = ['A'-'Z' 'a'-'z' '_' '\'']
 let ints = ['0'-'9']
+let chars_ints = ['a'-'z' 'A'-'Z']['a'-'z' 'A'-'Z' '0'-'9']*
 
 rule token = parse
   | [' ' '\t']     { token lexbuf }
@@ -44,7 +44,7 @@ rule token = parse
   token lexbuf }
   | "true"         { BOOL(true)}
   | "false"        { BOOL(false)}
-  | chars * as c
+  | chars_ints * as c
     { try Hashtbl.find keywords_table c
       with Not_found -> IDENT c}
   | ints+ as lxm   { INT(int_of_string lxm) }
