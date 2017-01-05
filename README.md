@@ -20,16 +20,20 @@ Many debugging options and intermediate data structures are available. Run ```./
 
 Constantc is developed using Ocaml and LLVM 3.8. Make sure both of these are installed.
 On OS X it can be done with brew.
+
 1. ```brew install ocaml```
 2. ```brew install llvm38```
 
 We also need dependency management for Ocaml.
+
 1. ```brew install opam```
 
 Then we need the actual dependencies for Ocaml.
+
 1. ```opam install llvm.3.8 core ounit ctypes-foreign utop dolog```
 
 Finally we can build the compiler.
+
 1. ```ocamlbuild -tag bin_annot -tag debug -I src -I test -use-ocamlfind -use-menhir -tag thread -pkgs llvm,oUnit,core,dolog -no-hygiene constantc.byte```.
 
 This will give us the ```constantc.byte``` executable. For an even faster executable(but not cross-platform), change ```byte``` to ```native```.
@@ -67,15 +71,19 @@ int get100() {
 ```
 
 First, we must compile ```main.c```. Using gcc, the command is
+
 1. ```gcc -c main.c```
 
 Then we compile ```ex.const``` using constantc. The command is
+
 1. ```./constantc ex.const```
 
 Next, we link them together. Using gcc, the command is
+
 1. ```gcc -o final main.o ex.o```
 
 Finall, we can run the executable with
+
 1. ```./final```
 
 ## Semantic tests
