@@ -13,7 +13,6 @@ let to_type = function
 
 let parse_error s = (* Called by the parser function on error *)
   print_endline s;
-  print_string "bvnseringbrelg\n\n";
   flush stdout
 
 %}
