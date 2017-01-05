@@ -32,6 +32,7 @@ let set_log_level debug =
 let runner prep llvm_out ast_out core_ir_out =
   try compile prep llvm_out ast_out core_ir_out with
     | (Command_util.SyntaxError s) -> Log.error "%s" s
+    | (Typecheck.FunctionNotDefined s) -> Log.error "%s" s
 
 let compile_command =
   Command.basic

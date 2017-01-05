@@ -19,6 +19,7 @@ let parse_error s = (* Called by the parser function on error *)
 %}
 
 %token <int> INT
+%token <string> HEX
 %token <bool> BOOL
 %token PLUS MINUS TIMES
 %token EQUAL NEQUAL GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
