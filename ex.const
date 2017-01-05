@@ -1,3 +1,10 @@
+/*
+  /*
+ Nested comments work
+ */
+*/
+
+// some single line comment
 int meh(bytearr[1] b) {
   b[0] = 1;
   int a = 5;
@@ -13,5 +20,5 @@ int meh(bytearr[1] b) {
 }
 
 int get100() {
-  return 100;
+  return /* random inner comment */ 100;
 }

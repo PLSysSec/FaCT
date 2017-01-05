@@ -29,6 +29,10 @@ let set_log_level debug =
     | true -> Log.set_log_level Log.DEBUG
     | false -> Log.set_log_level Log.ERROR
 
+let runner prep llvm_out ast_out core_ir_out =
+  try compile prep llvm_out ast_out core_ir_out with
+    | (Command_util.SyntaxError s) -> Log.error "%s" s
+
 let compile_command =
   Command.basic
     ~summary:summary
@@ -44,8 +48,9 @@ let compile_command =
     (fun out_file llvm_out ast_out core_ir_out debug in_file ->
       set_log_level debug;
       let prep = prepare_compile out_file in_file () in
-      compile prep llvm_out ast_out core_ir_out;
+      runner prep llvm_out ast_out core_ir_out;
       (fun () -> ()))
 
-let () =
+let () = try
   Command.run ~version:"0.1" ~build_info:"Constantc Compiler" compile_command
+    with | (Command_util.SyntaxError s) -> print_string ("Syntax Error:\n" ^ s)

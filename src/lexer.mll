@@ -6,6 +6,8 @@ exception TokenError of string
 
 let file : ((string option) ref) = ref None
 
+let depth = ref 0
+
 let raise_token_error lexbuf =
   let start = (lexeme_start lexbuf) - lexbuf.lex_curr_p.pos_bol in
   let ends = (lexeme_end lexbuf) - lexbuf.lex_curr_p.pos_bol in
@@ -71,6 +73,8 @@ rule token = parse
   | ']'            { RBRACK }
   | ';'            { SEMICOLON }
   | ','            { COMMA }
+  | "/*"           { depth := !depth + 1; commented lexbuf }
+  | "//"           { ignore_line lexbuf }
   | eof            {
     let l = lexbuf.lex_curr_p in
       lexbuf.lex_curr_p <- { l with
@@ -78,3 +82,14 @@ rule token = parse
         }; EOF
       }
   | _              { raise_token_error lexbuf }
+
+and commented = parse
+  | "*/"  { depth := !depth - 1;
+            if !depth = 0 then token lexbuf else commented lexbuf }
+  | "/*"  { depth := !depth + 1;
+            commented lexbuf }
+  | _     { commented lexbuf }
+
+and ignore_line = parse
+  | '\n'  { token lexbuf }
+  | _     { ignore_line lexbuf }

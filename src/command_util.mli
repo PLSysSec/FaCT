@@ -1,3 +1,6 @@
+
+exception SyntaxError of string
+
 (** Compile a constantc program. *)
 val compile : (string * string * string) -> bool -> bool -> bool -> unit
 
