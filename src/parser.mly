@@ -53,7 +53,7 @@ let parse_error s = (* Called by the parser function on error *)
 %type <Ast.expr> expr
 %%
 main:
-  | fdeclist EOF { $1 }
+  | fdeclist EOF { List.rev($1) }
 ;
 
 fdeclist:
