@@ -106,15 +106,15 @@ exprlist:
   | expr COMMA exprlist { $1::$3 }
 
 stmlist:
-  | IDENT LBRACK expr RBRACK EQUAL expr SEMICOLON stmlist
+  | IDENT LBRACK expr RBRACK ASSIGN expr SEMICOLON stmlist
     { (ArrAssign($1,$3,$6,(to_pos $startpos)))::$8 }
-  | labeled_type IDENT EQUAL expr SEMICOLON stmlist
+  | labeled_type IDENT ASSIGN expr SEMICOLON stmlist
     { (VarDec($2,$1,$4,(to_pos $startpos)))::$6 }
-  | IDENT EQUAL expr SEMICOLON stmlist
+  | IDENT ASSIGN expr SEMICOLON stmlist
     { (Assign($1,$3,(to_pos $startpos)))::$5 }
   | IF LPAREN expr RPAREN LBRACE stmlist RBRACE ELSE LBRACE stmlist RBRACE stmlist
     { (If($3,$6,$10,(to_pos $startpos)))::$12 }
-  | FOR LPAREN IDENT EQUAL primitive_not_expr TO primitive_not_expr RPAREN LBRACE stmlist RBRACE stmlist
+  | FOR LPAREN IDENT ASSIGN primitive_not_expr TO primitive_not_expr RPAREN LBRACE stmlist RBRACE stmlist
     { (For($3,$5,$7,$10,(to_pos $startpos)))::$12 }
   | RETURN expr SEMICOLON stmlist
     { (Return($2,(to_pos $startpos))::$4) }
