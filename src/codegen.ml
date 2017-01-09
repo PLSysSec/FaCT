@@ -112,11 +112,11 @@ let codegen ctx m =
         (match e with
          | Primitive(Number n) -> const_int (i32_type ctx) n
          | VarExp n -> let v = (try Hashtbl.find loop_values n with
-             | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
+             | Not_found -> (try Hashtbl.find named_values n with
+                | Not_found -> raise (Error ("Unknown variable: " ^ n)))) in
            (match v with
             | Val v' -> v'
-            | Ref v' ->
-              raise (Error ("Loop variables cannot be passed by reference")))
+            | Ref v' -> build_load v' n b)
          | _ -> raise (Error "Can only access arrays with loop values or int")
         ) in
       let arr_val = (try Hashtbl.find named_values n with

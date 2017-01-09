@@ -17,6 +17,13 @@ let unify t t1 p =
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with "
                 ^ ty_to_string(t1) ^ " @ " ^ (pos_string p)))
 
+let unify_equal_lt lt lt' p =
+  match lt,lt' with
+    | Public t, Public t' -> Public(unify t t' p)
+    | Private t, Private t' -> Private(unify t t' p)
+    | _ -> raise (TypeError ("Labels are expected to be the same @ " ^
+                  (pos_string p)))
+
 let unify_lt lt lt' p =
   match lt,lt' with
     | Public t, Public t' -> Public(unify t t' p)
@@ -120,7 +127,8 @@ and tc_expr venv = function
 and tc_stm fn_ty venv = function
   | VarDec(name,lt,expr,p) ->
     let expr_ty = tc_expr venv expr in
-    Hashtbl.add venv name (VarEntry { v_ty=unify_lt lt expr_ty p })
+    let lt = unify_lt lt expr_ty p in
+    Hashtbl.add venv name (VarEntry { v_ty=lt })
   | Assign(name,expr,p) ->
     let v = try Hashtbl.find venv name with
       | Not_found -> raise (VariableNotDefined("Variable, `" ^ name ^
@@ -131,12 +139,17 @@ and tc_stm fn_ty venv = function
      | _ -> raise (VariableNotDefined("Variable, `" ^ name ^ "`, not defined @ "
                                       ^ (pos_string p))))
   | ArrAssign(name,index,expr,p) ->
+    (* TODO: What is the expected behavior of this?
+       Right now, the index must be a Public Int and the value being stored
+       must have the same labeled type as the array *)
+    let index_ty = tc_expr venv index in
+    ignore(unify_equal_lt (Public Int) index_ty p);
     (try
       (match Hashtbl.find venv name with
        | VarEntry { v_ty=Public(ByteArr x) } ->
-         ignore(unify_lt (Public Int) (tc_expr venv expr) p)
+         ignore(unify_equal_lt (Public Int) (tc_expr venv expr) p)
        | VarEntry { v_ty=Private(ByteArr x) } ->
-         ignore(unify_lt (Private Int) (tc_expr venv expr) p)
+         ignore(unify_equal_lt (Private Int) (tc_expr venv expr) p)
        | _ -> raise (VariableNotDefined("Variable, `" ^ name ^ 
                      "`, not defined @ " ^ (pos_string p))))
     with
@@ -146,6 +159,12 @@ and tc_stm fn_ty venv = function
     (* TODO: This can be the place of an optimization. Rather than unify to
        a private label, get the actual label. Then implement 2 if statements
        in the core language: a constant if and non constant if. *)
+    (* NOTE: Should we add a new syntax for labeling expressions? This could
+       be useful for things wthout a name. For instance, conside 
+       private bytearr[10].
+       bytearr[0] = Private 1 -- right now we have to declare 1, but this
+       seems like a nicer syntax
+    *)
     ignore(unify_lt (tc_expr venv cond) (Public Bool) p);
     ignore(tc_stms fn_ty venv then');
     ignore(tc_stms fn_ty venv else');
