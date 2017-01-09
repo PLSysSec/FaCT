@@ -1,2 +1,0 @@
-<*.{byte,native}>: g++, use_llvm, use_llvm_analysis
-<*>: package(ppx_deriving.std)
