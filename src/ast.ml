@@ -28,11 +28,16 @@ and ctype =
   | ByteArr of int
 [@@deriving show]
 
-and param = { name: string; ty: ctype; p:pos }
+and labeled_type =
+  | Public of ctype
+  | Private of ctype
+[@@deriving show]
+
+and param = { name: string; ty: labeled_type; p:pos }
 [@@deriving show]
 
 and stm =
-  | VarDec of string * ctype * expr * pos
+  | VarDec of string * labeled_type * expr * pos
   | Assign of string * expr * pos
   | ArrAssign of string * expr * expr * pos
   | If of expr * stm list * stm list * pos
@@ -76,6 +81,6 @@ and primitive =
 [@@deriving show]
 
 let ty_to_string = function
-  | Int -> "Int"
-  | Bool -> "Bool"
+  | Int _ -> "Int"
+  | Bool _ -> "Bool"
   | ByteArr _ -> "ByteArr"

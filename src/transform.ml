@@ -28,12 +28,16 @@ and transform_type = function
   | Ast.Bool -> Cast.Int
   | Ast.ByteArr s -> Cast.ByteArr s
 
+and transform_lt = function
+  | Ast.Public ty -> transform_type ty
+  | Ast.Private ty -> transform_type ty
+
 and transform_arg {Ast.name=n; Ast.ty=t} =
-  {Cast.name=n; Cast.ty=transform_type(t)}
+  {Cast.name=n; Cast.ty=transform_lt(t)}
 
 and transform_stm ctx = function
   | Ast.VarDec(n,ty,v,_) ->
-    let ty' = transform_type(ty) in
+    let ty' = transform_lt(ty) in
     let v' = transform_expr(v) in
     [Cast.VarDec(n,ty',v')]
   | Ast.Assign(n,v,_) ->

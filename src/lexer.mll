@@ -40,6 +40,8 @@ let keywords = [
   ("for",FOR);
   ("to",TO);
   ("return",RETURN);
+  ("public",PUBLIC);
+  ("private",PRIVATE)
 ]
 let _ = List.map add_keyword keywords
 }

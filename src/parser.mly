@@ -9,7 +9,7 @@ type ty_info = { ty:string; attr:expr option }
 let to_type = function
   | { ty="int"; attr=None } -> Int
   | { ty="bool"; attr=None } -> Bool
-  | { ty="bytearr"; attr=(Some (Primitive((Number n),_))) } -> ByteArr(n)
+  | { ty="bytearr"; attr=(Some (Primitive((Number n),_))) } -> ByteArr n
 
 let parse_error s = (* Called by the parser function on error *)
   print_endline s;
@@ -18,7 +18,6 @@ let parse_error s = (* Called by the parser function on error *)
 %}
 
 %token <int> INT
-%token <string> HEX
 %token <bool> BOOL
 %token PLUS MINUS TIMES
 %token EQUAL NEQUAL GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
@@ -75,10 +74,16 @@ const_type:
     { let ty_info = { ty=$1; attr=(Some $3) } in
       to_type ty_info }
 
+labeled_type:
+  | PUBLIC const_type
+    { Public $2 }
+  | PRIVATE const_type
+    { Private $2}
+
 fargs:
-  | fargs COMMA const_type IDENT
+  | fargs COMMA labeled_type IDENT
     { {name=$4; ty=$3; p=(to_pos $startpos)}::$1}
-  | const_type IDENT
+  | labeled_type IDENT
     { [{name=($2); ty=$1; p=(to_pos $startpos)}] }
   | { [] }
 
@@ -103,9 +108,8 @@ exprlist:
 stmlist:
   | IDENT LBRACK expr RBRACK EQUAL expr SEMICOLON stmlist
     { (ArrAssign($1,$3,$6,(to_pos $startpos)))::$8 }
-  | IDENT IDENT EQUAL expr SEMICOLON stmlist
-    { let ty_info = { ty=$1; attr=None } in
-      (VarDec($2,(to_type ty_info),$4,(to_pos $startpos)))::$6 }
+  | labeled_type IDENT EQUAL expr SEMICOLON stmlist
+    { (VarDec($2,$1,$4,(to_pos $startpos)))::$6 }
   | IDENT EQUAL expr SEMICOLON stmlist
     { (Assign($1,$3,(to_pos $startpos)))::$5 }
   | IF LPAREN expr RPAREN LBRACE stmlist RBRACE ELSE LBRACE stmlist RBRACE stmlist

@@ -1,7 +1,7 @@
 open Stdlib
 
-type ventry = { v_ty: Ast.ctype }
-type fentry = { f_ty: Ast.ctype; f_args: Ast.ctype list }
+type ventry = { v_ty: Ast.labeled_type }
+type fentry = { f_ty: Ast.ctype; f_args: Ast.labeled_type list }
 
 type entry =
   | VarEntry of ventry
