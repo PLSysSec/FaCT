@@ -140,16 +140,17 @@ and tc_stm fn_ty venv = function
                                       ^ (pos_string p))))
   | ArrAssign(name,index,expr,p) ->
     (* TODO: What is the expected behavior of this?
-       Right now, the index must be a Public Int and the value being stored
-       must have the same labeled type as the array *)
+       Right now, the index, bytearr and value must all have the same label *)
     let index_ty = tc_expr venv index in
-    ignore(unify_equal_lt (Public Int) index_ty p);
+    let expr_ty = tc_expr venv expr in
     (try
       (match Hashtbl.find venv name with
        | VarEntry { v_ty=Public(ByteArr x) } ->
-         ignore(unify_equal_lt (Public Int) (tc_expr venv expr) p)
+         ignore(unify_equal_lt (Public Int) expr_ty p);
+         ignore(unify_equal_lt (Public Int) index_ty p);
        | VarEntry { v_ty=Private(ByteArr x) } ->
-         ignore(unify_equal_lt (Private Int) (tc_expr venv expr) p)
+         ignore(unify_equal_lt (Private Int) expr_ty p);
+         ignore(unify_equal_lt (Private Int) index_ty p);
        | _ -> raise (VariableNotDefined("Variable, `" ^ name ^ 
                      "`, not defined @ " ^ (pos_string p))))
     with

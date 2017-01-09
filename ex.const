@@ -1,17 +1,18 @@
 
 int meh(private bytearr[10] b) {
-  public int a = 5;
+  private int a = 5;
   private int bb = 1;
   b[a] = bb;
   if(a > 1) {
     private int two = 2;
-    b[0] = two;
+    private int zero = 0;
+    b[zero] = two;
   } else {
     a = 1;
   }
   for(i=0 to 1) {
     private int i1 = i;
-    b[i] = i1;
+    b[i1] = i1;
   }
   return 0x1;
 }
