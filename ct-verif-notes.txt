@@ -1,13 +1,13 @@
 Verifying sort from a bc file:
  clang -c -emit-llvm -O0 -I/work/verifying-constant-time/tools/smack/share/smack/include /work/verifying-constant-time/tools/smack/share/smack/lib/smack.c -o smack.bc
- clang -c -emit-llvm -O0 -o sort-tmp.bc sort.c
- llvm-link -o sort.bc smack.bc sort-tmp.bc
+ clang -c -emit-llvm -O0 -I/work/verifying-constant-time/tools/smack/share/smack/include sort.c -o sort-tmp.bc
+ llvm-link smack.bc sort-tmp.bc -o sort.bc
 
 Verifying a constanc bc file (out-3.5.ll):
  clang -c -emit-llvm -O0 -I/work/verifying-constant-time/tools/smack/share/smack/include /work/verifying-constant-time/tools/smack/share/smack/lib/smack.c -o smack.bc
  llvm-as out-3.5.ll
- clang -c -emit-llvm -O0 wrapper.c -o wrapper.bc
- llvm-link -o out-3.5-smack.bc smack.bc out-3.5.bc wrapper.bc
+ clang -c -emit-llvm -O0 -I/work/verifying-constant-time/tools/smack/share/smack/include wrapper.c -o wrapper.bc
+ llvm-link smack.bc out-3.5.bc wrapper.bc -o out-3.5-smack.bc
 
 Converting a 3.9-compatible .ll file into 3.5-compatible .ll file:
 - Find "load i32,"; replace with "load"
