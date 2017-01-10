@@ -51,7 +51,7 @@ int mixedIf(int cond) {
 
 int mixedIf2(int cond) {
   int complex_ret = 10;
-  if (10 == cond) {
+  if (10 > cond) {
     complex_ret = 1;
   } else {
     return 2;
