@@ -59,8 +59,7 @@ let codegen ctx m =
     | ByteArray l ->
       let arr = Array.of_list l in
       let arr' = Array.map (const_int (i32_type ctx)) arr in
-      let arr_type = array_type (i32_type ctx) (List.length l) in
-      const_array arr_type arr'
+      const_array (i32_type ctx) arr'
 
   and codegen_unop op e =
     match op with
@@ -192,7 +191,7 @@ let codegen ctx m =
          let vec = codegen_expr e in
          let alloca' = build_alloca arr_type n b in
          ignore(build_store vec alloca' b);
-         Hashtbl.add named_values n (Ref alloca');
+         Hashtbl.add named_values n (Ref alloca')
       | Int ->
         let init_val = codegen_expr e in
         let alloca = build_alloca (i32_type ctx) n b in

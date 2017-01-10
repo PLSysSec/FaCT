@@ -106,6 +106,9 @@ stmlist:
   | IDENT IDENT EQUAL expr SEMICOLON stmlist
     { let ty_info = { ty=$1; attr=None } in
       (VarDec($2,(to_type ty_info),$4,(to_pos $startpos)))::$6 }
+  | IDENT LBRACK expr RBRACK IDENT EQUAL bytearr_list SEMICOLON stmlist
+    { let ty_info = { ty=$1; attr=(Some $3) } in
+      VarDec($5,(to_type ty_info),$7,(to_pos $startpos))::$9 }
   | IDENT EQUAL expr SEMICOLON stmlist
     { (Assign($1,$3,(to_pos $startpos)))::$5 }
   | IF LPAREN expr RPAREN LBRACE stmlist RBRACE ELSE LBRACE stmlist RBRACE stmlist
@@ -115,6 +118,16 @@ stmlist:
   | RETURN expr SEMICOLON stmlist
     { (Return($2,(to_pos $startpos))::$4) }
   | { [] }
+
+list_elements:
+  | INT
+    { [$1] }
+  | INT COMMA list_elements
+    { $1::$3 }
+
+bytearr_list:
+  | LBRACK list_elements RBRACK
+    { Primitive(ByteArray $2, Some(to_pos $startpos)) }
 
 binopexpr:
   | PLUS expr

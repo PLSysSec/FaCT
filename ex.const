@@ -1,12 +1,10 @@
-/*
-  /*
- Nested comments work
- */
-*/
+// vsner;
+/* 
+vserbgrse
 
-// some single line comment
-int meh(bytearr[1] b) {
-  b[0] = 0b10101; // 1 + 4 + 16 = 21
+*/
+int meh(bytearr[1]/* bveaor */ b) {
+  b[0] = 0b10101;
   int a = 5;
   if(a > 1) {
     b[0] = 2;
@@ -20,7 +18,8 @@ int meh(bytearr[1] b) {
 }
 
 int get100() {
-  return /* random inner comment */ 100;
+  bytearr[1] derp = [100];
+  return derp[0];
 }
 
 int call100() {
