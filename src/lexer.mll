@@ -53,8 +53,8 @@ let chars_ints = ['_' 'a'-'z' 'A'-'Z']['_' 'a'-'z' 'A'-'Z' '0'-'9']*
 rule token = parse
   | [' ' '\t']     { token lexbuf }
   | '\n'
-  { new_line lexbuf;
-  token lexbuf }
+  { Lexing.new_line lexbuf;
+    token lexbuf }
   | "true"         { BOOL(true)}
   | "false"        { BOOL(false)}
   | chars_ints * as c
@@ -92,12 +92,7 @@ rule token = parse
   | ','            { COMMA }
   | "/*"           { depth := !depth + 1; commented lexbuf }
   | "//"           { ignore_line lexbuf }
-  | eof            {
-    let l = lexbuf.lex_curr_p in
-      lexbuf.lex_curr_p <- { l with
-        pos_fname="vgershlegr";
-        }; EOF
-      }
+  | eof            { EOF }
   | _              { raise_token_error lexbuf }
 
 and commented = parse
@@ -105,11 +100,12 @@ and commented = parse
             if !depth = 0 then token lexbuf else commented lexbuf }
   | "/*"  { depth := !depth + 1;
             commented lexbuf }
+  | '\n'  { Lexing.new_line lexbuf; commented lexbuf }
   | eof   { raise_error lexbuf "Comment is not closed" }
   | _     { commented lexbuf }
 
 and ignore_line = parse
-  | '\n'  { token lexbuf }
+  | '\n'  { Lexing.new_line lexbuf; token lexbuf }
   | _     { ignore_line lexbuf }
 
 and num buf = parse

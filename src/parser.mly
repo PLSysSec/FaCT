@@ -120,6 +120,16 @@ stmlist:
     { (Return($2,(to_pos $startpos))::$4) }
   | { [] }
 
+list_elements:
+  | INT
+    { [$1] }
+  | INT COMMA list_elements
+    { $1::$3 }
+
+bytearr_list:
+  | LBRACK list_elements RBRACK
+    { Primitive(ByteArray $2, Some(to_pos $startpos)) }
+
 binopexpr:
   | PLUS expr
     { ((Plus(to_pos $startpos)),$2) }

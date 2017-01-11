@@ -1,7 +1,14 @@
+/*
+  /*
+ Nested comments work
+ */
+*/
 
+// some single line comment
 int meh(private bytearr[10] b) {
   private int a = 5;
   private int bb = 1;
+  b[0] = 0b10101; // 1 + 4 + 16 = 21
   b[a] = bb;
   if(a > 1) {
     private int two = 2;
@@ -18,7 +25,8 @@ int meh(private bytearr[10] b) {
 }
 
 int get100() {
-  return 100;
+  bytearr[1] derp = [100];
+  return derp[0];
 }
 
 int call100() {
