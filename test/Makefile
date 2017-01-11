@@ -13,7 +13,7 @@ OBJ=test_semantics_fully_labeled.o
 all: run
 
 $(OBJ): $(CSRC)
-	./constanc.byte $(CSRC)
+	../constanc.byte $(CSRC)
 
 $(RUNNER): $(SRC)
 	ruby $(UNITY_ROOT)/auto/generate_test_runner.rb $(SRC) $(RUNNER)
