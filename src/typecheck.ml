@@ -61,9 +61,9 @@ and tc_binop = function
   | RightShift _ -> (Int, [Int;Int])
 
 and tc_prim = function
-  | Number n -> Public Int
-  | ByteArray s -> Public(ByteArr (List.length s))
-  | Boolean b -> Public Bool
+  | Number n -> Private Int
+  | ByteArray s -> Private(ByteArr (List.length s))
+  | Boolean b -> Private Bool
 
 and tc_expr venv = function
   | VarExp(v,p) ->
@@ -82,9 +82,7 @@ and tc_expr venv = function
        (try
           match Hashtbl.find venv n with
           | LoopEntry { v_ty=(Public ty) } -> Public ty
-          | LoopEntry { v_ty=(Private ty) } ->
-            raise (TypeError ("Arrays cannot be accessed with a private " ^ 
-            "variable @ " ^ (pos_string p)))
+          | LoopEntry { v_ty=(Private ty) } -> Private ty
           | _ -> raise (TypeError ("Arrays can only be accessed with " ^
                         "constant numbers, loop variables, or public " ^
                         "variables" ^ (pos_string p)))
@@ -181,7 +179,7 @@ and tc_stm fn_ty venv = function
      | _ ->
        raise (TypeError ("Low and high values must be integers in for loop @ "
                          ^ (pos_string p))));
-    let _ = Hashtbl.add venv name (LoopEntry { v_ty=(Public Int) }) in
+    let _ = Hashtbl.add venv name (LoopEntry { v_ty=(Private Int) }) in
     tc_stms fn_ty venv body
   | Return(expr,p) ->
     ignore(unify_lt fn_ty (tc_expr venv expr) p)

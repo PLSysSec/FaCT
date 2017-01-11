@@ -5,8 +5,8 @@ CFLAGS=-Wall -Wextra -Werror
 INCLUDE=-I$(UNITY_ROOT)/src
 SRC=harness.c
 RUNNER=harness.c.runner.c
-CSRC=test_semantics.const
-OBJ=test_semantics.o
+CSRC=test_semantics_fully_labeled.const
+OBJ=test_semantics_fully_labeled.o
 
 .PHONY: all run
 
