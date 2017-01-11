@@ -48,7 +48,7 @@ let _ = List.map add_keyword keywords
 
 let whitespace = [' ' '\t' '\n']
 let ints = ['0'-'9']
-let chars_ints = ['a'-'z' 'A'-'Z']['a'-'z' 'A'-'Z' '0'-'9']*
+let chars_ints = ['_' 'a'-'z' 'A'-'Z']['_' 'a'-'z' 'A'-'Z' '0'-'9']*
 
 rule token = parse
   | [' ' '\t']     { token lexbuf }
@@ -70,8 +70,7 @@ rule token = parse
   | '+'            { PLUS }
   | '-'            { MINUS }
   | '*'            { TIMES }
-  | '='            { EQUAL }
-  | ":="           { ASSIGN }
+  | "=="           { EQUAL }
   | "!="           { NEQUAL }
   | ">"            { GREATERTHAN }
   | "<"            { LESSTHAN }
@@ -88,6 +87,7 @@ rule token = parse
   | '}'            { RBRACE }
   | '['            { LBRACK }
   | ']'            { RBRACK }
+  | "="            { ASSIGN }
   | ';'            { SEMICOLON }
   | ','            { COMMA }
   | "/*"           { depth := !depth + 1; commented lexbuf }

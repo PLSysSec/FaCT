@@ -43,3 +43,6 @@ llvmutop
 final
 .vscode
 ast.txt
+test/test
+*.runner.c
+*_runner.c

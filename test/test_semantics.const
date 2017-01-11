@@ -1,0 +1,150 @@
+// tests migrated from test_semant_driver.ml
+
+int get100() {
+  int x = 666;
+  int x2 = 100;
+  x = 10;
+  return x2;
+}
+
+int identity(int my_int) {
+  return my_int;
+}
+
+int mutateArray(bytearr[5] arr) {
+  arr[4] = 44;
+  return arr[4];
+}
+
+int mutateArray2(bytearr[5] arr2, int val) {
+  arr2[4] = val;
+  return arr2[4];
+}
+
+int simpleIf(int cond) {
+  if (10 > cond) {
+    return 1;
+  } else {
+    return 2;
+  }
+}
+
+int mediumComplexIf(int cond) {
+  int complex_ret = 10;
+  if (10 > cond) {
+    complex_ret = 1;
+  } else {
+    complex_ret = 2;
+  }
+  return complex_ret;
+}
+
+int mixedIf(int cond) {
+  int complex_ret = 10;
+  if (10 == cond) {
+    return 1;
+  } else {
+    complex_ret = 2;
+  }
+  return complex_ret;
+}
+
+int mixedIf2(int cond) {
+  int complex_ret = 10;
+  if (10 > cond) {
+    complex_ret = 1;
+  } else {
+    return 2;
+  }
+  return complex_ret;
+}
+
+int nestedIf(int cond) {
+  if (10 > cond) {
+    if (5 > cond) {
+      return 1;
+    } else {
+      return 2;
+    }
+  } else {
+    if (15 > cond) {
+      return 3;
+    } else {
+      return 4;
+    }
+  }
+}
+
+int simpleLoop() {
+  for (i = 0 to 10) {
+    int a = 666;
+  }
+  return 10000;
+}
+
+int loopAcc() {
+  int acc = 0;
+  for (i = 0 to 5) {
+    acc = acc + 1;
+  }
+  return acc;
+}
+
+int loopAssignArray(bytearr[5] arr) {
+  for (i = 0 to 5) {
+    arr[i] = i;
+  }
+  return 10000;
+}
+
+int add(int a, int b) {
+  return a + b;
+}
+
+int add10And20() {
+  return add(10, 20);
+}
+
+int addAll(bytearr[5] bytearr) {
+  int acc = 0;
+  for (i = 0 to 5) {
+    acc = acc + bytearr[i];
+  }
+  return acc;
+}
+
+int multiply(int a, int b) {
+  return a * b;
+}
+
+bool equal(int a, int b) {
+  return a == b;
+}
+
+bool nequal(int a, int b) {
+  return a != b;
+}
+
+int lshift(int num, int shift) {
+  return num << shift;
+}
+
+int rshift(int num, int shift) {
+  return num >> shift;
+}
+
+bool gt(int a, int b) {
+  return a > b;
+}
+
+bool gte(int a, int b) {
+  return a >= b;
+}
+
+bool lt(int a, int b) {
+  return a < b;
+}
+
+bool lte(int a, int b) {
+  return a <= b;
+}
