@@ -25,6 +25,8 @@ int gt(int,int);
 int gte(int,int);
 int lt(int,int);
 int lte(int,int);
+int neg(int);
+int xor(int,int);
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -174,4 +176,18 @@ void test_lte(void) {
   TEST_ASSERT_EQUAL(-1,lte(0,1));
   TEST_ASSERT_EQUAL(0,lte(1,0));
   TEST_ASSERT_EQUAL(0,lte(111,11));
+}
+
+void test_neg(void) {
+  TEST_ASSERT_EQUAL(-1,neg(1));
+  TEST_ASSERT_EQUAL(4,neg(-4));
+  TEST_ASSERT_NOT_EQUAL(-8,neg(3));
+  TEST_ASSERT_EQUAL(0,neg(0));
+}
+
+void test_xor(void) {
+  TEST_ASSERT_EQUAL(1,xor(2,3));
+  TEST_ASSERT_EQUAL(2,xor(1,3));
+  TEST_ASSERT_EQUAL(3,xor(2,1));
+  TEST_ASSERT_EQUAL(49,xor(15,62));
 }

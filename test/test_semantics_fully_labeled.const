@@ -148,3 +148,11 @@ bool lt(private int a, private int b) {
 bool lte(private int a, private int b) {
   return a <= b;
 }
+
+int neg(private int a) {
+  return -a;
+}
+
+int xor(private int a, private int b) {
+  return a ^ b;
+}
