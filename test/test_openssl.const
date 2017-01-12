@@ -12,13 +12,13 @@ int ssl3_cbc_remove_padding(private bytearr[1024] data, private bytearr[1024] in
   }
 
   if (lengthtype_array[0] < padding_length + overhead) {
-    return 0-1;
+    return -1;
   } else {
     dummy = 0;
   }
 
   if (block_size < padding_length + 1) {
-    return 0-1;
+    return -1;
   } else {
     dummy = 0;
   }
