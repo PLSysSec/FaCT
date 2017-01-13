@@ -1,5 +1,5 @@
 #include <smack.h>
-#include "../ct-verif.h"
+#include "ct-verif.h"
 
 int ssl3_cbc_remove_padding(int* data, int* input, int block_size, int mac_size, int* lengthtype_array);
 
