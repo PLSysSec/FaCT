@@ -19,21 +19,22 @@ WRAPPERBC         ?=$(basename $(WRAPPERFILE)).bc
 
 all: verify
 
-verify:
+smack:
+	clang-3.5 -c -emit-llvm -O0 -I$(SMACKINCLUDEDIR) $(SMACKCFILE) -o smack.bc
+
+wrapper:
+	clang-3.5 -c -emit-llvm -O0 -I$(SMACKINCLUDEDIR) -I$(EXAMPLESDIR) $(WRAPPERFILE) -o $(WRAPPERBC)
+
+link: smack wrapper
 ifeq ($(INPUTEXT),.c)
-#	clang-3.5 -c -emit-llvm -O0 $(INPUTFILE) -o $(INPUTBC)
-#	clang-3.5 -c -emit-llvm -O0 -I$(SMACKINCLUDEDIR) -I$(EXAMPLESDIR) $(WRAPPERFILE) -o $(WRAPPERBC)
-#	llvm-link-3.5 $(INPUTBC) $(WRAPPERBC) -o tmp
-#	clang-3.5 -c -emit-llvm -O0 -I$(SMACKINCLUDEDIR) $(SMACKCFILE) -o smack.bc
-#	llvm-link-3.5 smack.bc $(INPUTBC) $(WRAPPERBC) -o $(FINALBC)
-	ENTRYPOINTS=ssl3_cbc_remove_padding_wrapper EXAMPLE=$(INPUTFILE) make -C $(BINDIR) verify
+	llvm-link-3.5 smack.bc $(WRAPPERBC) -o $(FINALBC)
 else ifeq ($(INPUTEXT),.ll)
 	llvm-as-3.5 $(INPUTFILE) -o $(INPUTBC)
-	clang-3.5 -c -emit-llvm -O0 -I$(SMACKINCLUDEDIR) $(SMACKCFILE) -o smack.bc
-	clang-3.5 -c -emit-llvm -O0 -I$(SMACKINCLUDEDIR) -I$(EXAMPLESDIR) $(WRAPPERFILE) -o $(WRAPPERBC)
 	llvm-link-3.5 smack.bc $(INPUTBC) $(WRAPPERBC) -o $(FINALBC)
-	EXAMPLE=$(FINALBC) make -C $(BINDIR) verify
 endif
+
+verify: link
+	EXAMPLE=$(FINALBC) make -C $(BINDIR) verify
 
 clean:
 	rm -f *.bpl *.bc
