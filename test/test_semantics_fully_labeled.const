@@ -156,3 +156,19 @@ int neg(private int a) {
 int xor(private int a, private int b) {
   return a ^ b;
 }
+
+int prec(private int a) {
+  if (a == 1) {
+    return 2 + 3 * 4;
+  } else {
+    if (a == 2) {
+      return (2 + 3) * 4;
+    } else {
+      if (a == 3) {
+        return -2 + 3;
+      } else {
+        return -1;
+      }
+    }
+  }
+}

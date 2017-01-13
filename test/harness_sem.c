@@ -27,6 +27,7 @@ int lt(int,int);
 int lte(int,int);
 int neg(int);
 int xor(int,int);
+int prec(int);
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -190,4 +191,10 @@ void test_xor(void) {
   TEST_ASSERT_EQUAL(2,xor(1,3));
   TEST_ASSERT_EQUAL(3,xor(2,1));
   TEST_ASSERT_EQUAL(49,xor(15,62));
+}
+
+void test_precedence(void) {
+  TEST_ASSERT_EQUAL(14,prec(1));
+  TEST_ASSERT_EQUAL(20,prec(2));
+  TEST_ASSERT_EQUAL(1,prec(3));
 }
