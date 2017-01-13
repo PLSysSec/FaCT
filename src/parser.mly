@@ -21,7 +21,8 @@ let parse_error s = (* Called by the parser function on error *)
 %token <bool> BOOL
 %token PLUS MINUS TIMES
 %token EQUAL NEQUAL GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
-%token BITOR BITAND LEFTSHIFT RIGHTSHIFT BITNOT
+%token LOGNOT LOGAND LOGOR
+%token BITOR BITXOR BITAND LEFTSHIFT RIGHTSHIFT BITNOT
 %token ASSIGN
 %token LPAREN RPAREN
 
@@ -38,10 +39,19 @@ let parse_error s = (* Called by the parser function on error *)
 
 %token EOF
 
-%left EQUAL NEQUAL GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
+(* precedence based on C operator precedence
+ * http://en.cppreference.com/w/c/language/operator_precedence *)
+%left LOGOR
+%left LOGAND
+%left BITOR
+%left BITXOR
+%left BITAND
+%left EQUAL NEQUAL
+%left GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
+%left LEFTSHIFT RIGHTSHIFT
 %left PLUS MINUS
 %left TIMES
-%left BITOR BITAND LEFTSHIFT RIGHTSHIFT BITNOT
+%left LOGNOT BITNOT UMINUS
 
 %nonassoc INT
 %nonassoc RBRACK
@@ -149,8 +159,14 @@ binopexpr:
     { (LT(to_pos $startpos),$2) }
   | LESSTHANEQ expr
     { (LTE(to_pos $startpos),$2) }
+  | LOGAND expr
+    { (B_And(to_pos $startpos),$2) }
+  | LOGOR expr
+    { (B_Or(to_pos $startpos),$2) }
   | BITOR expr
     { (B_Or(to_pos $startpos),$2) }
+  | BITXOR expr
+    { (B_Xor(to_pos $startpos),$2) }
   | BITAND expr
     { (B_And(to_pos $startpos),$2) }
   | LEFTSHIFT expr
@@ -160,6 +176,10 @@ binopexpr:
 ;
 
 unopexpr:
+  | MINUS expr %prec UMINUS
+    { UnOp((Neg (to_pos $startpos)),$2,(to_pos $startpos)) }
+  | LOGNOT expr
+    { UnOp((L_Not (to_pos $startpos)),$2,(to_pos $startpos)) }
   | BITNOT expr
     { UnOp((B_Not (to_pos $startpos)),$2,(to_pos $startpos)) }
 ;

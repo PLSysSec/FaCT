@@ -63,6 +63,7 @@ let codegen ctx m =
 
   and codegen_unop op e =
     match op with
+      | Neg -> build_neg (codegen_expr e) "negtmp" b
       | BitNot -> build_not (codegen_expr e) "nottmp" b
 
   and codegen_binop op e e' =
@@ -86,6 +87,7 @@ let codegen ctx m =
         build_sext cmp (i32_type ctx) "ltecmp" b
       | BitAnd -> build_and lhs rhs "andtmp" b
       | BitOr -> build_or lhs rhs "ortmp" b
+      | BitXor -> build_xor lhs rhs "xortmp" b
       | Mult -> build_mul lhs rhs "multtmp" b
       | Eq ->
         let cmp = build_icmp Icmp.Eq lhs rhs "eq" b in

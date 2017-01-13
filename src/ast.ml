@@ -55,6 +55,8 @@ and expr =
 [@@deriving show]
 
 and unop =
+  | Neg of pos
+  | L_Not of pos
   | B_Not of pos
 [@@deriving show]
 
@@ -68,8 +70,11 @@ and binop =
   | GTE of pos
   | LT of pos
   | LTE of pos
+  | L_And of pos
+  | L_Or of pos
   | B_And of pos
   | B_Or of pos
+  | B_Xor of pos
   | LeftShift of pos
   | RightShift of pos
 [@@deriving show]

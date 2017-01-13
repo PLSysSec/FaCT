@@ -76,11 +76,15 @@ rule token = parse
   | "<"            { LESSTHAN }
   | ">="           { GREATERTHANEQ }
   | "<="           { LESSTHANEQ }
-  | "&"            { BITAND }
-  | "|"            { BITOR }
+  | "!"            { LOGNOT }
+  | "&&"           { LOGAND }
+  | "||"           { LOGOR }
+  | '&'            { BITAND }
+  | '^'            { BITXOR }
+  | '|'            { BITOR }
   | "<<"           { LEFTSHIFT }
   | ">>"           { RIGHTSHIFT }
-  | "~"            { BITNOT }
+  | '~'            { BITNOT }
   | '('            { LPAREN }
   | ')'            { RPAREN }
   | '{'            { LBRACE }

@@ -43,6 +43,8 @@ let unify_fn_args arg_ts ts p =
   List.map2 (fun t t' -> unify_lt t t' p) arg_ts ts
 
 let rec tc_unop = function
+  | Neg _ -> (Int, [Int])
+  | L_Not _ -> (Bool, [Bool])
   | B_Not _ -> (Int, [Int])
 
 and tc_binop = function
@@ -55,8 +57,11 @@ and tc_binop = function
   | GTE _ -> (Bool, [Int;Int])
   | LT _ -> (Bool, [Int;Int])
   | LTE _ -> (Bool, [Int;Int])
+  | L_And _ -> (Bool, [Bool;Bool])
+  | L_Or _ -> (Bool, [Bool;Bool])
   | B_And _ -> (Int, [Int;Int])
   | B_Or _ -> (Int, [Int;Int])
+  | B_Xor _ -> (Int, [Int;Int])
   | LeftShift _ -> (Int, [Int;Int])
   | RightShift _ -> (Int, [Int;Int])
 
