@@ -70,6 +70,9 @@ rule token = parse
   | '+'            { PLUS }
   | '-'            { MINUS }
   | '*'            { TIMES }
+  | "+="           { PLUSEQ }
+  | "-="           { MINUSEQ }
+  | "*="           { TIMESEQ }
   | "=="           { EQUAL }
   | "!="           { NEQUAL }
   | ">"            { GREATERTHAN }
@@ -82,8 +85,13 @@ rule token = parse
   | '&'            { BITAND }
   | '^'            { BITXOR }
   | '|'            { BITOR }
+  | "&="           { BITANDEQ }
+  | "^="           { BITXOREQ }
+  | "|="           { BITOREQ }
   | "<<"           { LEFTSHIFT }
   | ">>"           { RIGHTSHIFT }
+  | "<<="          { LEFTSHIFTEQ }
+  | ">>="          { RIGHTSHIFTEQ }
   | '~'            { BITNOT }
   | '('            { LPAREN }
   | ')'            { RPAREN }

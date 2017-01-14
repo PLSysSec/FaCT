@@ -28,6 +28,7 @@ int lte(int,int);
 int neg(int);
 int xor(int,int);
 int prec(int);
+int opassign();
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -197,4 +198,8 @@ void test_precedence(void) {
   TEST_ASSERT_EQUAL(14,prec(1));
   TEST_ASSERT_EQUAL(20,prec(2));
   TEST_ASSERT_EQUAL(1,prec(3));
+}
+
+void test_opassign(void) {
+  TEST_ASSERT_EQUAL(11,opassign());
 }
