@@ -160,9 +160,9 @@ binopexpr:
   | LESSTHANEQ expr
     { (LTE(to_pos $startpos),$2) }
   | LOGAND expr
-    { (B_And(to_pos $startpos),$2) }
+    { (L_And(to_pos $startpos),$2) }
   | LOGOR expr
-    { (B_Or(to_pos $startpos),$2) }
+    { (L_Or(to_pos $startpos),$2) }
   | BITOR expr
     { (B_Or(to_pos $startpos),$2) }
   | BITXOR expr
