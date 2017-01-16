@@ -24,6 +24,8 @@ let parse_error s = (* Called by the parser function on error *)
 %token LOGNOT LOGAND LOGOR
 %token BITOR BITXOR BITAND LEFTSHIFT RIGHTSHIFT BITNOT
 %token ASSIGN
+%token PLUSEQ MINUSEQ TIMESEQ
+%token BITOREQ BITXOREQ BITANDEQ LEFTSHIFTEQ RIGHTSHIFTEQ
 %token LPAREN RPAREN
 
 %token IF ELSE
@@ -122,6 +124,9 @@ stmlist:
     { (VarDec($2,$1,$4,(to_pos $startpos)))::$6 }
   | IDENT ASSIGN expr SEMICOLON stmlist
     { (Assign($1,$3,(to_pos $startpos)))::$5 }
+  | IDENT binopeq expr SEMICOLON stmlist
+    { let p = (to_pos $startpos) in
+      (Assign($1,BinOp($2,VarExp($1,p),$3,p),(to_pos $startpos)))::$5 }
   | IF LPAREN expr RPAREN LBRACE stmlist RBRACE ELSE LBRACE stmlist RBRACE stmlist
     { (If($3,$6,$10,(to_pos $startpos)))::$12 }
   | FOR LPAREN IDENT ASSIGN primitive_not_expr TO primitive_not_expr RPAREN LBRACE stmlist RBRACE stmlist
@@ -160,9 +165,9 @@ binopexpr:
   | LESSTHANEQ expr
     { (LTE(to_pos $startpos),$2) }
   | LOGAND expr
-    { (B_And(to_pos $startpos),$2) }
+    { (L_And(to_pos $startpos),$2) }
   | LOGOR expr
-    { (B_Or(to_pos $startpos),$2) }
+    { (L_Or(to_pos $startpos),$2) }
   | BITOR expr
     { (B_Or(to_pos $startpos),$2) }
   | BITXOR expr
@@ -173,6 +178,17 @@ binopexpr:
     { (LeftShift(to_pos $startpos),$2) }
   | RIGHTSHIFT expr
     { (RightShift(to_pos $startpos),$2) }
+;
+
+binopeq:
+  | PLUSEQ { Plus(to_pos $startpos) }
+  | MINUSEQ { Minus(to_pos $startpos) }
+  | TIMESEQ { Multiply(to_pos $startpos) }
+  | BITOREQ { B_Or(to_pos $startpos) }
+  | BITXOREQ { B_Xor(to_pos $startpos) }
+  | BITANDEQ { B_And(to_pos $startpos) }
+  | LEFTSHIFTEQ { LeftShift(to_pos $startpos) }
+  | RIGHTSHIFTEQ { RightShift(to_pos $startpos) }
 ;
 
 unopexpr:
