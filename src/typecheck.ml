@@ -24,23 +24,23 @@ let unify_equal_lt ~expected ~actual p =
   match expected, actual with
     | { ty=t; label=Some Public }, { ty=t'; label=Some Public } ->
       { ty=(unify t t' p); label=Some Public }
-    | { ty=t; label=Some Private }, { ty=t'; label=Some Private } ->
-      { ty=(unify t t' p); label=Some Private }
+    | { ty=t; label=Some Secret }, { ty=t'; label=Some Secret } ->
+      { ty=(unify t t' p); label=Some Secret }
     | { ty=t; label=None }, { ty=t'; label=Some Public } ->
       raise (TypeError ("Labels do not match. Expected `None`, but found " ^
       "`Public` @ " ^ (pos_string p)))
-    | { ty=t; label=None }, { ty=t'; label=Some Private } ->
+    | { ty=t; label=None }, { ty=t'; label=Some Secret } ->
       raise (TypeError ("Labels do not match. Expected `None`, but found " ^
-      "`Private` @ " ^ (pos_string p)))
-    | { ty=t; label=Some Private }, { ty=t'; label=Some Public } ->
-      raise (TypeError ("Labels do not match. Expected `Private`, but found " ^
+      "`Secret` @ " ^ (pos_string p)))
+    | { ty=t; label=Some Secret }, { ty=t'; label=Some Public } ->
+      raise (TypeError ("Labels do not match. Expected `Secret`, but found " ^
       "`Public` @ " ^ (pos_string p)))
-    | { ty=t; label=Some Private }, { ty=t'; label=None } ->
-      raise (TypeError ("Labels do not match. Expected `Private`, but found " ^
+    | { ty=t; label=Some Secret }, { ty=t'; label=None } ->
+      raise (TypeError ("Labels do not match. Expected `Secret`, but found " ^
       "`None` @ " ^ (pos_string p)))
-    | { ty=t; label=Some Public }, { ty=t'; label=Some Private } ->
+    | { ty=t; label=Some Public }, { ty=t'; label=Some Secret } ->
       raise (TypeError ("Labels do not match. Expected `Public`, but found " ^
-      "`Private` @ " ^ (pos_string p)))
+      "`Secret` @ " ^ (pos_string p)))
     | { ty=t; label=None }, { ty=t'; label=None } ->
       raise (TypeError ("Labels do not match. Expected `None`, but found " ^
       "`None` @ " ^ (pos_string p)))
@@ -52,12 +52,12 @@ let unify_lt lt lt' p =
   match lt,lt' with
     | { ty=t; label=Some Public }, { ty=t'; label=Some Public } ->
       { ty=(unify t t' p); label=Some Public }
-    | { ty=t; label=Some Private }, { ty=t'; label=Some Public } ->
-      { ty=(unify t t' p); label=Some Private }
-    | { ty=t; label=Some Public }, { ty=t'; label=Some Private } ->
-      { ty=(unify t t' p); label=Some Private }
-    | { ty=t; label=Some Private }, { ty=t'; label=Some Private } ->
-      { ty=(unify t t' p); label=Some Private }
+    | { ty=t; label=Some Secret }, { ty=t'; label=Some Public } ->
+      { ty=(unify t t' p); label=Some Secret }
+    | { ty=t; label=Some Public }, { ty=t'; label=Some Secret } ->
+      { ty=(unify t t' p); label=Some Secret }
+    | { ty=t; label=Some Secret }, { ty=t'; label=Some Secret } ->
+      { ty=(unify t t' p); label=Some Secret }
     | { ty=t; label=None }, { ty=t'; label=l } ->
       { ty=(unify t t' p); label=l }
     | { ty=t; label=l }, { ty=t'; label=None } ->
@@ -68,21 +68,21 @@ let unify_lt_lhs_rhs ~ret_label ~expr_label p =
   match ret_label, expr_label with
     | { ty=t; label=Some Public }, { ty=t'; label=Some Public } ->
       { ty=(unify t t' p); label=Some Public }
-    | { ty=t; label=Some Public }, { ty=t'; label=Some Private } ->
-      raise (TypeError ("A private value cannot flow to a public value @ " ^
+    | { ty=t; label=Some Public }, { ty=t'; label=Some Secret } ->
+      raise (TypeError ("A secret value cannot flow to a public value @ " ^
               (pos_string p)))
-    | { ty=t; label=Some Private }, { ty=t'; label=Some Public } ->
-      { ty=(unify t t' p); label=Some Private }
-    | { ty=t; label=Some Private }, { ty=t'; label=Some Private } ->
-      { ty=(unify t t' p); label=Some Private }
+    | { ty=t; label=Some Secret }, { ty=t'; label=Some Public } ->
+      { ty=(unify t t' p); label=Some Secret }
+    | { ty=t; label=Some Secret }, { ty=t'; label=Some Secret } ->
+      { ty=(unify t t' p); label=Some Secret }
     | { ty=t; label=None }, { ty=t'; label=Some Public } ->
       { ty=(unify t t' p); label=Some Public }
-    | { ty=t; label=None }, { ty=t'; label=Some Private } ->
-      { ty=(unify t t' p); label=Some Private }
+    | { ty=t; label=None }, { ty=t'; label=Some Secret } ->
+      { ty=(unify t t' p); label=Some Secret }
     | { ty=t; label=Some Public }, { ty=t'; label=None } ->
       { ty=(unify t t' p); label=Some Public }
-    | { ty=t; label=Some Private }, { ty=t'; label=None } ->
-      { ty=(unify t t' p); label=Some Private }
+    | { ty=t; label=Some Secret }, { ty=t'; label=None } ->
+      { ty=(unify t t' p); label=Some Secret }
     | { ty=t; label=None }, { ty=t'; label=None } ->
       { ty=(unify t t' p); label=None }
 
@@ -92,8 +92,8 @@ let unify_op (rt,arg_ts) ts p =
     match t,t' with
       | t,{ ty=t'; label=Some Public } ->
         { ty=(unify t t' p); label=Some Public }
-      | t,{ ty=t'; label=Some Private } ->
-        { ty=(unify t t' p); label=Some Private }
+      | t,{ ty=t'; label=Some Secret } ->
+        { ty=(unify t t' p); label=Some Secret }
       | t,{ ty=t'; label=None } ->
         raise (TypeError ("Label inference is not implemented @ " ^
           (pos_string p))) in
@@ -154,8 +154,8 @@ and tc_expr venv = function
           match Hashtbl.find venv n with
           | LoopEntry { v_ty={ ty=Int; label=Some Public} } ->
             { ty=Int; label=ret_label }
-          | LoopEntry { v_ty={ ty=t; label=Some Private } } ->
-            raise (InternalCompilerError ("Loop variables cannot be private"))
+          | LoopEntry { v_ty={ ty=t; label=Some Secret } } ->
+            raise (InternalCompilerError ("Loop variables cannot be secret"))
           | LoopEntry { v_ty={ ty=t; label=None } } ->
             raise (InternalCompilerError ("Label inference is not yet " ^ 
                     "implemented @ " ^ (pos_string p)))
@@ -166,9 +166,9 @@ and tc_expr venv = function
             { ty=Int; label=ret_label }
           | VarEntry { v_ty={ ty=Int; label=Some Public } } ->
             { ty=Int; label=ret_label }
-          | VarEntry { v_ty={ ty=t; label=Some Private } } ->
+          | VarEntry { v_ty={ ty=t; label=Some Secret } } ->
             raise (TypeError
-              ("Arrays cannot be accessed with a private variable @ " ^ 
+              ("Arrays cannot be accessed with a secret variable @ " ^ 
               (pos_string p)))
           | VarEntry { v_ty={ ty=t; label=l } } ->
             raise (TypeError "Arrays can only be accessed with public ints")
@@ -191,7 +191,7 @@ and tc_expr venv = function
     ignore(unify_op op_ty [expr1_ty;expr2_ty] p);
     (match unify_lt expr1_ty expr2_ty p with
       | { ty=t; label=Some Public } -> { ty=rt; label=Some Public }
-      | { ty=t; label=Some Private } -> { ty=rt; label=Some Private }
+      | { ty=t; label=Some Secret } -> { ty=rt; label=Some Secret }
       | { ty=t; label=None } ->
         raise (TypeError ("Label inference is not implemented @ " ^ 
                 (pos_string p))))
@@ -224,8 +224,8 @@ and tc_stm fn_ty venv f_name = function
       | Not_found -> raise (VariableNotDefined("Variable, `" ^ name ^
                             "`, not defined @ " ^ (pos_string p))) in
     (match v with
-     | VarEntry { v_ty={ ty=t; label=Some Private } } ->
-       ignore(unify_lt_lhs_rhs { ty=t; label=Some Private } lt_expr p);
+     | VarEntry { v_ty={ ty=t; label=Some Secret } } ->
+       ignore(unify_lt_lhs_rhs { ty=t; label=Some Secret } lt_expr p);
      | VarEntry { v_ty={ ty=t; label=Some Public } } ->
        ignore(unify_lt_lhs_rhs { ty=t; label=Some Public } lt_expr p);
      | VarEntry { v_ty={ ty=t; label=None } } ->
@@ -243,8 +243,8 @@ and tc_stm fn_ty venv f_name = function
        | VarEntry { v_ty={ ty=(ByteArr x); label=Some Public } } ->
          ignore(unify_lt_lhs_rhs public_int expr_ty p);
          ignore(unify_equal_lt public_int index_ty p);
-       | VarEntry { v_ty={ ty=(ByteArr x); label=Some Private } } ->
-         let private_int = { ty=Int; label=Some Private } in
+       | VarEntry { v_ty={ ty=(ByteArr x); label=Some Secret } } ->
+         let private_int = { ty=Int; label=Some Secret } in
          ignore(unify_lt_lhs_rhs private_int expr_ty p);
          ignore(unify_equal_lt public_int index_ty p);
        | VarEntry { v_ty={ ty=(ByteArr x); label=None } } ->
@@ -263,7 +263,7 @@ and tc_stm fn_ty venv f_name = function
     (* NOTE: Should we add a new syntax for labeling expressions? This could
        be useful for things wthout a name. For instance, conside 
        private bytearr[10].
-       bytearr[0] = Private 1 -- right now we have to declare 1, but this
+       bytearr[0] = Secret 1 -- right now we have to declare 1, but this
        seems like a nicer syntax
     *)
     ignore(unify_lt (tc_expr venv cond) { ty=Bool; label=Some Public } p);
@@ -308,7 +308,7 @@ and tc_fdec venv = function
   | FunctionDec(name,args,ty,body,_) ->
     let rewrite_arg = function
       | { name=n; lt={ ty=t; label=None }; p=p } ->
-        { name=n; lt={ ty=t; label=Some Private}; p=p }
+        { name=n; lt={ ty=t; label=Some Secret}; p=p }
       | arg -> arg in
     let args' = List.map rewrite_arg args in
     let venv' = Hashtbl.copy venv in
@@ -318,7 +318,7 @@ and tc_fdec venv = function
     let _ = tc_stms ty venv' body name in
     let lt = get_fn_ret_label ~default:ty name in
     Hashtbl.add venv name (FunEntry { f_ty=lt; f_args=args_ty });
-    default_to_private ()
+    default_to_secret ()
 
 and tc_module (CModule l) =
   List.fold_left (fun a f -> ignore(tc_fdec Env.venv f)) () l

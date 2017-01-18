@@ -31,7 +31,7 @@ let parse_error s = (* Called by the parser function on error *)
 %token LBRACK RBRACK
 %token LBRACE RBRACE
 
-%token PRIVATE PUBLIC
+%token SECRET PUBLIC
 %token RETURN
 %token SEMICOLON
 %token COMMA
@@ -77,8 +77,8 @@ const_type:
 labeled_type:
   | PUBLIC const_type
     { { ty=$2; label=Some Public } }
-  | PRIVATE const_type
-    { { ty=$2; label=Some Private } }
+  | SECRET const_type
+    { { ty=$2; label=Some Secret } }
   | const_type
     { { ty=$1; label=None } }
 

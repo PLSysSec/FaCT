@@ -1,27 +1,27 @@
 
-private int get100() {
-  private int x = 666;
-  private int x2 = 100;
+secret int get100() {
+  secret int x = 666;
+  secret int x2 = 100;
   x = 10;
   return x2;
 }
 
-int identity(private int my_int) {
+int identity(secret int my_int) {
   return my_int;
 }
 
-int mutateArray(private bytearr[5] arr) {
+int mutateArray(secret bytearr[5] arr) {
   arr[4] = 44;
   return arr[4];
 }
 
-int mutateArray2(private bytearr[5] arr2, private int val) {
+int mutateArray2(secret bytearr[5] arr2, secret int val) {
   arr2[4] = val;
   int f = 4;
   return arr2[f];
 }
 
-int simpleIf(private int cond) {
+int simpleIf(secret int cond) {
   if (10 > cond) {
     return 1;
   } else {
@@ -29,8 +29,8 @@ int simpleIf(private int cond) {
   }
 }
 
-int mediumComplexIf(private int cond) {
-  private int complex_ret = 10;
+int mediumComplexIf(secret int cond) {
+  secret int complex_ret = 10;
   if (10 > cond) {
     complex_ret = 1;
   } else {
@@ -39,8 +39,8 @@ int mediumComplexIf(private int cond) {
   return complex_ret;
 }
 
-int mixedIf(private int cond) {
-  private int complex_ret = 10;
+int mixedIf(secret int cond) {
+  secret int complex_ret = 10;
   if (10 == cond) {
     return 1;
   } else {
@@ -49,8 +49,8 @@ int mixedIf(private int cond) {
   return complex_ret;
 }
 
-int mixedIf2(private int cond) {
-  private int complex_ret = 10;
+int mixedIf2(secret int cond) {
+  secret int complex_ret = 10;
   if (10 > cond) {
     complex_ret = 1;
   } else {
@@ -59,7 +59,7 @@ int mixedIf2(private int cond) {
   return complex_ret;
 }
 
-int nestedIf(private int cond) {
+int nestedIf(secret int cond) {
   if (10 > cond) {
     if (5 > cond) {
       return 1;
@@ -77,20 +77,20 @@ int nestedIf(private int cond) {
 
 int simpleLoop() {
   for (i = 0 to 10) {
-    private int a = 666;
+    secret int a = 666;
   }
   return 10000;
 }
 
 int loopAcc() {
-  private int acc = 0;
+  secret int acc = 0;
   for (i = 0 to 5) {
     acc = acc + 1;
   }
   return acc;
 }
 
-int loopAssignArray(private bytearr[5] arr) {
+int loopAssignArray(secret bytearr[5] arr) {
   for (i = 0 to 5) {
     arr[i] = i;
   }
@@ -105,46 +105,46 @@ int add10And20() {
   return add(10, 20);
 }
 
-int addAll(private bytearr[5] bytearr) {
-  private int acc = 0;
+int addAll(secret bytearr[5] bytearr) {
+  secret int acc = 0;
   for (i = 0 to 5) {
     acc = acc + bytearr[i];
   }
   return acc;
 }
 
-int multiply(private int a, private int b) {
+int multiply(secret int a, secret int b) {
   return a * b;
 }
 
-bool equal(private int a, private int b) {
+bool equal(secret int a, secret int b) {
   return a == b;
 }
 
-bool nequal(private int a, private int b) {
+bool nequal(secret int a, secret int b) {
   return a != b;
 }
 
-int lshift(private int num, private int shift) {
+int lshift(secret int num, secret int shift) {
   return num << shift;
 }
 
-int rshift(private int num, private int shift) {
+int rshift(secret int num, secret int shift) {
   return num >> shift;
 }
 
-bool gt(private int a, private int b) {
+bool gt(secret int a, secret int b) {
   return a > b;
 }
 
-bool gte(private int a, private int b) {
+bool gte(secret int a, secret int b) {
   return a >= b;
 }
 
-bool lt(private int a, private int b) {
+bool lt(secret int a, secret int b) {
   return a < b;
 }
 
-bool lte(private int a, private int b) {
+bool lte(secret int a, secret int b) {
   return a <= b;
 }

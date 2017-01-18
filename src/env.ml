@@ -45,12 +45,12 @@ let get_fn_ret_label ~default f =
   try Hashtbl.find fun_ret f with
     | Not_found -> default
 
-(* This defaults all VarEntrys to have a Private label when it is ambiguous.
+(* This defaults all VarEntrys to have a Secret label when it is ambiguous.
    It should be called after type checking a function, before rewriting it. *)
-let default_to_private () =
+let default_to_secret () =
   let update k v =
     match v with
       | VarEntry { v_ty={ ty=t; label=None } } ->
-        ignore(update_label k (Some Private))
+        ignore(update_label k (Some Secret))
       | _ -> () in
   Hashtbl.iter update venv

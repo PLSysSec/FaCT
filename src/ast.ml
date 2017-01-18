@@ -30,7 +30,7 @@ and ctype =
 
 and label =
   | Public
-  | Private
+  | Secret
 
 and labeled_type = { ty:ctype; label:label option }
 [@@deriving show]

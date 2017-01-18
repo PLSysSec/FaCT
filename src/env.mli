@@ -18,4 +18,4 @@ val save_fn_ret_label : Ast.labeled_type -> string -> unit
 val get_fn_ret_label : default:Ast.labeled_type -> string -> Ast.labeled_type
 
 val update_label : string -> Ast.label option -> Ast.labeled_type
-val default_to_private : unit -> unit
+val default_to_secret : unit -> unit
