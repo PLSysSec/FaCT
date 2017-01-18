@@ -36,5 +36,8 @@ endif
 verify: link
 	EXAMPLE=$(FINALBC) make -C $(BINDIR) verify
 
+dis: link
+	llvm-dis-3.5 $(FINALBC)
+
 clean:
 	rm -f *.bpl *.bc
