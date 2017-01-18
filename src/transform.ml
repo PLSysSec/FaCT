@@ -24,20 +24,16 @@ let rec transform = function
     Cast.CModule f
 
 and transform_type = function
-  | Ast.Int -> Cast.Int
-  | Ast.Bool -> Cast.Int
-  | Ast.ByteArr s -> Cast.ByteArr s
+  | { Ast.ty=Ast.Int; Ast.label=_ } -> Cast.Int
+  | { Ast.ty=Ast.Bool; Ast.label=_ } -> Cast.Int
+  | { Ast.ty=(Ast.ByteArr s); Ast.label=_ } -> Cast.ByteArr s
 
-and transform_lt = function
-  | Ast.Public ty -> transform_type ty
-  | Ast.Private ty -> transform_type ty
-
-and transform_arg {Ast.name=n; Ast.ty=t} =
-  {Cast.name=n; Cast.ty=transform_lt(t)}
+and transform_arg {Ast.name=n; Ast.lt=t} =
+  {Cast.name=n; Cast.ty=transform_type(t)}
 
 and transform_stm ctx = function
   | Ast.VarDec(n,ty,v,_) ->
-    let ty' = transform_lt(ty) in
+    let ty' = transform_type(ty) in
     let v' = transform_expr(v) in
     [Cast.VarDec(n,ty',v')]
   | Ast.Assign(n,v,_) ->

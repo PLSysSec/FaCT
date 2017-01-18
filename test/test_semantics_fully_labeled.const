@@ -1,6 +1,5 @@
-// tests migrated from test_semant_driver.ml
 
-int get100() {
+private int get100() {
   private int x = 666;
   private int x2 = 100;
   x = 10;
@@ -18,7 +17,8 @@ int mutateArray(private bytearr[5] arr) {
 
 int mutateArray2(private bytearr[5] arr2, private int val) {
   arr2[4] = val;
-  return arr2[4];
+  int f = 4;
+  return arr2[f];
 }
 
 int simpleIf(private int cond) {
@@ -97,7 +97,7 @@ int loopAssignArray(private bytearr[5] arr) {
   return 10000;
 }
 
-int add(private int a, private int b) {
+int add(public int a, public int b) {
   return a + b;
 }
 

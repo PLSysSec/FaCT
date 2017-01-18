@@ -1,17 +1,16 @@
-
 int meh(private bytearr[10] b) {
-  private int a = 5;
+  public int a = 5;
   private int bb = 1;
   b[a] = bb;
   if(a > 1) {
     private int two = 2;
-    private int zero = 0;
+    public int zero = 0;
     b[zero] = two;
   } else {
     a = 1;
   }
   for(i=0 to 1) {
-    private int i1 = i;
+    public int i1 = i;
     b[i1] = i1;
   }
   return 0x1;
@@ -21,6 +20,15 @@ int get100() {
   return 100;
 }
 
-int call100() {
+private int call100(public int a) {
   return get100();
+}
+
+int func(private int x) {
+  return 1;
+}
+
+private int func2() {
+  public int x =32;
+  return x;
 }

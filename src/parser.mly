@@ -62,7 +62,7 @@ fdeclist:
 ;
 
 fdec:
-  | const_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
+  | labeled_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
     { FunctionDec($2,List.rev($4),$1,$7,(to_pos $startpos)) }
 ;
 
@@ -76,15 +76,17 @@ const_type:
 
 labeled_type:
   | PUBLIC const_type
-    { Public $2 }
+    { { ty=$2; label=Some Public } }
   | PRIVATE const_type
-    { Private $2}
+    { { ty=$2; label=Some Private } }
+  | const_type
+    { { ty=$1; label=None } }
 
 fargs:
   | fargs COMMA labeled_type IDENT
-    { {name=$4; ty=$3; p=(to_pos $startpos)}::$1}
+    { {name=$4; lt=$3; p=(to_pos $startpos)}::$1}
   | labeled_type IDENT
-    { [{name=($2); ty=$1; p=(to_pos $startpos)}] }
+    { [{name=($2); lt=$1; p=(to_pos $startpos)}] }
   | { [] }
 
 expr:

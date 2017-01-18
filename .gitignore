@@ -46,3 +46,4 @@ ast.txt
 test/test
 *.runner.c
 *_runner.c
+test/testbin_sem
