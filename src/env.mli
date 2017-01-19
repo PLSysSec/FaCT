@@ -17,5 +17,7 @@ val venv : env
 val save_fn_ret_label : Ast.labeled_type -> string -> unit
 val get_fn_ret_label : default:Ast.labeled_type -> string -> Ast.labeled_type
 
-val update_label : string -> Ast.label option -> Ast.labeled_type
-val default_to_secret : unit -> unit
+val update_label : string -> env -> Ast.label option -> Ast.labeled_type
+val default_to_secret : env -> unit
+
+val print_env : env -> unit

@@ -24,7 +24,7 @@ let venv =
 
 let fun_ret = Hashtbl.create 10
 
-let update_label name label =
+let update_label name venv label =
   let update_label' = function
     | VarEntry { v_ty={ ty=t; label=l } } ->
       let lt = { ty=t; label=label } in
@@ -47,10 +47,22 @@ let get_fn_ret_label ~default f =
 
 (* This defaults all VarEntrys to have a Secret label when it is ambiguous.
    It should be called after type checking a function, before rewriting it. *)
-let default_to_secret () =
+let default_to_secret venv =
   let update k v =
     match v with
       | VarEntry { v_ty={ ty=t; label=None } } ->
-        ignore(update_label k (Some Secret))
+        ignore(update_label k venv (Some Secret))
       | _ -> () in
   Hashtbl.iter update venv
+
+let print_env env =
+  let print_env' k v =
+    match v with
+      | VarEntry { v_ty={ ty=_; label=None} } ->
+        print_string(k ^ ": None\n")
+      | VarEntry { v_ty={ ty=_; label=Some Public} } ->
+        print_string(k ^ ": Public\n")
+      | VarEntry { v_ty={ ty=_; label=Some Secret} } ->
+        print_string(k ^ ": Secret\n")
+      | _ -> () in
+    Hashtbl.iter print_env' env

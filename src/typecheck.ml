@@ -18,36 +18,6 @@ let unify t t1 p =
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with "
                 ^ ty_to_string(t1) ^ " @ " ^ (pos_string p)))
 
-(* Unifies labeled types when they are equal. This is useful for when a certain
-   label is expected. *)
-let unify_equal_lt ~expected ~actual p =
-  match expected, actual with
-    | { ty=t; label=Some Public }, { ty=t'; label=Some Public } ->
-      { ty=(unify t t' p); label=Some Public }
-    | { ty=t; label=Some Secret }, { ty=t'; label=Some Secret } ->
-      { ty=(unify t t' p); label=Some Secret }
-    | { ty=t; label=None }, { ty=t'; label=Some Public } ->
-      raise (TypeError ("Labels do not match. Expected `None`, but found " ^
-      "`Public` @ " ^ (pos_string p)))
-    | { ty=t; label=None }, { ty=t'; label=Some Secret } ->
-      raise (TypeError ("Labels do not match. Expected `None`, but found " ^
-      "`Secret` @ " ^ (pos_string p)))
-    | { ty=t; label=Some Secret }, { ty=t'; label=Some Public } ->
-      raise (TypeError ("Labels do not match. Expected `Secret`, but found " ^
-      "`Public` @ " ^ (pos_string p)))
-    | { ty=t; label=Some Secret }, { ty=t'; label=None } ->
-      raise (TypeError ("Labels do not match. Expected `Secret`, but found " ^
-      "`None` @ " ^ (pos_string p)))
-    | { ty=t; label=Some Public }, { ty=t'; label=Some Secret } ->
-      raise (TypeError ("Labels do not match. Expected `Public`, but found " ^
-      "`Secret` @ " ^ (pos_string p)))
-    | { ty=t; label=None }, { ty=t'; label=None } ->
-      raise (TypeError ("Labels do not match. Expected `None`, but found " ^
-      "`None` @ " ^ (pos_string p)))
-    | { ty=t; label=Some Public }, { ty=t'; label=None } ->
-      raise (TypeError ("Labels do not match. Expected `Public`, but found " ^
-      "`None` @ " ^ (pos_string p)))
-
 let unify_lt lt lt' p =
   match lt,lt' with
     | { ty=t; label=Some Public }, { ty=t'; label=Some Public } ->
@@ -59,12 +29,13 @@ let unify_lt lt lt' p =
     | { ty=t; label=Some Secret }, { ty=t'; label=Some Secret } ->
       { ty=(unify t t' p); label=Some Secret }
     | { ty=t; label=None }, { ty=t'; label=l } ->
-      { ty=(unify t t' p); label=l }
+      { ty=(unify t t' p); label=None }
     | { ty=t; label=l }, { ty=t'; label=None } ->
-      { ty=(unify t t' p); label=l }
+      { ty=(unify t t' p); label=None }
 
-(* Essentially, the `can_flow_to` operation with the labeled type returned *)
-let unify_lt_lhs_rhs ~ret_label ~expr_label p =
+(* The `can_flow_to` operation that returns the unified label and handles
+   label inference *)
+let unify_flows_to ~ret_label ~expr_label p =
   match ret_label, expr_label with
     | { ty=t; label=Some Public }, { ty=t'; label=Some Public } ->
       { ty=(unify t t' p); label=Some Public }
@@ -90,13 +61,8 @@ let unify_lt_lhs_rhs ~ret_label ~expr_label p =
 let unify_op (rt,arg_ts) ts p =
   let unify_op' t t' =
     match t,t' with
-      | t,{ ty=t'; label=Some Public } ->
-        { ty=(unify t t' p); label=Some Public }
-      | t,{ ty=t'; label=Some Secret } ->
-        { ty=(unify t t' p); label=Some Secret }
-      | t,{ ty=t'; label=None } ->
-        raise (TypeError ("Label inference is not implemented @ " ^
-          (pos_string p))) in
+      | t,{ ty=t'; label=l } ->
+        { ty=(unify t t' p); label=l } in
   ignore(List.map2 (fun t t1 -> unify_op' t t1) arg_ts ts);
   rt
 
@@ -122,15 +88,17 @@ and tc_binop = function
   | LeftShift _ -> (Int, [Int;Int])
   | RightShift _ -> (Int, [Int;Int])
 
-and tc_prim = function
-  | Number n -> { ty=Int; label=Some Public }
-  | ByteArray s -> { ty=(ByteArr (List.length s)); label=Some Public }
-  | Boolean b -> { ty=Bool; label=Some Public }
+and tc_prim lhs_l = function
+  | Number n -> { ty=Int; label=lhs_l }
+  | ByteArray s -> { ty=(ByteArr (List.length s)); label=lhs_l }
+  | Boolean b -> { ty=Bool; label=lhs_l }
 
-and tc_expr venv = function
+and tc_expr venv lhs_lt = function
   | VarExp(v,p) ->
     (try
        match Hashtbl.find venv v with
+       | VarEntry { v_ty={ ty=t; label=None } } ->
+         update_label v venv lhs_lt.label
        | VarEntry { v_ty=ty } -> ty
        | LoopEntry { v_ty=ty } -> ty
        | _ -> raise (VariableNotDefined(v))
@@ -156,13 +124,10 @@ and tc_expr venv = function
             { ty=Int; label=ret_label }
           | LoopEntry { v_ty={ ty=t; label=Some Secret } } ->
             raise (InternalCompilerError ("Loop variables cannot be secret"))
-          | LoopEntry { v_ty={ ty=t; label=None } } ->
-            raise (InternalCompilerError ("Label inference is not yet " ^ 
-                    "implemented @ " ^ (pos_string p)))
           | LoopEntry { v_ty={ ty=t; label=l } } ->
             raise (InternalCompilerError ("Loop variable must be public ints"))
           | VarEntry { v_ty={ ty=t; label=None } } ->
-            ignore(update_label n (Some Public));
+            ignore(update_label n venv (Some Public));
             { ty=Int; label=ret_label }
           | VarEntry { v_ty={ ty=Int; label=Some Public } } ->
             { ty=Int; label=ret_label }
@@ -181,21 +146,16 @@ and tc_expr venv = function
                       "numbers or loop variables @ " ^ (pos_string p))))
   | UnOp(op,expr,p) ->
     let op_ty = tc_unop op in
-    let expr_ty = tc_expr venv expr in
+    let expr_ty = tc_expr venv lhs_lt expr in
     ignore(unify_op op_ty [expr_ty] p);
     expr_ty
   | BinOp(op,expr1,expr2,p) ->
     let (rt,args) as op_ty = tc_binop op in
-    let expr1_ty = tc_expr venv expr1 in
-    let expr2_ty = tc_expr venv expr2 in
+    let expr1_ty = tc_expr venv lhs_lt expr1 in
+    let expr2_ty = tc_expr venv lhs_lt expr2 in
     ignore(unify_op op_ty [expr1_ty;expr2_ty] p);
-    (match unify_lt expr1_ty expr2_ty p with
-      | { ty=t; label=Some Public } -> { ty=rt; label=Some Public }
-      | { ty=t; label=Some Secret } -> { ty=rt; label=Some Secret }
-      | { ty=t; label=None } ->
-        raise (TypeError ("Label inference is not implemented @ " ^ 
-                (pos_string p))))
-  | Primitive(p,_) -> tc_prim p
+    { ty=rt; label=(unify_lt expr1_ty expr2_ty p).label }
+  | Primitive(p,_) -> tc_prim lhs_lt.label p
   | CallExp(name,args,p) ->
     (try
        match Hashtbl.find venv name with
@@ -206,7 +166,7 @@ and tc_expr venv = function
          raise (CallError ("Unable to call loop variable `" ^ name ^ "` @ "
                 ^ (pos_string p)))
        | FunEntry { f_ty=ty; f_args=args' } ->
-         ignore(unify_fn_args args' (List.map (tc_expr venv) args) p);
+         ignore(unify_fn_args args' (List.map (tc_expr venv lhs_lt) args) p);
          ty
      with
        Not_found -> raise (FunctionNotDefined("Function, `" ^ name ^
@@ -215,42 +175,46 @@ and tc_expr venv = function
 
 and tc_stm fn_ty venv f_name = function
   | VarDec(name,lt,expr,p) ->
-    let expr_ty = tc_expr venv expr in
-    let lt = unify_lt_lhs_rhs lt expr_ty p in
-    Hashtbl.add venv name (VarEntry { v_ty=lt })
+    let expr_ty = tc_expr venv lt expr in
+    let lt = unify_flows_to lt expr_ty p in
+    Hashtbl.add venv name (VarEntry { v_ty=lt });
   | Assign(name,expr,p) ->
-    let lt_expr = tc_expr venv expr in
     let v = try Hashtbl.find venv name with
       | Not_found -> raise (VariableNotDefined("Variable, `" ^ name ^
                             "`, not defined @ " ^ (pos_string p))) in
     (match v with
-     | VarEntry { v_ty={ ty=t; label=Some Secret } } ->
-       ignore(unify_lt_lhs_rhs { ty=t; label=Some Secret } lt_expr p);
-     | VarEntry { v_ty={ ty=t; label=Some Public } } ->
-       ignore(unify_lt_lhs_rhs { ty=t; label=Some Public } lt_expr p);
-     | VarEntry { v_ty={ ty=t; label=None } } ->
+     | VarEntry { v_ty={ ty=t; label=Some Secret } as lt } ->
+       let lt_expr = tc_expr venv lt expr in
+       ignore(unify_flows_to lt lt_expr p);
+     | VarEntry { v_ty={ ty=t; label=Some Public } as lt} ->
+       let lt_expr = tc_expr venv lt expr in
+       ignore(unify_flows_to lt lt_expr p);
+     | VarEntry { v_ty={ ty=t; label=None } as lt } ->
+       let lt_expr = tc_expr venv lt expr in
        let { ty=t; label=l } =
-        (unify_lt { ty=t; label=None } lt_expr p) in
-       ignore(update_label name l)
+        (unify_lt lt lt_expr p) in
+       ignore(update_label name venv l)
      | _ -> raise (VariableNotDefined("Variable, `" ^ name ^ "`, not defined @ "
                                       ^ (pos_string p))))
   | ArrAssign(name,index,expr,p) ->
-    let index_ty = tc_expr venv index in
-    let expr_ty = tc_expr venv expr in
     let public_int = { ty=Int; label=Some Public } in
+    let index_ty = tc_expr venv public_int index in
     (try
       (match Hashtbl.find venv name with
-       | VarEntry { v_ty={ ty=(ByteArr x); label=Some Public } } ->
-         ignore(unify_lt_lhs_rhs public_int expr_ty p);
-         ignore(unify_equal_lt public_int index_ty p);
-       | VarEntry { v_ty={ ty=(ByteArr x); label=Some Secret } } ->
+       | VarEntry { v_ty={ ty=(ByteArr x); label=Some Public } as lt } ->
+         let expr_ty = tc_expr venv lt expr in
+         ignore(unify_flows_to public_int expr_ty p);
+         ignore(unify_flows_to public_int index_ty p);
+       | VarEntry { v_ty={ ty=(ByteArr x); label=Some Secret } as lt } ->
          let private_int = { ty=Int; label=Some Secret } in
-         ignore(unify_lt_lhs_rhs private_int expr_ty p);
-         ignore(unify_equal_lt public_int index_ty p);
-       | VarEntry { v_ty={ ty=(ByteArr x); label=None } } ->
+         let expr_ty = tc_expr venv lt expr in
+         ignore(unify_flows_to private_int expr_ty p);
+         ignore(unify_flows_to public_int index_ty p);
+       | VarEntry { v_ty={ ty=(ByteArr x); label=None } as lt } ->
+         let expr_ty = tc_expr venv lt expr in
          let { ty=t; label=l } =
-          unify_lt_lhs_rhs { ty=(ByteArr x); label=None } expr_ty p in
-         ignore(update_label name l)
+          unify_flows_to { ty=(ByteArr x); label=None } expr_ty p in
+         ignore(update_label name venv l)
        | _ -> raise (VariableNotDefined("Variable, `" ^ name ^ 
                      "`, not defined @ " ^ (pos_string p))))
     with
@@ -266,14 +230,16 @@ and tc_stm fn_ty venv f_name = function
        bytearr[0] = Secret 1 -- right now we have to declare 1, but this
        seems like a nicer syntax
     *)
-    ignore(unify_lt (tc_expr venv cond) { ty=Bool; label=Some Public } p);
+    let none_bool = { ty=Bool; label=None } in
+    let cond_lt = tc_expr venv none_bool cond in
+    ignore(unify Bool cond_lt.ty p);
     ignore(tc_stms fn_ty venv then' f_name);
     ignore(tc_stms fn_ty venv else' f_name);
   | For(name,l,h,body,p) ->
     (* TODO: Same as if statements *)
     let public_int = { ty=Int; label=Some Public } in
-    ignore(unify_lt (tc_expr venv (Primitive(l,None))) public_int p);
-    ignore(unify_lt (tc_expr venv (Primitive(h,None))) public_int p);
+    ignore(unify_lt (tc_expr venv public_int (Primitive(l,None))) public_int p);
+    ignore(unify_lt (tc_expr venv public_int (Primitive(h,None))) public_int p);
     (match (l,h) with
      | (Number l', Number h') ->
        if l' >= h' then raise
@@ -285,13 +251,13 @@ and tc_stm fn_ty venv f_name = function
     let _ = Hashtbl.add venv name (LoopEntry { v_ty=public_int }) in
     tc_stms fn_ty venv body f_name
   | Return(expr,p) ->
-    let exp_label = tc_expr venv expr in
+    let exp_label = tc_expr venv fn_ty expr in
     let fn_ty' = (match fn_ty with
       | { ty=_; label=None } ->
         save_fn_ret_label exp_label f_name;
         exp_label
       | _ -> fn_ty) in
-    ignore(unify_lt_lhs_rhs fn_ty' (tc_expr venv expr) p)
+    ignore(unify_flows_to fn_ty' exp_label p)
 
 and tc_stms fn_ty venv stms f_name =
   ignore(List.map (tc_stm fn_ty venv f_name) stms)
@@ -318,7 +284,7 @@ and tc_fdec venv = function
     let _ = tc_stms ty venv' body name in
     let lt = get_fn_ret_label ~default:ty name in
     Hashtbl.add venv name (FunEntry { f_ty=lt; f_args=args_ty });
-    default_to_secret ()
+    default_to_secret venv'
 
 and tc_module (CModule l) =
   List.fold_left (fun a f -> ignore(tc_fdec Env.venv f)) () l
