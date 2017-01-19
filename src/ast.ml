@@ -19,7 +19,7 @@ let pos_string { file=f; line=l; lpos=lp; rpos=rp } =
 type constantc_module = CModule of fdec list
 [@@deriving show]
 
-and fdec = FunctionDec of string * param list * ctype * stm list * pos
+and fdec = FunctionDec of string * param list * labeled_type * stm list * pos
 [@@deriving show]
 
 and ctype =
@@ -28,12 +28,14 @@ and ctype =
   | ByteArr of int
 [@@deriving show]
 
-and labeled_type =
-  | Public of ctype
-  | Private of ctype
+and label =
+  | Public
+  | Secret
+
+and labeled_type = { ty:ctype; label:label option }
 [@@deriving show]
 
-and param = { name: string; ty: labeled_type; p:pos }
+and param = { name:string; lt:labeled_type; p:pos }
 [@@deriving show]
 
 and stm =

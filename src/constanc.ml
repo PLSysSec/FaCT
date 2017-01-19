@@ -39,6 +39,7 @@ let runner prep llvm_out ast_out core_ir_out =
     | (Typecheck.FunctionNotDefined s) -> error_exit s
     | (Typecheck.TypeError s) -> error_exit s
     | (Codegen.Error s) -> error_exit s
+    | (Typecheck.VariableNotDefined s) -> error_exit s
 
 let compile_command =
   Command.basic

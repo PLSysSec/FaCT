@@ -41,7 +41,7 @@ let keywords = [
   ("to",TO);
   ("return",RETURN);
   ("public",PUBLIC);
-  ("private",PRIVATE)
+  ("secret",SECRET)
 ]
 let _ = List.map add_keyword keywords
 }
