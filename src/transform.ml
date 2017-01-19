@@ -98,6 +98,8 @@ and transform_primitive = function
   | Ast.ByteArray s -> Cast.ByteArray s
 
 and transform_unop = function
+  | Ast.Neg _ -> Cast.Neg
+  | Ast.L_Not _ -> Cast.BitNot
   | Ast.B_Not _ -> Cast.BitNot
 
 and transform_binop = function
@@ -110,10 +112,13 @@ and transform_binop = function
   | Ast.LTE _ -> Cast.LTE
   | Ast.Equal _ -> Cast.Eq
   | Ast.NEqual _ -> Cast.Neq
+  | Ast.L_And _ -> Cast.BitAnd
+  | Ast.L_Or _ -> Cast.BitOr
   | Ast.LeftShift _ -> Cast.LeftShift
   | Ast.RightShift _ -> Cast.RightShift
   | Ast.B_And _ -> Cast.BitAnd
   | Ast.B_Or _ -> Cast.BitOr
+  | Ast.B_Xor _ -> Cast.BitXor
 
 and transform_fdec = function
   | Ast.FunctionDec(name,args,rt,body,_) ->

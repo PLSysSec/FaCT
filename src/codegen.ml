@@ -59,11 +59,11 @@ let codegen ctx m =
     | ByteArray l ->
       let arr = Array.of_list l in
       let arr' = Array.map (const_int (i32_type ctx)) arr in
-      let arr_type = array_type (i32_type ctx) (List.length l) in
-      const_array arr_type arr'
+      const_array (i32_type ctx) arr'
 
   and codegen_unop op e =
     match op with
+      | Neg -> build_neg (codegen_expr e) "negtmp" b
       | BitNot -> build_not (codegen_expr e) "nottmp" b
 
   and codegen_binop op e e' =
@@ -87,6 +87,7 @@ let codegen ctx m =
         build_sext cmp (i32_type ctx) "ltecmp" b
       | BitAnd -> build_and lhs rhs "andtmp" b
       | BitOr -> build_or lhs rhs "ortmp" b
+      | BitXor -> build_xor lhs rhs "xortmp" b
       | Mult -> build_mul lhs rhs "multtmp" b
       | Eq ->
         let cmp = build_icmp Icmp.Eq lhs rhs "eq" b in
@@ -192,7 +193,7 @@ let codegen ctx m =
          let vec = codegen_expr e in
          let alloca' = build_alloca arr_type n b in
          ignore(build_store vec alloca' b);
-         Hashtbl.add named_values n (Ref alloca');
+         Hashtbl.add named_values n (Ref alloca')
       | Int ->
         let init_val = codegen_expr e in
         let alloca = build_alloca (i32_type ctx) n b in

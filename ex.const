@@ -17,7 +17,8 @@ int meh(secret bytearr[10] b) {
 }
 
 int get100() {
-  return 100;
+  bytearr[1] derp = [100];
+  return derp[0];
 }
 
 secret int call100(public int a) {

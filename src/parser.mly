@@ -21,8 +21,11 @@ let parse_error s = (* Called by the parser function on error *)
 %token <bool> BOOL
 %token PLUS MINUS TIMES
 %token EQUAL NEQUAL GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
-%token BITOR BITAND LEFTSHIFT RIGHTSHIFT BITNOT
+%token LOGNOT LOGAND LOGOR
+%token BITOR BITXOR BITAND LEFTSHIFT RIGHTSHIFT BITNOT
 %token ASSIGN
+%token PLUSEQ MINUSEQ TIMESEQ
+%token BITOREQ BITXOREQ BITANDEQ LEFTSHIFTEQ RIGHTSHIFTEQ
 %token LPAREN RPAREN
 
 %token IF ELSE
@@ -38,10 +41,19 @@ let parse_error s = (* Called by the parser function on error *)
 
 %token EOF
 
-%left EQUAL NEQUAL GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
+(* precedence based on C operator precedence
+ * http://en.cppreference.com/w/c/language/operator_precedence *)
+%left LOGOR
+%left LOGAND
+%left BITOR
+%left BITXOR
+%left BITAND
+%left EQUAL NEQUAL
+%left GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
+%left LEFTSHIFT RIGHTSHIFT
 %left PLUS MINUS
 %left TIMES
-%left BITOR BITAND LEFTSHIFT RIGHTSHIFT BITNOT
+%left LOGNOT BITNOT UMINUS
 
 %nonassoc INT
 %nonassoc RBRACK
@@ -114,6 +126,9 @@ stmlist:
     { (VarDec($2,$1,$4,(to_pos $startpos)))::$6 }
   | IDENT ASSIGN expr SEMICOLON stmlist
     { (Assign($1,$3,(to_pos $startpos)))::$5 }
+  | IDENT binopeq expr SEMICOLON stmlist
+    { let p = (to_pos $startpos) in
+      (Assign($1,BinOp($2,VarExp($1,p),$3,p),(to_pos $startpos)))::$5 }
   | IF LPAREN expr RPAREN LBRACE stmlist RBRACE ELSE LBRACE stmlist RBRACE stmlist
     { (If($3,$6,$10,(to_pos $startpos)))::$12 }
   | FOR LPAREN IDENT ASSIGN primitive_not_expr TO primitive_not_expr RPAREN LBRACE stmlist RBRACE stmlist
@@ -121,6 +136,16 @@ stmlist:
   | RETURN expr SEMICOLON stmlist
     { (Return($2,(to_pos $startpos))::$4) }
   | { [] }
+
+list_elements:
+  | INT
+    { [$1] }
+  | INT COMMA list_elements
+    { $1::$3 }
+
+bytearr_list:
+  | LBRACK list_elements RBRACK
+    { Primitive(ByteArray $2, Some(to_pos $startpos)) }
 
 binopexpr:
   | PLUS expr
@@ -141,8 +166,14 @@ binopexpr:
     { (LT(to_pos $startpos),$2) }
   | LESSTHANEQ expr
     { (LTE(to_pos $startpos),$2) }
+  | LOGAND expr
+    { (L_And(to_pos $startpos),$2) }
+  | LOGOR expr
+    { (L_Or(to_pos $startpos),$2) }
   | BITOR expr
     { (B_Or(to_pos $startpos),$2) }
+  | BITXOR expr
+    { (B_Xor(to_pos $startpos),$2) }
   | BITAND expr
     { (B_And(to_pos $startpos),$2) }
   | LEFTSHIFT expr
@@ -151,7 +182,22 @@ binopexpr:
     { (RightShift(to_pos $startpos),$2) }
 ;
 
+binopeq:
+  | PLUSEQ { Plus(to_pos $startpos) }
+  | MINUSEQ { Minus(to_pos $startpos) }
+  | TIMESEQ { Multiply(to_pos $startpos) }
+  | BITOREQ { B_Or(to_pos $startpos) }
+  | BITXOREQ { B_Xor(to_pos $startpos) }
+  | BITANDEQ { B_And(to_pos $startpos) }
+  | LEFTSHIFTEQ { LeftShift(to_pos $startpos) }
+  | RIGHTSHIFTEQ { RightShift(to_pos $startpos) }
+;
+
 unopexpr:
+  | MINUS expr %prec UMINUS
+    { UnOp((Neg (to_pos $startpos)),$2,(to_pos $startpos)) }
+  | LOGNOT expr
+    { UnOp((L_Not (to_pos $startpos)),$2,(to_pos $startpos)) }
   | BITNOT expr
     { UnOp((B_Not (to_pos $startpos)),$2,(to_pos $startpos)) }
 ;
