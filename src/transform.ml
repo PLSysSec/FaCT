@@ -24,26 +24,26 @@ let rec transform = function
     Cast.CModule f
 
 and transform_type = function
-  | Ast.Int -> Cast.Int
-  | Ast.Bool -> Cast.Int
-  | Ast.ByteArr s -> Cast.ByteArr s
+  | { Ast.ty=Ast.Int; Ast.label=_ } -> Cast.Int
+  | { Ast.ty=Ast.Bool; Ast.label=_ } -> Cast.Int
+  | { Ast.ty=(Ast.ByteArr s); Ast.label=_ } -> Cast.ByteArr s
 
-and transform_arg {Ast.name=n; Ast.ty=t} =
+and transform_arg {Ast.name=n; Ast.lt=t} =
   {Cast.name=n; Cast.ty=transform_type(t)}
 
 and transform_stm ctx = function
-  | Ast.VarDec(n,ty,v) ->
+  | Ast.VarDec(n,ty,v,_) ->
     let ty' = transform_type(ty) in
     let v' = transform_expr(v) in
     [Cast.VarDec(n,ty',v')]
-  | Ast.Assign(n,v) ->
+  | Ast.Assign(n,v,_) ->
     let c = ctx_expr ctx in
     let v' = transform_expr(v) in
     let assign_ok = b_and c (b_not (Cast.VarExp "rset")) in
     let newval = b_and v' assign_ok in
     let oldval = b_and (Cast.VarExp n) (b_not assign_ok) in
     [Cast.Assign(n,(b_or newval oldval))]
-  | Ast.ArrAssign(n,i,v) ->
+  | Ast.ArrAssign(n,i,v,_) ->
     let c = ctx_expr ctx in
     let v' = transform_expr(v) in
     let assign_ok = b_and c (b_not (Cast.VarExp "rset")) in
@@ -51,7 +51,7 @@ and transform_stm ctx = function
     let i' = transform_expr i in
     let oldval = b_and (Cast.ArrExp(n,i')) (b_not assign_ok) in
     [Cast.ArrAssign(n,i',(b_or newval oldval))]
-  | Ast.If(e,bt,bf) ->
+  | Ast.If(e,bt,bf,_) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
     let tname = new_temp_var() in
@@ -63,12 +63,12 @@ and transform_stm ctx = function
     let mdec = Cast.VarDec(tname,Cast.Int,b_and e' c) in
     let mnot = Cast.Assign(tname,b_not m) in
     [mdec] @ bt' @ [mnot] @ bf'
-  | Ast.For(n,l,h,b) ->
+  | Ast.For(n,l,h,b,_) ->
     let l' = transform_primitive l in
     let h' = transform_primitive h in
     let b' = List.flatten(List.map (transform_stm ctx) b) in
     [Cast.For(n,l',h',b')]
-  | Ast.Return e ->
+  | Ast.Return(e,_) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
     let rval = Cast.VarExp "rval" in
@@ -78,16 +78,16 @@ and transform_stm ctx = function
     [Cast.Assign("rval",(b_or rval newval)); Cast.Assign("rset",(b_or rset c))]
 
 and transform_expr = function
-  | Ast.VarExp s -> Cast.VarExp s
-  | Ast.ArrExp(s,i) -> Cast.ArrExp(s,transform_expr i)
-  | Ast.Unop(u,e) -> Cast.UnOp(transform_unop(u),transform_expr(e))
-  | Ast.BinOp(b,e1,e2) ->
+  | Ast.VarExp(s,_) -> Cast.VarExp s
+  | Ast.ArrExp(s,i,_) -> Cast.ArrExp(s,transform_expr i)
+  | Ast.UnOp(u,e,_) -> Cast.UnOp(transform_unop(u),transform_expr(e))
+  | Ast.BinOp(b,e1,e2,_) ->
     let b' = transform_binop b in
     let e1' = transform_expr e1 in
     let e2' = transform_expr e2 in
     Cast.BinOp(b',e1',e2')
-  | Ast.Primitive p -> Cast.Primitive(transform_primitive p)
-  | Ast.CallExp(n,args) ->
+  | Ast.Primitive(p,_) -> Cast.Primitive(transform_primitive p)
+  | Ast.CallExp(n,args,_) ->
     let args' = List.map transform_expr args in
     Cast.CallExp(n,args')
 
@@ -98,25 +98,30 @@ and transform_primitive = function
   | Ast.ByteArray s -> Cast.ByteArray s
 
 and transform_unop = function
-  | Ast.B_Not -> Cast.BitNot
+  | Ast.Neg _ -> Cast.Neg
+  | Ast.L_Not _ -> Cast.BitNot
+  | Ast.B_Not _ -> Cast.BitNot
 
 and transform_binop = function
-  | Ast.Plus -> Cast.Plus
-  | Ast.Minus -> Cast.Minus
-  | Ast.Multiply -> Cast.Mult
-  | Ast.GT -> Cast.GT
-  | Ast.GTE -> Cast.GTE
-  | Ast.LT -> Cast.LT
-  | Ast.LTE -> Cast.LTE
-  | Ast.Equal -> Cast.Eq
-  | Ast.NEqual -> Cast.Neq
-  | Ast.LeftShift -> Cast.LeftShift
-  | Ast.RightShift -> Cast.RightShift
-  | Ast.B_And -> Cast.BitAnd
-  | Ast.B_Or -> Cast.BitOr
+  | Ast.Plus _ -> Cast.Plus
+  | Ast.Minus _ -> Cast.Minus
+  | Ast.Multiply _ -> Cast.Mult
+  | Ast.GT _ -> Cast.GT
+  | Ast.GTE _ -> Cast.GTE
+  | Ast.LT _ -> Cast.LT
+  | Ast.LTE _ -> Cast.LTE
+  | Ast.Equal _ -> Cast.Eq
+  | Ast.NEqual _ -> Cast.Neq
+  | Ast.L_And _ -> Cast.BitAnd
+  | Ast.L_Or _ -> Cast.BitOr
+  | Ast.LeftShift _ -> Cast.LeftShift
+  | Ast.RightShift _ -> Cast.RightShift
+  | Ast.B_And _ -> Cast.BitAnd
+  | Ast.B_Or _ -> Cast.BitOr
+  | Ast.B_Xor _ -> Cast.BitXor
 
 and transform_fdec = function
-  | Ast.FunctionDec(name,args,rt,body) ->
+  | Ast.FunctionDec(name,args,rt,body,_) ->
     let args' = List.map transform_arg args in
     let rt' = transform_type(rt) in
     let ctx = Context(Cast.Primitive(Cast.Number (-1))) in

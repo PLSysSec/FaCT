@@ -1,8 +1,9 @@
-(** Compile a constantc program. *)
-val compile : Ast.constantc_module -> unit
 
-(* Commands in the compilation process *)
-val compile' : Ast.constantc_module -> unit
+exception SyntaxError of string
+
+(** Compile a constantc program. *)
+val compile : (string * string * string) -> bool -> bool -> bool -> unit
+
 val run : unit -> unit
 val link : unit -> unit
 val assemble : unit -> unit

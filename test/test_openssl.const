@@ -1,0 +1,31 @@
+// from OpenSSL
+
+int ssl3_cbc_remove_padding(private bytearr[1024] data, private bytearr[1024] input, private int block_size, private int mac_size, private bytearr[2] lengthtype_array) {
+  private int padding_length = 4;
+  private int overhead = mac_size + 1;
+  private int dummy = 0;
+
+  if (overhead > lengthtype_array[0]) {
+    return 0;
+  } else {
+    dummy = 0;
+  }
+
+  if (lengthtype_array[0] < padding_length + overhead) {
+    return -1;
+  } else {
+    dummy = 0;
+  }
+
+  if (block_size < padding_length + 1) {
+    return -1;
+  } else {
+    dummy = 0;
+  }
+
+  padding_length = padding_length + 1;
+  lengthtype_array[0] = lengthtype_array[0] - padding_length;
+  lengthtype_array[1] = lengthtype_array[0] | (padding_length << 8);
+
+  return 1;
+}

@@ -15,11 +15,13 @@ and binop =
   | Neq
   | BitAnd
   | BitOr
+  | BitXor
   | LeftShift
   | RightShift
 [@@deriving show]
 
 and unop =
+  | Neg
   | BitNot
 [@@deriving show]
 
