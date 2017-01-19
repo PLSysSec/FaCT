@@ -61,8 +61,7 @@ let unify_flows_to ~ret_label ~expr_label p =
 let unify_op (rt,arg_ts) ts p =
   let unify_op' t t' =
     match t,t' with
-      | t,{ ty=t'; label=l } ->
-        { ty=(unify t t' p); label=l } in
+      | t,{ ty=t'; label=l } -> (unify t t' p) in
   ignore(List.map2 (fun t t1 -> unify_op' t t1) arg_ts ts);
   rt
 
