@@ -1,13 +1,11 @@
 \section{Compiler}
 \label{sec:implementation}
 
-We implemented a compiler for the \constc language in OCaml, targeting LLVM bytecode. As syntax design is largely unimportant, we left the lexer and parser for future work. This allowed for fast iteration on the AST with minimal code changes. There are four main parts of the \constc compiler: the \textit{driver}, \textit{type system}, \textit{transformer}, and \textit{IR generator}.
-
-\para{Driver.} The driver controls the compilation process and is the interface between the developer and the compiler. It is a standard compiler driver, so we will omit all other details about it.
+We implemented a compiler for the \constc language in OCaml, targeting LLVM bytecode. As syntax design is largely unimportant, we left the lexer and parser for future work. This allowed for fast iteration on the AST with minimal code changes. There are three major parts to the \constc compiler: \textit{type system}, \textit{transformer}, and \textit{IR generator}.
 
 \para{Type System.} Although \constc is a statically typed language, the type system is rather primitive: the only types are booleans, ints, and \bytearrays. We guarantee type safety by type checking the \constc AST. Types are checked again during IR generation, as LLVM IR is also typed. At the moment, we do not have support for structs or other record types; we leave this for future work.
 
-\constc supports a \textit{for} loop, but ensures that it runs a constant number of cycles. Furthermore, \constc only allows \bytearrays to be indexed by constants or loop indices. The type checker ensures this property, guaranteeing that array accesses do not depend on secret values. The type checker also prevents out-of-bounds errors by checking the index against the \bytearray size, which can be done at compile time.
+\constc supports a \textit{for} loop, but ensures that it runs a constant number of cycles. Furthermore, \constc only allows \bytearrays to be indexed by constants or loop indices. The type checker ensures this property, guaranteeing that array accesses do not depend on runtime values. The type checker also prevents out-of-bounds errors by checking the index against the \bytearray size, which can be done at compile time.
 
 \para{Transformer.} The transformer converts the \constc AST to \ccore following the rules formally defined in \Cref{sec:coretransform}. Since \ccore is built using known constant-time primitives, we can generate our LLVM IR using this language, ensuring our output runs in constant time.
 
