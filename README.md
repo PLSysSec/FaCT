@@ -30,7 +30,7 @@ We also need dependency management for Ocaml.
 
 Then we need the actual dependencies for Ocaml.
 
-1. ```opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir```
+1. ```opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir oasis```
 
 If you have not setup oasis, then you must do that first.
 
