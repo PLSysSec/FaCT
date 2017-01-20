@@ -32,11 +32,11 @@ Then we need the actual dependencies for Ocaml.
 
 1. ```opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir```
 
-If you have not setup oasis, then you must do that First
+If you have not setup oasis, then you must do that first.
 
 1. ```oasis setup```
 
-Then we must configure oasis
+Then we must configure oasis.
 
 1. ```make configure```
 
