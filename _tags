@@ -1,0 +1,34 @@
+# OASIS_START
+# DO NOT EDIT (digest: 752a48f3dd9b306ad841beb8a33a257b)
+# Ignore VCS directories, you can use the same kind of rule outside
+# OASIS_START/STOP if you want to exclude directories that contains
+# useless stuff for the build process
+true: annot, bin_annot
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Executable constanc
+"src/constanc.byte": pkg_core
+"src/constanc.byte": pkg_dolog
+"src/constanc.byte": pkg_llvm
+"src/constanc.byte": pkg_oUnit
+"src/constanc.byte": pkg_ppx_deriving.std
+"src/constanc.byte": pkg_threads
+<src/*.ml{,i,y}>: pkg_core
+<src/*.ml{,i,y}>: pkg_dolog
+<src/*.ml{,i,y}>: pkg_llvm
+<src/*.ml{,i,y}>: pkg_oUnit
+<src/*.ml{,i,y}>: pkg_ppx_deriving.std
+<src/*.ml{,i,y}>: pkg_threads
+# OASIS_STOP
+
+true: use_menhir, bin_annot, debug
+
+<*.{byte,native}>: g++, use_llvm, use_llvm_analysis, use_llvm_bitwriter, use_llvm_target, use_llvm_X86, use_llvm_bitreader

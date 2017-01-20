@@ -1,0 +1,13 @@
+OASISFormat: 0.4
+Name:        Constanc
+Version:     0.1
+Synopsis:    Compiler for the Constanc programming language
+Authors:     Gary Soeller
+License:     MIT
+Plugins:     META (0.4), DevFiles (0.4)
+BuildDepends: llvm, core, oUnit, dolog, threads, ppx_deriving.std
+
+Executable constanc
+  Path:       src
+  BuildTools: ocamlbuild
+  MainIs:     constanc.ml
