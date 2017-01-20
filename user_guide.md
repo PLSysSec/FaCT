@@ -5,14 +5,11 @@
     1. [Number](#number)
     2. [Boolean](#boolean)
     3. [Byte Array](#byte-array)
-2. [Labels](#labels)
-    1. [Public](#public)
-    2. [Secret](#secret)
-    3. [Ambiguous](#ambiguous)
-3. [Functions](#functions)
+2. [Functions](#functions)
     1. [Return Value](#return-value)
     2. [Arguments](#arguments)
     3. [Function Calls](#function-calls)
+3. [Labels](#labels)
 4. [Operations](#operations)
     1. [Binary Operations](#binary-operations)
     2. [Unary Operations](#unary-operations)
@@ -78,43 +75,7 @@ Example Set:
 br[0] = 100;
 ```
 
-Please note, byte array values can only be accessed using a public value.
-
-## Labels
-
-Labels are used to describe the sensitivity/secrecy of data. When writing constant time code, the developer must decide what values are secret and which are public. If a developer understands the domain, this should probably be obvious. It is important that values are labeled correctly. Since the compiler will optimize the code based on the labels, timing attacks can arise if a secret value is labeled as public.
-
-Labels are not necessary, but they will be inferred if left unspecified.
-
-Labels are also used to form a mini information flow control system. The typechecker will unify labels when performing operations and check to see if it can flow into a value/space. This ```canFlowTo``` check occurs when assigning a value to a variable or returning from a function.
-
-The rules of unification are as follows. When two labels are unified, they are unified to the highest secrecy level. The highest secrecy is ```Secret``` followed by ```Public``` followed by ```Ambiguous```. Furthermore, when an ambiguous label flows to a higher label, it is updated to that label.
-
-
-Examples:
-```C
-secret int add5(secret int num) {
-  return num + 5;
-}
-
-secret int add(secret int a, public int b) {
-  return a + b;
-}
-
-```
-
-### Public
-
-The first of the two labels is ```Public```. This is used to describe a value that can be leaked by the program. Do not use this for secret or sensitive data. A benefit of public labels is that the compiler will optimize around public values.
-
-### Secret
-
-The second label is ```Secret```. This is used to describe a value that should not be leaked.
-
-
-### Ambiguous
-
-The final label is ambiguous. This simply means that it is neither public nor secret. It is used when the label is not explicit and the inference algorithm is unable to constrain it to public or secret. After typechecking, if a label is ambiguous, it is automatically set to secret.
+Please note, byte array values can only be accessed using a public value. We will go over public and secret labels later in the guide.
 
 ## Functions
 
@@ -162,6 +123,37 @@ Constanc uses C-style function calls.
 Example:
 ```C
 int a = add5(0);
+```
+
+## Labels
+
+Labels are used to describe the sensitivity/secrecy of data. There are two types of labels: secret and public. All functions and values have an associated label, although it is not required to specify it. Since it is not required, constanc uses a label inference algorithm to fill in the blanks. An ambiguous label is one which is unspecified and has not yet been assigned secret or public.
+
+The typechecker will update all ambiguous labels to be either public or secret. If the typechecker is unable to assign a value a label at the end of typechecking, the label is updated to secret. Also, function argument labels are never inferred. If left ambiguous, they are immediately updated to secret.
+
+
+Examples:
+```C
+secret int add5(secret int num) {
+  return num + 5;
+}
+
+secret int add(secret int a, public int b) {
+  return a + b;
+}
+
+// Note the label of secretValue is `secret`.
+// Therefore, the label of the function is inferred to be `secret` (because a 
+// secret value is flowing into an ambiguous value)
+int add2(int secretValue) {
+  return secretValue + 2;
+}
+```
+
+```C
+int a = 1; // ambiguous label
+public int b = 1; // public label
+secret int c = 1; // secret label
 ```
 
 ## Operations
@@ -256,14 +248,20 @@ Constanc code is designed to be called from C code. This example shows how to do
 #include <stdlib.h>
 #include <stdio.h>
 
-int mutateArray(int*);
+int mutateArray(int*,int);
+
+int printArray(int* myArr) {
+  for(int i=0; i < 5; i++) {
+    printf("%d: %d\n", i, myArr[i]);
+  }
+}
 
 int main() {
   int myArray[5] = {1,2,3,4,5};
-  mutateArray(myArray);
-  for(int i=0; i < 5; i++) {
-    printf("%d: %d\n", i, myArray[i]);
-  }
+  mutateArray(myArray, 0);
+  printArray(myArray);
+  mutateArray(myArray, 1);
+  printArray(myArray);
   return 1;
 }
 ```
@@ -275,9 +273,13 @@ int add5(int num) {
   return num + 5;
 }
 
-int mutateArray(secret bytearr[5] arr) {
-  for(i=0 to 5) {
-    arr[i] = add5(arr[i]);
+int mutateArray(secret bytearr[5] arr, bool mutate) {
+  if(mutate) {
+    for(i=0 to 5) {
+      arr[i] = add5(arr[i]);
+    }
+  } else {
+    return 1;
   }
   return 1;
 }
