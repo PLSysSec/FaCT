@@ -23,7 +23,7 @@ On OS X it can be done with brew.
 
 ```
 brew install ocaml
- brew install llvm38
+brew install llvm38
 ```
 
 We also need dependency management for Ocaml.
