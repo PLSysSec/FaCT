@@ -16,9 +16,10 @@
 4. [Operations](#operations)
     1. [Binary Operations](#binary-operations)
     2. [Unary Operations](#unary-operations)
+    3. [Assignment Operations](#assignment-operations)
 5. [If-Statement](#if-statement)
 6. [Loops](#loops)
-
+7. [Full Working Example](#full-working-example)
 
 ## Types
 
@@ -87,16 +88,16 @@ Labels are not necessary, but they will be inferred if left unspecified.
 
 Labels are also used to form a mini information flow control system. The typechecker will unify labels when performing operations and check to see if it can flow into a value/space. This ```canFlowTo``` check occurs when assigning a value to a variable or returning from a function.
 
-The rules of unification are as follows. When two labels are unified, they are unified to the highest secrecy level. The highest secrecy is ```Secret``` followed by ```Public``` followed by ```Ambiguous```. Furthermore, when an ambiguous label is unified with a higher label, it is updated to that label.
+The rules of unification are as follows. When two labels are unified, they are unified to the highest secrecy level. The highest secrecy is ```Secret``` followed by ```Public``` followed by ```Ambiguous```. Furthermore, when an ambiguous label flows to a higher label, it is updated to that label.
 
 
 Examples:
 ```C
-private int add5(private int num) {
+secret int add5(secret int num) {
   return num + 5;
 }
 
-private int add(private int a, public int b) {
+secret int add(secret int a, public int b) {
   return a + b;
 }
 
@@ -193,10 +194,36 @@ All unary operations have prefix syntax. The complete list of operations is belo
 | Operation                | Operator |
 |--------------------------|----------|
 | Bitwise Not              | ~        |
+| Logiacal Not             | !        |
+| Negation                 | -        |
+
+
+### Assignment Operations
+
+Many assignment operations are supported. The complete list is below
+
+| Operation                | Operator |
+|--------------------------|----------|
+| Bitwise AND              | &=       |
+| Bitwise XOR              | ^=       |
+| Bitwise OR               | \|=      |
+| Leftshift                | <<=      |
+| Rightshift               | >>=      |
+| Addition                 | +=       |
+| Subtraction              | -=       |
+| Multiplication           | *=       |
+
+An example usage is below.
+
+```C
+int a = 1;
+a += 1;
+```
+
 
 ## if-statement
 
-If-then-else statements are supported. Right now, simple if-statements or else if-statements are not. As a heads up, all instructions in an if-then-else statement are executed, regardless of the condition. This gives if-then-else statements the constant-time property. Even though all instructions are executed, the semantics are the same as a traditional if-then-else statement, where it appears only one branch was executed.
+If-then-else statements are supported. Unfortunately, no other variations of the if-statement is(ex. else-if). An example is below.
 
 Example:
 ```C
@@ -218,3 +245,48 @@ for(i=0 to 10) {
   br[i] = 0;
 }
 ```
+
+## Full Working Example
+
+Constanc code is designed to be called from C code. This example shows how to do this using gcc, but it can also be done using clang.
+
+```C
+// main.c
+
+#include <stdlib.h>
+#include <stdio.h>
+
+int mutateArray(int*);
+
+int main() {
+  int myArray[5] = {1,2,3,4,5};
+  mutateArray(myArray);
+  for(int i=0; i < 5; i++) {
+    printf("%d: %d\n", i, myArray[i]);
+  }
+  return 1;
+}
+```
+
+```C
+// mutate.const
+
+int add5(int num) {
+  return num + 5;
+}
+
+int mutateArray(secret bytearr[5] arr) {
+  for(i=0 to 5) {
+    arr[i] = add5(arr[i]);
+  }
+  return 1;
+}
+
+```
+
+The code above can be compiled and run with the following commands.
+
+1. ```constanc mutate.const```
+2. ```gcc -c main.c```
+3. ```gcc -o final main.o mutate.o```
+4. ```./final```
