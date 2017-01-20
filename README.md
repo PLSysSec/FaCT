@@ -50,20 +50,18 @@ This will give us the ```constanc.byte``` executable.
 
 ## Link to a C library
 
-Constantc is designed to be called from C code. In order to do so, write your constanc functions and compile them. This will output an object file. This can then be linked to a C file. A full working example is in the `example` directory. 
-
-First, we must compile ```main.c```. Using gcc, the command is
+Constantc is designed to be called from C code. In order to do so, write your constanc functions and compile them. This will output an object file. This can then be linked to a C file. A full working example is in the `example` directory. First, we must compile ```main.c``` in the `example` directory:
 
  ```clang -c main.c```
 
-Then we compile ```ex.const``` using constanc. This requires clang to use version >3.8. The command to compile is
+Then we compile ```ex.const``` using constanc. This requires clang to use version ≥3.8:
 
  ```./constanc ex.const```
 
-Next, we link them together. Using gcc, the command is
+Next, we link them together:
 
  ```clang -o final main.o ex.o```
 
-Finall, we can run the executable with
+Finally, we can run the executable:
 
  ```./final```
