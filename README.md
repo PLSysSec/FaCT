@@ -21,10 +21,10 @@ Many debugging options and intermediate data structures are available. Run ```./
 Constantc is developed using Ocaml and LLVM 3.8. Make sure both of these are installed.
 On OS X it can be done with brew.
 
- ```
- brew install ocaml
+```
+brew install ocaml
  brew install llvm38
- ```
+```
 
 We also need dependency management for Ocaml.
 
