@@ -32,11 +32,21 @@ Then we need the actual dependencies for Ocaml.
 
 1. ```opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir```
 
+If you have not setup oasis, then you must do that First
+
+1. ```oasis setup```
+
+Then we must configure oasis
+
+1. ```make configure```
+
 Finally we can build the compiler.
 
-1. ```ocamlbuild -tag bin_annot -tag debug -I src -use-ocamlfind -use-menhir -tag thread -pkgs llvm,oUnit,core,dolog -no-hygiene constanc.byte```.
+1. ```make build```.
 
-This will give us the ```constanc.byte``` executable. For an even faster executable(but not cross-platform), change ```byte``` to ```native```.
+If you want to add a dependency, add it to ```_oasis```, then run the 3 previous commands again.
+
+This will give us the ```constanc.byte``` executable.
 
 ## Link to a C library
 
@@ -85,22 +95,3 @@ Next, we link them together. Using gcc, the command is
 Finall, we can run the executable with
 
 1. ```./final```
-
-## Semantic tests
-The semantic tests are written in C and call constanc functions. The purpose is to make sure constanc functions return the right value.
-
-1. ```ocamlbuild -tag bin_annot -tag debug -I src -I test -use-ocamlfind -tag thread -pkgs llvm,oUnit,core,dolog test_semant_driver.byte```
-2. ```./test_semant_driver.byte```
-3. ```./final```
-
-## Setting up a custom utop
-
-For some reason, utop doesn't like working with LLVM. Fortunately, this is an easy fix.
-From the ```ml``` directory, execute ```ocamlfind ocamlmktop -o llvmutop -thread -linkpkg -package core -package utop -package llvm -package llvm.passmgr_builder llvmutop.ml -cc g++```. This will build an executable, ```llvmutop```. Use this executable as the REPL.
-
-## Writing and running tests
-
-1. Create a file in the ```test``` directory. Write your unit tests.
-2. Open your file in the ```test.ml``` file.
-3. Build the tests. ```ocamlbuild -tag bin_annot -I src -I test -use-ocamlfind -pkgs llvm,oUnit,core,dolog test.byte```
-4. Run the tests. ```./test.byte```
