@@ -21,28 +21,28 @@ Many debugging options and intermediate data structures are available. Run ```./
 Constantc is developed using Ocaml and LLVM 3.8. Make sure both of these are installed.
 On OS X it can be done with brew.
 
-1. ```brew install ocaml```
-2. ```brew install llvm38```
+ ```brew install ocaml```
+ ```brew install llvm38```
 
 We also need dependency management for Ocaml.
 
-1. ```brew install opam```
+ ```brew install opam```
 
 Then we need the actual dependencies for Ocaml.
 
-1. ```opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir oasis```
+ ```opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir oasis```
 
 If you have not setup oasis, then you must do that first.
 
-1. ```oasis setup```
+ ```oasis setup```
 
 Then we must configure oasis.
 
-1. ```make configure```
+ ```make configure```
 
 Finally we can build the compiler.
 
-1. ```make build```.
+ ```make build```.
 
 If you want to add a dependency, add it to ```_oasis```, then run the 3 previous commands again.
 
@@ -50,48 +50,20 @@ This will give us the ```constanc.byte``` executable.
 
 ## Link to a C library
 
-Constantc is designed to be called from C code. In order to do so, write your constanc functions and compile them. This will output an object file. This can then be linked to a C file. A full working example is below.
-
-```c
-#include <stdlib.h>
-
-/**
-    Filename: main.c
-*/
-
-// This function is defined in ex.const
-int get100();
-
-int main(void) {
-  printf("%d\n", get100());
-  return 1;
-}
-
-```
-
-```c
-/**
-    Filename: ex.const
-*/
-
-int get100() {
-  return 100;
-}
-
-```
+Constantc is designed to be called from C code. In order to do so, write your constanc functions and compile them. This will output an object file. This can then be linked to a C file. A full working example is in the `example` directory. 
 
 First, we must compile ```main.c```. Using gcc, the command is
 
-1. ```gcc -c main.c```
+ ```clang -c main.c```
 
-Then we compile ```ex.const``` using constanc. The command is
+Then we compile ```ex.const``` using constanc. This requires clang to use version >3.8. The command to compile is
 
-1. ```./constanc ex.const```
+ ```./constanc ex.const```
 
 Next, we link them together. Using gcc, the command is
 
-1. ```gcc -o final main.o ex.o```
+ ```clang -o final main.o ex.o```
 
 Finall, we can run the executable with
 
-1. ```./final```
+ ```./final```
