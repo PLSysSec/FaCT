@@ -1,0 +1,7 @@
+// typedef uint64 fixed
+// #define FIX_BITS (8*sizeof(fixed))
+// #define FIX_TOP_BIT_MASK ((fixed) 1 << (FIX_BITS-1))
+// #define FIX_TOP_BIT(f) ((f) & FIX_TOP_BIT_MASK)
+// #define FIX_IS_NEG(f) ((FIX_TOP_BIT(f)) == (FIX_TOP_BIT_MASK))
+
+inline round_to_even_addition(lowbit, highroundbit, restroundbit) {
