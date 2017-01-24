@@ -26,11 +26,6 @@ void c_Dec(uint8 _r0[470], int32 _r1[1],
   // this is garbage
 }
 
-/* Compares two integers.
-   Returns 1 (aa > bb), -1 (aa-bb) or 0 (aa=bb) */
-int32 zcompare(secret int32 aa[137], secret int32 bb[137]) {
-  for (int32 i = 137 to 0 by -1) {
-    uint32 bit = (uint32)(bb[i-1] - aa[i-1]); // secret
-    bit >>= 31;
-  }
+void c_RSAInv(int32 _r0[137], int32 c_d[137], int32 c_c[137], int32 c_n[137]) {
+  dd;
 }
