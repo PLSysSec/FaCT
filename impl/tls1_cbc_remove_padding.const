@@ -1,42 +1,3 @@
-#define MAX_HASH_BLOCK_SIZE 128
-
-typedef struct ssl3_record_st {
-    public uint32 length;
-    unsigned char *data;
-    int type;
-    unsigned char *input;
-} SSL3_RECORD;
-
-typedef struct ssl3_state_st {
-    long flags;
-    unsigned char read_sequence[8];
-} SSL3_STATE;
-
-typedef struct evp_cipher_st {
-    unsigned long flags;
-} EVP_CIPHER;
-
-typedef struct evp_cipher_ctx_st {
-    const EVP_CIPHER *cipher;
-} EVP_CIPHER_CTX;
-
-typedef struct ssl_st {
-    char *expand;
-    unsigned long options;
-    struct ssl3_state_st *s3;   
-    EVP_CIPHER_CTX *enc_read_ctx; 
-    int slicing_cheat;
-} SSL;
-
-# define SSL_OP_TLS_BLOCK_PADDING_BUG       0x00000200L
-# define TLS1_FLAGS_TLS_PADDING_BUG         0x0008
-# define SSL_USE_EXPLICIT_IV(a) (a->slicing_cheat&1) // slicing
-# define EVP_CIPHER_flags(e)        ((e)->flags)
-# define EVP_CIPH_FLAG_AEAD_CIPHER       0x200000
-# define EVP_MAX_MD_SIZE                 64/* longest known is SHA512 */
-# define OPENSSL_assert(a) 1; // slicing
-
-
 int32 CRYPTO_memcmp(uint8[len] a, uint8[len] b, public size_t len) {
     for (size_t i = 0 to len) {
         if (a[i] != b[i])
@@ -86,13 +47,14 @@ int tls1_cbc_remove_padding(const SSL *s,
     }
 
     size_t new_length;
-    int ret = tls1_cbc_remove_padding_const(rec->data, rec->length, overhead, &new_length);
+    int ret = tls1_cbc_remove_padding_const(rec->data, rec->length, padding_length, overhead, &new_length);
     rec->length = new_length;
     return ret;
 }
 
-int32 tls1_cbc_remove_padding_const(uint8[length] data, public size_t length, size_t overhead, out size_t new_length) {
-    if (length < overhead + padding_length)
+public int32 tls1_cbc_remove_padding_const(secret uint8[length] data, public size_t length,
+    secret size_t padding_length, public size_t overhead, secret out size_t new_length) {
+    if (length < overhead + padding_length) // secret
         return -1;
 
     /*
@@ -105,15 +67,15 @@ int32 tls1_cbc_remove_padding_const(uint8[length] data, public size_t length, si
      * is public information so we can use it.)
      */
     public uint32 to_check = 256;            /* maximum amount of padding, inc length byte. */
-    if (to_check > length) // public
-        to_check = length;
+    if (to_check > unsafe_public(length)) // public
+        to_check = unsafe_public(length);
 
     for (uint32 i = 0 to to_check) {
         if (data[length - 1 - i] != padding_length)
             return -1;
     }
 
-    new_length -= padding_length + 1;
+    new_length = length - padding_length - 1;
 
     return 1;
 }
