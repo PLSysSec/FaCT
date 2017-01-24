@@ -10,6 +10,7 @@ type fentry = { f_ty: Ast.labeled_type; f_args: Ast.labeled_type list }
 type entry =
   | VarEntry of ventry
   | LoopEntry of ventry
+  | StaticVarEntry of ventry
   | FunEntry of fentry
 
 type env = (string,entry) Hashtbl.t
@@ -18,7 +19,8 @@ type fun_ret_env = (string,Ast.labeled_type) Hashtbl.t
 let venv =
   let v = Hashtbl.create 10 in
   let add_fun {name=n; ret_ty=ret; args_ty=args} =
-    Hashtbl.add v n (FunEntry {f_ty={ ty=ret; label=None }; f_args=args}) in
+    Hashtbl.add v n
+      (FunEntry {f_ty={ ty=ret; label=None; kind=Val }; f_args=args}) in
   let _ = List.map add_fun stdlib_funs in
   v
 
@@ -27,10 +29,11 @@ let fun_ret = Hashtbl.create 10
 let update_label name venv label =
   let update_label' = function
     | VarEntry { v_ty={ ty=t; label=l } } ->
-      let lt = { ty=t; label=label } in
+      let lt = { ty=t; label=label; kind=Val } in
       let var_entry = VarEntry { v_ty=lt } in
       Hashtbl.replace venv name var_entry;
       lt
+    | StaticVarEntry _ -> raise NotImplemented
     | LoopEntry { v_ty=lt } -> raise NotImplemented
     | FunEntry { f_ty=lt; f_args=args } -> raise NotImplemented in
   let var = (try Some(Hashtbl.find venv name) with | Not_found -> None) in

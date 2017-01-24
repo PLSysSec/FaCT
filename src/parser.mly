@@ -35,6 +35,7 @@ let parse_error s = (* Called by the parser function on error *)
 %token LBRACE RBRACE
 
 %token SECRET PUBLIC
+%token REF OUT
 %token RETURN
 %token SEMICOLON
 %token COMMA
@@ -86,18 +87,29 @@ const_type:
     { let ty_info = { ty=$1; attr=(Some $3) } in
       to_type ty_info }
 
+arg_labeled_type:
+  | OUT labeled_type
+    { let lt = $2 in
+      { lt with kind=Out } }
+  | REF labeled_type
+    { let lt = $2 in
+      { lt with kind=Ref } }
+  | labeled_type
+    { let lt = $1 in
+      { lt with kind=Val } }
+
 labeled_type:
   | PUBLIC const_type
-    { { ty=$2; label=Some Public } }
+    { { ty=$2; label=Some Public; kind=Val } }
   | SECRET const_type
-    { { ty=$2; label=Some Secret } }
+    { { ty=$2; label=Some Secret; kind=Val } }
   | const_type
-    { { ty=$1; label=None } }
+    { { ty=$1; label=None; kind=Val } }
 
 fargs:
-  | fargs COMMA labeled_type IDENT
+  | fargs COMMA arg_labeled_type IDENT
     { {name=$4; lt=$3; p=(to_pos $startpos)}::$1}
-  | labeled_type IDENT
+  | arg_labeled_type IDENT
     { [{name=($2); lt=$1; p=(to_pos $startpos)}] }
   | { [] }
 

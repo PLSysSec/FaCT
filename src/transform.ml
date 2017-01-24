@@ -24,16 +24,25 @@ let rec transform = function
     Cast.CModule f
 
 and transform_type = function
-  | { Ast.ty=Ast.Int; Ast.label=_ } -> Cast.Int
-  | { Ast.ty=Ast.Bool; Ast.label=_ } -> Cast.Int
-  | { Ast.ty=(Ast.ByteArr s); Ast.label=_ } -> Cast.ByteArr s
+  | Ast.Int -> Cast.Int
+  | Ast.Bool -> Cast.Int
+  | Ast.ByteArr s -> Cast.ByteArr s
+
+and transform_kind = function
+  | Ast.Val -> Cast.Val
+  | Ast.Ref -> Cast.Ref
+  | Ast.Out -> Cast.Ref
+
+and transform_lt = function
+  | { Ast.ty=t; Ast.kind=k } ->
+    { Cast.ty=(transform_type t); Cast.kind=(transform_kind k)}
 
 and transform_arg {Ast.name=n; Ast.lt=t} =
-  {Cast.name=n; Cast.ty=transform_type(t)}
+  {Cast.name=n; Cast.lt=transform_lt(t)}
 
 and transform_stm ctx = function
   | Ast.VarDec(n,ty,v,_) ->
-    let ty' = transform_type(ty) in
+    let ty' = transform_lt(ty) in
     let v' = transform_expr(v) in
     [Cast.VarDec(n,ty',v')]
   | Ast.Assign(n,v,_) ->
@@ -60,7 +69,8 @@ and transform_stm ctx = function
     let ctx' = Context(c') in
     let bt' = List.flatten(List.map (transform_stm ctx') bt) in
     let bf' = List.flatten(List.map (transform_stm ctx') bf) in
-    let mdec = Cast.VarDec(tname,Cast.Int,b_and e' c) in
+    let lt = { Cast.ty=Cast.Int; kind=Val } in
+    let mdec = Cast.VarDec(tname,lt,b_and e' c) in
     let mnot = Cast.Assign(tname,b_not m) in
     [mdec] @ bt' @ [mnot] @ bf'
   | Ast.For(n,l,h,b,_) ->
@@ -123,10 +133,11 @@ and transform_binop = function
 and transform_fdec = function
   | Ast.FunctionDec(name,args,rt,body,_) ->
     let args' = List.map transform_arg args in
-    let rt' = transform_type(rt) in
+    let rt' = transform_lt(rt) in
     let ctx = Context(Cast.Primitive(Cast.Number (-1))) in
     let body' = List.flatten(List.map (transform_stm ctx) body) in
-    let rval = Cast.VarDec("rval",Cast.Int,Cast.Primitive(Cast.Number 0)) in
-    let rset = Cast.VarDec("rset",Cast.Int,Cast.Primitive(Cast.Number 0)) in
+    let lt = { Cast.ty=Cast.Int; Cast.kind=Cast.Val } in
+    let rval = Cast.VarDec("rval",lt,Cast.Primitive(Cast.Number 0)) in
+    let rset = Cast.VarDec("rset",lt,Cast.Primitive(Cast.Number 0)) in
     let body'' = [rval]@[rset]@body' in
     Cast.FunctionDec(name,args',rt',body'',Cast.VarExp("rval"))

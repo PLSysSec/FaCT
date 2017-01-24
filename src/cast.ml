@@ -3,6 +3,12 @@ type ctype =
   | ByteArr of int
 [@@deriving show]
 
+and kind =
+  | Ref
+  | Val
+
+and labeled_type = { ty:ctype; kind:kind }
+
 and binop =
   | Plus
   | Minus
@@ -40,16 +46,16 @@ and expr =
 [@@deriving show]
 
 and stm =
-  | VarDec of string * ctype * expr
+  | VarDec of string * labeled_type * expr
   | Assign of string * expr
   | ArrAssign of string * expr * expr
   | For of string * primitive * primitive * stm list
 [@@deriving show]
 
-and fdec = FunctionDec of string * param list * ctype * stm list * expr
+and fdec = FunctionDec of string * param list * labeled_type * stm list * expr
 [@@deriving show]
 
-and param = { name: string; ty: ctype }
+and param = { name: string; lt: labeled_type }
 [@@deriving show]
 
 and cmodule = CModule of fdec list
