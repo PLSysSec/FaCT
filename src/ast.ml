@@ -32,7 +32,12 @@ and label =
   | Public
   | Secret
 
-and labeled_type = { ty:ctype; label:label option }
+and kind =
+  | Ref
+  | Val
+  | Out
+
+and labeled_type = { ty:ctype; label:label option; kind:kind }
 [@@deriving show]
 
 and param = { name:string; lt:labeled_type; p:pos }
