@@ -28,6 +28,10 @@ let unify_lt lt lt' p =
       { ty=(unify t t' p); label=Some Secret; kind=Val }
     | { ty=t; label=Some Secret }, { ty=t'; label=Some Secret } ->
       { ty=(unify t t' p); label=Some Secret; kind=Val }
+    | { ty=t; label=None }, { ty=t'; label=Some Secret } ->
+      { ty=(unify t t' p); label=Some Secret; kind=Val }
+    | { ty=t; label=Some Secret }, { ty=t'; label=None } ->
+      { ty=(unify t t' p); label=Some Secret; kind=Val }
     | { ty=t; label=None }, { ty=t'; label=l } ->
       { ty=(unify t t' p); label=None; kind=Val }
     | { ty=t; label=l }, { ty=t'; label=None } ->
