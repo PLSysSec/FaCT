@@ -19,7 +19,8 @@ let lt_to_var a = function
 
 let lt_to_llvm_ty ctx = function
   | { ty=Int; kind=Cast.Val } -> i32_type ctx
-  | { ty=ByteArr n; kind=Cast.Val } -> array_type (i32_type ctx) n
+  | { ty=ByteArr n; kind=Cast.Val } ->
+    raise(Error "Byte arrays must be a `ref` type")
   | { ty=Int; kind=Cast.Ref } -> pointer_type(i32_type ctx)
   | { ty=ByteArr n; kind=Cast.Ref } -> pointer_type(array_type (i32_type ctx) n)
 

@@ -98,7 +98,7 @@ and tc_binop = function
 
 and tc_prim lhs_l = function
   | Number n -> { ty=Int; label=lhs_l; kind=Val }
-  | ByteArray s -> { ty=(ByteArr (List.length s)); label=lhs_l; kind=Val }
+  | ByteArray s -> { ty=(ByteArr (List.length s)); label=lhs_l; kind=Ref }
   | Boolean b -> { ty=Bool; label=lhs_l; kind=Val }
 
 and tc_expr venv lhs_lt = function
@@ -202,6 +202,11 @@ and tc_stm fn_ty venv f_name = function
   | VarDec(name,lt,expr,p) ->
     let expr_ty = tc_expr venv lt expr in
     let lt = unify_flows_to lt expr_ty p in
+    (match lt with 
+      | { kind=Val; ty=(ByteArr n)} ->
+        raise (TypeError ("Byte arrays must be of `ref` type @ " ^
+          (pos_string p)))
+      | _ -> ());
     Hashtbl.add venv name (VarEntry { v_ty=lt });
   | Assign(name,expr,p) ->
     let v = try Hashtbl.find venv name with
@@ -241,8 +246,10 @@ and tc_stm fn_ty venv f_name = function
          let expr_ty = tc_expr venv lt expr in
          let { ty=t; label=l } =
           unify_flows_to
-            { ty=(ByteArr x); label=None; kind=Val } expr_ty p in
+            { ty=(ByteArr x); label=None; kind=Ref } expr_ty p in
          ignore(update_label name venv l)
+       | StaticVarEntry _ ->
+         raise (TypeError("Cannot assign a static variable @ " ^ pos_string p))
        | _ -> raise (VariableNotDefined("Variable, `" ^ name ^ 
                      "`, not defined @ " ^ (pos_string p))))
     with
@@ -299,7 +306,7 @@ and tc_fdec venv = function
      an up to date and accurate AST. *)
   | FunctionDec(_,_,{ ty=ByteArr(_); label=_ },_,p) ->
     raise (TypeError("Functions cannot return a ByteArray @ " ^ (pos_string p)))
-  | FunctionDec(name,args,ty,body,_) ->
+  | FunctionDec(name,args,ty,body,p) ->
     let rewrite_arg = function
       | { name=n; lt={ ty=t; label=None; kind=k }; p=p } ->
         { name=n; lt={ ty=t; label=Some Secret; kind=k }; p=p }
@@ -310,8 +317,14 @@ and tc_fdec venv = function
       | { kind=Val } as lt -> StaticVarEntry { v_ty=lt }
       | { kind=Ref } as lt -> VarEntry { v_ty=lt }
       | { kind=Out } as lt -> VarEntry { v_ty=lt } in
+    let tc_arg = function
+      | { kind=Val; ty=(ByteArr n) } ->
+        raise (TypeError("Byte arrays must be of `ref` types @ " ^
+          (pos_string p)))
+      | arg -> arg in
     let args_ty = List.map (fun { name=n; lt=lt } ->
-                              Hashtbl.add venv' n (create_entry lt); lt)
+                              Hashtbl.add venv' n (create_entry (tc_arg lt));
+                              lt)
                     args' in
     let _ = tc_stms ty venv' body name in
     let lt = get_fn_ret_label ~default:ty name in
