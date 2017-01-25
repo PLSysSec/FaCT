@@ -5,7 +5,8 @@ Synopsis:    Compiler for the Constanc programming language
 Authors:     Gary Soeller, Sunjay Cauligi, Brian Johannesmeyer, Ariana Mirian
 License:     MIT
 Plugins:     META (0.4), DevFiles (0.4)
-BuildDepends: llvm, core, oUnit, dolog, threads, ppx_deriving.std
+BuildDepends: llvm, core, oUnit, dolog, threads, ppx_deriving.std,
+              ppx_deriving.eq
 
 Executable constanc
   Path:       src

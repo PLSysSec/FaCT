@@ -129,8 +129,10 @@ and tc_binop lhs rhs p = function
   | B_And p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
   | B_Or p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
   | B_Xor p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
-  | LeftShift p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
-  | RightShift p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
+  | LeftShift p when isInt(lhs) && isInt(rhs) && 
+                     (equal_ctype lhs (unify lhs rhs p)) -> lhs
+  | RightShift p when isInt(lhs) && isInt(rhs) &&
+                      (equal_ctype lhs (unify lhs rhs p)) -> lhs
   | _ -> raise (TypeError("Types cannot be unified for given operator @ " ^
           (pos_string p)))
 
