@@ -84,7 +84,7 @@ let unify_fn_args arg_ts ts p =
 let isInt = function
   | Int32 -> true
   | Int16 -> true
-  | Int8 -> false
+  | Int8 -> true
   | _ -> false
 
 let isBool = function
@@ -96,7 +96,25 @@ let rec tc_unop = function
   | L_Not _ -> (Bool, [Bool])
   | B_Not _ -> (Int32, [Int32])
 
-and tc_binop lhs rhs = function
+and op_arg = function
+  | Plus _ -> Int8
+  | Minus _ -> Int8
+  | Multiply _ -> Int8
+  | Equal _ -> Int8
+  | NEqual _ -> Int8
+  | GT _ -> Int8
+  | GTE _ -> Int8
+  | LT _ -> Int8
+  | LTE _ -> Int8
+  | L_And _ -> Bool
+  | L_Or _ -> Bool
+  | B_And _ -> Int8
+  | B_Or _ -> Int8
+  | B_Xor _ -> Int8
+  | LeftShift _ -> Int8
+  | RightShift _ -> Int8
+
+and tc_binop lhs rhs p = function
   | Plus p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
   | Minus p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
   | Multiply p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
@@ -113,12 +131,18 @@ and tc_binop lhs rhs = function
   | B_Xor p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
   | LeftShift p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
   | RightShift p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
-  | _ -> raise (TypeError("Types cannot be unified for given operator"))
+  | _ -> raise (TypeError("Types cannot be unified for given operator @ " ^
+          (pos_string p)))
 
-and tc_prim lhs_l = function
-  | Number n -> { ty=Int32; label=lhs_l; kind=Val }
-  | ByteArray s -> { ty=(ByteArr (List.length s)); label=lhs_l; kind=Ref }
-  | Boolean b -> { ty=Bool; label=lhs_l; kind=Val }
+and tc_prim lhs = function
+  | Number n -> 
+    begin
+      match lhs.ty with
+        | ByteArr n -> { ty=Int32; label=lhs.label; kind=Val }
+        | ty -> { ty=ty; label=lhs.label; kind=Val }
+    end
+  | ByteArray s -> { ty=(ByteArr (List.length s)); label=lhs.label; kind=Ref }
+  | Boolean b -> { ty=Bool; label=lhs.label; kind=Val }
 
 and tc_expr venv lhs_lt = function
   | VarExp(v,p) ->
@@ -191,11 +215,12 @@ and tc_expr venv lhs_lt = function
     ignore(unify_op op_ty [expr_ty] p);
     expr_ty
   | BinOp(op,expr1,expr2,p) ->
-    let lhs = tc_expr venv lhs_lt expr1 in
-    let rhs = tc_expr venv lhs_lt expr2 in
-    let rt = tc_binop lhs.ty rhs.ty op in
+    let arg_ty = { lhs_lt with ty=op_arg op } in
+    let lhs = tc_expr venv arg_ty expr1 in
+    let rhs = tc_expr venv arg_ty expr2 in
+    let rt = tc_binop lhs.ty rhs.ty p op in
     { ty=rt; label=(unify_lt lhs rhs p).label; kind=Val }
-  | Primitive(p,_) -> tc_prim lhs_lt.label p
+  | Primitive(p,_) -> tc_prim lhs_lt p
   | CallExp(name,args,p) ->
     (try
        match Hashtbl.find venv name with

@@ -98,7 +98,8 @@ let codegen ctx m =
       ignore(Hashtbl.add function_params n args);
       let args_array = Array.of_list args in
       Array.iteri (fun i a ->
-                    let { name=n; lt={ ty=t; kind=k } as lt } = args_array.(i) in
+                    let { name=n; lt={ ty=t; kind=k } as lt } =
+                      args_array.(i) in
                     set_value_name n a;
                     let a' = lt_to_var a lt in
                     Hashtbl.add val_types n lt.ty;
@@ -131,36 +132,71 @@ let codegen ctx m =
       | Neg -> build_neg (codegen_expr None e) "negtmp" b
       | BitNot -> build_not (codegen_expr None e) "nottmp" b
 
-  and codegen_binop op e e' =
+  and codegen_binop ty_ctx op e e' =
     let unify_binops lhs rhs lhs_ty rhs_ty =
       (match lhs_ty,rhs_ty with
-        | Int32, Int32 -> lhs,rhs
-        | Int32, Int16 ->
+        | Some Int32, Some Int32 -> lhs,rhs
+        | Some Int32, Some Int16 ->
           let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
           lhs,rhs'
-        | Int32, Int8 ->
+        | Some Int32, Some Int8 ->
           let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
           lhs,rhs'
-        | Int16, Int32 ->
+        | Some Int16, Some Int32 ->
           let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
           lhs',rhs
-        | Int8, Int32 ->
+        | Some Int8, Some Int32 ->
           let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
           lhs',rhs
-        | Int16, Int16 -> lhs,rhs
-        | Int16, Int8 ->
+        | Some Int16, Some Int16 -> lhs,rhs
+        | Some Int16, Some Int8 ->
           let rhs' = build_sext rhs (i16_type ctx) "rhssexttmp" b in
           lhs,rhs'
-        | Int8, Int16 ->
+        | Some Int8, Some Int16 ->
           let lhs' = build_sext lhs (i16_type ctx) "lhssexttmp" b in
           lhs',rhs
-        | Int8, Int8 -> lhs,rhs
+        | Some Int8, Some Int8 -> lhs,rhs
+        | Some Int32, None ->
+          let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
+          lhs,rhs'
+        | Some Int16, None ->
+          let rhs' = build_sext rhs (i16_type ctx) "rhssexttmp" b in
+          lhs,rhs'
+        | Some Int8, None ->
+          let rhs' = build_sext rhs (i8_type ctx) "rhssexttmp" b in
+          lhs,rhs'
+        | None, Some Int32 ->
+          let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
+          lhs',rhs
+        | None, Some Int16 ->
+          let lhs' = build_sext lhs (i16_type ctx) "lhssexttmp" b in
+          lhs',rhs
+        | None, Some Int8 ->
+          let lhs' = build_sext lhs (i8_type ctx) "lhssexttmp" b in
+          lhs',rhs
+        | None, None ->
+          let ty =
+            (match ty_ctx with
+              | Some Int32 -> i32_type ctx
+              | Some Int16 -> i16_type ctx
+              | Some Int8 -> i8_type ctx
+              | _ -> raise (Error "Unknown LHS type for binary unification"))
+          in
+          let lhs' = build_sext lhs ty "lhssexttmp" b in
+          let rhs' = build_sext rhs ty "rhssexttmp" b in
+          lhs',rhs'
         | _ -> raise (Error "Cannot unify types for binary operation")
       ) in
-    let lhs = (codegen_expr None e) in
-    let rhs = (codegen_expr None e') in
-    let lhs_ty = expr_ty e in
-    let rhs_ty = expr_ty e' in
+    let lhs_ty = expr_ty ty_ctx e in
+    let rhs_ty = expr_ty ty_ctx e' in
+    let ty = match lhs_ty,rhs_ty,ty_ctx with
+               | Some lhs_ty', Some rhs_ty', _ -> unify lhs_ty' rhs_ty'
+               | Some lhs_ty', None, _ -> lhs_ty'
+               | None, Some rhs_ty', _ -> rhs_ty'
+               | None, None, Some ty_ctx' -> ty_ctx'
+               | _ -> raise (Error "Cannot determine type for binop") in
+    let lhs = (codegen_expr (Some ty) e) in
+    let rhs = (codegen_expr (Some ty) e') in
     let lhs',rhs' = unify_binops lhs rhs lhs_ty rhs_ty in
     begin
       match op with
@@ -192,28 +228,34 @@ let codegen ctx m =
       | RightShift -> build_lshr lhs' rhs' "rshift" b
     end
 
-  and prim_ty = function
-    | ByteArray n -> ByteArr (List.length n)
-    | Number n -> Int8 (* This will be unified to the proper type *)
+  and prim_ty ty_ctx = function
+    | ByteArray n -> Some(ByteArr (List.length n))
+    | Number n -> None
 
-  and expr_ty = function
+  and expr_ty ty_ctx = function
     | VarExp n ->
-      (try (Hashtbl.find val_types n) with
+      Some (try (Hashtbl.find val_types n) with
         | Not_found ->
           raise (Error ("Type not found for variable `" ^ n ^ "`")))
     | ArrExp(n,i) ->
       ignore((try (Hashtbl.find val_types n) with
         | Not_found ->
       raise (Error ("Type not found for variable `" ^ n ^ "`"))));
-      Int32
-    | UnOp(op,e) -> expr_ty e
+      Some Int32
+    | UnOp(op,e) -> expr_ty ty_ctx e
     | BinOp(op,e,e') ->
-      let ty1 = expr_ty e in
-      let ty2 = expr_ty e' in
-      unify ty1 ty2
-    | Primitive p -> prim_ty p
+      let ty1 = expr_ty ty_ctx e in
+      let ty2 = expr_ty ty_ctx e' in
+      begin
+        match ty1,ty2 with
+          | Some ty1', Some ty2' -> Some(unify ty1' ty2')
+          | Some ty1', None -> Some ty1'
+          | None, Some ty2' -> Some ty2'
+          | None, None -> ty_ctx
+      end
+    | Primitive p -> prim_ty ty_ctx p
     | CallExp(callee, args) ->
-      (try (Hashtbl.find val_types callee) with
+      Some (try (Hashtbl.find val_types callee) with
         | Not_found ->
           raise (Error ("Type not found for variable `" ^ callee ^ "`")))
 
@@ -241,7 +283,7 @@ let codegen ctx m =
           [| (const_int (i32_type ctx) 0); (get_index i)|] "ptr" b in
       build_load p "p" b
     | UnOp(op,e) -> codegen_unop op e
-    | BinOp(op,e,e') -> codegen_binop op e e'
+    | BinOp(op,e,e') -> codegen_binop ty_ctx op e e'
     | Primitive p -> codegen_prim ty_ctx p
     | CallExp(callee, args) ->
       let callee' =
@@ -270,13 +312,16 @@ let codegen ctx m =
       let loop_bb = append_block ctx "loop" the_function in
       ignore(build_br loop_bb b);
       ignore(position_at_end loop_bb b);
-      let l' = codegen_expr None (Primitive l) in
+      let i32 = Some Int32 in
+      let l' = codegen_expr i32 (Primitive l) in
       let variable = build_phi [(l',preheader)] v b in
       Hashtbl.add loop_values v (Val variable);
+      Hashtbl.add val_types v Int32;
       ignore(List.map codegen_stm s);
       let next_var =
         build_add variable (const_int (i32_type ctx) 1) "nextvar" b in
-      let end_cond = build_icmp Icmp.Eq (codegen_prim None h) next_var "loopcond" b in
+      let end_cond =
+        build_icmp Icmp.Eq (codegen_prim i32 h) next_var "loopcond" b in
       let loop_end_bb = insertion_block b in
       let after_bb = append_block ctx "postloop" the_function in
       ignore(build_cond_br end_cond after_bb loop_bb b);
@@ -284,14 +329,16 @@ let codegen ctx m =
       add_incoming (next_var,loop_end_bb) variable;
     | Assign(n,e) ->
       let v = (try Hashtbl.find named_values n with
-        | Not_found -> raise (Error ("Unknown variable in var assign: " ^ n))) in
+        | Not_found ->
+          raise (Error ("Unknown variable in var assign: " ^ n))) in
       let v' = extract_value v in
       let ty = (try Hashtbl.find val_types n with
         | Not_found -> raise (Error ("Unknown type for var: " ^ n))) in
       ignore(build_store (codegen_expr (Some ty) e) v' b)
     | ArrAssign(n,i,e) ->
       let v = (try Hashtbl.find named_values n with
-        | Not_found -> raise (Error ("Unknown variable in array assign: " ^ n))) in
+        | Not_found ->
+          raise (Error ("Unknown variable in array assign: " ^ n))) in
       let v' = extract_value v in
       let e' = codegen_expr (Some Int32) e in
       let i_t = const_int (i32_type ctx) in
@@ -300,14 +347,14 @@ let codegen ctx m =
     | VarDec(n,lt,e) ->
       let extend v lhs_ty rhs_ty =
         match lhs_ty,rhs_ty with
-          | Int32,Int16 -> build_sext v (i32_type ctx) "unifytmp" b
-          | Int32,Int8 -> build_sext v (i32_type ctx) "unifytmp" b
-          | Int16,Int8 -> build_sext v (i16_type ctx) "unifytmp" b
+          | Some Int32, Some Int16 -> build_sext v (i32_type ctx) "unifytmp" b
+          | Some Int32, Some Int8 -> build_sext v (i32_type ctx) "unifytmp" b
+          | Some Int16, Some Int8 -> build_sext v (i16_type ctx) "unifytmp" b
           | _ -> v
         in
       let llvm_ty = lt_to_llvm_ty ctx lt in
       let v = codegen_expr (Some lt.ty) e in
-      let v' = extend v lt.ty (expr_ty e) in
+      let v' = extend v (Some lt.ty) (expr_ty (Some lt.ty) e) in
       let alloca = build_alloca llvm_ty n b in
       ignore(build_store v' alloca b);
       Hashtbl.add val_types n lt.ty;
