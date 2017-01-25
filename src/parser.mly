@@ -7,7 +7,10 @@ type ty_info = { ty:string; attr:expr option }
 (* TODO: I dont like this.. We need to think of another way
          to go from string to constantc type *)
 let to_type = function
-  | { ty="int"; attr=None } -> Int
+  | { ty="int"; attr=None } -> Int32
+  | { ty="int32"; attr=None } -> Int32
+  | { ty="int16"; attr=None } -> Int16
+  | { ty="int8"; attr=None } -> Int8
   | { ty="bool"; attr=None } -> Bool
   | { ty="bytearr"; attr=(Some (Primitive((Number n),_))) } -> ByteArr n
 

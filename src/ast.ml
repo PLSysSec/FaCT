@@ -1,7 +1,7 @@
 open Lexing
 
 type pos = { file:string; line:int; lpos:int; rpos:int }
-[@@deriving show]
+[@@deriving show, eq]
 
 let to_pos ?buf:(b=None)
     { pos_fname=f; pos_lnum=l; pos_bol=bl; pos_cnum=c } =
@@ -17,31 +17,35 @@ let pos_string { file=f; line=l; lpos=lp; rpos=rp } =
   ", from " ^ string_of_int(lp) ^ "-" ^ string_of_int(rp)
 
 type constantc_module = CModule of fdec list
-[@@deriving show]
+[@@deriving show, eq]
 
 and fdec = FunctionDec of string * param list * labeled_type * stm list * pos
-[@@deriving show]
+[@@deriving show, eq]
 
 and ctype =
-  | Int
+  | Int32
+  | Int16
+  | Int8
   | Bool
   | ByteArr of int
-[@@deriving show]
+[@@deriving show, eq]
 
 and label =
   | Public
   | Secret
+[@@deriving show, eq]
 
 and kind =
   | Ref
   | Val
   | Out
+[@@deriving show, eq]
 
 and labeled_type = { ty:ctype; label:label option; kind:kind }
-[@@deriving show]
+[@@deriving show, eq]
 
 and param = { name:string; lt:labeled_type; p:pos }
-[@@deriving show]
+[@@deriving show, eq]
 
 and stm =
   | VarDec of string * labeled_type * expr * pos
@@ -50,7 +54,7 @@ and stm =
   | If of expr * stm list * stm list * pos
   | For of string * primitive * primitive * stm list * pos
   | Return of expr * pos
-[@@deriving show]
+[@@deriving show, eq]
 
 and expr =
   | VarExp of string * pos
@@ -59,13 +63,13 @@ and expr =
   | BinOp of binop * expr * expr * pos
   | Primitive of primitive * pos option
   | CallExp of string * expr list * pos
-[@@deriving show]
+[@@deriving show, eq]
 
 and unop =
   | Neg of pos
   | L_Not of pos
   | B_Not of pos
-[@@deriving show]
+[@@deriving show, eq]
 
 and binop =
   | Plus of pos
@@ -84,15 +88,17 @@ and binop =
   | B_Xor of pos
   | LeftShift of pos
   | RightShift of pos
-[@@deriving show]
+[@@deriving show, eq]
 
 and primitive =
   | Number of int
   | Boolean of bool
   | ByteArray of int list
-[@@deriving show]
+[@@deriving show, eq]
 
 let ty_to_string = function
-  | Int _ -> "Int"
+  | Int32 _ -> "Int32"
+  | Int16 _ -> "Int16"
+  | Int8 _ -> "Int8"
   | Bool _ -> "Bool"
   | ByteArr _ -> "ByteArr"

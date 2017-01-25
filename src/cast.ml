@@ -1,5 +1,7 @@
 type ctype =
-  | Int
+  | Int32
+  | Int16
+  | Int8
   | ByteArr of int
 [@@deriving show]
 

@@ -1,5 +1,6 @@
 #include "unity.h"
 #include <stdlib.h>
+#include <stdint.h>
 
 int get100();
 int mutateArray(int*);
@@ -29,6 +30,8 @@ int neg(int);
 int xor(int,int);
 int prec(int);
 int opassign();
+int add5int8(int8_t);
+int complicatedAdd5(int);
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -202,4 +205,18 @@ void test_precedence(void) {
 
 void test_opassign(void) {
   TEST_ASSERT_EQUAL(11,opassign());
+}
+
+void test_add5int8(void) {
+  int8_t one = 1;
+  int8_t negTen = -10;
+  TEST_ASSERT_EQUAL(6,add5int8(one));
+  TEST_ASSERT_EQUAL(-5,add5int8(negTen));
+}
+
+void test_complicatedAdd5(void) {
+  int8_t one = 1;
+  int8_t negTen = -10;
+  TEST_ASSERT_EQUAL(6,complicatedAdd5(one));
+  TEST_ASSERT_EQUAL(-5,complicatedAdd5(negTen));
 }
