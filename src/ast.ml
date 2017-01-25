@@ -23,7 +23,9 @@ and fdec = FunctionDec of string * param list * labeled_type * stm list * pos
 [@@deriving show]
 
 and ctype =
-  | Int
+  | Int32
+  | Int16
+  | Int8
   | Bool
   | ByteArr of int
 [@@deriving show]
@@ -93,6 +95,8 @@ and primitive =
 [@@deriving show]
 
 let ty_to_string = function
-  | Int _ -> "Int"
+  | Int32 _ -> "Int32"
+  | Int16 _ -> "Int16"
+  | Int8 _ -> "Int8"
   | Bool _ -> "Bool"
   | ByteArr _ -> "ByteArr"

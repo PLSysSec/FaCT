@@ -12,7 +12,15 @@ exception InternalCompilerError of string
 
 let unify t t1 p =
   match (t,t1) with
-  | (Int,Int) -> Int
+  | (Int32,Int32) -> Int32
+  | (Int32,Int16) -> Int32
+  | (Int16,Int32) -> Int32
+  | (Int32,Int8) -> Int32
+  | (Int8,Int32) -> Int32
+  | (Int16,Int16) -> Int16
+  | (Int16,Int8) -> Int16
+  | (Int8,Int16) -> Int16
+  | (Int8,Int8) -> Int8
   | (Bool,Bool) -> Bool
   | (ByteArr x, ByteArr y) when x = y -> (ByteArr x)
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with "
@@ -73,31 +81,42 @@ let unify_op (rt,arg_ts) ts p =
 let unify_fn_args arg_ts ts p =
   List.map2 (fun t t' -> unify_lt t t' p) arg_ts ts
 
-let rec tc_unop = function
-  | Neg _ -> (Int, [Int])
-  | L_Not _ -> (Bool, [Bool])
-  | B_Not _ -> (Int, [Int])
+let isInt = function
+  | Int32 -> true
+  | Int16 -> true
+  | Int8 -> false
+  | _ -> false
 
-and tc_binop = function
-  | Plus _ -> (Int, [Int;Int])
-  | Minus _ -> (Int, [Int;Int])
-  | Multiply _ -> (Int, [Int;Int])
-  | Equal _ -> (Bool, [Int;Int])
-  | NEqual _ -> (Bool, [Int;Int])
-  | GT _ -> (Bool, [Int;Int])
-  | GTE _ -> (Bool, [Int;Int])
-  | LT _ -> (Bool, [Int;Int])
-  | LTE _ -> (Bool, [Int;Int])
-  | L_And _ -> (Bool, [Bool;Bool])
-  | L_Or _ -> (Bool, [Bool;Bool])
-  | B_And _ -> (Int, [Int;Int])
-  | B_Or _ -> (Int, [Int;Int])
-  | B_Xor _ -> (Int, [Int;Int])
-  | LeftShift _ -> (Int, [Int;Int])
-  | RightShift _ -> (Int, [Int;Int])
+let isBool = function
+  | Bool -> true
+  | _ -> false
+
+let rec tc_unop = function
+  | Neg _ -> (Int32, [Int32])
+  | L_Not _ -> (Bool, [Bool])
+  | B_Not _ -> (Int32, [Int32])
+
+and tc_binop lhs rhs = function
+  | Plus p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
+  | Minus p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
+  | Multiply p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
+  | Equal _ when isInt(lhs) && isInt(rhs) -> Bool
+  | NEqual _ when isInt(lhs) && isInt(rhs) -> Bool
+  | GT p when isInt(lhs) && isInt(rhs) -> Bool
+  | GTE p when isInt(lhs) && isInt(rhs) -> Bool
+  | LT p when isInt(lhs) && isInt(rhs) -> Bool
+  | LTE p when isInt(lhs) && isInt(rhs) -> Bool
+  | L_And p when isBool(lhs) && isBool(rhs) -> Bool
+  | L_Or p when isBool(lhs) && isBool(rhs) -> Bool
+  | B_And p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
+  | B_Or p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
+  | B_Xor p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
+  | LeftShift p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
+  | RightShift p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
+  | _ -> raise (TypeError("Types cannot be unified for given operator"))
 
 and tc_prim lhs_l = function
-  | Number n -> { ty=Int; label=lhs_l; kind=Val }
+  | Number n -> { ty=Int32; label=lhs_l; kind=Val }
   | ByteArray s -> { ty=(ByteArr (List.length s)); label=lhs_l; kind=Ref }
   | Boolean b -> { ty=Bool; label=lhs_l; kind=Val }
 
@@ -127,30 +146,30 @@ and tc_expr venv lhs_lt = function
       | FunEntry _ -> raise (InternalCompilerError("Found a fun entry in " ^
       " place of var entry(array)"))) in
     (match i with
-     | Primitive _ -> { ty=Int; label=ret_label; kind=Val }
+     | Primitive _ -> { ty=Int32; label=ret_label; kind=Val }
      | VarExp(n,p) ->
        (try
           match Hashtbl.find venv n with
-          | LoopEntry { v_ty={ ty=Int; label=Some Public} } ->
-            { ty=Int; label=ret_label; kind=Val }
+          | LoopEntry { v_ty={ ty=Int32; label=Some Public} } ->
+            { ty=Int32; label=ret_label; kind=Val }
           | LoopEntry { v_ty={ ty=t; label=Some Secret } } ->
             raise (InternalCompilerError ("Loop variables cannot be secret"))
           | LoopEntry { v_ty={ ty=t; label=l } } ->
             raise (InternalCompilerError ("Loop variable must be public ints"))
           | VarEntry { v_ty={ ty=t; label=None } } ->
             ignore(update_label n venv (Some Public));
-            { ty=Int; label=ret_label; kind=Val }
-          | VarEntry { v_ty={ ty=Int; label=Some Public } } ->
-            { ty=Int; label=ret_label; kind=Val }
+            { ty=Int32; label=ret_label; kind=Val }
+          | VarEntry { v_ty={ ty=Int32; label=Some Public } } ->
+            { ty=Int32; label=ret_label; kind=Val }
           | VarEntry { v_ty={ ty=t; label=Some Secret } } ->
             raise (TypeError
               ("Arrays cannot be accessed with a secret variable @ " ^ 
               (pos_string p)))
           | StaticVarEntry { v_ty={ ty=t; label=None } } ->
             ignore(update_label n venv (Some Public));
-            { ty=Int; label=ret_label; kind=Val }
-          | StaticVarEntry { v_ty={ ty=Int; label=Some Public } } ->
-            { ty=Int; label=ret_label; kind=Val }
+            { ty=Int32; label=ret_label; kind=Val }
+          | StaticVarEntry { v_ty={ ty=Int32; label=Some Public } } ->
+            { ty=Int32; label=ret_label; kind=Val }
           | StaticVarEntry { v_ty={ ty=t; label=Some Secret } } ->
             raise (TypeError
               ("Arrays cannot be accessed with a secret variable @ " ^ 
@@ -172,11 +191,10 @@ and tc_expr venv lhs_lt = function
     ignore(unify_op op_ty [expr_ty] p);
     expr_ty
   | BinOp(op,expr1,expr2,p) ->
-    let (rt,args) as op_ty = tc_binop op in
-    let expr1_ty = tc_expr venv lhs_lt expr1 in
-    let expr2_ty = tc_expr venv lhs_lt expr2 in
-    ignore(unify_op op_ty [expr1_ty;expr2_ty] p);
-    { ty=rt; label=(unify_lt expr1_ty expr2_ty p).label; kind=Val }
+    let lhs = tc_expr venv lhs_lt expr1 in
+    let rhs = tc_expr venv lhs_lt expr2 in
+    let rt = tc_binop lhs.ty rhs.ty op in
+    { ty=rt; label=(unify_lt lhs rhs p).label; kind=Val }
   | Primitive(p,_) -> tc_prim lhs_lt.label p
   | CallExp(name,args,p) ->
     (try
@@ -229,7 +247,7 @@ and tc_stm fn_ty venv f_name = function
      | _ -> raise (VariableNotDefined("Variable, `" ^ name ^ "`, not defined @ "
                                       ^ (pos_string p))))
   | ArrAssign(name,index,expr,p) ->
-    let public_int = { ty=Int; label=Some Public; kind=Val } in
+    let public_int = { ty=Int32; label=Some Public; kind=Val } in
     let index_ty = tc_expr venv public_int index in
     (try
       (match Hashtbl.find venv name with
@@ -238,7 +256,7 @@ and tc_stm fn_ty venv f_name = function
          ignore(unify_flows_to public_int expr_ty p);
          ignore(unify_flows_to public_int index_ty p);
        | VarEntry { v_ty={ ty=(ByteArr x); label=Some Secret } as lt } ->
-         let private_int = { ty=Int; label=Some Secret; kind=Val } in
+         let private_int = { ty=Int32; label=Some Secret; kind=Val } in
          let expr_ty = tc_expr venv lt expr in
          ignore(unify_flows_to private_int expr_ty p);
          ignore(unify_flows_to public_int index_ty p);
@@ -272,7 +290,7 @@ and tc_stm fn_ty venv f_name = function
     ignore(tc_stms fn_ty venv else' f_name);
   | For(name,l,h,body,p) ->
     (* TODO: Same as if statements *)
-    let public_int = { ty=Int; label=Some Public; kind=Val } in
+    let public_int = { ty=Int32; label=Some Public; kind=Val } in
     ignore(unify_lt (tc_expr venv public_int (Primitive(l,None))) public_int p);
     ignore(unify_lt (tc_expr venv public_int (Primitive(h,None))) public_int p);
     (match (l,h) with

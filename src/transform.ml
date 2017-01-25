@@ -24,8 +24,10 @@ let rec transform = function
     Cast.CModule f
 
 and transform_type = function
-  | Ast.Int -> Cast.Int
-  | Ast.Bool -> Cast.Int
+  | Ast.Int32 -> Cast.Int32
+  | Ast.Int16 -> Cast.Int16
+  | Ast.Int8 -> Cast.Int8
+  | Ast.Bool -> Cast.Int32
   | Ast.ByteArr s -> Cast.ByteArr s
 
 and transform_kind = function
@@ -69,7 +71,7 @@ and transform_stm ctx = function
     let ctx' = Context(c') in
     let bt' = List.flatten(List.map (transform_stm ctx') bt) in
     let bf' = List.flatten(List.map (transform_stm ctx') bf) in
-    let lt = { Cast.ty=Cast.Int; kind=Val } in
+    let lt = { Cast.ty=Cast.Int32; kind=Cast.Val } in
     let mdec = Cast.VarDec(tname,lt,b_and e' c) in
     let mnot = Cast.Assign(tname,b_not m) in
     [mdec] @ bt' @ [mnot] @ bf'
@@ -136,7 +138,7 @@ and transform_fdec = function
     let rt' = transform_lt(rt) in
     let ctx = Context(Cast.Primitive(Cast.Number (-1))) in
     let body' = List.flatten(List.map (transform_stm ctx) body) in
-    let lt = { Cast.ty=Cast.Int; Cast.kind=Cast.Val } in
+    let lt = { Cast.ty=Cast.Int32; Cast.kind=Cast.Val } in
     let rval = Cast.VarDec("rval",lt,Cast.Primitive(Cast.Number 0)) in
     let rset = Cast.VarDec("rset",lt,Cast.Primitive(Cast.Number 0)) in
     let body'' = [rval]@[rset]@body' in
