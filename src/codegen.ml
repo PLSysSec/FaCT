@@ -133,6 +133,68 @@ let codegen ctx m =
       | BitNot -> build_not (codegen_expr None e) "nottmp" b
 
   and codegen_binop ty_ctx op e e' =
+    let truncate_or_extend_rhs rhs lhs_ty rhs_ty =
+      match lhs_ty,rhs_ty with
+        | Some Int32, Some Int32 -> rhs
+        | Some Int32, Some Int16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+        | Some Int32, Some Int8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+        | Some Int16, Some Int32 ->
+          build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+        | Some Int16, Some Int16 -> rhs
+        | Some Int16, Some Int8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+        | Some Int8, Some Int32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+        | Some Int8, Some Int16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+        | Some Int8, Some Int8 -> rhs
+        | None, Some Int32 ->
+          begin
+            match ty_ctx with
+              | Some Int32 -> rhs
+              | Some Int16 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+              | Some Int8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
+        | None, Some Int16 ->
+          begin
+            match ty_ctx with
+              | Some Int32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+              | Some Int16 -> rhs
+              | Some Int8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
+        | None, Some Int8 ->
+          begin
+            match ty_ctx with
+              | Some Int32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+              | Some Int16 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+              | Some Int8 -> rhs
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
+        | Some Int32, None ->
+          begin
+            match ty_ctx with
+              | Some Int32 -> rhs
+              | Some Int16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+              | Some Int8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
+        | Some Int16, None ->
+          begin
+            match ty_ctx with
+              | Some Int32 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+              | Some Int16 -> rhs
+              | Some Int8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
+        | Some Int8, None ->
+          begin
+            match ty_ctx with
+              | Some Int32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+              | Some Int16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+              | Some Int8 -> rhs
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
+        | _ -> rhs
+    in
     let unify_binops lhs rhs lhs_ty rhs_ty =
       (match lhs_ty,rhs_ty with
         | Some Int32, Some Int32 -> lhs,rhs
@@ -224,13 +286,17 @@ let codegen ctx m =
       | Neq ->
         let cmp = (build_icmp Icmp.Ne lhs' rhs' "neq" b) in
         build_sext cmp (i32_type ctx) "neqtmp" b
-      | LeftShift -> build_shl lhs' rhs' "lshift" b
-      | RightShift -> build_lshr lhs' rhs' "rshift" b
+      | LeftShift -> 
+        let rhs' = truncate_or_extend_rhs rhs lhs_ty rhs_ty in
+        build_shl lhs rhs' "lshift" b
+      | RightShift ->
+        let rhs' = truncate_or_extend_rhs rhs lhs_ty rhs_ty in
+        build_lshr lhs rhs' "rshift" b
     end
 
   and prim_ty ty_ctx = function
     | ByteArray n -> Some(ByteArr (List.length n))
-    | Number n -> None
+    | Number n -> ty_ctx
 
   and expr_ty ty_ctx = function
     | VarExp n ->
