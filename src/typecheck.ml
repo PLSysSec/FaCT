@@ -10,8 +10,6 @@ exception CallError of string
 exception ForError of string
 exception InternalCompilerError of string
 
-type typed_exp = { ty':labeled_type; exp: expr }
-
 let unify t t1 p =
   match (t,t1) with
   | (Int32,Int32) -> Int32
@@ -177,17 +175,16 @@ and tc_expr venv lhs_lt = function
     (try
        match Hashtbl.find venv v with
        | VarEntry { v_ty={ ty=t; label=None } } ->
-         let lt = update_label v venv lhs_lt.label in
-         { ty'=lt; exp=e }
-       | VarEntry { v_ty=ty } -> { ty'=ty; exp=e }
-       | LoopEntry { v_ty=ty } -> { ty'=ty; exp=e }
-       | StaticVarEntry { v_ty=ty } -> { ty'=ty; exp=e }
+         update_label v venv lhs_lt.label
+       | VarEntry { v_ty=ty } -> ty
+       | LoopEntry { v_ty=ty } -> ty
+       | StaticVarEntry { v_ty=ty } -> ty
        | _ -> raise (VariableNotDefined("Variable `" ^ v ^ "` not defined"
                            ^ (pos_string p)))
      with
        Not_found -> raise (VariableNotDefined("Variable `" ^ v ^ "` not defined"
                            ^ (pos_string p))))
-  | ArrExp(v,i,p) as e ->
+  | ArrExp(v,i,p) ->
     let ret = try Hashtbl.find venv v with 
       | Not_found -> raise (VariableNotDefined("Variable `" ^ v ^ "` not defined"
           ^ (pos_string p))) in
@@ -199,30 +196,30 @@ and tc_expr venv lhs_lt = function
       | FunEntry _ -> raise (InternalCompilerError("Found a fun entry in " ^
       " place of var entry(array)"))) in
     (match i with
-     | Primitive _ -> { ty'={ ty=Int32; label=ret_label; kind=Val }; exp=e }
+     | Primitive _ -> { ty=Int32; label=ret_label; kind=Val }
      | VarExp(n,p) ->
        (try
           match Hashtbl.find venv n with
           | LoopEntry { v_ty={ ty=Int32; label=Some Public} } ->
-            { ty'={ ty=Int32; label=ret_label; kind=Val }; exp=e }
+            { ty=Int32; label=ret_label; kind=Val }
           | LoopEntry { v_ty={ ty=t; label=Some Secret } } ->
             raise (InternalCompilerError ("Loop variables cannot be secret"))
           | LoopEntry { v_ty={ ty=t; label=l } } ->
             raise (InternalCompilerError ("Loop variable must be public ints"))
           | VarEntry { v_ty={ ty=t; label=None } } ->
             ignore(update_label n venv (Some Public));
-            { ty'={ ty=Int32; label=ret_label; kind=Val }; exp=e }
+            { ty=Int32; label=ret_label; kind=Val }
           | VarEntry { v_ty={ ty=Int32; label=Some Public } } ->
-            { ty'={ ty=Int32; label=ret_label; kind=Val }; exp=e }
+            { ty=Int32; label=ret_label; kind=Val }
           | VarEntry { v_ty={ ty=t; label=Some Secret } } ->
             raise (TypeError
               ("Arrays cannot be accessed with a secret variable @ " ^ 
               (pos_string p)))
           | StaticVarEntry { v_ty={ ty=t; label=None } } ->
             ignore(update_label n venv (Some Public));
-            { ty'={ ty=Int32; label=ret_label; kind=Val }; exp=e }
+            { ty=Int32; label=ret_label; kind=Val }
           | StaticVarEntry { v_ty={ ty=Int32; label=Some Public } } ->
-            { ty'={ ty=Int32; label=ret_label; kind=Val }; exp=e }
+            { ty=Int32; label=ret_label; kind=Val }
           | StaticVarEntry { v_ty={ ty=t; label=Some Secret } } ->
             raise (TypeError
               ("Arrays cannot be accessed with a secret variable @ " ^ 
@@ -241,18 +238,17 @@ and tc_expr venv lhs_lt = function
   | UnOp(op,expr,p) as e ->
     let op_ty = tc_unop op in
     let expr_ty = tc_expr venv lhs_lt expr in
-    ignore(unify_op op_ty [expr_ty.ty'] p);
-    { ty'=expr_ty.ty'; exp=e }
+    ignore(unify_op op_ty [expr_ty] p);
+    expr_ty
   | BinOp(op,expr1,expr2,p) ->
     let arg_ty = { lhs_lt with ty=op_arg op } in
     let lhs = tc_expr venv arg_ty expr1 in
     let rhs = tc_expr venv arg_ty expr2 in
-    let rt = tc_binop lhs.ty'.ty rhs.ty'.ty p op in
-    let e' = BinOp(op,lhs.exp,rhs.exp,p) in
-    let label = (unify_lt lhs.ty' rhs.ty' p).label in
-    { ty'={ ty=rt; label=label; kind=Val }; exp=e' }
-  | Primitive(p,_) as e -> { ty'=(tc_prim lhs_lt p); exp=e }
-  | CallExp(name,args,p) as e ->
+    let rt = tc_binop lhs.ty rhs.ty p op in
+    let label = (unify_lt lhs rhs p).label in
+    { ty=rt; label=label; kind=Val }
+  | Primitive(p,_) -> tc_prim lhs_lt p
+  | CallExp(name,args,p) ->
     (try
        match Hashtbl.find venv name with
        | VarEntry _ ->
@@ -265,9 +261,8 @@ and tc_expr venv lhs_lt = function
          raise (CallError ("Unable to call static variable `" ^ name ^ "` @ "
                 ^ (pos_string p)))
        | FunEntry { f_ty=ty; f_args=args' } ->
-         let args'' = List.map (tc_expr venv lhs_lt) args in
-         ignore(unify_fn_args args' (List.map (fun arg -> arg.ty') args'') p);
-         { ty'=ty; exp=e }
+         ignore(unify_fn_args args' (List.map (tc_expr venv lhs_lt) args) p);
+         ty
      with
        Not_found -> raise (FunctionNotDefined("Function, `" ^ name ^
                            "`, not defined at function call @ " ^
@@ -276,14 +271,13 @@ and tc_expr venv lhs_lt = function
 and tc_stm fn_ty venv f_name = function
   | VarDec(name,lt,expr,p) ->
     let expr' = tc_expr venv lt expr in
-    let lt = unify_flows_to lt expr'.ty' p in
+    let lt = unify_flows_to lt expr' p in
     (match lt with 
       | { kind=Val; ty=(ByteArr n)} ->
         raise (TypeError ("Byte arrays must be of `ref` type @ " ^
           (pos_string p)))
       | _ -> ());
-    Hashtbl.add venv name (VarEntry { v_ty=lt });
-    VarDec(name,expr'.ty',expr'.exp,p)
+    Hashtbl.add venv name (VarEntry { v_ty=lt })
   | Assign(name,expr,p) ->
     let v = try Hashtbl.find venv name with
       | Not_found -> raise (VariableNotDefined("Variable, `" ^ name ^
@@ -291,18 +285,15 @@ and tc_stm fn_ty venv f_name = function
     (match v with
      | VarEntry { v_ty={ ty=t; label=Some Secret } as lt } ->
        let expr' = tc_expr venv lt expr in
-       ignore(unify_flows_to lt expr'.ty' p);
-       Assign(name,expr'.exp,p)
+       ignore(unify_flows_to lt expr' p)
      | VarEntry { v_ty={ ty=t; label=Some Public } as lt} ->
        let expr' = tc_expr venv lt expr in
-       ignore(unify_flows_to lt expr'.ty' p);
-       Assign(name,expr'.exp,p)
+       ignore(unify_flows_to lt expr' p);
      | VarEntry { v_ty={ ty=t; label=None } as lt } ->
        let expr' = tc_expr venv lt expr in
        let { ty=t; label=l } =
-        (unify_lt lt expr'.ty' p) in
-       ignore(update_label name venv l);
-       Assign(name,expr'.exp,p)
+        (unify_lt lt expr' p) in
+       ignore(update_label name venv l)
      | StaticVarEntry _ ->
          raise (TypeError("Cannot assign a static variable @ " ^ pos_string p))
      | _ -> raise (VariableNotDefined("Variable, `" ^ name ^ "`, not defined @ "
@@ -314,22 +305,19 @@ and tc_stm fn_ty venv f_name = function
       (match Hashtbl.find venv name with
        | VarEntry { v_ty={ ty=(ByteArr x); label=Some Public } as lt } ->
          let expr' = tc_expr venv lt expr in
-         ignore(unify_flows_to public_int expr'.ty' p);
-         ignore(unify_flows_to public_int index.ty' p);
-         ArrAssign(name,index.exp,expr'.exp,p)
+         ignore(unify_flows_to public_int expr' p);
+         ignore(unify_flows_to public_int index p)
        | VarEntry { v_ty={ ty=(ByteArr x); label=Some Secret } as lt } ->
          let private_int = { ty=Int32; label=Some Secret; kind=Val } in
          let expr' = tc_expr venv lt expr in
-         ignore(unify_flows_to private_int expr'.ty' p);
-         ignore(unify_flows_to public_int index.ty' p);
-         ArrAssign(name,index.exp,expr'.exp,p)
+         ignore(unify_flows_to private_int expr' p);
+         ignore(unify_flows_to public_int index p)
        | VarEntry { v_ty={ ty=(ByteArr x); label=None } as lt } ->
          let expr' = tc_expr venv lt expr in
          let { ty=t; label=l } =
           unify_flows_to
-            { ty=(ByteArr x); label=None; kind=Ref } expr'.ty' p in
-         ignore(update_label name venv l);
-         ArrAssign(name,index.exp,expr'.exp,p)
+            { ty=(ByteArr x); label=None; kind=Ref } expr' p in
+         ignore(update_label name venv l)
        | StaticVarEntry _ ->
          raise (TypeError("Cannot assign a static variable @ " ^ pos_string p))
        | _ -> raise (VariableNotDefined("Variable, `" ^ name ^ 
@@ -349,17 +337,14 @@ and tc_stm fn_ty venv f_name = function
     *)
     let none_bool = { ty=Bool; label=None; kind=Val } in
     let cond' = tc_expr venv none_bool cond in
-    ignore(unify Bool cond'.ty'.ty p);
-    let then'' = tc_stms fn_ty venv then' f_name in
-    let else'' = tc_stms fn_ty venv else' f_name in
-    If(cond'.exp,then'',else'',p)
+    ignore(unify Bool cond'.ty p);
+    ignore(tc_stms fn_ty venv then' f_name);
+    ignore(tc_stms fn_ty venv else' f_name)
   | For(name,l,h,body,p) ->
     (* TODO: Same as if statements *)
     let public_int = { ty=Int32; label=Some Public; kind=Val } in
-    ignore(unify_lt
-      (tc_expr venv public_int (Primitive(l,None))).ty' public_int p);
-    ignore(unify_lt
-      (tc_expr venv public_int (Primitive(h,None))).ty' public_int p);
+    ignore(unify_lt (tc_expr venv public_int (Primitive(l,None))) public_int p);
+    ignore(unify_lt (tc_expr venv public_int (Primitive(h,None))) public_int p);
     (match (l,h) with
      | (Number l', Number h') ->
        if l' >= h' then raise
@@ -368,23 +353,21 @@ and tc_stm fn_ty venv f_name = function
      | _ ->
        raise (TypeError ("Low and high values must be integers in for loop @ "
                          ^ (pos_string p))));
-    let _ = Hashtbl.add venv name (LoopEntry { v_ty=public_int }) in
-    let body' = tc_stms fn_ty venv body f_name in
-    For(name,l,h,body',p)
+    Hashtbl.add venv name (LoopEntry { v_ty=public_int });
+    ignore(tc_stms fn_ty venv body f_name)
   | Return(expr,p) ->
     let expr = tc_expr venv fn_ty expr in
     let fn_ty' = (match fn_ty with
       | { ty=_; label=None } ->
-        let lt = { fn_ty with label=expr.ty'.label } in
+        let lt = { fn_ty with label=expr.label } in
         save_fn_ret_label lt f_name;
         lt
       | _ -> fn_ty) in
-    ignore(unify fn_ty'.ty expr.ty'.ty p);
-    ignore(unify_flows_to fn_ty' expr.ty' p);
-    Return(expr.exp,p)
+    ignore(unify fn_ty'.ty expr.ty p);
+    ignore(unify_flows_to fn_ty' expr p)
 
 and tc_stms fn_ty venv stms f_name =
-  List.map (tc_stm fn_ty venv f_name) stms
+  ignore(List.map (tc_stm fn_ty venv f_name) stms)
 
 and tc_fdec venv = function
   (* TODO: This needs to return a list of environments.
@@ -415,11 +398,10 @@ and tc_fdec venv = function
                               Hashtbl.add venv' n (create_entry (tc_arg lt));
                               lt)
                     args' in
-    let body' = tc_stms ty venv' body name in
+    ignore(tc_stms ty venv' body name);
     let lt = get_fn_ret_label ~default:ty name in
     Hashtbl.add venv name (FunEntry { f_ty=lt; f_args=args_ty });
-    default_to_secret venv';
-    FunctionDec(name,args,ty,body',p)
+    default_to_secret venv'
 
 and tc_module (CModule l) =
-  CModule (List.map (tc_fdec Env.venv) l)
+  ignore(List.map (tc_fdec Env.venv) l)

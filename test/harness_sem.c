@@ -32,6 +32,9 @@ int prec(int);
 int opassign();
 int add5int8(int8_t);
 int complicatedAdd5(int);
+uint32_t add5uint32(uint32_t);
+uint16_t add5uint16(uint16_t);
+uint32_t add5uintUnify(uint16_t);
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -219,4 +222,20 @@ void test_complicatedAdd5(void) {
   int8_t negTen = -10;
   TEST_ASSERT_EQUAL(6,complicatedAdd5(one));
   TEST_ASSERT_EQUAL(-5,complicatedAdd5(negTen));
+}
+
+void test_add5uint32(void) {
+  uint32_t ten = 10;
+  TEST_ASSERT_EQUAL(15,add5uint32(ten));
+}
+
+void test_add5uint16(void) {
+  uint16_t ten = 10;
+  TEST_ASSERT_EQUAL(15,add5uint16(ten));
+}
+
+void test_add5uintUnify(void) {
+  uint16_t ten = 10;
+  uint32_t fifteen = 15;
+  TEST_ASSERT_EQUAL(fifteen, add5uintUnify(ten));
 }
