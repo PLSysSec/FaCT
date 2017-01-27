@@ -1,12 +1,12 @@
 #ifndef SORT_H
 #define SORT_H
 
-#define ROUTINE_INIT \
+#define ROUTINE_DEC \
     int conds[3]; \
     int out[3]; \
     int in[3]; 
 
-#define ROUTINE_REINIT \
+#define ROUTINE_INIT \
     reinit(conds,out,in);
 
 void reinit(int *conds,int *out,int *in) {
@@ -15,11 +15,8 @@ void reinit(int *conds,int *out,int *in) {
     memcpy(in, (int [3]){6,1,3}, 3*sizeof(int));
 }
 
-#define ROUTINE(params) \
-    sort3(params);
-
-#define PARAMS \
-    conds,out,in
+#define ROUTINE \
+    sort3(conds,out,in);
 
 void sort3(int *conds, int *out, int *in);
 
