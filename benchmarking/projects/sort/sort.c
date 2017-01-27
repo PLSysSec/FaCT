@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 int sort2(int *out2, int *in2) {
   int a, b;
   a = in2[0];
