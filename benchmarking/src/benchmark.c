@@ -4,17 +4,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include "stats.h"
+#include TARGET_LIB
 
 #define NUM_TRIALS 512
 #define NUM_ITRS 512
 #define WARMUP_COUNT 3
-
-// temporary //
-#include <sys/types.h>
-#include <unistd.h>
-#define ROUTINE getpid()
-///////////////
-
 
 #if defined(__clang__)
 #define NO_OPT __attribute__((optnone))
@@ -59,14 +53,17 @@ double test(void) {
 	uint64_t offset_time;
 	uint64_t routine_time;
         TIME_INIT
+        ROUTINE_INIT
 
 runme:
+        ROUTINE_REINIT
+
         TIME_START(start)
 	__asm__ __volatile__("# start routine loop");
 
 	for(ctr=0;ctr<NUM_ITRS;ctr++){
-		ROUTINE;
-		//barrier_data(buf);
+		ROUTINE(PARAMS);
+		//barrier_data(PARAMS);
 	}
 
 	__asm__ __volatile__("# end routine loop");
@@ -77,7 +74,7 @@ runme:
 	__asm__ __volatile__("# start offset loop");
 
 	for(ctr=0;ctr<NUM_ITRS;ctr++){
-		//barrier_data(buf);
+		//barrier_data(PARAMS);
 	}
 
 	__asm__ __volatile__("# end offset loop");
@@ -101,8 +98,6 @@ int main(int argc, char* argv[]) {
 	static double times[NUM_TRIALS];
 	double median, mean, stddev;
 	int i;
-
-        //setup()        
 
 	for(i = 0; i < NUM_TRIALS; i++)
 		times[i] = test();
