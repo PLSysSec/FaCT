@@ -21,7 +21,7 @@
 	__asm__ __volatile__("# barrier": :"r"(ptr) :"memory")
 #endif
 
-#define TIME_INIT \
+#define TIME_DEC \
     uint64_t cycles_high; \
     uint64_t cycles_low;
 
@@ -52,17 +52,17 @@ double test(void) {
 	uint64_t start, stop;
 	uint64_t offset_time;
 	uint64_t routine_time;
-        TIME_INIT
-        ROUTINE_INIT
+        TIME_DEC
+        ROUTINE_DEC
 
 runme:
-        ROUTINE_REINIT
+        ROUTINE_INIT
 
         TIME_START(start)
 	__asm__ __volatile__("# start routine loop");
 
 	for(ctr=0;ctr<NUM_ITRS;ctr++){
-		ROUTINE(PARAMS);
+		ROUTINE;
 		//barrier_data(PARAMS);
 	}
 
