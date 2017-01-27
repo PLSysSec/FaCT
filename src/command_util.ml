@@ -81,9 +81,9 @@ let compile (in_file,out_file,out_dir) llvm_out ast_out core_ir_out =
         raise (SyntaxError ("Syntax error @ " ^ message))) in
   Log.debug "Parsing complete";
   output_ast ast_out ast;
-  let _ =  tc_module ast in
+  let ast' =  tc_module ast in
   Log.debug "Typecheck complete";
-  let core_ir = transform ast in
+  let core_ir = transform ast' in
   Log.debug "Core IR transform complete";
   output_core_ir core_ir_out core_ir;
   let llvm_ctx = Llvm.create_context () in

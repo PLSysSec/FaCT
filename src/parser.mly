@@ -11,6 +11,9 @@ let to_type = function
   | { ty="int32"; attr=None } -> Int32
   | { ty="int16"; attr=None } -> Int16
   | { ty="int8"; attr=None } -> Int8
+  | { ty="uint32"; attr=None } -> UInt32
+  | { ty="uint16"; attr=None } -> UInt16
+  | { ty="uint8"; attr=None } -> UInt8
   | { ty="bool"; attr=None } -> Bool
   | { ty="bytearr"; attr=(Some (Primitive((Number n),_))) } -> ByteArr n
 

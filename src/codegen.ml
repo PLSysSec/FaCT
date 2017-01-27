@@ -14,7 +14,6 @@ let loop_values:(string, var) Hashtbl.t = Hashtbl.create 10
 let function_params:(string, param list) Hashtbl.t = Hashtbl.create 10
 let val_types:(string, ctype) Hashtbl.t = Hashtbl.create 10
 
-
 let unify t t1 =
   match (t,t1) with
   | (Int32,Int32) -> Int32
@@ -26,7 +25,17 @@ let unify t t1 =
   | (Int16,Int8) -> Int16
   | (Int8,Int16) -> Int16
   | (Int8,Int8) -> Int8
+  | (UInt32,UInt32) -> UInt32
+  | (UInt32,UInt16) -> UInt32
+  | (UInt16,UInt32) -> UInt32
+  | (UInt32,UInt8) -> UInt32
+  | (UInt8,UInt32) -> UInt32
+  | (UInt16,UInt16) -> UInt16
+  | (UInt16,UInt8) -> UInt16
+  | (UInt8,UInt16) -> UInt16
+  | (UInt8,UInt8) -> UInt8
   | (ByteArr x, ByteArr y) when x = y -> (ByteArr x)
+  | (UInt32,Int32) -> raise (Error "VEBUIWBGWRI:")
   | _ -> raise (Error "Unification error in codegen")
 
 let lt_to_var a = function
@@ -37,11 +46,17 @@ let lt_to_llvm_ty ctx = function
   | { ty=Int32; kind=Cast.Val } -> i32_type ctx
   | { ty=Int16; kind=Cast.Val } -> i16_type ctx
   | { ty=Int8; kind=Cast.Val } -> i8_type ctx
+  | { ty=UInt32; kind=Cast.Val } -> i32_type ctx
+  | { ty=UInt16; kind=Cast.Val } -> i16_type ctx
+  | { ty=UInt8; kind=Cast.Val } -> i8_type ctx
   | { ty=ByteArr n; kind=Cast.Val } ->
     raise(Error "Byte arrays must be a `ref` type")
   | { ty=Int32; kind=Cast.Ref } -> pointer_type(i32_type ctx)
   | { ty=Int16; kind=Cast.Ref } -> pointer_type(i16_type ctx)
   | { ty=Int8; kind=Cast.Ref } -> pointer_type(i8_type ctx)
+  | { ty=UInt32; kind=Cast.Ref } -> pointer_type(i32_type ctx)
+  | { ty=UInt16; kind=Cast.Ref } -> pointer_type(i16_type ctx)
+  | { ty=UInt8; kind=Cast.Ref } -> pointer_type(i8_type ctx)
   | { ty=ByteArr n; kind=Cast.Ref } -> pointer_type(array_type (i32_type ctx) n)
 
 let codegen ctx m =
@@ -59,6 +74,9 @@ let codegen ctx m =
     | { ty=Int32; kind=Cast.Val } -> arg
     | { ty=Int16; kind=Cast.Val } -> arg
     | { ty=Int8; kind=Cast.Val } -> arg
+    | { ty=UInt32; kind=Cast.Val } -> arg
+    | { ty=UInt16; kind=Cast.Val } -> arg
+    | { ty=UInt8; kind=Cast.Val } -> arg
     | { ty=ByteArr n; kind=Cast.Val } ->
       let a = build_alloca (array_type (i32_type ctx) n) "arg" b in
       ignore(build_store arg a b);
@@ -72,6 +90,18 @@ let codegen ctx m =
       ignore(build_store arg a b);
       a
     | { ty=Int8; kind=Cast.Ref } ->
+      let a = build_alloca (i8_type ctx) "arg" b in
+      ignore(build_store arg a b);
+      a
+    | { ty=UInt32; kind=Cast.Ref } ->
+      let a = build_alloca (i32_type ctx) "arg" b in
+      ignore(build_store arg a b);
+      a
+    | { ty=UInt16; kind=Cast.Ref } ->
+      let a = build_alloca (i16_type ctx) "arg" b in
+      ignore(build_store arg a b);
+      a
+    | { ty=UInt8; kind=Cast.Ref } ->
       let a = build_alloca (i8_type ctx) "arg" b in
       ignore(build_store arg a b);
       a
@@ -120,6 +150,9 @@ let codegen ctx m =
                 | Some Int32 -> i32_type ctx
                 | Some Int16 -> i16_type ctx
                 | Some Int8 -> i8_type ctx
+                | Some UInt32 -> i32_type ctx
+                | Some UInt16 -> i16_type ctx
+                | Some UInt8 -> i8_type ctx
                 | Some (ByteArr n) -> i32_type ctx) in
       const_int ty n
     | ByteArray l ->
@@ -193,6 +226,64 @@ let codegen ctx m =
               | Some Int8 -> rhs
               | _ -> raise (Error "Cannot truncate or extend for shift")
           end
+        | Some UInt32, Some UInt32 -> rhs
+        | Some UInt32, Some UInt16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+        | Some UInt32, Some UInt8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+        | Some UInt16, Some UInt32 ->
+          build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+        | Some UInt16, Some UInt16 -> rhs
+        | Some UInt16, Some UInt8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+        | Some UInt8, Some UInt32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+        | Some UInt8, Some UInt16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+        | Some UInt8, Some UInt8 -> rhs
+        | None, Some UInt32 ->
+          begin
+            match ty_ctx with
+              | Some UInt32 -> rhs
+              | Some UInt16 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+              | Some UInt8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
+        | None, Some UInt16 ->
+          begin
+            match ty_ctx with
+              | Some UInt32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+              | Some UInt16 -> rhs
+              | Some UInt8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
+        | None, Some UInt8 ->
+          begin
+            match ty_ctx with
+              | Some UInt32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+              | Some UInt16 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+              | Some UInt8 -> rhs
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
+        | Some UInt32, None ->
+          begin
+            match ty_ctx with
+              | Some UInt32 -> rhs
+              | Some UInt16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+              | Some UInt8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
+        | Some UInt16, None ->
+          begin
+            match ty_ctx with
+              | Some UInt32 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+              | Some UInt16 -> rhs
+              | Some UInt8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
+        | Some UInt8, None ->
+          begin
+            match ty_ctx with
+              | Some UInt32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+              | Some UInt16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+              | Some UInt8 -> rhs
+              | _ -> raise (Error "Cannot truncate or extend for shift")
+          end
         | _ -> rhs
     in
     let unify_binops lhs rhs lhs_ty rhs_ty =
@@ -236,12 +327,54 @@ let codegen ctx m =
         | None, Some Int8 ->
           let lhs' = build_sext lhs (i8_type ctx) "lhssexttmp" b in
           lhs',rhs
+        | Some UInt32, Some UInt32 -> lhs,rhs
+        | Some UInt32, Some UInt16 ->
+          let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
+          lhs,rhs'
+        | Some UInt32, Some UInt8 ->
+          let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
+          lhs,rhs'
+        | Some UInt16, Some UInt32 ->
+          let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
+          lhs',rhs
+        | Some UInt8, Some UInt32 ->
+          let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
+          lhs',rhs
+        | Some UInt16, Some UInt16 -> lhs,rhs
+        | Some UInt16, Some UInt8 ->
+          let rhs' = build_sext rhs (i16_type ctx) "rhssexttmp" b in
+          lhs,rhs'
+        | Some UInt8, Some UInt16 ->
+          let lhs' = build_sext lhs (i16_type ctx) "lhssexttmp" b in
+          lhs',rhs
+        | Some UInt8, Some UInt8 -> lhs,rhs
+        | Some UInt32, None ->
+          let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
+          lhs,rhs'
+        | Some UInt16, None ->
+          let rhs' = build_sext rhs (i16_type ctx) "rhssexttmp" b in
+          lhs,rhs'
+        | Some UInt8, None ->
+          let rhs' = build_sext rhs (i8_type ctx) "rhssexttmp" b in
+          lhs,rhs'
+        | None, Some UInt32 ->
+          let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
+          lhs',rhs
+        | None, Some UInt16 ->
+          let lhs' = build_sext lhs (i16_type ctx) "lhssexttmp" b in
+          lhs',rhs
+        | None, Some UInt8 ->
+          let lhs' = build_sext lhs (i8_type ctx) "lhssexttmp" b in
+          lhs',rhs
         | None, None ->
           let ty =
             (match ty_ctx with
               | Some Int32 -> i32_type ctx
               | Some Int16 -> i16_type ctx
               | Some Int8 -> i8_type ctx
+              | Some UInt32 -> i32_type ctx
+              | Some UInt16 -> i16_type ctx
+              | Some UInt8 -> i8_type ctx
               | _ -> raise (Error "Unknown LHS type for binary unification"))
           in
           let lhs' = build_sext lhs ty "lhssexttmp" b in
@@ -416,6 +549,9 @@ let codegen ctx m =
           | Some Int32, Some Int16 -> build_sext v (i32_type ctx) "unifytmp" b
           | Some Int32, Some Int8 -> build_sext v (i32_type ctx) "unifytmp" b
           | Some Int16, Some Int8 -> build_sext v (i16_type ctx) "unifytmp" b
+          | Some UInt32, Some UInt16 -> build_sext v (i32_type ctx) "unifytmp" b
+          | Some UInt32, Some UInt8 -> build_sext v (i32_type ctx) "unifytmp" b
+          | Some UInt16, Some UInt8 -> build_sext v (i16_type ctx) "unifytmp" b
           | _ -> v
         in
       let llvm_ty = lt_to_llvm_ty ctx lt in
