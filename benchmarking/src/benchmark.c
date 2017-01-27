@@ -10,16 +10,17 @@
 #define NUM_ITRS 512
 #define WARMUP_COUNT 3
 
-#if defined(__clang__)
-#define NO_OPT __attribute__((optnone))
-#elif defined(__GNUC__)
-#define NO_OPT __attribute__((optimize("O0")))
-#endif
+// Compiling entire file at -O0
+//if defined(__clang__)
+//define NO_OPT __attribute__((optnone))
+//elif defined(__GNUC__)
+//define NO_OPT __attribute__((optimize("O0")))
+//endif
 
-#ifndef barrier_data
-#define barrier_data(ptr) \
-	__asm__ __volatile__("# barrier": :"r"(ptr) :"memory")
-#endif
+// Now defined in TARGET_LIB since C preprocessor can't parse multiple arguments :(
+//ifndef barrier_data
+//define barrier_data(ptr) __asm__ __volatile__("# barrier": :"r"(ptr) :"memory");
+//endif
 
 #define TIME_DEC \
     uint64_t cycles_high; \
@@ -45,7 +46,6 @@
 		    :: "%rax", "%rbx", "%rcx", "%rdx"); \
     time = (cycles_high << 32) | cycles_low;
 
-NO_OPT
 double test(void) {
 	uint32_t ctr = 0;
 	uint8_t real = 0;
@@ -62,8 +62,8 @@ runme:
 	__asm__ __volatile__("# start routine loop");
 
 	for(ctr=0;ctr<NUM_ITRS;ctr++){
-		ROUTINE;
-		//barrier_data(PARAMS);
+		ROUTINE
+	        BARRIER_DATA
 	}
 
 	__asm__ __volatile__("# end routine loop");
@@ -74,7 +74,7 @@ runme:
 	__asm__ __volatile__("# start offset loop");
 
 	for(ctr=0;ctr<NUM_ITRS;ctr++){
-		//barrier_data(PARAMS);
+		BARRIER_DATA
 	}
 
 	__asm__ __volatile__("# end offset loop");
@@ -93,7 +93,6 @@ void print_times(const double * times, int n) {
 		printf("%.9f\n", times[i]);
 }
 
-NO_OPT
 int main(int argc, char* argv[]) {
 	static double times[NUM_TRIALS];
 	double median, mean, stddev;
@@ -109,11 +108,6 @@ int main(int argc, char* argv[]) {
 	mean = get_mean(times, NUM_TRIALS);
 	stddev = get_standard_deviation(times, NUM_TRIALS, mean);
 
-	/*
-        printf("%-80s %.9f %.9f %.9f %.9f %.9f\n",
-		argv[0], median, mean, stddev,
-		median / NBYTES, mean / NBYTES);
-        */
         printf("%-80s %.9f %.9f %.9f \n",
 		argv[0], median, mean, stddev);
 
