@@ -35,7 +35,6 @@ let unify t t1 =
   | (UInt8,UInt16) -> UInt16
   | (UInt8,UInt8) -> UInt8
   | (ByteArr x, ByteArr y) when x = y -> (ByteArr x)
-  | (UInt32,Int32) -> raise (Error "VEBUIWBGWRI:")
   | _ -> raise (Error "Unification error in codegen")
 
 let lt_to_var a = function
