@@ -56,12 +56,11 @@ double test(void) {
         ROUTINE_DEC
 
 runme:
-        ROUTINE_INIT
-
         TIME_START(start)
 	__asm__ __volatile__("# start routine loop");
 
 	for(ctr=0;ctr<NUM_ITRS;ctr++){
+                ROUTINE_INIT
 		ROUTINE
 	        BARRIER_DATA
 	}
@@ -74,6 +73,7 @@ runme:
 	__asm__ __volatile__("# start offset loop");
 
 	for(ctr=0;ctr<NUM_ITRS;ctr++){
+                ROUTINE_INIT
 		BARRIER_DATA
 	}
 
