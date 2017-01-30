@@ -10,7 +10,7 @@ exception CallError of string
 exception ForError of string
 exception InternalCompilerError of string
 
-let unify t t1 p =
+let rec unify t t1 p =
   match (t,t1) with
   | (Int32,Int32) -> Int32
   | (Int32,Int16) -> Int32
@@ -44,7 +44,10 @@ let unify t t1 p =
   | (UInt8,Int) -> UInt8
   | (Bool,Bool) -> Bool
   | (Int,Int) -> Int
-  | (ByteArr x, ByteArr y) when x = y -> (ByteArr x)
+  | (Bottom,a) -> a
+  | (a,Bottom) -> a
+  | (Array a, Array b) when a.size = b.size ->
+    Array { size=a.size; a_ty=(unify a.a_ty b.a_ty p)}
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with "
                 ^ ty_to_string(t1) ^ " @ " ^ (pos_string p)))
 
@@ -164,10 +167,11 @@ and tc_prim lhs = function
   | Number n -> 
     begin
       match lhs.ty with
-        | ByteArr n -> { ty=Int32; label=lhs.label; kind=Val }
+        | Array _ -> { ty=Int32; label=lhs.label; kind=Val }
         | ty -> { ty=ty; label=lhs.label; kind=Val }
     end
-  | ByteArray s -> { ty=(ByteArr (List.length s)); label=lhs.label; kind=Ref }
+  | ByteArray s -> { ty=(Array { size=(List.length s); a_ty=Int32 });
+                     label=lhs.label; kind=Ref }
   | Boolean b -> { ty=Bool; label=lhs.label; kind=Val }
 
 and tc_expr venv lhs_lt = function
@@ -273,7 +277,7 @@ and tc_stm fn_ty venv f_name = function
     let expr' = tc_expr venv lt expr in
     let lt = unify_flows_to lt expr' p in
     (match lt with 
-      | { kind=Val; ty=(ByteArr n)} ->
+      | { kind=Val; ty=(Array a)} ->
         raise (TypeError ("Byte arrays must be of `ref` type @ " ^
           (pos_string p)))
       | _ -> ());
@@ -303,20 +307,21 @@ and tc_stm fn_ty venv f_name = function
     let index = tc_expr venv public_int index in
     (try
       (match Hashtbl.find venv name with
-       | VarEntry { v_ty={ ty=(ByteArr x); label=Some Public } as lt } ->
+       | VarEntry { v_ty={ ty=(Array a); label=Some Public } as lt } ->
          let expr' = tc_expr venv lt expr in
-         ignore(unify_flows_to public_int expr' p);
+         let public_bottom = { public_int with ty=Bottom } in
+         ignore(unify_flows_to public_bottom expr' p);
          ignore(unify_flows_to public_int index p)
-       | VarEntry { v_ty={ ty=(ByteArr x); label=Some Secret } as lt } ->
-         let private_int = { ty=Int32; label=Some Secret; kind=Val } in
+       | VarEntry { v_ty={ ty=(Array a); label=Some Secret } as lt } ->
+         let private_bottom = { ty=Bottom; label=Some Secret; kind=Val } in
          let expr' = tc_expr venv lt expr in
-         ignore(unify_flows_to private_int expr' p);
+         ignore(unify_flows_to private_bottom expr' p);
          ignore(unify_flows_to public_int index p)
-       | VarEntry { v_ty={ ty=(ByteArr x); label=None } as lt } ->
+       | VarEntry { v_ty={ ty=(Array x); label=None } as lt } ->
          let expr' = tc_expr venv lt expr in
          let { ty=t; label=l } =
           unify_flows_to
-            { ty=(ByteArr x); label=None; kind=Ref } expr' p in
+            { ty=(Array x); label=None; kind=Ref } expr' p in
          ignore(update_label name venv l)
        | StaticVarEntry _ ->
          raise (TypeError("Cannot assign a static variable @ " ^ pos_string p))
@@ -376,7 +381,7 @@ and tc_fdec venv = function
      assembly as of right now, but the plan is for it to by having constant
      and non-constant time branching/loops/etc. This can only be done with
      an up to date and accurate AST. *)
-  | FunctionDec(_,_,{ ty=ByteArr(_); label=_ },_,p) ->
+  | FunctionDec(_,_,{ ty=Array _; label=_ },_,p) ->
     raise (TypeError("Functions cannot return a ByteArray @ " ^ (pos_string p)))
   | FunctionDec(name,args,ty,body,p) ->
     let rewrite_arg = function
@@ -390,7 +395,7 @@ and tc_fdec venv = function
       | { kind=Ref } as lt -> VarEntry { v_ty=lt }
       | { kind=Out } as lt -> VarEntry { v_ty=lt } in
     let tc_arg = function
-      | { kind=Val; ty=(ByteArr n) } ->
+      | { kind=Val; ty=(Array n) } ->
         raise (TypeError("Byte arrays must be of `ref` types @ " ^
           (pos_string p)))
       | arg -> arg in

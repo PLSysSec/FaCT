@@ -14,7 +14,7 @@ let loop_values:(string, var) Hashtbl.t = Hashtbl.create 10
 let function_params:(string, param list) Hashtbl.t = Hashtbl.create 10
 let val_types:(string, ctype) Hashtbl.t = Hashtbl.create 10
 
-let unify t t1 =
+let rec unify t t1 =
   match (t,t1) with
   | (Int32,Int32) -> Int32
   | (Int32,Int16) -> Int32
@@ -34,21 +34,22 @@ let unify t t1 =
   | (UInt16,UInt8) -> UInt16
   | (UInt8,UInt16) -> UInt16
   | (UInt8,UInt8) -> UInt8
-  | (ByteArr x, ByteArr y) when x = y -> (ByteArr x)
+  | (Array a, Array b) when a.size = b.size ->
+    Array { size=a.size; a_ty=(unify a.a_ty b.a_ty)}
   | _ -> raise (Error "Unification error in codegen")
 
 let lt_to_var a = function
   | { ty=t; kind=Cast.Ref } -> Ref a
   | { ty=t; kind=Cast.Val } -> Val a
 
-let lt_to_llvm_ty ctx = function
+let rec lt_to_llvm_ty ctx = function
   | { ty=Int32; kind=Cast.Val } -> i32_type ctx
   | { ty=Int16; kind=Cast.Val } -> i16_type ctx
   | { ty=Int8; kind=Cast.Val } -> i8_type ctx
   | { ty=UInt32; kind=Cast.Val } -> i32_type ctx
   | { ty=UInt16; kind=Cast.Val } -> i16_type ctx
   | { ty=UInt8; kind=Cast.Val } -> i8_type ctx
-  | { ty=ByteArr n; kind=Cast.Val } ->
+  | { ty=Array _; kind=Cast.Val } ->
     raise(Error "Byte arrays must be a `ref` type")
   | { ty=Int32; kind=Cast.Ref } -> pointer_type(i32_type ctx)
   | { ty=Int16; kind=Cast.Ref } -> pointer_type(i16_type ctx)
@@ -56,7 +57,52 @@ let lt_to_llvm_ty ctx = function
   | { ty=UInt32; kind=Cast.Ref } -> pointer_type(i32_type ctx)
   | { ty=UInt16; kind=Cast.Ref } -> pointer_type(i16_type ctx)
   | { ty=UInt8; kind=Cast.Ref } -> pointer_type(i8_type ctx)
-  | { ty=ByteArr n; kind=Cast.Ref } -> pointer_type(array_type (i32_type ctx) n)
+  | { ty=Array a; kind=Cast.Ref } ->
+    let lt' = { ty=a.a_ty; kind=Cast.Val } in
+    let pt = pointer_type(array_type (lt_to_llvm_ty ctx lt') a.size) in
+    pt
+
+let extend v lhs_ty rhs_ty ctx b =
+  match lhs_ty,rhs_ty with
+    | Some Int32, Some Int16 -> 
+      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+    | Some Int32, Some Int8 ->
+      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+    | Some Int16, Some Int8 ->
+      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+    | Some UInt32, Some UInt16 ->
+      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+    | Some UInt32, Some UInt8 ->
+      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+    | Some UInt16, Some UInt8 ->
+      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+    | Some Int16, Some Int32 ->
+      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+    | Some Int8, Some Int32 ->
+      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+    | Some Int8, Some Int16 ->
+      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+    | Some UInt16, Some UInt32 ->
+      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+    | Some UInt8, Some UInt32 ->
+      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+    | Some UInt8, Some UInt16 ->
+      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+    | Some Int32, Some Int32 ->
+      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+    | Some Int16, Some Int16 ->
+      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+    | Some Int8, Some Int8 ->
+      build_sext v (i8_type ctx) "unifytmp" b, (i8_type ctx)
+    | Some UInt32, Some UInt32 ->
+      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+    | Some UInt16, Some UInt16 ->
+      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+    | Some UInt8, Some UInt8 ->
+      build_sext v (i8_type ctx) "unifytmp" b, (i8_type ctx)
+    | _ -> raise (Error "Cannot extend an unsigned and signed int")
+
+let extend_to v ty ctx b = extend v ty ty ctx b
 
 let codegen ctx m =
   let b = builder ctx in
@@ -76,8 +122,10 @@ let codegen ctx m =
     | { ty=UInt32; kind=Cast.Val } -> arg
     | { ty=UInt16; kind=Cast.Val } -> arg
     | { ty=UInt8; kind=Cast.Val } -> arg
-    | { ty=ByteArr n; kind=Cast.Val } ->
-      let a = build_alloca (array_type (i32_type ctx) n) "arg" b in
+    | { ty=Array a; kind=Cast.Val } as lt ->
+      let lt' = { lt with ty=a.a_ty } in
+      let a =
+        build_alloca (array_type (lt_to_llvm_ty ctx lt') a.size) "arg" b in
       ignore(build_store arg a b);
       a
     | { ty=Int32; kind=Cast.Ref } ->
@@ -104,8 +152,9 @@ let codegen ctx m =
       let a = build_alloca (i8_type ctx) "arg" b in
       ignore(build_store arg a b);
       a
-    | { ty=ByteArr n; kind=Cast.Ref } ->
-      let pt = pointer_type(array_type (i32_type ctx) n) in
+    | { ty=Array a; kind=Cast.Ref } as lt ->
+      let lt' = { lt with ty=a.a_ty } in
+      let pt = pointer_type(array_type (lt_to_llvm_ty ctx lt') a.size) in
       let a = build_alloca pt "arg" b in
       ignore(build_store arg a b);
       a in
@@ -138,12 +187,16 @@ let codegen ctx m =
       let _ = position_at_end bb b in
       let _ = List.map codegen_stm body in
       let ret' = (codegen_expr (Some ty.ty) ret) in
-      let _ = build_ret ret' b in
+      let ret'',_ = extend_to ret' (Some ty.ty) ctx b in
+      let _ = build_ret ret'' b in
       let _ = Llvm_analysis.assert_valid_function the_function in
       the_function
 
   and codegen_prim ty_ctx = function
     | Number n ->
+      let is_array = function
+        | Array _ -> true
+        | _ -> false in
       let ty = (match ty_ctx with
                 | None -> i32_type ctx
                 | Some Int32 -> i32_type ctx
@@ -152,17 +205,20 @@ let codegen ctx m =
                 | Some UInt32 -> i32_type ctx
                 | Some UInt16 -> i16_type ctx
                 | Some UInt8 -> i8_type ctx
-                | Some (ByteArr n) -> i32_type ctx) in
+                | Some (Array a) ->
+                  let k = (if is_array a.a_ty then Cast.Ref else Cast.Val) in
+                  let lt = { kind=k; ty=a.a_ty } in 
+                  lt_to_llvm_ty ctx lt) in
       const_int ty n
     | ByteArray l ->
       let arr = Array.of_list l in
       let arr' = Array.map (const_int (i32_type ctx)) arr in
       const_array (i32_type ctx) arr'
 
-  and codegen_unop op e =
+  and codegen_unop op ty_ctx e =
     match op with
-      | Neg -> build_neg (codegen_expr None e) "negtmp" b
-      | BitNot -> build_not (codegen_expr None e) "nottmp" b
+      | Neg -> build_neg (codegen_expr ty_ctx e) "negtmp" b
+      | BitNot -> build_not (codegen_expr ty_ctx e) "nottmp" b
 
   and codegen_binop ty_ctx op e e' =
     let truncate_or_extend_rhs rhs lhs_ty rhs_ty =
@@ -383,12 +439,9 @@ let codegen ctx m =
       ) in
     let lhs_ty = expr_ty ty_ctx e in
     let rhs_ty = expr_ty ty_ctx e' in
-    let ty = match lhs_ty,rhs_ty,ty_ctx with
-               | Some lhs_ty', Some rhs_ty', _ -> unify lhs_ty' rhs_ty'
-               | Some lhs_ty', None, _ -> lhs_ty'
-               | None, Some rhs_ty', _ -> rhs_ty'
-               | None, None, Some ty_ctx' -> ty_ctx'
-               | _ -> raise (Error "Cannot determine type for binop") in
+    let ty = match ty_ctx with
+              | Some ty_ctx -> ty_ctx
+              | None -> raise (Error "Cannot determine type for binop") in
     let lhs = (codegen_expr (Some ty) e) in
     let rhs = (codegen_expr (Some ty) e') in
     let lhs',rhs' = unify_binops lhs rhs lhs_ty rhs_ty in
@@ -427,7 +480,10 @@ let codegen ctx m =
     end
 
   and prim_ty ty_ctx = function
-    | ByteArray n -> Some(ByteArr (List.length n))
+    | ByteArray n ->
+      (match ty_ctx with
+        | None -> raise (Error "Cannot determine type stored in array")
+        | Some ty -> Some(Array { size=(List.length n); a_ty=ty }))
     | Number n -> ty_ctx
 
   and expr_ty ty_ctx = function
@@ -436,10 +492,12 @@ let codegen ctx m =
         | Not_found ->
           raise (Error ("Type not found for variable `" ^ n ^ "`")))
     | ArrExp(n,i) ->
-      ignore((try (Hashtbl.find val_types n) with
+      let ty = (try (Hashtbl.find val_types n) with
         | Not_found ->
-      raise (Error ("Type not found for variable `" ^ n ^ "`"))));
-      Some Int32
+      raise (Error ("Type not found for variable `" ^ n ^ "`"))) in
+      (match ty with
+        | Array a -> Some a.a_ty
+        | _ -> raise (Error "Expected an array"))
     | UnOp(op,e) -> expr_ty ty_ctx e
     | BinOp(op,e,e') ->
       let ty1 = expr_ty ty_ctx e in
@@ -478,9 +536,10 @@ let codegen ctx m =
           | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
       let arr_val' = extract_value arr_val in
       let p = build_gep arr_val'
-          [| (const_int (i32_type ctx) 0); (get_index i)|] "ptr" b in
-      build_load p "p" b
-    | UnOp(op,e) -> codegen_unop op e
+          [| (const_int (i32_type ctx) 0); (get_index i) |] "ptr" b in
+      let b = build_load p "p" b in
+      b
+    | UnOp(op,e) -> codegen_unop op ty_ctx e
     | BinOp(op,e,e') -> codegen_binop ty_ctx op e e'
     | Primitive p -> codegen_prim ty_ctx p
     | CallExp(callee, args) ->
@@ -526,37 +585,35 @@ let codegen ctx m =
       position_at_end after_bb b;
       add_incoming (next_var,loop_end_bb) variable;
     | Assign(n,e) ->
-      let v = (try Hashtbl.find named_values n with
-        | Not_found ->
-          raise (Error ("Unknown variable in var assign: " ^ n))) in
-      let v' = extract_value v in
       let ty = (try Hashtbl.find val_types n with
         | Not_found -> raise (Error ("Unknown type for var: " ^ n))) in
-      ignore(build_store (codegen_expr (Some ty) e) v' b)
+      let expr = codegen_expr (Some ty) e in
+      let ty' = expr_ty (Some ty) e in
+      let ty'' = match ty' with 
+        | Some t -> t
+        | None -> raise (Error "Unknown type") in
+      let expr',_ = extend expr (Some ty) ty' ctx b in
+      let llvm_ty'' = lt_to_llvm_ty ctx { ty=ty''; kind=Val } in
+      let alloc = build_alloca llvm_ty'' n b in
+      ignore(build_store expr' alloc b);
+      Hashtbl.replace named_values n (Ref alloc)
     | ArrAssign(n,i,e) ->
       let v = (try Hashtbl.find named_values n with
         | Not_found ->
           raise (Error ("Unknown variable in array assign: " ^ n))) in
+      let ty_ctx = match Hashtbl.find val_types n with
+                     | Array { a_ty=ty } -> ty
+                     | _ -> raise (Error "Expected an array") in
       let v' = extract_value v in
-      let e' = codegen_expr (Some Int32) e in
+      let e' = codegen_expr (Some ty_ctx) e in
+      let expr',_ = extend_to e' (Some ty_ctx) ctx b in
       let i_t = const_int (i32_type ctx) in
-      let p = build_gep v' [| (i_t 0); (codegen_expr None i)|] "ptr" b in
-      ignore(build_store e' p b)
+      let p = build_gep v' [| (i_t 0); (codegen_expr (Some Int32) i)|] "ptr" b in
+      ignore(build_store expr' p b);
     | VarDec(n,lt,e) ->
-      let extend v lhs_ty rhs_ty =
-        match lhs_ty,rhs_ty with
-          | Some Int32, Some Int16 -> build_sext v (i32_type ctx) "unifytmp" b
-          | Some Int32, Some Int8 -> build_sext v (i32_type ctx) "unifytmp" b
-          | Some Int16, Some Int8 -> build_sext v (i16_type ctx) "unifytmp" b
-          | Some UInt32, Some UInt16 -> build_sext v (i32_type ctx) "unifytmp" b
-          | Some UInt32, Some UInt8 -> build_sext v (i32_type ctx) "unifytmp" b
-          | Some UInt16, Some UInt8 -> build_sext v (i16_type ctx) "unifytmp" b
-          | _ -> v
-        in
-      let llvm_ty = lt_to_llvm_ty ctx lt in
       let v = codegen_expr (Some lt.ty) e in
-      let v' = extend v (Some lt.ty) (expr_ty (Some lt.ty) e) in
-      let alloca = build_alloca llvm_ty n b in
+      let v', ty' = extend v (Some lt.ty) (expr_ty (Some lt.ty) e) ctx b in
+      let alloca = build_alloca ty' n b in
       ignore(build_store v' alloca b);
       Hashtbl.add val_types n lt.ty;
       Hashtbl.add named_values n (Ref alloca)

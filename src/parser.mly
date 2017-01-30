@@ -4,6 +4,12 @@ open Lexing
 
 type ty_info = { ty:string; attr:expr option }
 
+let parse_error s = (* Called by the parser function on error *)
+  print_endline s;
+  flush stdout
+
+exception ParseError of string
+
 (* TODO: I dont like this.. We need to think of another way
          to go from string to constantc type *)
 let to_type = function
@@ -15,11 +21,23 @@ let to_type = function
   | { ty="uint16"; attr=None } -> UInt16
   | { ty="uint8"; attr=None } -> UInt8
   | { ty="bool"; attr=None } -> Bool
-  | { ty="bytearr"; attr=(Some (Primitive((Number n),_))) } -> ByteArr n
-
-let parse_error s = (* Called by the parser function on error *)
-  print_endline s;
-  flush stdout
+  | { ty="int"; attr=(Some (Primitive((Number n),_))) } ->
+    Array { size=n; a_ty=Int32 }
+  | { ty="int32"; attr=(Some (Primitive((Number n),_))) } ->
+    Array { size=n; a_ty=Int32 }
+  | { ty="int16"; attr=(Some (Primitive((Number n),_))) } ->
+    Array { size=n; a_ty=Int16 }
+  | { ty="int8"; attr=(Some (Primitive((Number n),_))) } ->
+    Array { size=n; a_ty=Int8 }
+  | { ty="uint32"; attr=(Some (Primitive((Number n),_))) } ->
+    Array { size=n; a_ty=UInt32 }
+  | { ty="uint16"; attr=(Some (Primitive((Number n),_))) } ->
+    Array { size=n; a_ty=UInt16 }
+  | { ty="uint8"; attr=(Some (Primitive((Number n),_))) } ->
+    Array { size=n; a_ty=UInt8 }
+  | { ty="bool"; attr=(Some (Primitive((Number n),_))) } ->
+    Array { size=n; a_ty=Bool }
+  | { ty=t } -> raise (ParseError("Unknown type: " ^ t))
 
 %}
 

@@ -31,8 +31,10 @@ and transform_type = function
   | Ast.UInt16 -> Cast.UInt16
   | Ast.UInt8 -> Cast.UInt8
   | Ast.Int -> raise (TransformError "Cannot transform base Int type")
-  | Ast.Bool -> Cast.Int32
-  | Ast.ByteArr s -> Cast.ByteArr s
+  | Ast.Bool -> Cast.Int8
+  | Ast.Array { a_ty=t; size=s } ->
+    Cast.Array { a_ty=(transform_type t); size=s }
+  | Ast.Bottom -> raise (TransformError "Bottom is not a valid const type")
 
 and transform_kind = function
   | Ast.Val -> Cast.Val
@@ -75,7 +77,7 @@ and transform_stm ctx = function
     let ctx' = Context(c') in
     let bt' = List.flatten(List.map (transform_stm ctx') bt) in
     let bf' = List.flatten(List.map (transform_stm ctx') bf) in
-    let lt = { Cast.ty=Cast.Int32; kind=Cast.Val } in
+    let lt = { Cast.ty=Cast.Int8; kind=Cast.Val } in
     let mdec = Cast.VarDec(tname,lt,b_and e' c) in
     let mnot = Cast.Assign(tname,b_not m) in
     [mdec] @ bt' @ [mnot] @ bf'
@@ -138,11 +140,21 @@ and transform_binop = function
 
 and transform_fdec = function
   | Ast.FunctionDec(name,args,rt,body,_) ->
+    let get_rt_signedness = function
+      | { Ast.ty=Ast.Int32 } -> Cast.Int8
+      | { Ast.ty=Ast.Int16 } -> Cast.Int8
+      | { Ast.ty=Ast.Int8 } -> Cast.Int8
+      | { Ast.ty=Ast.UInt32 } -> Cast.UInt8
+      | { Ast.ty=Ast.UInt16 } -> Cast.UInt8
+      | { Ast.ty=Ast.UInt8 } -> Cast.UInt8
+      | _ -> raise (TransformError "Cannot get signedness of return type") in
     let args' = List.map transform_arg args in
     let { Cast.ty=t; Cast.kind=k } as rt' = transform_lt(rt) in
+    let i8 = get_rt_signedness rt in
+    let i8_lt = { Cast.ty=i8; Cast.kind=Cast.Val } in
     let ctx = Context(Cast.Primitive(Cast.Number (-1))) in
     let body' = List.flatten(List.map (transform_stm ctx) body) in
-    let rval = Cast.VarDec("rval",rt',Cast.Primitive(Cast.Number 0)) in
-    let rset = Cast.VarDec("rset",rt',Cast.Primitive(Cast.Number 0)) in
+    let rval = Cast.VarDec("rval",i8_lt,Cast.Primitive(Cast.Number 0)) in
+    let rset = Cast.VarDec("rset",i8_lt,Cast.Primitive(Cast.Number 0)) in
     let body'' = [rval]@[rset]@body' in
     Cast.FunctionDec(name,args',rt',body'',Cast.VarExp("rval"))

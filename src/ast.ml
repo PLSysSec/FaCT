@@ -31,7 +31,8 @@ and ctype =
   | UInt8
   | Int
   | Bool
-  | ByteArr of int
+  | Array of { a_ty:ctype; size:int }
+  | Bottom
 [@@deriving show, eq]
 
 and label =
@@ -108,5 +109,5 @@ let ty_to_string = function
   | UInt16 _ -> "UInt16"
   | UInt8 _ -> "UInt8"
   | Bool _ -> "Bool"
-  | ByteArr _ -> "ByteArr"
+  | Array _ -> "ByteArr"
   | Int _ -> "Int"

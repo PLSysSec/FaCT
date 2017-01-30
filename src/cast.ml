@@ -5,7 +5,7 @@ type ctype =
   | UInt32
   | UInt16
   | UInt8
-  | ByteArr of int
+  | Array of { a_ty:ctype; size:int }
 [@@deriving show]
 
 and kind =
