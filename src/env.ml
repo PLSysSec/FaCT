@@ -4,17 +4,14 @@ open Ast
 exception FunctionNotFound of string
 exception NotImplemented
 
-type ventry = { v_ty: Ast.labeled_type }
-type fentry = { f_ty: Ast.labeled_type; f_args: Ast.labeled_type list }
-
 type entry =
-  | VarEntry of ventry
-  | LoopEntry of ventry
-  | StaticVarEntry of ventry
-  | FunEntry of fentry
+  | VarEntry of Ast.labeled_type
+  | FunEntry of { f_ty:Ast.expr_type; f_args:Ast.labeled_type list }
+
+let varentry_lt (VarEntry pt) = { ty=pt.ty; label=pt.label }
+let make_ref_entry lt = VarEntry { ty=lt.ty; label=lt.label; kind=Ref }
 
 type env = (string,entry) Hashtbl.t
-type fun_ret_env = (string,Ast.labeled_type) Hashtbl.t
 
 let venv =
   let v = Hashtbl.create 10 in

@@ -1,6 +1,13 @@
 open Lexing
 
+(* all this pos stuff should be moved to lexing *)
+
+exception PosError of pos * exn
+
 type pos = { file:string; line:int; lpos:int; rpos:int }
+[@@deriving show, eq]
+
+and 'a pos_ast = { pos:pos; data:'a }
 [@@deriving show, eq]
 
 let to_pos ?buf:(b=None)
@@ -16,23 +23,37 @@ let pos_string { file=f; line=l; lpos=lp; rpos=rp } =
   "file " ^ f ^ ", line " ^ string_of_int(l) ^
   ", from " ^ string_of_int(lp) ^ "-" ^ string_of_int(rp)
 
+let repack fn = fun pa -> { pos=pa.pos; data=(fn pa) }
+let posmap fn = fun { pos; data } ->
+  try { pos=pos; data=(fn data) } with
+    | err -> raise (PosError p err)
+
 type constantc_module = CModule of fdec list
 [@@deriving show, eq]
 
-and fdec = FunctionDec of string * param list * labeled_type * stm list * pos
+and expr_type = { ty:ctype option; label:label option }
 [@@deriving show, eq]
 
+and fdec = { name:string; params:param list; rty:expr_type; body:stm list }
+[@@deriving show, eq]
+
+and param = { name:string; lt:labeled_type }
+[@@deriving show, eq]
+
+and arg' =
+  | ValArg of expr
+  | VarArg of kind * string (* when parsing, kind is Val only if explicitly given; it parses as a ValArg of VarExp if not *)
+  | ArrArg of kind * string (* TODO should allow slicing *)
+[@@deriving show, eq]
+and arg = arg' pos_ast [@@deriving show, eq]
+
 and ctype =
-  | Int32
-  | Int16
-  | Int8
-  | UInt32
-  | UInt16
-  | UInt8
-  | Int
   | Bool
-  | Array of { a_ty:ctype; size:int }
-  | Bottom
+  | NumericTop
+  | Int of int
+  | UInt of int
+  | NumericBottom
+  | Array of { ty:ctype; size:int }
 [@@deriving show, eq]
 
 and label =
@@ -49,50 +70,52 @@ and kind =
 and labeled_type = { ty:ctype; label:label option; kind:kind }
 [@@deriving show, eq]
 
-and param = { name:string; lt:labeled_type; p:pos }
+and stm' =
+  | VarDec of string * labeled_type * expr
+  | Assign of string * expr
+  | ArrAssign of string * expr * expr
+  | If of expr * stm list * stm list
+  | For of string * ctype * expr * expr * stm list
+  | Return of expr
 [@@deriving show, eq]
+and stm = stm' pos_ast [@@deriving show, eq]
 
-and stm =
-  | VarDec of string * labeled_type * expr * pos
-  | Assign of string * expr * pos
-  | ArrAssign of string * expr * expr * pos
-  | If of expr * stm list * stm list * pos
-  | For of string * primitive * primitive * stm list * pos
-  | Return of expr * pos
+and expr' = { e:expr''; ty:ctype option; label:label option }
 [@@deriving show, eq]
+and expr = expr' pos_ast [@@deriving show, eq]
 
-and expr =
-  | VarExp of string * pos
-  | ArrExp of string * expr * pos
-  | UnOp of unop * expr * pos
-  | BinOp of binop * expr * expr * pos
-  | Primitive of primitive * pos option
-  | CallExp of string * expr list * pos
+and expr'' =
+  | VarExp of string
+  | ArrExp of string * expr
+  | UnOp of unop * expr
+  | BinOp of binop * expr * expr
+  | Primitive of primitive
+  | CallExp of string * arg list
 [@@deriving show, eq]
 
 and unop =
-  | Neg of pos
-  | L_Not of pos
-  | B_Not of pos
+  | Neg
+  | L_Not
+  | B_Not
 [@@deriving show, eq]
 
 and binop =
-  | Plus of pos
-  | Minus of pos
-  | Multiply of pos
-  | Equal of pos
-  | NEqual of pos
-  | GT of pos
-  | GTE of pos
-  | LT of pos
-  | LTE of pos
-  | L_And of pos
-  | L_Or of pos
-  | B_And of pos
-  | B_Or of pos
-  | B_Xor of pos
-  | LeftShift of pos
-  | RightShift of pos
+  | Plus
+  | Minus
+  | Multiply
+  | Equal
+  | NEqual
+  | GT
+  | GTE
+  | LT
+  | LTE
+  | L_And
+  | L_Or
+  | B_And
+  | B_Or
+  | B_Xor
+  | LeftShift
+  | RightShift
 [@@deriving show, eq]
 
 and primitive =
@@ -102,12 +125,8 @@ and primitive =
 [@@deriving show, eq]
 
 let ty_to_string = function
-  | Int32 _ -> "Int32"
-  | Int16 _ -> "Int16"
-  | Int8 _ -> "Int8"
-  | UInt32 _ -> "UInt32"
-  | UInt16 _ -> "UInt16"
-  | UInt8 _ -> "UInt8"
-  | Bool _ -> "Bool"
-  | Array _ -> "ByteArr"
-  | Int _ -> "Int"
+  | Bool -> "bool"
+  | Int size -> "int" ^ string_of_int size
+  | UInt size -> "uint" ^ string_of_int size
+  | Array t -> ty_to_string t.ty ^ "[" ^ t.size ^ "]"
+  | a -> show_ctype a

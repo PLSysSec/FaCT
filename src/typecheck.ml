@@ -10,403 +10,309 @@ exception CallError of string
 exception ForError of string
 exception InternalCompilerError of string
 
-let rec unify t t1 p =
-  match (t,t1) with
-  | (Int32,Int32) -> Int32
-  | (Int32,Int16) -> Int32
-  | (Int16,Int32) -> Int32
-  | (Int32,Int8) -> Int32
-  | (Int8,Int32) -> Int32
-  | (Int16,Int16) -> Int16
-  | (Int16,Int8) -> Int16
-  | (Int8,Int16) -> Int16
-  | (Int8,Int8) -> Int8
-  | (Int,Int32) -> Int32
-  | (Int,Int16) -> Int16
-  | (Int,Int8) -> Int8
-  | (Int32,Int) -> Int32
-  | (Int16,Int) -> Int16
-  | (Int8,Int) -> Int8
-  | (UInt32,UInt32) -> UInt32
-  | (UInt32,UInt16) -> UInt32
-  | (UInt16,UInt32) -> UInt32
-  | (UInt32,UInt8) -> UInt32
-  | (UInt8,UInt32) -> UInt32
-  | (UInt16,UInt16) -> UInt16
-  | (UInt16,UInt8) -> UInt16
-  | (UInt8,UInt16) -> UInt16
-  | (UInt8,UInt8) -> UInt8
-  | (Int,UInt32) -> UInt32
-  | (Int,UInt16) -> UInt16
-  | (Int,UInt8) -> UInt8
-  | (UInt32,Int) -> UInt32
-  | (UInt16,Int) -> UInt16
-  | (UInt8,Int) -> UInt8
-  | (Bool,Bool) -> Bool
-  | (Int,Int) -> Int
-  | (Bottom,a) -> a
-  | (a,Bottom) -> a
-  | (Array a, Array b) when a.size = b.size ->
-    Array { size=a.size; a_ty=(unify a.a_ty b.a_ty p)}
-  | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with "
-                ^ ty_to_string(t1) ^ " @ " ^ (pos_string p)))
+let errVarNotDefined v =
+  VariableNotDefined("Variable `" ^ v ^ "` not defined")
+let errFnNotDefined v =
+  FunctionNotDefined("Function `" ^ v ^ "` not defined")
+let errFoundNotVar v =
+  TypeError("Cannot use `" ^ v ^ "` as variable")
+let errFoundNotFn v =
+  TypeError("Cannot use `" ^ v ^ "` as function")
+let errTypeError =
+  TypeError("Types cannot be unified for given operation")
+let errFlowError =
+  TypeError("Invalid type flow")
+let errPassError =
+  TypeError("Cannot call function with this type")
 
-let unify_lt lt lt' p =
-  match lt,lt' with
-    | { ty=t; label=Some Public }, { ty=t'; label=Some Public } ->
-      { ty=(unify t t' p); label=Some Public; kind=Val }
-    | { ty=t; label=Some Secret }, { ty=t'; label=Some Public } ->
-      { ty=(unify t t' p); label=Some Secret; kind=Val }
-    | { ty=t; label=Some Public }, { ty=t'; label=Some Secret } ->
-      { ty=(unify t t' p); label=Some Secret; kind=Val }
-    | { ty=t; label=Some Secret }, { ty=t'; label=Some Secret } ->
-      { ty=(unify t t' p); label=Some Secret; kind=Val }
-    | { ty=t; label=None }, { ty=t'; label=Some Secret } ->
-      { ty=(unify t t' p); label=Some Secret; kind=Val }
-    | { ty=t; label=Some Secret }, { ty=t'; label=None } ->
-      { ty=(unify t t' p); label=Some Secret; kind=Val }
-    | { ty=t; label=None }, { ty=t'; label=l } ->
-      { ty=(unify t t' p); label=None; kind=Val }
-    | { ty=t; label=l }, { ty=t'; label=None } ->
-      { ty=(unify t t' p); label=None; kind=Val }
+(* Unifies ctype for expressions *)
+let unify_ty t1 t2 =
+  match (t1,t2) with
+    | _ when t1 = t2 -> t1
+    | (NumericTop, a) when isInt a -> NumericTop
+    | (a, NumericTop) when isInt a -> NumericTop
+    | (Int a, Int b) -> Int (max a b)
+    | (UInt a, UInt b) -> UInt (max a b)
+    | (NumericBottom, a) when isInt a -> a
+    | (a, NumericBottom) when isInt a -> a
+    | _ -> raise (TypeError(ty_to_string(t1) ^ " does not unify with " ^ ty_to_string(t2)))
 
-(* The `can_flow_to` operation that returns the unified label and handles
-   label inference *)
-let unify_flows_to ~ret_label ~expr_label p =
-  match ret_label, expr_label with
-    | { ty=t; label=Some Public }, { ty=t'; label=Some Public } ->
-      { ty=(unify t t' p); label=Some Public; kind=Val }
-    | { ty=t; label=Some Public }, { ty=t'; label=Some Secret } ->
-      raise (TypeError ("A secret value cannot flow to a public value @ " ^
-              (pos_string p)))
-    | { ty=t; label=Some Secret }, { ty=t'; label=Some Public } ->
-      { ty=(unify t t' p); label=Some Secret; kind=Val }
-    | { ty=t; label=Some Secret }, { ty=t'; label=Some Secret } ->
-      { ty=(unify t t' p); label=Some Secret; kind=Val }
-    | { ty=t; label=None }, { ty=t'; label=Some Public } ->
-      { ty=(unify t t' p); label=Some Public; kind=Val }
-    | { ty=t; label=None }, { ty=t'; label=Some Secret } ->
-      { ty=(unify t t' p); label=Some Secret; kind=Val }
-    | { ty=t; label=Some Public }, { ty=t'; label=None } ->
-      { ty=(unify t t' p); label=Some Public; kind=Val }
-    | { ty=t; label=Some Secret }, { ty=t'; label=None } ->
-      { ty=(unify t t' p); label=Some Secret; kind=Val }
-    | { ty=t; label=None }, { ty=t'; label=None } ->
-      { ty=(unify t t' p); label=None; kind=Val }
+let unify_label lbl1 lbl2 =
+  match lbl1,lbl2 with
+    | Some Secret,_ -> Some Secret
+    | _,Some Secret -> Some Secret
+    | Some Public,Some Public -> Some Public
+    | _ -> None
 
-(* Unifies the labeled types of args to operators *)
-let unify_op (rt,arg_ts) ts p =
-  let unify_op' t t' =
-    match t,t' with
-      | t,{ ty=t'; label=l } -> (unify t t' p) in
-  ignore(List.map2 (fun t t1 -> unify_op' t t1) arg_ts ts);
-  rt
-
-(* Unifies function args during a function call *)
-let unify_fn_args arg_ts ts p =
-  List.map2 (fun t t' -> unify_lt t t' p) arg_ts ts
+let tc_prim = function
+  | Number n -> NumericBottom, Some Public
+  | ByteArray s -> Array { size=(List.length s); ty=NumericBottom }, Some Public
+  | Boolean b -> Bool, Some Public
 
 let isInt = function
-  | Int32 -> true
-  | Int16 -> true
-  | Int8 -> true
-  | UInt32 -> true
-  | UInt16 -> true
-  | UInt8 -> true
-  | Int -> true
+  | NumericTop -> true
+  | Int _ -> true
+  | UInt _ -> true
+  | NumericBottom -> true
   | _ -> false
 
 let isBool = function
   | Bool -> true
   | _ -> false
 
-let rec tc_unop = function
-  | Neg _ -> (Int32, [Int32])
-  | L_Not _ -> (Bool, [Bool])
-  | B_Not _ -> (Int32, [Int32])
+(* See note below *)
+let tc_unop p ty = function
+  | Neg when isInt ty -> ty
+  | L_Not when isBool ty -> ty
+  | B_Not when isInt ty -> ty
+  | _ -> raise (errTypeError p)
 
-and op_arg = function
-  | Plus _ -> Int
-  | Minus _ -> Int
-  | Multiply _ -> Int
-  | Equal _ -> Int
-  | NEqual _ -> Int
-  | GT _ -> Int
-  | GTE _ -> Int
-  | LT _ -> Int
-  | LTE _ -> Int
-  | L_And _ -> Bool
-  | L_Or _ -> Bool
-  | B_And _ -> Int
-  | B_Or _ -> Int
-  | B_Xor _ -> Int
-  | LeftShift _ -> Int
-  | RightShift _ -> Int
+(* Note: apparently C just turns all bitwise operations (including shifts)
+   into ints. Should we match C or do it our way?
+   [scauligi] My vote is for keeping it our way. *)
+let tc_binop p lhs rhs = function
+  | Plus when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
+  | Minus when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
+  | Multiply when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
+  | Equal when isInt(lhs) && isInt(rhs) -> Bool
+  | NEqual when isInt(lhs) && isInt(rhs) -> Bool
+  | GT when isInt(lhs) && isInt(rhs) -> Bool
+  | GTE when isInt(lhs) && isInt(rhs) -> Bool
+  | LT when isInt(lhs) && isInt(rhs) -> Bool
+  | LTE when isInt(lhs) && isInt(rhs) -> Bool
+  | L_And when isBool(lhs) && isBool(rhs) -> Bool
+  | L_Or when isBool(lhs) && isBool(rhs) -> Bool
+  | B_And when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
+  | B_Or when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
+  | B_Xor when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
+  | LeftShift when isInt(lhs) && isInt(rhs) -> lhs
+  | RightShift when isInt(lhs) && isInt(rhs) -> lhs
+  | _ -> raise (errTypeError p)
 
-and tc_binop lhs rhs p = function
-  | Plus p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
-  | Minus p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
-  | Multiply p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
-  | Equal _ when isInt(lhs) && isInt(rhs) -> Bool
-  | NEqual _ when isInt(lhs) && isInt(rhs) -> Bool
-  | GT p when isInt(lhs) && isInt(rhs) -> Bool
-  | GTE p when isInt(lhs) && isInt(rhs) -> Bool
-  | LT p when isInt(lhs) && isInt(rhs) -> Bool
-  | LTE p when isInt(lhs) && isInt(rhs) -> Bool
-  | L_And p when isBool(lhs) && isBool(rhs) -> Bool
-  | L_Or p when isBool(lhs) && isBool(rhs) -> Bool
-  | B_And p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
-  | B_Or p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
-  | B_Xor p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
-  | LeftShift p when isInt(lhs) && isInt(rhs) -> lhs
-  | RightShift p when isInt(lhs) && isInt(rhs) -> lhs
-  | _ -> raise (TypeError("Types cannot be unified for given operator @ " ^
-          (pos_string p)))
+and ty_can_pass lhs rhs =
+  match lhs, rhs with
+    | { kind=Out }, _ => raise NotImplemented
+    | _, { kind=Out } => raise NotImplemented
+    | { kind=Ref }, { kind=Val } -> raise errPassError
+    | { ty=a }, { ty=b } when a = b -> ()
+    | _ -> raise errPassError
 
-and tc_prim lhs = function
-  | Number n -> 
-    begin
-      match lhs.ty with
-        | Array _ -> { ty=Int32; label=lhs.label; kind=Val }
-        | ty -> { ty=ty; label=lhs.label; kind=Val }
-    end
-  | ByteArray s -> { ty=(Array { size=(List.length s); a_ty=Int32 });
-                     label=lhs.label; kind=Ref }
-  | Boolean b -> { ty=Bool; label=lhs.label; kind=Val }
+and lbl_can_pass venv lhs (arg,rhs) =
+  let update_venv = function
+    | VarArg(_,name)
+    | ArrArg(_,name) -> Hashtbl.replace venv name (Some Public)
+  in
+  match lhs, rhs with
+    | { kind=Out }, _ => raise NotImplemented
+    | _, { kind=Out } => raise NotImplemented
+    | { kind=Ref }, { kind=Val } -> raise errPassError
+    | { label=Some Public }, { label=Some Secret } -> raise errPassError
+    | { kind=Ref; label=Some Secret }, { kind=Ref; label=Some Public } -> raise errPassError
+    | { label=None }, { label=Secret } -> { lhs with label=Some Secret }
+    | { label=Some Public }, { label=None } -> update_venv arg; lhs
+    | { kind=Val; label=Some Secret }, _ -> lhs
 
-and tc_expr venv lhs_lt = function
-  | VarExp(v,p) as e ->
-    (try
-       match Hashtbl.find venv v with
-       | VarEntry { v_ty={ ty=t; label=None } } ->
-         update_label v venv lhs_lt.label
-       | VarEntry { v_ty=ty } -> ty
-       | LoopEntry { v_ty=ty } -> ty
-       | StaticVarEntry { v_ty=ty } -> ty
-       | _ -> raise (VariableNotDefined("Variable `" ^ v ^ "` not defined"
-                           ^ (pos_string p)))
-     with
-       Not_found -> raise (VariableNotDefined("Variable `" ^ v ^ "` not defined"
-                           ^ (pos_string p))))
-  | ArrExp(v,i,p) ->
-    let ret = try Hashtbl.find venv v with 
-      | Not_found -> raise (VariableNotDefined("Variable `" ^ v ^ "` not defined"
-          ^ (pos_string p))) in
-    let ret_label = (match ret with
-      | VarEntry { v_ty={ ty=t; label=l } } -> l
-      | StaticVarEntry { v_ty={ ty=t; label=l } } -> l
-      | LoopEntry _ -> raise (InternalCompilerError("Found a loop entry in " ^
-                              " place of var entry(array)"))
-      | FunEntry _ -> raise (InternalCompilerError("Found a fun entry in " ^
-      " place of var entry(array)"))) in
-    (match i with
-     | Primitive _ -> { ty=Int32; label=ret_label; kind=Val }
-     | VarExp(n,p) ->
-       (try
-          match Hashtbl.find venv n with
-          | LoopEntry { v_ty={ ty=Int32; label=Some Public} } ->
-            { ty=Int32; label=ret_label; kind=Val }
-          | LoopEntry { v_ty={ ty=t; label=Some Secret } } ->
-            raise (InternalCompilerError ("Loop variables cannot be secret"))
-          | LoopEntry { v_ty={ ty=t; label=l } } ->
-            raise (InternalCompilerError ("Loop variable must be public ints"))
-          | VarEntry { v_ty={ ty=t; label=None } } ->
-            ignore(update_label n venv (Some Public));
-            { ty=Int32; label=ret_label; kind=Val }
-          | VarEntry { v_ty={ ty=Int32; label=Some Public } } ->
-            { ty=Int32; label=ret_label; kind=Val }
-          | VarEntry { v_ty={ ty=t; label=Some Secret } } ->
-            raise (TypeError
-              ("Arrays cannot be accessed with a secret variable @ " ^ 
-              (pos_string p)))
-          | StaticVarEntry { v_ty={ ty=t; label=None } } ->
-            ignore(update_label n venv (Some Public));
-            { ty=Int32; label=ret_label; kind=Val }
-          | StaticVarEntry { v_ty={ ty=Int32; label=Some Public } } ->
-            { ty=Int32; label=ret_label; kind=Val }
-          | StaticVarEntry { v_ty={ ty=t; label=Some Secret } } ->
-            raise (TypeError
-              ("Arrays cannot be accessed with a secret variable @ " ^ 
-              (pos_string p)))
-          | StaticVarEntry { v_ty={ ty=t; label=l } } ->
-            raise (TypeError "Arrays can only be accessed with public ints")
-          | VarEntry { v_ty={ ty=t; label=l } } ->
-            raise (TypeError "Arrays can only be accessed with public ints")
-          | FunEntry _ -> raise (TypeError ("Cannot access an array with a " ^
-                            "function yet @ " ^ (pos_string p)))
-       with
-       | Not_found -> raise (VariableNotDefined("Variable `" ^ n ^
-                             "` not defined @ " ^ (pos_string p))))
-     | _ -> raise (TypeError ("Arrays can only be accessed with constant " ^
-                      "numbers or loop variables @ " ^ (pos_string p))))
-  | UnOp(op,expr,p) as e ->
-    let op_ty = tc_unop op in
-    let expr_ty = tc_expr venv lhs_lt expr in
-    ignore(unify_op op_ty [expr_ty] p);
-    expr_ty
-  | BinOp(op,expr1,expr2,p) ->
-    let arg_ty = { lhs_lt with ty=op_arg op } in
-    let lhs = tc_expr venv arg_ty expr1 in
-    let rhs = tc_expr venv arg_ty expr2 in
-    let rt = tc_binop lhs.ty rhs.ty p op in
-    let label = (unify_lt lhs rhs p).label in
-    { ty=rt; label=label; kind=Val }
-  | Primitive(p,_) -> tc_prim lhs_lt p
-  | CallExp(name,args,p) ->
+and can_pass venv lhs (arg,rhs) =
+  match arg with
+  | ValArg e ->
+    ty_can_flow lhs.ty e.ty;
+    ignore(lbl_can_flow venv lhs e)
+  | VarArg(kind,name) ->
+    ty_can_pass lhs rhs;
+    lbl_can_pass venv lhs (arg,rhs)
+  | ArrArg(kind,name) ->
+    ty_can_pass lhs rhs;
+    lbl_can_pass venv lhs (arg,rhs)
+
+let rec tc_arg' venv = function
+  | ValArg e ->
+    let e' = tc_expr e in
+      ValArg e',{ ty=e'.ty; label=e'.label; kind=Val }
+  | VarArg(kind,name) ->
     (try
        match Hashtbl.find venv name with
-       | VarEntry _ ->
-         raise (CallError ("Unable to call variable `" ^ name ^ "` @ "
-                ^ (pos_string p)))
-       | LoopEntry _ ->
-         raise (CallError ("Unable to call loop variable `" ^ name ^ "` @ "
-                ^ (pos_string p)))
-       | StaticVarEntry _ ->
-         raise (CallError ("Unable to call static variable `" ^ name ^ "` @ "
-                ^ (pos_string p)))
-       | FunEntry { f_ty=ty; f_args=args' } ->
-         ignore(unify_fn_args args' (List.map (tc_expr venv lhs_lt) args) p);
-         ty
+         | VarEntry lt -> VarEntry(lt.kind,name),lt
      with
-       Not_found -> raise (FunctionNotDefined("Function, `" ^ name ^
-                           "`, not defined at function call @ " ^
-                           (pos_string p))))
+       Not_found -> raise (errVarNotDefined name p))
+and tc_arg = posmap tc_arg'
 
-and tc_stm fn_ty venv f_name = function
-  | VarDec(name,lt,expr,p) ->
-    let expr' = tc_expr venv lt expr in
-    let lt = unify_flows_to lt expr' p in
-    (match lt with 
-      | { kind=Val; ty=(Array a)} ->
-        raise (TypeError ("Byte arrays must be of `ref` type @ " ^
-          (pos_string p)))
-      | _ -> ());
-    Hashtbl.add venv name (VarEntry { v_ty=lt })
-  | Assign(name,expr,p) ->
+(* fills ty and lbl strictly via unify *)
+and tc_expr' venv expr =
+  let { e; ty; label=lbl } = expr in
+  let ty',lbl' =
+    (match e with
+      | VarExp v ->
+        (try
+           match Hashtbl.find venv v with
+             | VarEntry lt -> lt.ty,lt.label
+             | _ -> raise (errFoundNotVar v)
+         with
+             Not_found -> raise (errVarNotDefined v))
+      | ArrExp(v,i) ->
+        let i' = tc_expr venv i in
+          (try
+             match Hashtbl.find venv v with
+               | VarEntry { ty=(Array a) } -> a.ty,lt.label
+               | _ -> raise (errFoundNotVar v)
+           with
+               Not_found -> raise (errVarNotDefined v))
+      | UnOp(op,e1) ->
+        let e1' = tc_expr venv e1 in
+        let ty' = tc_unop e1'.ty in
+          ty',lbl
+      | BinOp(op,e1,e2) ->
+        let e1' = tc_expr venv e1 in
+        let e2' = tc_expr venv e2 in
+        let ty' = tc_binop e1'.ty e2'.ty in
+        let lbl' = unify_label e1'.label e2'.label in
+          ty',lbl'
+      | Primitive prim -> tc_prim prim
+      | CallExp(name,args) ->
+        let args' = List.map (tc_arg venv) args in
+        (try
+           match Hashtbl.find venv name with
+             | FunEntry { f_ty=rty; f_args=params } ->
+               ignore(List.map2 (can_pass venv) params args');
+               rty.ty,rty.label
+             | _ -> raise (errFoundNotFn name)
+         with
+             Not_found -> raise (errFnNotDefined name)))
+  in
+    { expr with ty=ty'; label=lbl' }
+and tc_expr = posmap tc_expr'
+
+and fill_public venv expr =
+  let fill v =
+    match Hashtbl.find venv v with
+      | VarEntry lt when lt.label = None -> Hashtbl.replace venv v (VarEntry { lt with label=(Some Public) })
+      | _ -> () in
+  let { e } = expr in
+    match e with
+      | VarExp v -> fill v
+      | ArrExp(v,_) -> fill v
+      | UnOp(_,e1) -> fill_public venv e1
+      | BinOp(_,e1,e2) ->
+        fill_public venv e1;
+        fill_public venv e2
+      | Primitive _ -> ()
+      | CallExp(_,args) ->
+        ignore(List.map (function
+                          | ValArg e -> fill_public venv e
+                          | VarArg(_,v) -> fill v
+                          | ArrArg(_,v) -> fill v)
+                 args)
+
+and ty_can_flow lhs rhs =
+  match lhs, rhs with
+    | _ when lhs = rhs -> ()
+    | Int a, Int b when a > b -> ()
+    | Int _, NumericBottom -> ()
+    | UInt a, UInt b when a > b -> ()
+    | UInt _, NumericBottom -> ()
+    | _ -> raise errPassError
+
+and lbl_can_flow venv lt e =
+  match lt.label, e.label with
+    | Some Public, Some Secret -> raise errFlowError
+    | Some Public, None -> fill_public venv e; lt
+    | None, Some Secret -> { lt with label=(Some Secret) }
+    | _ -> lt
+
+and can_flow venv lt expr =
+  ty_can_flow lt.ty expr.ty;
+  lbl_can_flow venv lt expr
+
+and tc_stm venv fn_ty lbl_ctx { pos=p; data=stm } =
+  let unify_ctx' e = { e with label=(unify_label e.pos lbl_ctx e.label) } in
+  let unify_ctx = repack unify_ctx' in
+  match stm with
+  | VarDec(name,lt,expr) ->
+    let expr' = unify_ctx (tc_expr venv expr) in
+    let lt' = can_flow venv lt expr' in
+      Hashtbl.add venv name (VarEntry lt');
+      VarDec(name,lt',expr'), Public
+  | Assign(name,expr) ->
+    let expr' = unify_ctx (tc_expr venv expr) in
     let v = try Hashtbl.find venv name with
-      | Not_found -> raise (VariableNotDefined("Variable, `" ^ name ^
-                            "`, not defined @ " ^ (pos_string p))) in
-    (match v with
-     | VarEntry { v_ty={ ty=t; label=Some Secret } as lt } ->
-       let expr' = tc_expr venv lt expr in
-       ignore(unify_flows_to lt expr' p)
-     | VarEntry { v_ty={ ty=t; label=Some Public } as lt} ->
-       let expr' = tc_expr venv lt expr in
-       ignore(unify_flows_to lt expr' p);
-     | VarEntry { v_ty={ ty=t; label=None } as lt } ->
-       let expr' = tc_expr venv lt expr in
-       let { ty=t; label=l } =
-        (unify_lt lt expr' p) in
-       ignore(update_label name venv l)
-     | StaticVarEntry _ ->
-         raise (TypeError("Cannot assign a static variable @ " ^ pos_string p))
-     | _ -> raise (VariableNotDefined("Variable, `" ^ name ^ "`, not defined @ "
-                                      ^ (pos_string p))))
-  | ArrAssign(name,index,expr,p) ->
-    let public_int = { ty=Int32; label=Some Public; kind=Val } in
-    let index = tc_expr venv public_int index in
-    (try
-      (match Hashtbl.find venv name with
-       | VarEntry { v_ty={ ty=(Array a); label=Some Public } as lt } ->
-         let expr' = tc_expr venv lt expr in
-         let public_bottom = { public_int with ty=Bottom } in
-         ignore(unify_flows_to public_bottom expr' p);
-         ignore(unify_flows_to public_int index p)
-       | VarEntry { v_ty={ ty=(Array a); label=Some Secret } as lt } ->
-         let private_bottom = { ty=Bottom; label=Some Secret; kind=Val } in
-         let expr' = tc_expr venv lt expr in
-         ignore(unify_flows_to private_bottom expr' p);
-         ignore(unify_flows_to public_int index p)
-       | VarEntry { v_ty={ ty=(Array x); label=None } as lt } ->
-         let expr' = tc_expr venv lt expr in
-         let { ty=t; label=l } =
-          unify_flows_to
-            { ty=(Array x); label=None; kind=Ref } expr' p in
-         ignore(update_label name venv l)
-       | StaticVarEntry _ ->
-         raise (TypeError("Cannot assign a static variable @ " ^ pos_string p))
-       | _ -> raise (VariableNotDefined("Variable, `" ^ name ^ 
-                     "`, not defined @ " ^ (pos_string p))))
-    with
-      Not_found -> raise (VariableNotDefined("Variable, `" ^ name ^
-                          "`, not defined @ " ^ (pos_string p))))
-  | If(cond,then',else',p) ->
-    (* TODO: This can be the place of an optimization. Rather than unify to
-       a private label, get the actual label. Then implement 2 if statements
-       in the core language: a constant if and non constant if. *)
-    (* NOTE: Should we add a new syntax for labeling expressions? This could
-       be useful for things wthout a name. For instance, conside 
-       private bytearr[10].
-       bytearr[0] = Secret 1 -- right now we have to declare 1, but this
-       seems like a nicer syntax
-    *)
-    let none_bool = { ty=Bool; label=None; kind=Val } in
-    let cond' = tc_expr venv none_bool cond in
-    ignore(unify Bool cond'.ty p);
-    ignore(tc_stms fn_ty venv then' f_name);
-    ignore(tc_stms fn_ty venv else' f_name)
-  | For(name,l,h,body,p) ->
-    (* TODO: Same as if statements *)
-    let public_int = { ty=Int32; label=Some Public; kind=Val } in
-    ignore(unify_lt (tc_expr venv public_int (Primitive(l,None))) public_int p);
-    ignore(unify_lt (tc_expr venv public_int (Primitive(h,None))) public_int p);
-    (match (l,h) with
-     | (Number l', Number h') ->
-       if l' >= h' then raise
-           (ForError ("Low value must be smaller than high value in for loop @ "
-                      ^ (pos_string p)))
-     | _ ->
-       raise (TypeError ("Low and high values must be integers in for loop @ "
-                         ^ (pos_string p))));
-    Hashtbl.add venv name (LoopEntry { v_ty=public_int });
-    ignore(tc_stms fn_ty venv body f_name)
-  | Return(expr,p) ->
-    let expr = tc_expr venv fn_ty expr in
-    let fn_ty' = (match fn_ty with
-      | { ty=_; label=None } ->
-        let lt = { fn_ty with label=expr.label } in
-        save_fn_ret_label lt f_name;
-        lt
-      | _ -> fn_ty) in
-    ignore(unify fn_ty'.ty expr.ty p);
-    ignore(unify_flows_to fn_ty' expr p)
-
-and tc_stms fn_ty venv stms f_name =
-  ignore(List.map (tc_stm fn_ty venv f_name) stms)
-
-and tc_fdec venv = function
-  (* TODO: This needs to return a list of environments.
-     The next stage in the compilation pipeline should be to rewrite the AST
-     to reflect the inferred labels. It bears no effect on the output
-     assembly as of right now, but the plan is for it to by having constant
-     and non-constant time branching/loops/etc. This can only be done with
-     an up to date and accurate AST. *)
-  | FunctionDec(_,_,{ ty=Array _; label=_ },_,p) ->
-    raise (TypeError("Functions cannot return a ByteArray @ " ^ (pos_string p)))
-  | FunctionDec(name,args,ty,body,p) ->
-    let rewrite_arg = function
-      | { name=n; lt={ ty=t; label=None; kind=k }; p=p } ->
-        { name=n; lt={ ty=t; label=Some Secret; kind=k }; p=p }
-      | arg -> arg in
-    let args' = List.map rewrite_arg args in
+      | Not_found -> raise (errVarNotDefined name p) in
+      (match v with
+        | VarEntry { kind=Val } ->
+          raise (TypeError("Cannot assign to read-only variable @ " ^ pos_string p))
+        | VarEntry lt ->
+          let lt' = can_flow venv lt expr' in
+            if lt.label = None then Hashtbl.replace venv name (VarEntry lt');
+            Assign(name,expr'), Public
+        | _ -> raise (errFoundNotVar name p))
+  | ArrAssign(name,index,expr) ->
+    let index' = tc_expr venv index in
+    let public_num = { ty=NumericTop; label=Some Public } in
+    let _ = can_flow venv public_num index' in
+    let expr' = unify_ctx (tc_expr venv expr) in
+    let v = try Hashtbl.find venv name with
+      | Not_found -> raise (errVarNotDefined name p) in
+      (match v with
+        | VarEntry { kind=Val } ->
+          raise (TypeError("Cannot assign to read-only array @ " ^ pos_string p))
+        | VarEntry ({ ty=(Array a); kind=_ } as lt) ->
+          let lte = { lt with ty:a.ty } in
+          let lte' = can_flow venv lte expr' in
+          let lt' = { lt with label=lte'.label } in
+            if lt.label = None then Hashtbl.replace venv name (VarEntry lt');
+            ArrAssign(name,index',expr'), Public
+        | _ -> raise (errFoundNotVar name p))
+  | If(cond,tstms,fstms) ->
+    (* TODO: implement 2 if statements in the core language:
+       a constant if and non constant if. *)
+    let cond' = tc_expr venv cond in
+    ignore(ty_can_flow Bool cond'.ty);
+    let lbl_ctx' = unify_ctx cond'.label in
+    let tstms',ctx_t = tc_block (Hashtbl.copy venv) fn_ty lbl_ctx' tstms in
+    let fstms',ctx_f = tc_block (Hashtbl.copy venv) fn_ty lbl_ctx' fstms in
+      (* XXX all Hashtbl.replaces should actually be Hashtbl.find -> mutate value
+         so that inference inside a nested block still changes the label of an outer variable *)
+      If(cond',tstms',fstms'), (unify_label ctx_t ctx_f)
+  | For(name,ty,l,h,body) ->
+    let l' = tc_expr venv l in
+    let h' = tc_expr venv h in
+    let lt = { ty=ty; label=Public } in
+    ignore(can_flow venv lt l');
+    ignore(can_flow venv lt h');
     let venv' = Hashtbl.copy venv in
-    let create_entry = function
-      | { kind=Val } as lt -> StaticVarEntry { v_ty=lt }
-      | { kind=Ref } as lt -> VarEntry { v_ty=lt }
-      | { kind=Out } as lt -> VarEntry { v_ty=lt } in
-    let tc_arg = function
-      | { kind=Val; ty=(Array n) } ->
-        raise (TypeError("Byte arrays must be of `ref` types @ " ^
-          (pos_string p)))
-      | arg -> arg in
-    let args_ty = List.map (fun { name=n; lt=lt } ->
-                              Hashtbl.add venv' n (create_entry (tc_arg lt));
-                              lt)
-                    args' in
-    ignore(tc_stms ty venv' body name);
-    let lt = get_fn_ret_label ~default:ty name in
-    Hashtbl.add venv name (FunEntry { f_ty=lt; f_args=args_ty });
-    default_to_secret venv'
+      Hashtbl.add venv' name (VarEntry { ty=ty; label=Public; kind=Val });
+      let body' = tc_block venv' fn_ty lbl_ctx body in
+        For(name,ty,l',h',body'), Public
+  | Return expr ->
+    let expr' = unify_ctx (tc_expr venv expr) in
+    let fn_ty' = can_flow venv fn_ty expr' in
+      Return expr', lbl_ctx
+
+and tc_stms venv fn_ty lbl_ctx = function
+  | [] -> [], lbl_ctx
+  | stm::stms ->
+    let stm',lbl_ctx' = tc_stm venv fn_ty lbl_ctx in
+    let lbl_ctx' = unify_label lbl_ctx lbl_ctx' in
+    let stms' = tc_stms venv fn_ty lbl_ctx' stms in
+      stm'::stms', lbl_ctx'
+
+
+and tc_block venv fn_ty lbl_ctx stms =
+  let stms',_ = tc_stms venv fn_ty lbl_ctx stms in
+    ignore(set_missing_labels_to_public venv);
+    tc_stms venv fn_ty lbl_ctx stms'
+
+and tc_fdec venv { pos; data=fdec } =
+  match fdec with
+    | { rty={ ty=(Array _) } } ->
+      raise (TypeError ("Function cannot return an array @ " ^ pos_string pos))
+    | _ ->
+      let venv' = Hashtbl.copy venv in
+      let args_ty = List.map (fun { name=n; lt=lt } ->
+                               Hashtbl.add venv' n (VarEntry lt); lt)
+                      args in
+      let body',_ = tc_block venv' fdec.rty Public body' in
+      let fdec' = { fdec with body=body' } in
+        Hashtbl.add venv name (FunEntry { f_ty=fdec'.rty; f_args=args_ty });
+        fdec'
 
 and tc_module (CModule l) =
   ignore(List.map (tc_fdec Env.venv) l)

@@ -10,9 +10,6 @@ type entry =
 
 type env = (string,entry) Hashtbl.t
 
-(* This is used to store the labeled return type for functions *)
-type fun_ret_env = (string,Ast.labeled_type) Hashtbl.t
-
 val venv : env
 
 val save_fn_ret_label : Ast.labeled_type -> string -> unit
