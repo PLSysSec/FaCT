@@ -100,7 +100,7 @@ and ty_can_pass lhs rhs =
 and lbl_can_pass venv lhs (arg,rhs) =
   let update_venv = function
     | VarArg(_,name)
-    | ArrArg(_,name) -> Hashtbl.replace venv name (Some Public)
+    | ArrArg(_,name) -> update_label venv name (Some Public)
   in
   match lhs, rhs with
     | { kind=Out }, _ => raise NotImplemented
@@ -184,7 +184,7 @@ and tc_expr = posmap tc_expr'
 and fill_public venv expr =
   let fill v =
     match Hashtbl.find venv v with
-      | VarEntry lt when lt.label = None -> Hashtbl.replace venv v (VarEntry { lt with label=(Some Public) })
+      | VarEntry lt when lt.label = None -> update_label venv v (Some Public)
       | _ -> () in
   let { e } = expr in
     match e with
@@ -240,7 +240,7 @@ and tc_stm venv fn_ty lbl_ctx { pos=p; data=stm } =
           raise (TypeError("Cannot assign to read-only variable @ " ^ pos_string p))
         | VarEntry lt ->
           let lt' = can_flow venv lt expr' in
-            if lt.label = None then Hashtbl.replace venv name (VarEntry lt');
+            if lt.label = None then update_label venv name lt'.label;
             Assign(name,expr'), Public
         | _ -> raise (errFoundNotVar name p))
   | ArrAssign(name,index,expr) ->
@@ -257,7 +257,7 @@ and tc_stm venv fn_ty lbl_ctx { pos=p; data=stm } =
           let lte = { lt with ty:a.ty } in
           let lte' = can_flow venv lte expr' in
           let lt' = { lt with label=lte'.label } in
-            if lt.label = None then Hashtbl.replace venv name (VarEntry lt');
+            if lt.label = None then update_label venv name lt'.label;
             ArrAssign(name,index',expr'), Public
         | _ -> raise (errFoundNotVar name p))
   | If(cond,tstms,fstms) ->
@@ -268,8 +268,6 @@ and tc_stm venv fn_ty lbl_ctx { pos=p; data=stm } =
     let lbl_ctx' = unify_ctx cond'.label in
     let tstms',ctx_t = tc_block (Hashtbl.copy venv) fn_ty lbl_ctx' tstms in
     let fstms',ctx_f = tc_block (Hashtbl.copy venv) fn_ty lbl_ctx' fstms in
-      (* XXX all Hashtbl.replaces should actually be Hashtbl.find -> mutate value
-         so that inference inside a nested block still changes the label of an outer variable *)
       If(cond',tstms',fstms'), (unify_label ctx_t ctx_f)
   | For(name,ty,l,h,body) ->
     let l' = tc_expr venv l in
