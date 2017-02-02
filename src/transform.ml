@@ -12,8 +12,6 @@ let new_temp_var =
   in
   new_temp_var'
 
-let b_true = Cast.Primitive(Cast.Number (-1))
-let b_false = Cast.Primitive(Cast.Number 0)
 let b_and l r = Cast.BinOp(Cast.BitAnd,l,r)
 let b_or l r = Cast.BinOp(Cast.BitOr,l,r)
 let b_not e = Cast.UnOp(Cast.BitNot,e)
@@ -31,7 +29,7 @@ and transform_type = function
   | Ast.UInt16 -> Cast.UInt16
   | Ast.UInt8 -> Cast.UInt8
   | Ast.Int -> raise (TransformError "Cannot transform base Int type")
-  | Ast.Bool -> Cast.Int8
+  | Ast.Bool -> Cast.BoolMask
   | Ast.Array { a_ty=t; size=s } ->
     Cast.Array { a_ty=(transform_type t); size=s }
   | Ast.Bottom -> raise (TransformError "Bottom is not a valid const type")
@@ -77,7 +75,7 @@ and transform_stm ctx = function
     let ctx' = Context(c') in
     let bt' = List.flatten(List.map (transform_stm ctx') bt) in
     let bf' = List.flatten(List.map (transform_stm ctx') bf) in
-    let lt = { Cast.ty=Cast.Int8; kind=Cast.Val } in
+    let lt = { Cast.ty=Cast.BoolMask; kind=Cast.Val } in
     let mdec = Cast.VarDec(tname,lt,b_and e' c) in
     let mnot = Cast.Assign(tname,b_not m) in
     [mdec] @ bt' @ [mnot] @ bf'
@@ -111,8 +109,8 @@ and transform_expr = function
 
 and transform_primitive = function
   | Ast.Number n -> Cast.Number n
-  | Ast.Boolean true -> Cast.Number (-1)
-  | Ast.Boolean false -> Cast.Number 0
+  | Ast.Boolean true -> Cast.Mask (Cast.TRUE)
+  | Ast.Boolean false -> Cast.Mask (Cast.FALSE)
   | Ast.ByteArray s -> Cast.ByteArray s
 
 and transform_unop = function
@@ -141,20 +139,23 @@ and transform_binop = function
 and transform_fdec = function
   | Ast.FunctionDec(name,args,rt,body,_) ->
     let get_rt_signedness = function
-      | { Ast.ty=Ast.Int32 } -> Cast.Int8
-      | { Ast.ty=Ast.Int16 } -> Cast.Int8
+      | { Ast.ty=Ast.Int32 } -> Cast.Int32
+      | { Ast.ty=Ast.Int16 } -> Cast.Int16
       | { Ast.ty=Ast.Int8 } -> Cast.Int8
-      | { Ast.ty=Ast.UInt32 } -> Cast.UInt8
-      | { Ast.ty=Ast.UInt16 } -> Cast.UInt8
+      | { Ast.ty=Ast.UInt32 } -> Cast.UInt32
+      | { Ast.ty=Ast.UInt16 } -> Cast.UInt16
       | { Ast.ty=Ast.UInt8 } -> Cast.UInt8
+      | { Ast.ty=Ast.Bool } -> Cast.BoolMask
       | _ -> raise (TransformError "Cannot get signedness of return type") in
     let args' = List.map transform_arg args in
     let { Cast.ty=t; Cast.kind=k } as rt' = transform_lt(rt) in
     let i8 = get_rt_signedness rt in
     let i8_lt = { Cast.ty=i8; Cast.kind=Cast.Val } in
-    let ctx = Context(Cast.Primitive(Cast.Number (-1))) in
+    let bm_false = { Cast.ty=Cast.BoolMask; Cast.kind=Cast.Val } in
+    let bm_prim_false = Cast.Primitive(Cast.Mask(Cast.FALSE)) in
+    let ctx = Context(Cast.Primitive(Cast.Mask Cast.TRUE)) in
     let body' = List.flatten(List.map (transform_stm ctx) body) in
     let rval = Cast.VarDec("rval",i8_lt,Cast.Primitive(Cast.Number 0)) in
-    let rset = Cast.VarDec("rset",i8_lt,Cast.Primitive(Cast.Number 0)) in
+    let rset = Cast.VarDec("rset",bm_false,bm_prim_false) in
     let body'' = [rval]@[rset]@body' in
     Cast.FunctionDec(name,args',rt',body'',Cast.VarExp("rval"))

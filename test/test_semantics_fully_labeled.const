@@ -10,12 +10,12 @@ int identity(secret int my_int) {
   return my_int;
 }
 
-int mutateArray(ref secret bytearr[5] arr) {
+int mutateArray(ref secret int[5] arr) {
   arr[4] = 44;
   return arr[4];
 }
 
-int mutateArray2(ref secret bytearr[5] arr2, secret int val) {
+int mutateArray2(ref secret int[5] arr2, secret int val) {
   arr2[4] = val;
   int f = 4;
   return arr2[f];
@@ -90,7 +90,7 @@ int loopAcc() {
   return acc;
 }
 
-int loopAssignArray(ref secret bytearr[5] arr) {
+int loopAssignArray(ref secret int[5] arr) {
   for (i = 0 to 5) {
     arr[i] = i;
   }
@@ -105,7 +105,7 @@ int add10And20() {
   return add(10, 20);
 }
 
-int addAll(ref secret bytearr[5] bytearr) {
+int addAll(ref secret int[5] bytearr) {
   secret int acc = 0;
   for (i = 0 to 5) {
     acc = acc + bytearr[i];

@@ -34,9 +34,11 @@ let rec unify t t1 =
   | (UInt16,UInt8) -> UInt16
   | (UInt8,UInt16) -> UInt16
   | (UInt8,UInt8) -> UInt8
+  | a,BoolMask -> a
+  | BoolMask,a -> a
   | (Array a, Array b) when a.size = b.size ->
     Array { size=a.size; a_ty=(unify a.a_ty b.a_ty)}
-  | _ -> raise (Error "Unification error in codegen")
+  | a,b -> raise (Error "Unification error in codegen")
 
 let lt_to_var a = function
   | { ty=t; kind=Cast.Ref } -> Ref a
@@ -49,6 +51,7 @@ let rec lt_to_llvm_ty ctx = function
   | { ty=UInt32; kind=Cast.Val } -> i32_type ctx
   | { ty=UInt16; kind=Cast.Val } -> i16_type ctx
   | { ty=UInt8; kind=Cast.Val } -> i8_type ctx
+  | { ty=BoolMask; kind=Cast.Val } -> i8_type ctx
   | { ty=Array _; kind=Cast.Val } ->
     raise(Error "Byte arrays must be a `ref` type")
   | { ty=Int32; kind=Cast.Ref } -> pointer_type(i32_type ctx)
@@ -57,50 +60,215 @@ let rec lt_to_llvm_ty ctx = function
   | { ty=UInt32; kind=Cast.Ref } -> pointer_type(i32_type ctx)
   | { ty=UInt16; kind=Cast.Ref } -> pointer_type(i16_type ctx)
   | { ty=UInt8; kind=Cast.Ref } -> pointer_type(i8_type ctx)
+  | { ty=BoolMask; kind=Cast.Ref } -> pointer_type(i8_type ctx)
   | { ty=Array a; kind=Cast.Ref } ->
     let lt' = { ty=a.a_ty; kind=Cast.Val } in
     let pt = pointer_type(array_type (lt_to_llvm_ty ctx lt') a.size) in
     pt
 
+let is_array = function
+  | Array _ -> true
+  | _ -> false
+
+let get_type ctx = function
+  | None -> i32_type ctx
+  | Some Int32 -> i32_type ctx
+  | Some Int16 -> i16_type ctx
+  | Some Int8 -> i8_type ctx
+  | Some UInt32 -> i32_type ctx
+  | Some UInt16 -> i16_type ctx
+  | Some UInt8 -> i8_type ctx
+  | Some BoolMask -> i8_type ctx
+  | Some (Array a) ->
+    let k = (if is_array a.a_ty then Cast.Ref else Cast.Val) in
+    let lt = { kind=k; ty=a.a_ty } in 
+    lt_to_llvm_ty ctx lt 
+
+
 let extend v lhs_ty rhs_ty ctx b =
   match lhs_ty,rhs_ty with
     | Some Int32, Some Int16 -> 
-      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+      build_sext v (i32_type ctx) "unifytmp" b, Int32, (i32_type ctx)
     | Some Int32, Some Int8 ->
-      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+      build_sext v (i32_type ctx) "unifytmp" b, Int32, (i32_type ctx)
     | Some Int16, Some Int8 ->
-      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+      build_sext v (i16_type ctx) "unifytmp" b, Int16, (i16_type ctx)
     | Some UInt32, Some UInt16 ->
-      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+      build_sext v (i32_type ctx) "unifytmp" b, UInt32, (i32_type ctx)
     | Some UInt32, Some UInt8 ->
-      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+      build_sext v (i32_type ctx) "unifytmp" b, UInt32, (i32_type ctx)
     | Some UInt16, Some UInt8 ->
-      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+      build_sext v (i16_type ctx) "unifytmp" b, UInt16, (i16_type ctx)
     | Some Int16, Some Int32 ->
-      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+      build_sext v (i32_type ctx) "unifytmp" b, Int32, (i32_type ctx)
     | Some Int8, Some Int32 ->
-      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+      build_sext v (i32_type ctx) "unifytmp" b, Int32, (i32_type ctx)
     | Some Int8, Some Int16 ->
-      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+      build_sext v (i16_type ctx) "unifytmp" b, Int16, (i16_type ctx)
     | Some UInt16, Some UInt32 ->
-      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+      build_sext v (i32_type ctx) "unifytmp" b, UInt32, (i32_type ctx)
     | Some UInt8, Some UInt32 ->
-      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+      build_sext v (i32_type ctx) "unifytmp" b, UInt32, (i32_type ctx)
     | Some UInt8, Some UInt16 ->
-      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+      build_sext v (i16_type ctx) "unifytmp" b, UInt16, (i16_type ctx)
     | Some Int32, Some Int32 ->
-      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+      build_sext v (i32_type ctx) "unifytmp" b, Int32, (i32_type ctx)
     | Some Int16, Some Int16 ->
-      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+      build_sext v (i16_type ctx) "unifytmp" b, Int16, (i16_type ctx)
     | Some Int8, Some Int8 ->
-      build_sext v (i8_type ctx) "unifytmp" b, (i8_type ctx)
+      build_sext v (i8_type ctx) "unifytmp" b, Int8, (i8_type ctx)
     | Some UInt32, Some UInt32 ->
-      build_sext v (i32_type ctx) "unifytmp" b, (i32_type ctx)
+      build_sext v (i32_type ctx) "unifytmp" b, UInt32, (i32_type ctx)
     | Some UInt16, Some UInt16 ->
-      build_sext v (i16_type ctx) "unifytmp" b, (i16_type ctx)
+      build_sext v (i16_type ctx) "unifytmp" b, UInt16, (i16_type ctx)
     | Some UInt8, Some UInt8 ->
-      build_sext v (i8_type ctx) "unifytmp" b, (i8_type ctx)
+      build_sext v (i8_type ctx) "unifytmp" b, UInt8, (i8_type ctx)
+    | Some BoolMask, Some Int32 ->
+      build_sext v (i32_type ctx) "unifytmp" b, BoolMask, (i32_type ctx)
+    | Some BoolMask, Some Int16 ->
+      build_sext v (i16_type ctx) "unifytmp" b, BoolMask, (i16_type ctx)
+    | Some BoolMask, Some Int8 ->
+      build_sext v (i8_type ctx) "unifytmp" b, BoolMask, (i8_type ctx)
+    | Some BoolMask, Some UInt32 ->
+      build_sext v (i32_type ctx) "unifytmp" b, BoolMask, (i32_type ctx)
+    | Some BoolMask, Some UInt16 ->
+      build_sext v (i16_type ctx) "unifytmp" b, BoolMask, (i16_type ctx)
+    | Some BoolMask, Some UInt8 ->
+      build_sext v (i8_type ctx) "unifytmp" b, BoolMask, (i8_type ctx)
+    | Some Int32, Some BoolMask ->
+      build_sext v (i32_type ctx) "unifytmp" b, BoolMask, (i32_type ctx)
+    | Some Int16, Some BoolMask ->
+      build_sext v (i16_type ctx) "unifytmp" b, BoolMask, (i16_type ctx)
+    | Some Int8, Some BoolMask ->
+      build_sext v (i8_type ctx) "unifytmp" b, BoolMask, (i8_type ctx)
+    | Some UInt32, Some BoolMask ->
+      build_sext v (i32_type ctx) "unifytmp" b, BoolMask, (i32_type ctx)
+    | Some UInt16, Some BoolMask ->
+      build_sext v (i16_type ctx) "unifytmp" b, BoolMask, (i16_type ctx)
+    | Some UInt8, Some BoolMask ->
+      build_sext v (i8_type ctx) "unifytmp" b, BoolMask, (i8_type ctx)
+    | Some BoolMask, Some BoolMask -> v, BoolMask, (i8_type ctx)
     | _ -> raise (Error "Cannot extend an unsigned and signed int")
+
+let truncate_or_extend_rhs rhs lhs_ty rhs_ty ty_ctx ctx b =
+  match lhs_ty,rhs_ty with
+    | Some Int32, Some Int32 -> rhs
+    | Some Int32, Some Int16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+    | Some Int32, Some Int8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+    | Some Int16, Some Int32 ->
+      build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+    | Some Int16, Some Int16 -> rhs
+    | Some Int16, Some Int8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+    | Some Int8, Some Int32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+    | Some Int8, Some Int16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+    | Some Int8, Some Int8 -> rhs
+    | None, Some Int32 ->
+      begin
+        match ty_ctx with
+          | Some Int32 -> rhs
+          | Some Int16 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+          | Some Int8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | None, Some Int16 ->
+      begin
+        match ty_ctx with
+          | Some Int32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+          | Some Int16 -> rhs
+          | Some Int8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | None, Some Int8 ->
+      begin
+        match ty_ctx with
+          | Some Int32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+          | Some Int16 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+          | Some Int8 -> rhs
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | Some Int32, None ->
+      begin
+        match ty_ctx with
+          | Some Int32 -> rhs
+          | Some Int16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+          | Some Int8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | Some Int16, None ->
+      begin
+        match ty_ctx with
+          | Some Int32 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+          | Some Int16 -> rhs
+          | Some Int8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | Some Int8, None ->
+      begin
+        match ty_ctx with
+          | Some Int32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+          | Some Int16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+          | Some Int8 -> rhs
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | Some UInt32, Some UInt32 -> rhs
+    | Some UInt32, Some UInt16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+    | Some UInt32, Some UInt8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+    | Some UInt16, Some UInt32 ->
+      build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+    | Some UInt16, Some UInt16 -> rhs
+    | Some UInt16, Some UInt8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+    | Some UInt8, Some UInt32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+    | Some UInt8, Some UInt16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+    | Some UInt8, Some UInt8 -> rhs
+    | None, Some UInt32 ->
+      begin
+        match ty_ctx with
+          | Some UInt32 -> rhs
+          | Some UInt16 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+          | Some UInt8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | None, Some UInt16 ->
+      begin
+        match ty_ctx with
+          | Some UInt32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+          | Some UInt16 -> rhs
+          | Some UInt8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | None, Some UInt8 ->
+      begin
+        match ty_ctx with
+          | Some UInt32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+          | Some UInt16 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+          | Some UInt8 -> rhs
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | Some UInt32, None ->
+      begin
+        match ty_ctx with
+          | Some UInt32 -> rhs
+          | Some UInt16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+          | Some UInt8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | Some UInt16, None ->
+      begin
+        match ty_ctx with
+          | Some UInt32 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
+          | Some UInt16 -> rhs
+          | Some UInt8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | Some UInt8, None ->
+      begin
+        match ty_ctx with
+          | Some UInt32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+          | Some UInt16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
+          | Some UInt8 -> rhs
+          | _ -> raise (Error "Cannot truncate or extend for shift")
+      end
+    | _ -> rhs
 
 let extend_to v ty ctx b = extend v ty ty ctx b
 
@@ -122,6 +290,7 @@ let codegen ctx m =
     | { ty=UInt32; kind=Cast.Val } -> arg
     | { ty=UInt16; kind=Cast.Val } -> arg
     | { ty=UInt8; kind=Cast.Val } -> arg
+    | { ty=BoolMask; kind=Cast.Val } -> arg
     | { ty=Array a; kind=Cast.Val } as lt ->
       let lt' = { lt with ty=a.a_ty } in
       let a =
@@ -152,6 +321,8 @@ let codegen ctx m =
       let a = build_alloca (i8_type ctx) "arg" b in
       ignore(build_store arg a b);
       a
+    | { ty=BoolMask; kind=Cast.Ref } ->
+      raise (Error "Cannot have a boolmask ref")
     | { ty=Array a; kind=Cast.Ref } as lt ->
       let lt' = { lt with ty=a.a_ty } in
       let pt = pointer_type(array_type (lt_to_llvm_ty ctx lt') a.size) in
@@ -167,7 +338,10 @@ let codegen ctx m =
       let arg_to_type { name=s; lt=lt } = lt_to_llvm_ty ctx lt in
       let arg_types = List.map arg_to_type args in
       let arg_types' = Array.of_list arg_types in
-      let ft = function_type (lt_to_llvm_ty ctx ty) arg_types' in
+      let rt = match ty with
+        | { ty=BoolMask } -> (i32_type ctx)
+        | _ -> lt_to_llvm_ty ctx ty in
+      let ft = function_type rt arg_types' in
       Hashtbl.add val_types n ty.ty;
       let the_function =
         match lookup_function n m with
@@ -187,33 +361,27 @@ let codegen ctx m =
       let _ = position_at_end bb b in
       let _ = List.map codegen_stm body in
       let ret' = (codegen_expr (Some ty.ty) ret) in
-      let ret'',_ = extend_to ret' (Some ty.ty) ctx b in
-      let _ = build_ret ret'' b in
+      let ret'',_,_ = extend_to ret' (Some ty.ty) ctx b in
+      let ret''' = match ty.ty with
+        | BoolMask -> build_sext ret'' (i32_type ctx) "retsexttmp" b
+        | _ -> ret'' in
+      let _ = build_ret ret''' b in
       let _ = Llvm_analysis.assert_valid_function the_function in
       the_function
 
   and codegen_prim ty_ctx = function
     | Number n ->
-      let is_array = function
-        | Array _ -> true
-        | _ -> false in
-      let ty = (match ty_ctx with
-                | None -> i32_type ctx
-                | Some Int32 -> i32_type ctx
-                | Some Int16 -> i16_type ctx
-                | Some Int8 -> i8_type ctx
-                | Some UInt32 -> i32_type ctx
-                | Some UInt16 -> i16_type ctx
-                | Some UInt8 -> i8_type ctx
-                | Some (Array a) ->
-                  let k = (if is_array a.a_ty then Cast.Ref else Cast.Val) in
-                  let lt = { kind=k; ty=a.a_ty } in 
-                  lt_to_llvm_ty ctx lt) in
+      let ty = get_type ctx ty_ctx in
       const_int ty n
     | ByteArray l ->
       let arr = Array.of_list l in
       let arr' = Array.map (const_int (i32_type ctx)) arr in
       const_array (i32_type ctx) arr'
+    | Mask m ->
+      let ty = get_type ctx ty_ctx in
+      match m with
+        | TRUE -> const_int ty (-1)
+        | FALSE -> const_int ty 0
 
   and codegen_unop op ty_ctx e =
     match op with
@@ -221,126 +389,6 @@ let codegen ctx m =
       | BitNot -> build_not (codegen_expr ty_ctx e) "nottmp" b
 
   and codegen_binop ty_ctx op e e' =
-    let truncate_or_extend_rhs rhs lhs_ty rhs_ty =
-      match lhs_ty,rhs_ty with
-        | Some Int32, Some Int32 -> rhs
-        | Some Int32, Some Int16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-        | Some Int32, Some Int8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-        | Some Int16, Some Int32 ->
-          build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-        | Some Int16, Some Int16 -> rhs
-        | Some Int16, Some Int8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-        | Some Int8, Some Int32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-        | Some Int8, Some Int16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-        | Some Int8, Some Int8 -> rhs
-        | None, Some Int32 ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> rhs
-              | Some Int16 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-              | Some Int8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | None, Some Int16 ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some Int16 -> rhs
-              | Some Int8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | None, Some Int8 ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some Int16 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-              | Some Int8 -> rhs
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some Int32, None ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> rhs
-              | Some Int16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some Int8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some Int16, None ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-              | Some Int16 -> rhs
-              | Some Int8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some Int8, None ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | Some Int16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | Some Int8 -> rhs
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some UInt32, Some UInt32 -> rhs
-        | Some UInt32, Some UInt16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-        | Some UInt32, Some UInt8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-        | Some UInt16, Some UInt32 ->
-          build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-        | Some UInt16, Some UInt16 -> rhs
-        | Some UInt16, Some UInt8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-        | Some UInt8, Some UInt32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-        | Some UInt8, Some UInt16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-        | Some UInt8, Some UInt8 -> rhs
-        | None, Some UInt32 ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> rhs
-              | Some UInt16 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-              | Some UInt8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | None, Some UInt16 ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some UInt16 -> rhs
-              | Some UInt8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | None, Some UInt8 ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some UInt16 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-              | Some UInt8 -> rhs
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some UInt32, None ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> rhs
-              | Some UInt16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some UInt8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some UInt16, None ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-              | Some UInt16 -> rhs
-              | Some UInt8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some UInt8, None ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | Some UInt16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | Some UInt8 -> rhs
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | _ -> rhs
-    in
     let unify_binops lhs rhs lhs_ty rhs_ty =
       (match lhs_ty,rhs_ty with
         | Some Int32, Some Int32 -> lhs,rhs
@@ -421,6 +469,46 @@ let codegen ctx m =
         | None, Some UInt8 ->
           let lhs' = build_sext lhs (i8_type ctx) "lhssexttmp" b in
           lhs',rhs
+        | Some BoolMask, Some BoolMask ->
+          let lhs' = build_trunc lhs (i8_type ctx) "lhssexttemp" b in
+          let rhs' = build_trunc rhs (i8_type ctx) "rhssexttemp" b in
+          lhs',rhs'
+        | Some BoolMask, Some Int32 ->
+          let lhs' = build_sext lhs (i32_type ctx) "lhssexttemp" b in
+          lhs',rhs
+        | Some BoolMask, Some Int16 ->
+          let lhs' = build_sext lhs (i16_type ctx) "lhssexttemp" b in
+          lhs',rhs
+        | Some BoolMask, Some Int8 ->
+          let lhs' = build_trunc lhs (i8_type ctx) "lhssexttemp" b in
+          lhs',rhs
+        | Some Int32, Some BoolMask ->
+          let rhs' = build_sext rhs (i32_type ctx) "lhssexttemp" b in
+          lhs,rhs'
+        | Some Int16, Some BoolMask ->
+          let rhs' = build_sext rhs (i16_type ctx) "lhssexttemp" b in
+          lhs,rhs'
+        | Some Int8, Some BoolMask ->
+          let rhs' = build_sext rhs (i8_type ctx) "lhssexttemp" b in
+          lhs,rhs'
+        | Some BoolMask, Some UInt32 ->
+          let lhs' = build_sext lhs (i32_type ctx) "lhssexttemp" b in
+          lhs',rhs
+        | Some BoolMask, Some UInt16 ->
+          let lhs' = build_sext lhs (i16_type ctx) "lhssexttemp" b in
+          lhs',rhs
+        | Some BoolMask, Some UInt8 ->
+          let lhs' = build_trunc lhs (i8_type ctx) "lhssexttemp" b in
+          lhs',rhs
+        | Some UInt32, Some BoolMask ->
+          let rhs' = build_sext rhs (i32_type ctx) "lhssexttemp" b in
+          lhs,rhs'
+        | Some UInt16, Some BoolMask ->
+          let rhs' = build_sext rhs (i16_type ctx) "lhssexttemp" b in
+          lhs,rhs'
+        | Some UInt8, Some BoolMask ->
+          let rhs' = build_trunc rhs (i8_type ctx) "lhssexttemp" b in
+          lhs,rhs'
         | None, None ->
           let ty =
             (match ty_ctx with
@@ -430,6 +518,7 @@ let codegen ctx m =
               | Some UInt32 -> i32_type ctx
               | Some UInt16 -> i16_type ctx
               | Some UInt8 -> i8_type ctx
+              | Some BoolMask -> i8_type ctx
               | _ -> raise (Error "Unknown LHS type for binary unification"))
           in
           let lhs' = build_sext lhs ty "lhssexttmp" b in
@@ -437,11 +526,11 @@ let codegen ctx m =
           lhs',rhs'
         | _ -> raise (Error "Cannot unify types for binary operation")
       ) in
+    let ty = match ty_ctx with
+      | Some ty_ctx -> ty_ctx
+      | None -> raise (Error "Cannot determine type for binop") in
     let lhs_ty = expr_ty ty_ctx e in
     let rhs_ty = expr_ty ty_ctx e' in
-    let ty = match ty_ctx with
-              | Some ty_ctx -> ty_ctx
-              | None -> raise (Error "Cannot determine type for binop") in
     let lhs = (codegen_expr (Some ty) e) in
     let rhs = (codegen_expr (Some ty) e') in
     let lhs',rhs' = unify_binops lhs rhs lhs_ty rhs_ty in
@@ -451,31 +540,31 @@ let codegen ctx m =
       | Minus -> build_sub lhs' rhs' "subtmp" b
       | GT ->
         let cmp = (build_icmp Icmp.Ugt lhs' rhs' "gt" b) in
-        build_sext cmp (i32_type ctx) "gtcmp" b
+        build_sext cmp (i8_type ctx) "gtcmp" b
       | GTE ->
         let cmp = (build_icmp Icmp.Uge lhs' rhs' "gte" b) in
-        build_sext cmp (i32_type ctx) "gtecmp" b
+        build_sext cmp (i8_type ctx) "gtecmp" b
       | LT ->
         let cmp = (build_icmp Icmp.Ult lhs' rhs' "lt" b) in
-        build_sext cmp (i32_type ctx) "ltcmp" b
+        build_sext cmp (i8_type ctx) "ltcmp" b
       | LTE ->
         let cmp = (build_icmp Icmp.Ule lhs' rhs' "lte" b) in
-        build_sext cmp (i32_type ctx) "ltecmp" b
+        build_sext cmp (i8_type ctx) "ltecmp" b
       | BitAnd -> build_and lhs' rhs' "andtmp" b
       | BitOr -> build_or lhs' rhs' "ortmp" b
       | BitXor -> build_xor lhs' rhs' "xortmp" b
       | Mult -> build_mul lhs' rhs' "multtmp" b
       | Eq ->
         let cmp = build_icmp Icmp.Eq lhs' rhs' "eq" b in
-        build_sext cmp (i32_type ctx) "eqtmp" b
+        build_sext cmp (i8_type ctx) "eqtmp" b
       | Neq ->
         let cmp = (build_icmp Icmp.Ne lhs' rhs' "neq" b) in
-        build_sext cmp (i32_type ctx) "neqtmp" b
+        build_sext cmp (i8_type ctx) "neqtmp" b
       | LeftShift -> 
-        let rhs' = truncate_or_extend_rhs rhs lhs_ty rhs_ty in
+        let rhs' = truncate_or_extend_rhs rhs lhs_ty rhs_ty ty_ctx ctx b in
         build_shl lhs rhs' "lshift" b
       | RightShift ->
-        let rhs' = truncate_or_extend_rhs rhs lhs_ty rhs_ty in
+        let rhs' = truncate_or_extend_rhs rhs lhs_ty rhs_ty ty_ctx ctx b in
         build_lshr lhs rhs' "rshift" b
     end
 
@@ -485,7 +574,11 @@ let codegen ctx m =
         | None -> raise (Error "Cannot determine type stored in array")
         | Some ty -> Some(Array { size=(List.length n); a_ty=ty }))
     | Number n -> ty_ctx
-
+    | Mask _ ->
+      (match ty_ctx with
+        | None -> raise (Error "Cannot determine boolmask type")
+      | Some ty -> Some(unify ty BoolMask))
+  
   and expr_ty ty_ctx = function
     | VarExp n ->
       Some (try (Hashtbl.find val_types n) with
@@ -502,13 +595,20 @@ let codegen ctx m =
     | BinOp(op,e,e') ->
       let ty1 = expr_ty ty_ctx e in
       let ty2 = expr_ty ty_ctx e' in
-      begin
+      let op_unify ty1 ty2 =
         match ty1,ty2 with
           | Some ty1', Some ty2' -> Some(unify ty1' ty2')
           | Some ty1', None -> Some ty1'
           | None, Some ty2' -> Some ty2'
-          | None, None -> ty_ctx
-      end
+          | None, None -> ty_ctx in
+      (match op with
+        | GT -> Some BoolMask
+        | GTE -> Some BoolMask
+        | LT -> Some BoolMask
+        | LTE -> Some BoolMask
+        | Eq -> Some BoolMask
+        | Neq -> Some BoolMask
+        | _ -> op_unify ty1 ty2);
     | Primitive p -> prim_ty ty_ctx p
     | CallExp(callee, args) ->
       Some (try (Hashtbl.find val_types callee) with
@@ -587,16 +687,13 @@ let codegen ctx m =
     | Assign(n,e) ->
       let ty = (try Hashtbl.find val_types n with
         | Not_found -> raise (Error ("Unknown type for var: " ^ n))) in
+      let v = (try Hashtbl.find named_values n with
+        | Not_found -> raise (Error ("Unknown value for var: " ^ n))) in
+      let v' = extract_value v in
       let expr = codegen_expr (Some ty) e in
       let ty' = expr_ty (Some ty) e in
-      let ty'' = match ty' with 
-        | Some t -> t
-        | None -> raise (Error "Unknown type") in
-      let expr',_ = extend expr (Some ty) ty' ctx b in
-      let llvm_ty'' = lt_to_llvm_ty ctx { ty=ty''; kind=Val } in
-      let alloc = build_alloca llvm_ty'' n b in
-      ignore(build_store expr' alloc b);
-      Hashtbl.replace named_values n (Ref alloc)
+      let expr',ty''',_ = extend expr (Some ty) ty' ctx b in
+      ignore(build_store expr' v' b);
     | ArrAssign(n,i,e) ->
       let v = (try Hashtbl.find named_values n with
         | Not_found ->
@@ -606,16 +703,16 @@ let codegen ctx m =
                      | _ -> raise (Error "Expected an array") in
       let v' = extract_value v in
       let e' = codegen_expr (Some ty_ctx) e in
-      let expr',_ = extend_to e' (Some ty_ctx) ctx b in
+      let expr',_,_ = extend_to e' (Some ty_ctx) ctx b in
       let i_t = const_int (i32_type ctx) in
       let p = build_gep v' [| (i_t 0); (codegen_expr (Some Int32) i)|] "ptr" b in
       ignore(build_store expr' p b);
     | VarDec(n,lt,e) ->
       let v = codegen_expr (Some lt.ty) e in
-      let v', ty' = extend v (Some lt.ty) (expr_ty (Some lt.ty) e) ctx b in
-      let alloca = build_alloca ty' n b in
+      let v', ty', llvm_ty =
+        extend v (Some lt.ty) (expr_ty (Some lt.ty) e) ctx b in
+      let alloca = build_alloca llvm_ty n b in
       ignore(build_store v' alloca b);
-      Hashtbl.add val_types n lt.ty;
+      Hashtbl.add val_types n ty';
       Hashtbl.add named_values n (Ref alloca)
-
   in codegen_module
