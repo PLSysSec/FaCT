@@ -175,7 +175,7 @@ and tc_prim lhs = function
   | Boolean b -> { ty=Bool; label=lhs.label; kind=Val }
 
 and tc_expr venv lhs_lt = function
-  | VarExp(v,p) as e ->
+  | VarExp(v,p) ->
     (try
        match Hashtbl.find venv v with
        | VarEntry { v_ty={ ty=t; label=None } } ->
@@ -239,7 +239,7 @@ and tc_expr venv lhs_lt = function
                              "` not defined @ " ^ (pos_string p))))
      | _ -> raise (TypeError ("Arrays can only be accessed with constant " ^
                       "numbers or loop variables @ " ^ (pos_string p))))
-  | UnOp(op,expr,p) as e ->
+  | UnOp(op,expr,p) ->
     let op_ty = tc_unop op in
     let expr_ty = tc_expr venv lhs_lt expr in
     ignore(unify_op op_ty [expr_ty] p);
