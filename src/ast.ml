@@ -2,12 +2,12 @@ open Lexing
 
 (* all this pos stuff should be moved to lexing *)
 
-exception PosError of pos * exn
-
 type pos = { file:string; line:int; lpos:int; rpos:int }
 [@@deriving show, eq]
 
-and 'a pos_ast = { pos:pos; data:'a }
+exception PosError of pos * exn
+
+type 'a pos_ast = { pos:pos; data:'a }
 [@@deriving show, eq]
 
 let to_pos ?buf:(b=None)
@@ -19,23 +19,29 @@ let to_pos ?buf:(b=None)
     let ends = (lexeme_end lb) - lb.lex_curr_p.pos_bol in
     { file=f; line=l; lpos=start+1; rpos=ends+1 }
 
+let make_pos pos data = { pos=(to_pos pos); data=data }
+
 let pos_string { file=f; line=l; lpos=lp; rpos=rp } =
   "file " ^ f ^ ", line " ^ string_of_int(l) ^
   ", from " ^ string_of_int(lp) ^ "-" ^ string_of_int(rp)
 
 let repack fn = fun pa -> { pos=pa.pos; data=(fn pa) }
+let unpack fn = fun { pos; data } ->
+  try fn data with
+    | err -> raise (PosError(pos,err))
 let posmap fn = fun { pos; data } ->
   try { pos=pos; data=(fn data) } with
-    | err -> raise (PosError p err)
+    | err -> raise (PosError(pos,err))
 
 type constantc_module = CModule of fdec list
 [@@deriving show, eq]
 
-and expr_type = { ty:ctype option; label:label option }
+and expr_type = { ty:ctype; label:label option }
 [@@deriving show, eq]
 
-and fdec = { name:string; params:param list; rty:expr_type; body:stm list }
+and fdec' = { name:string; params:param list; rty:expr_type; body:stm list }
 [@@deriving show, eq]
+and fdec = fdec' pos_ast [@@deriving show, eq]
 
 and param = { name:string; lt:labeled_type }
 [@@deriving show, eq]
@@ -124,9 +130,9 @@ and primitive =
   | ByteArray of int list
 [@@deriving show, eq]
 
-let ty_to_string = function
+let rec ty_to_string = function
   | Bool -> "bool"
   | Int size -> "int" ^ string_of_int size
   | UInt size -> "uint" ^ string_of_int size
-  | Array t -> ty_to_string t.ty ^ "[" ^ t.size ^ "]"
+  | Array t -> (ty_to_string t.ty) ^ "[" ^ (string_of_int t.size) ^ "]"
   | a -> show_ctype a

@@ -34,14 +34,14 @@ let error_exit s =
   exit 1
 
 let error_exit_pos p s =
-  Log.error "%s @ %s" s (pos_string p);
+  Log.error "%s @ %s" s (Ast.pos_string p);
   exit 1
 
 let runner prep llvm_out ast_out core_ir_out =
   try compile prep llvm_out ast_out core_ir_out with
     | (Command_util.SyntaxError s) -> error_exit s
     | (Codegen.Error s) -> error_exit s
-    | (Typecheck.PosError p e) -> match e with
+    | (Ast.PosError(p,e)) -> match e with
       | (Command_util.SyntaxError s) -> error_exit_pos p s
       | (Codegen.Error s) -> error_exit_pos p s
       | (Typecheck.NotImplemented) -> error_exit_pos p "Not implemented"
@@ -51,7 +51,6 @@ let runner prep llvm_out ast_out core_ir_out =
       | (Typecheck.UnknownType s) -> error_exit_pos p s
       | (Typecheck.CallError s) -> error_exit_pos p s
       | (Typecheck.ForError s) -> error_exit_pos p s
-      | (Typecheck.InternalCompilerError s) -> error_exit_pos p s
       | _ -> error_exit_pos p "Error"
 
 let compile_command =

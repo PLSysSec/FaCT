@@ -54,7 +54,7 @@ and stm =
   | VarDec of string * labeled_type * expr
   | Assign of string * expr
   | ArrAssign of string * expr * expr
-  | For of string * primitive * primitive * stm list
+  | For of string * expr * expr * stm list
 [@@deriving show]
 
 and fdec = FunctionDec of string * param list * labeled_type * stm list * expr

@@ -2,7 +2,7 @@
 open Ast
 open Lexing
 
-type ty_info = { ty:string; attr:expr option }
+type ty_info = { ty:string; attr:int option }
 
 let parse_error s = (* Called by the parser function on error *)
   print_endline s;
@@ -13,31 +13,33 @@ exception ParseError of string
 (* TODO: I dont like this.. We need to think of another way
          to go from string to constantc type *)
 let to_type = function
-  | { ty="int"; attr=None } -> Int32
-  | { ty="int32"; attr=None } -> Int32
-  | { ty="int16"; attr=None } -> Int16
-  | { ty="int8"; attr=None } -> Int8
-  | { ty="uint32"; attr=None } -> UInt32
-  | { ty="uint16"; attr=None } -> UInt16
-  | { ty="uint8"; attr=None } -> UInt8
+  | { ty="int"; attr=None } -> Int 32
+  | { ty="int32"; attr=None } -> Int 32
+  | { ty="int16"; attr=None } -> Int 16
+  | { ty="int8"; attr=None } -> Int 8
+  | { ty="uint32"; attr=None } -> UInt 32
+  | { ty="uint16"; attr=None } -> UInt 16
+  | { ty="uint8"; attr=None } -> UInt 8
   | { ty="bool"; attr=None } -> Bool
-  | { ty="int"; attr=(Some (Primitive((Number n),_))) } ->
-    Array { size=n; a_ty=Int32 }
-  | { ty="int32"; attr=(Some (Primitive((Number n),_))) } ->
-    Array { size=n; a_ty=Int32 }
-  | { ty="int16"; attr=(Some (Primitive((Number n),_))) } ->
-    Array { size=n; a_ty=Int16 }
-  | { ty="int8"; attr=(Some (Primitive((Number n),_))) } ->
-    Array { size=n; a_ty=Int8 }
-  | { ty="uint32"; attr=(Some (Primitive((Number n),_))) } ->
-    Array { size=n; a_ty=UInt32 }
-  | { ty="uint16"; attr=(Some (Primitive((Number n),_))) } ->
-    Array { size=n; a_ty=UInt16 }
-  | { ty="uint8"; attr=(Some (Primitive((Number n),_))) } ->
-    Array { size=n; a_ty=UInt8 }
-  | { ty="bool"; attr=(Some (Primitive((Number n),_))) } ->
-    Array { size=n; a_ty=Bool }
+  | { ty="int"; attr=(Some n) } ->
+    Array { size=n; ty=Int 32 }
+  | { ty="int32"; attr=(Some n) } ->
+    Array { size=n; ty=Int 32 }
+  | { ty="int16"; attr=(Some n) } ->
+    Array { size=n; ty=Int 16 }
+  | { ty="int8"; attr=(Some n) } ->
+    Array { size=n; ty=Int 8 }
+  | { ty="uint32"; attr=(Some n) } ->
+    Array { size=n; ty=UInt 32 }
+  | { ty="uint16"; attr=(Some n) } ->
+    Array { size=n; ty=UInt 16 }
+  | { ty="uint8"; attr=(Some n) } ->
+    Array { size=n; ty=UInt 8 }
+  | { ty="bool"; attr=(Some n) } ->
+    Array { size=n; ty=Bool }
   | { ty=t } -> raise (ParseError("Unknown type: " ^ t))
+
+let make_exp p e = make_pos p { e=e; ty=None; label=None }
 
 %}
 
@@ -99,15 +101,15 @@ fdeclist:
 ;
 
 fdec:
-  | labeled_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
-    { FunctionDec($2,List.rev($4),$1,$7,(to_pos $startpos)) }
+  | expr_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
+    { make_pos $startpos ({ name=$2; params=(List.rev $4); rty=$1; body=$7 }) }
 ;
 
 const_type:
   | IDENT
     { let ty_info = { ty=$1; attr=None } in
       to_type ty_info }
-  | IDENT LBRACK expr RBRACK
+  | IDENT LBRACK INT RBRACK
     { let ty_info = { ty=$1; attr=(Some $3) } in
       to_type ty_info }
 
@@ -122,6 +124,14 @@ arg_labeled_type:
     { let lt = $1 in
       { lt with kind=Val } }
 
+expr_type:
+  | PUBLIC const_type
+    { { ty=$2; label=Some Public } }
+  | SECRET const_type
+    { { ty=$2; label=Some Secret } }
+  | const_type
+    { { ty=$1; label=None } }
+
 labeled_type:
   | PUBLIC const_type
     { { ty=$2; label=Some Public; kind=Val } }
@@ -132,9 +142,9 @@ labeled_type:
 
 fargs:
   | fargs COMMA arg_labeled_type IDENT
-    { {name=$4; lt=$3; p=(to_pos $startpos)}::$1}
+    { {name=$4; lt=$3}::$1}
   | arg_labeled_type IDENT
-    { [{name=($2); lt=$1; p=(to_pos $startpos)}] }
+    { [{name=($2); lt=$1}] }
   | { [] }
 
 expr:
@@ -142,7 +152,7 @@ expr:
     { $2 }
   | expr binopexpr
     { let (b,e) = $2 in
-      BinOp(b,$1,e,(to_pos $startpos)) }
+      make_exp $startpos (BinOp(b,$1,e)) }
   | unopexpr { $1 }
   | varexpr { $1 }
   | arrexpr { $1 }
@@ -150,27 +160,37 @@ expr:
   | callexp { $1 }
 ;
 
-exprlist:
+arg:
+  | expr
+    { make_pos $startpos (ValArg $1) }
+  | OUT IDENT
+    { make_pos $startpos (VarArg(Out,$2)) }
+  | REF IDENT
+    { make_pos $startpos (VarArg(Ref,$2)) }
+    (* TODO: array slicing *)
+
+arglist:
   | { [] }
-  | expr { [$1] }
-  | expr COMMA exprlist { $1::$3 }
+  | arg { [$1] }
+  | arg COMMA arglist { $1::$3 }
 
 stmlist:
   | IDENT LBRACK expr RBRACK ASSIGN expr SEMICOLON stmlist
-    { (ArrAssign($1,$3,$6,(to_pos $startpos)))::$8 }
+    { (make_pos $startpos (ArrAssign($1,$3,$6)))::$8 }
   | labeled_type IDENT ASSIGN expr SEMICOLON stmlist
-    { (VarDec($2,$1,$4,(to_pos $startpos)))::$6 }
+    { (make_pos $startpos (VarDec($2,$1,$4)))::$6 }
   | IDENT ASSIGN expr SEMICOLON stmlist
-    { (Assign($1,$3,(to_pos $startpos)))::$5 }
+    { (make_pos $startpos (Assign($1,$3)))::$5 }
   | IDENT binopeq expr SEMICOLON stmlist
-    { let p = (to_pos $startpos) in
-      (Assign($1,BinOp($2,VarExp($1,p),$3,p),(to_pos $startpos)))::$5 }
+    { let makep = make_pos $startpos in
+      let makee e = make_exp $startpos e in
+      (makep (Assign($1,makee (BinOp($2,makee (VarExp($1)),$3)))))::$5 }
   | IF LPAREN expr RPAREN LBRACE stmlist RBRACE ELSE LBRACE stmlist RBRACE stmlist
-    { (If($3,$6,$10,(to_pos $startpos)))::$12 }
-  | FOR LPAREN IDENT ASSIGN primitive_not_expr TO primitive_not_expr RPAREN LBRACE stmlist RBRACE stmlist
-    { (For($3,$5,$7,$10,(to_pos $startpos)))::$12 }
+    { (make_pos $startpos (If($3,$6,$10)))::$12 }
+  | FOR LPAREN const_type IDENT ASSIGN expr TO expr RPAREN LBRACE stmlist RBRACE stmlist
+    { (make_pos $startpos (For($4,$3,$6,$8,$11)))::$13 }
   | RETURN expr SEMICOLON stmlist
-    { (Return($2,(to_pos $startpos))::$4) }
+    { (make_pos $startpos (Return($2))::$4) }
   | { [] }
 
 list_elements:
@@ -181,83 +201,78 @@ list_elements:
 
 bytearr_list:
   | LBRACK list_elements RBRACK
-    { Primitive(ByteArray $2, Some(to_pos $startpos)) }
+    { make_pos $startpos (Primitive(ByteArray $2)) }
 
 binopexpr:
   | PLUS expr
-    { ((Plus(to_pos $startpos)),$2) }
+    { (Plus,$2) }
   | MINUS expr
-    { (Minus(to_pos $startpos),$2) }
+    { (Minus,$2) }
   | TIMES expr
-    { (Multiply(to_pos $startpos),$2) }
+    { (Multiply,$2) }
   | EQUAL expr
-    { (Equal(to_pos $startpos),$2) }
+    { (Equal,$2) }
   | NEQUAL expr
-    { (NEqual(to_pos $startpos),$2) }
+    { (NEqual,$2) }
   | GREATERTHAN expr
-    { (GT(to_pos $startpos),$2) }
+    { (GT,$2) }
   | GREATERTHANEQ expr
-    { (GTE(to_pos $startpos),$2) }
+    { (GTE,$2) }
   | LESSTHAN expr
-    { (LT(to_pos $startpos),$2) }
+    { (LT,$2) }
   | LESSTHANEQ expr
-    { (LTE(to_pos $startpos),$2) }
+    { (LTE,$2) }
   | LOGAND expr
-    { (L_And(to_pos $startpos),$2) }
+    { (L_And,$2) }
   | LOGOR expr
-    { (L_Or(to_pos $startpos),$2) }
+    { (L_Or,$2) }
   | BITOR expr
-    { (B_Or(to_pos $startpos),$2) }
+    { (B_Or,$2) }
   | BITXOR expr
-    { (B_Xor(to_pos $startpos),$2) }
+    { (B_Xor,$2) }
   | BITAND expr
-    { (B_And(to_pos $startpos),$2) }
+    { (B_And,$2) }
   | LEFTSHIFT expr
-    { (LeftShift(to_pos $startpos),$2) }
+    { (LeftShift,$2) }
   | RIGHTSHIFT expr
-    { (RightShift(to_pos $startpos),$2) }
+    { (RightShift,$2) }
 ;
 
 binopeq:
-  | PLUSEQ { Plus(to_pos $startpos) }
-  | MINUSEQ { Minus(to_pos $startpos) }
-  | TIMESEQ { Multiply(to_pos $startpos) }
-  | BITOREQ { B_Or(to_pos $startpos) }
-  | BITXOREQ { B_Xor(to_pos $startpos) }
-  | BITANDEQ { B_And(to_pos $startpos) }
-  | LEFTSHIFTEQ { LeftShift(to_pos $startpos) }
-  | RIGHTSHIFTEQ { RightShift(to_pos $startpos) }
+  | PLUSEQ { Plus }
+  | MINUSEQ { Minus }
+  | TIMESEQ { Multiply }
+  | BITOREQ { B_Or }
+  | BITXOREQ { B_Xor }
+  | BITANDEQ { B_And }
+  | LEFTSHIFTEQ { LeftShift }
+  | RIGHTSHIFTEQ { RightShift }
 ;
 
 unopexpr:
   | MINUS expr %prec UMINUS
-    { UnOp((Neg (to_pos $startpos)),$2,(to_pos $startpos)) }
+    { make_exp $startpos (UnOp(Neg,$2)) }
   | LOGNOT expr
-    { UnOp((L_Not (to_pos $startpos)),$2,(to_pos $startpos)) }
+    { make_exp $startpos (UnOp(L_Not,$2)) }
   | BITNOT expr
-    { UnOp((B_Not (to_pos $startpos)),$2,(to_pos $startpos)) }
+    { make_exp $startpos (UnOp(B_Not,$2)) }
 ;
 
 varexpr:
-  | IDENT { VarExp($1,(to_pos $startpos)) }
+  | IDENT { make_exp $startpos (VarExp $1) }
 ;
 
 arrexpr:
-  | IDENT LBRACK expr RBRACK { ArrExp($1,$3,(to_pos $startpos)) }
+  | IDENT LBRACK expr RBRACK { make_exp $startpos (ArrExp($1,$3)) }
 ;
 
 primitive:
   | INT
-    { Primitive((Number $1),Some(to_pos $startpos)) }
+    { make_exp $startpos (Primitive(Number $1)) }
   | BOOL
-    { Primitive((Boolean $1),Some(to_pos $startpos)) }
-;
-
-primitive_not_expr:
-  | INT { Number $1 }
-  | BOOL { Boolean $1 }
+    { make_exp $startpos (Primitive(Boolean $1)) }
 ;
 
 callexp:
-  | IDENT LPAREN exprlist RPAREN
-    { CallExp($1,$3,(to_pos $startpos)) }
+  | IDENT LPAREN arglist RPAREN
+    { make_exp $startpos (CallExp($1,$3)) }

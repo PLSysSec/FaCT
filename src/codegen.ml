@@ -570,7 +570,8 @@ let codegen ctx m =
       ignore(build_br loop_bb b);
       ignore(position_at_end loop_bb b);
       let i32 = Some Int32 in
-      let l' = codegen_expr i32 (Primitive l) in
+      let l' = codegen_expr i32 l in
+      let h' = codegen_expr i32 h in
       let variable = build_phi [(l',preheader)] v b in
       Hashtbl.add loop_values v (Val variable);
       Hashtbl.add val_types v Int32;
@@ -578,7 +579,7 @@ let codegen ctx m =
       let next_var =
         build_add variable (const_int (i32_type ctx) 1) "nextvar" b in
       let end_cond =
-        build_icmp Icmp.Eq (codegen_prim i32 h) next_var "loopcond" b in
+        build_icmp Icmp.Eq h' next_var "loopcond" b in
       let loop_end_bb = insertion_block b in
       let after_bb = append_block ctx "postloop" the_function in
       ignore(build_cond_br end_cond after_bb loop_bb b);

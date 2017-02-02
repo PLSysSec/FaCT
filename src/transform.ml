@@ -24,17 +24,16 @@ let rec transform = function
     Cast.CModule f
 
 and transform_type = function
-  | Ast.Int32 -> Cast.Int32
-  | Ast.Int16 -> Cast.Int16
-  | Ast.Int8 -> Cast.Int8
-  | Ast.UInt32 -> Cast.UInt32
-  | Ast.UInt16 -> Cast.UInt16
-  | Ast.UInt8 -> Cast.UInt8
-  | Ast.Int -> raise (TransformError "Cannot transform base Int type")
+  | Ast.Int 32 -> Cast.Int32
+  | Ast.Int 16 -> Cast.Int16
+  | Ast.Int 8 -> Cast.Int8
+  | Ast.UInt 32 -> Cast.UInt32
+  | Ast.UInt 16 -> Cast.UInt16
+  | Ast.UInt 8 -> Cast.UInt8
   | Ast.Bool -> Cast.Int8
-  | Ast.Array { a_ty=t; size=s } ->
+  | Ast.Array { ty=t; size=s } ->
     Cast.Array { a_ty=(transform_type t); size=s }
-  | Ast.Bottom -> raise (TransformError "Bottom is not a valid const type")
+  | _ -> raise (TransformError "Not a valid const type")
 
 and transform_kind = function
   | Ast.Val -> Cast.Val
@@ -48,19 +47,19 @@ and transform_lt = function
 and transform_arg {Ast.name=n; Ast.lt=t} =
   {Cast.name=n; Cast.lt=transform_lt(t)}
 
-and transform_stm ctx = function
-  | Ast.VarDec(n,ty,v,_) ->
+and transform_stm' ctx = function
+  | Ast.VarDec(n,ty,v) ->
     let ty' = transform_lt(ty) in
     let v' = transform_expr(v) in
     [Cast.VarDec(n,ty',v')]
-  | Ast.Assign(n,v,_) ->
+  | Ast.Assign(n,v) ->
     let c = ctx_expr ctx in
     let v' = transform_expr(v) in
     let assign_ok = b_and c (b_not (Cast.VarExp "rset")) in
     let newval = b_and v' assign_ok in
     let oldval = b_and (Cast.VarExp n) (b_not assign_ok) in
     [Cast.Assign(n,(b_or newval oldval))]
-  | Ast.ArrAssign(n,i,v,_) ->
+  | Ast.ArrAssign(n,i,v) ->
     let c = ctx_expr ctx in
     let v' = transform_expr(v) in
     let assign_ok = b_and c (b_not (Cast.VarExp "rset")) in
@@ -68,7 +67,7 @@ and transform_stm ctx = function
     let i' = transform_expr i in
     let oldval = b_and (Cast.ArrExp(n,i')) (b_not assign_ok) in
     [Cast.ArrAssign(n,i',(b_or newval oldval))]
-  | Ast.If(e,bt,bf,_) ->
+  | Ast.If(e,bt,bf) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
     let tname = new_temp_var() in
@@ -81,12 +80,12 @@ and transform_stm ctx = function
     let mdec = Cast.VarDec(tname,lt,b_and e' c) in
     let mnot = Cast.Assign(tname,b_not m) in
     [mdec] @ bt' @ [mnot] @ bf'
-  | Ast.For(n,l,h,b,_) ->
-    let l' = transform_primitive l in
-    let h' = transform_primitive h in
+  | Ast.For(n,t,l,h,b) ->
+    let l' = transform_expr l in
+    let h' = transform_expr h in
     let b' = List.flatten(List.map (transform_stm ctx) b) in
     [Cast.For(n,l',h',b')]
-  | Ast.Return(e,_) ->
+  | Ast.Return(e) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
     let rval = Cast.VarExp "rval" in
@@ -94,20 +93,22 @@ and transform_stm ctx = function
     let assign_ok = b_and c (b_not rset) in
     let newval = b_and e' assign_ok in
     [Cast.Assign("rval",(b_or rval newval)); Cast.Assign("rset",(b_or rset c))]
+and transform_stm ctx = Ast.unpack (transform_stm' ctx)
 
-and transform_expr = function
-  | Ast.VarExp(s,_) -> Cast.VarExp s
-  | Ast.ArrExp(s,i,_) -> Cast.ArrExp(s,transform_expr i)
-  | Ast.UnOp(u,e,_) -> Cast.UnOp(transform_unop(u),transform_expr(e))
-  | Ast.BinOp(b,e1,e2,_) ->
+and transform_expr' = function
+  | Ast.VarExp(s) -> Cast.VarExp s
+  | Ast.ArrExp(s,i) -> Cast.ArrExp(s,transform_expr i)
+  | Ast.UnOp(u,e) -> Cast.UnOp(transform_unop(u),transform_expr(e))
+  | Ast.BinOp(b,e1,e2) ->
     let b' = transform_binop b in
     let e1' = transform_expr e1 in
     let e2' = transform_expr e2 in
     Cast.BinOp(b',e1',e2')
-  | Ast.Primitive(p,_) -> Cast.Primitive(transform_primitive p)
-  | Ast.CallExp(n,args,_) ->
+  | Ast.Primitive(p) -> Cast.Primitive(transform_primitive p)
+  | Ast.CallExp(n,args) ->
     let args' = List.map transform_expr args in
     Cast.CallExp(n,args')
+and transform_expr = Ast.unpack transform_expr'
 
 and transform_primitive = function
   | Ast.Number n -> Cast.Number n
