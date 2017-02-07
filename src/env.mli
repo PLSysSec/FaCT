@@ -1,8 +1,3 @@
-exception VariableNotDefined of string
-exception FunctionNotDefined of string
-exception NotImplemented
-exception TypeError of string
-
 type fentry = { f_rty:Ast.ctype; f_rlbl:Ast.label; f_args:Ast.labeled_type list }
 
 type entry =

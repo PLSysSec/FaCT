@@ -1,6 +1,7 @@
 %{
-open Ast
 open Lexing
+open Pos
+open Ast
 
 let parse_error s = (* Called by the parser function on error *)
   print_endline s;

@@ -1,3 +1,4 @@
+open Pos
 open Cast
 open Codegen
 open Ast

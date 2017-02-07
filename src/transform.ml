@@ -1,6 +1,5 @@
+open Err
 open Tast
-
-exception TransformError of string
 
 type context = Context of Cast.expr
 
@@ -44,7 +43,7 @@ and transform_lt = function
   | { Ast.ty=t; Ast.kind=k } ->
     { Cast.ty=(transform_type t); Cast.kind=(transform_kind k)}
 
-and transform_param { Ast.data={Ast.name=n; Ast.lt=t} } =
+and transform_param { Pos.data={Ast.name=n; Ast.lt=t} } =
     {Cast.name=n; Cast.lt=transform_lt(t)}
 
 and transform_stm' ctx = function
@@ -93,16 +92,16 @@ and transform_stm' ctx = function
     let assign_ok = b_and c (b_not rset) in
     let newval = b_and e' assign_ok in
     [Cast.Assign("rval",(b_or rval newval)); Cast.Assign("rset",(b_or rset c))]
-and transform_stm ctx = Ast.unpack (transform_stm' ctx)
+and transform_stm ctx = Pos.unpack (transform_stm' ctx)
 
-and transform_arg = fun { Ast.data } ->
+and transform_arg = fun { Pos.data } ->
   let transform_arg' = function
     | Tast.TValArg e -> transform_expr e
     | _ -> raise @@ TransformError "transforming args not complete"
   in
     transform_arg' data
 
-and transform_expr = fun { Ast.data } ->
+and transform_expr = fun { Pos.data } ->
   let transform_expr'{ Tast.e } =
     match e with
       | Tast.TVarExp(s) -> Cast.VarExp s
@@ -126,7 +125,7 @@ and transform_primitive =
     | Tast.TBoolean false -> Cast.Mask (Cast.FALSE)
     | Tast.TArrayLiteral s -> raise @@ TransformError "array literal not yet supported"
   in
-    Ast.unpack transform_primitive'
+    Pos.unpack transform_primitive'
 
 and transform_unop =
   let transform_unop' = function
@@ -134,7 +133,7 @@ and transform_unop =
     | Ast.L_Not -> Cast.BitNot
     | Ast.B_Not -> Cast.BitNot
   in
-    Ast.unpack transform_unop'
+    Pos.unpack transform_unop'
 
 and transform_binop =
   let transform_binop' = function
@@ -155,9 +154,9 @@ and transform_binop =
     | Ast.B_Or -> Cast.BitOr
     | Ast.B_Xor -> Cast.BitXor
   in
-    Ast.unpack transform_binop'
+    Pos.unpack transform_binop'
 
-and transform_fdec { Ast.data } =
+and transform_fdec { Pos.data } =
   let transform_fdec' = function
     | { Tast.t_name=name; Tast.t_params=args; Tast.t_rty; Tast.t_rlbl; Tast.t_body=body } ->
       let args' = List.map transform_param args in

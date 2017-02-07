@@ -1,20 +1,6 @@
 open Stdlib
+open Err
 open Ast
-
-exception VariableNotDefined of string
-exception FunctionNotDefined of string
-exception NotImplemented
-exception TypeError of string
-exception UnclassifiedError of string
-
-let errVarNotDefined v =
-  VariableNotDefined("Variable `" ^ v ^ "` not defined")
-let errFnNotDefined v =
-  FunctionNotDefined("Function `" ^ v ^ "` not defined")
-let errFoundNotVar v =
-  TypeError("Cannot use `" ^ v ^ "` as variable")
-let errFoundNotFn v =
-  TypeError("Cannot use `" ^ v ^ "` as function")
 
 type fentry = { f_rty:Ast.ctype; f_rlbl:Ast.label; f_args:Ast.labeled_type list }
 [@@deriving show]

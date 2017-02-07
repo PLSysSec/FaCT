@@ -1,26 +1,8 @@
+open Pos
+open Err
 open Ast
 open Env
 open Tast
-
-exception NotImplemented
-exception FunctionNotDefined of string
-exception TypeError of string
-exception UnknownType of string
-exception CallError of string
-exception ForError of string
-exception InternalCompilerError of string
-
-(* because I'm lazy *)
-let ( << ) s p = s ^ " @ " ^ pos_string p
-
-let err p =
-  InternalCompilerError(__LOC__ << p)
-let errTypeError p =
-  TypeError("Types cannot be unified for given operation" << p)
-let errFlowError p =
-  TypeError("Invalid type flow" << p)
-let errPassError p =
-  TypeError("Cannot call function with this type" << p)
 
 let is_int = function
   | Int _ -> true
