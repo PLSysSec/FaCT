@@ -162,15 +162,13 @@ and transform_fdec { Ast.data } =
     | { Tast.t_name=name; Tast.t_params=args; Tast.t_rty; Tast.t_rlbl; Tast.t_body=body } ->
       let args' = List.map transform_param args in
       let rt = { Ast.ty=t_rty; Ast.label=t_rlbl; Ast.kind=Ast.Ref } in
-      let { Cast.ty=t; Cast.kind=k } as rt' = transform_lt(rt) in
-      let i8 = Cast.UInt32 (* get_rt_signedness rt *) in (* XXX *)
-      let i8_lt = { Cast.ty=i8; Cast.kind=Cast.Val } in
-    let bm_false = { Cast.ty=Cast.BoolMask; Cast.kind=Cast.Val } in
-    let bm_prim_false = Cast.Primitive(Cast.Mask(Cast.FALSE)) in
-    let ctx = Context(Cast.Primitive(Cast.Mask Cast.TRUE)) in
-    let body' = List.flatten(List.map (transform_stm ctx) body.body) in
-    let rval = Cast.VarDec("rval",i8_lt,Cast.Primitive(Cast.Number 0)) in
-    let rset = Cast.VarDec("rset",bm_false,bm_prim_false) in
+      let rt' = transform_lt(rt) in
+      let bm_false = { Cast.ty=Cast.BoolMask; Cast.kind=Cast.Val } in
+      let bm_prim_false = Cast.Primitive(Cast.Mask(Cast.FALSE)) in
+      let ctx = Context(Cast.Primitive(Cast.Mask Cast.TRUE)) in
+      let body' = List.flatten(List.map (transform_stm ctx) body.body) in
+      let rval = Cast.VarDec("rval",rt',Cast.Primitive(Cast.Number 0)) in
+      let rset = Cast.VarDec("rset",bm_false,bm_prim_false) in
       let body'' = [rval]@[rset]@body' in
         Cast.FunctionDec(name,args',rt',body'',Cast.VarExp("rval"))
   in
