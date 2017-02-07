@@ -1,0 +1,118 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{supertabular}
+\usepackage{geometry}
+\usepackage{ifthen}
+\usepackage{alltt}%hack
+\geometry{a4paper,dvips,twoside,left=22.5mm,right=22.5mm,top=20mm,bottom=30mm}
+\usepackage{color}
+\usepackage{stmaryrd}
+\usepackage{graphicx}
+\usepackage{mathpartir}
+\usepackage{mathtools}
+\usepackage{etextools}
+
+\makeatletter
+    \newcommand{\DeclarePairedDelimiterCase}[2]{%
+        \newcommand#1[1][]{%
+            \ifthenelse{\equal{##1}{normal}}%
+            {#2}%
+            {%
+                \ifthenelse{\equal{##1}{big}\OR\equal{##1}{Big}\OR\equal{##1}{bigg}\OR\equal{##1}{Bigg}}%
+                {\expandnext{#2[}{\csname##1\endcsname}]}%
+                {#2*}%        % standard case using \left and \right
+            }%
+        }%
+    }
+    \newcommand{\DeclarePairedDelimiterY}[4][Temp]{%
+        \expandafter\DeclarePairedDelimiter\csname#2#1\endcsname{#3}{#4}%
+        \expandnext{\expandnext{\DeclarePairedDelimiterCase}{\csname#2\endcsname}}{\csname#2#1\endcsname}%
+    }
+    \newcommand{\DeclarePairedDelimiterXY}[6][Temp]{%
+        \expandafter\DeclarePairedDelimiterX\csname#2#1\endcsname[#3]{#4}{#5}{#6}%
+        \expandnext{\expandnext{\DeclarePairedDelimiterCase}{\csname#2\endcsname}}{\csname#2#1\endcsname}%
+    }
+\makeatother
+
+\DeclarePairedDelimiterY{floor}{\lfloor}{\rfloor}
+\DeclarePairedDelimiterY{ceil}{\lceil}{\rceil}
+\DeclarePairedDelimiterY{abs}{\lvert}{\rvert}
+\DeclarePairedDelimiterY{vc}{\langle}{\rangle}
+
+\newcommand\has\vdash
+\newcommand\G\Gamma
+\newcommand\F{\mathbb{F}}
+\newcommand\Z{\mathbb{Z}}
+\renewcommand\t\tau
+
+\begin{document}
+
+\subsubsection*{Type Lattice}
+\begin{mathpar}
+
+  \infer
+  { n_1 < n_2 }
+  { uint\vc{n_1} <: uint\vc{n_2} }
+
+  \infer
+  { n_1 < n_2 }
+  { int\vc{n_1} <: int\vc{n_2} }
+
+  \infer
+  { }
+  { uint\vc{n} <: int\vc{2n} }
+
+  \infer
+  { \t_1 <: \t_2 \\
+    \Gamma \has e : \t_1 }
+  { \Gamma \has e : \t_2 }
+
+\end{mathpar}
+
+\subsubsection*{Expressions}
+\begin{mathpar}
+
+  \infer[Var]
+  { \G (x) = \tau }
+  { \G \has x : \tau }
+
+  \infer[Unop]
+  { \G \has e : \tau \\
+    \ominus : \tau \to \tau }
+  { \G \has \ominus e : \tau }
+
+  \infer[Binop]
+  { \G \has e_1 : \tau_1 \\
+    \G \has e_2 : \tau_2 \\
+    \oplus : \tau_1 \to \tau_2 \to \tau_3 }
+  { \G \has e_1 \oplus e_2 : \tau_3 }
+
+  \infer[ArrGet]
+  { \G \has e : uint\vc{max} \\
+    \G \has a : array\vc{\tau,n} }
+  { \G \has a[e] : \tau }
+
+  \infer[FnCall]
+  { \F (f) = fdec f(x_1:\t_1, \dots, x_n:\t_n) : \t_r \\
+    \G \has e_1 : \t_1 \\ \cdots \\ \G \has e_n : \t_n }
+  { \G \has f(e_1,\dots,e_n) : \t_r }
+
+  \infer[True] { } { \Gamma \has true : bool } \\
+  \infer[False] { } { \Gamma \has false : bool }
+
+  \infer[ArrLiteral]
+  { \forall i : \Gamma \has e_i : \tau }
+  { \Gamma [ e_1, \dots, e_n ] : array\vc{\tau,n} }
+
+  \infer[PosNumber]
+  { \ell >= 0 \\
+    n = \ceil{\log_2 \ell} }
+  { \Gamma \has \ell : uint\vc{n} }
+
+  \infer[NegNumber]
+  { \ell < 0 \\
+    n = \ceil{\log_2 \abs{\ell}}  + 1 }
+  { \Gamma \has \ell : int\vc{n} }
+
+\end{mathpar}
+\end{document}
