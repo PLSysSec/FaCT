@@ -6,6 +6,7 @@ type ctype =
   | UInt16
   | UInt8
   | Array of { a_ty:ctype; size:int }
+  | BoolMask
 [@@deriving show]
 
 and kind =
@@ -36,9 +37,14 @@ and unop =
   | BitNot
 [@@deriving show]
 
+and boolmask =
+  | TRUE
+  | FALSE
+
 and primitive =
   | Number of int
   | ByteArray of int list
+  | Mask of boolmask
 [@@deriving show]
 
 and expr =
