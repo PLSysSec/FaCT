@@ -19,20 +19,20 @@ let b_or l r = Cast.BinOp(Cast.BitOr,l,r)
 let b_not e = Cast.UnOp(Cast.BitNot,e)
 
 let rec transform = function
-  | Ast.CModule fdecs ->
+  | Tast.TCModule fdecs ->
     let f = List.map transform_fdec fdecs in
     Cast.CModule f
 
 and transform_type = function
-  | Ast.Int 32 -> Cast.Int32
-  | Ast.Int 16 -> Cast.Int16
-  | Ast.Int 8 -> Cast.Int8
-  | Ast.UInt 32 -> Cast.UInt32
-  | Ast.UInt 16 -> Cast.UInt16
-  | Ast.UInt 8 -> Cast.UInt8
+  | Ast.Int n when n = Z.(~$32) -> Cast.Int32
+  | Ast.Int n when n = Z.(~$16) -> Cast.Int16
+  | Ast.Int n when n = Z.(~$8) -> Cast.Int8
+  | Ast.UInt n when n = Z.(~$32) -> Cast.UInt32
+  | Ast.UInt n when n = Z.(~$16) -> Cast.UInt16
+  | Ast.UInt n when n = Z.(~$8) -> Cast.UInt8
   | Ast.Bool -> Cast.Int8
   | Ast.Array { ty=t; size=s } ->
-    Cast.Array { a_ty=(transform_type t); size=s }
+    Cast.Array { a_ty=(transform_type t); size=(Z.to_int s) }
   | _ -> raise (TransformError "Not a valid const type")
 
 and transform_kind = function
@@ -44,22 +44,22 @@ and transform_lt = function
   | { Ast.ty=t; Ast.kind=k } ->
     { Cast.ty=(transform_type t); Cast.kind=(transform_kind k)}
 
-and transform_arg {Ast.name=n; Ast.lt=t} =
-  {Cast.name=n; Cast.lt=transform_lt(t)}
+and transform_param { Ast.data={Ast.name=n; Ast.lt=t} } =
+    {Cast.name=n; Cast.lt=transform_lt(t)}
 
 and transform_stm' ctx = function
-  | Ast.VarDec(n,ty,v) ->
+  | Tast.TVarDec(n,ty,v) ->
     let ty' = transform_lt(ty) in
     let v' = transform_expr(v) in
     [Cast.VarDec(n,ty',v')]
-  | Ast.Assign(n,v) ->
+  | Tast.TAssign(n,v) ->
     let c = ctx_expr ctx in
     let v' = transform_expr(v) in
     let assign_ok = b_and c (b_not (Cast.VarExp "rset")) in
     let newval = b_and v' assign_ok in
     let oldval = b_and (Cast.VarExp n) (b_not assign_ok) in
     [Cast.Assign(n,(b_or newval oldval))]
-  | Ast.ArrAssign(n,i,v) ->
+  | Tast.TArrAssign(n,i,v) ->
     let c = ctx_expr ctx in
     let v' = transform_expr(v) in
     let assign_ok = b_and c (b_not (Cast.VarExp "rset")) in
@@ -67,7 +67,7 @@ and transform_stm' ctx = function
     let i' = transform_expr i in
     let oldval = b_and (Cast.ArrExp(n,i')) (b_not assign_ok) in
     [Cast.ArrAssign(n,i',(b_or newval oldval))]
-  | Ast.If(e,bt,bf) ->
+  | Tast.TIf(e,bt,bf) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
     let tname = new_temp_var() in
@@ -80,12 +80,12 @@ and transform_stm' ctx = function
     let mdec = Cast.VarDec(tname,lt,b_and e' c) in
     let mnot = Cast.Assign(tname,b_not m) in
     [mdec] @ bt' @ [mnot] @ bf'
-  | Ast.For(n,t,l,h,b) ->
+  | Tast.TFor(n,t,l,h,b) ->
     let l' = transform_expr l in
     let h' = transform_expr h in
     let b' = List.flatten(List.map (transform_stm ctx) b) in
     [Cast.For(n,l',h',b')]
-  | Ast.Return(e) ->
+  | Tast.TReturn(e) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
     let rval = Cast.VarExp "rval" in
@@ -95,67 +95,89 @@ and transform_stm' ctx = function
     [Cast.Assign("rval",(b_or rval newval)); Cast.Assign("rset",(b_or rset c))]
 and transform_stm ctx = Ast.unpack (transform_stm' ctx)
 
-and transform_expr' = function
-  | Ast.VarExp(s) -> Cast.VarExp s
-  | Ast.ArrExp(s,i) -> Cast.ArrExp(s,transform_expr i)
-  | Ast.UnOp(u,e) -> Cast.UnOp(transform_unop(u),transform_expr(e))
-  | Ast.BinOp(b,e1,e2) ->
-    let b' = transform_binop b in
-    let e1' = transform_expr e1 in
-    let e2' = transform_expr e2 in
-    Cast.BinOp(b',e1',e2')
-  | Ast.Primitive(p) -> Cast.Primitive(transform_primitive p)
-  | Ast.CallExp(n,args) ->
-    let args' = List.map transform_expr args in
-    Cast.CallExp(n,args')
-and transform_expr = Ast.unpack transform_expr'
+and transform_arg = fun { Ast.data } ->
+  let transform_arg' = function
+    | Tast.TValArg e -> transform_expr e
+    | _ -> raise @@ TransformError "transforming args not complete"
+  in
+    transform_arg' data
 
-and transform_primitive = function
-  | Ast.Number n -> Cast.Number n
-  | Ast.Boolean true -> Cast.Number (-1)
-  | Ast.Boolean false -> Cast.Number 0
-  | Ast.ByteArray s -> Cast.ByteArray s
+and transform_expr = fun { Ast.data } ->
+  let transform_expr'{ Tast.e } =
+    match e with
+      | Tast.TVarExp(s) -> Cast.VarExp s
+      | Tast.TArrExp(s,i) -> Cast.ArrExp(s,transform_expr i)
+      | Tast.TUnOp(u,e) -> Cast.UnOp(transform_unop(u),transform_expr(e))
+      | Tast.TBinOp(b,e1,e2) ->
+        let b' = transform_binop b in
+        let e1' = transform_expr e1 in
+        let e2' = transform_expr e2 in
+        Cast.BinOp(b',e1',e2')
+      | Tast.TPrimitive(p) -> Cast.Primitive(transform_primitive p)
+      | Tast.TCallExp(n,args) ->
+        let args' = List.map transform_arg args in
+        Cast.CallExp(n,args')
+  in transform_expr' data
 
-and transform_unop = function
-  | Ast.Neg _ -> Cast.Neg
-  | Ast.L_Not _ -> Cast.BitNot
-  | Ast.B_Not _ -> Cast.BitNot
+and transform_primitive =
+  let transform_primitive' = function
+    | Tast.TNumber n -> Cast.Number (Z.to_int n) (* XXX *)
+    | Tast.TBoolean true -> Cast.Number (-1)
+    | Tast.TBoolean false -> Cast.Number 0
+    | Tast.TArrayLiteral s -> raise @@ TransformError "array literal not yet supported"
+  in
+    Ast.unpack transform_primitive'
 
-and transform_binop = function
-  | Ast.Plus _ -> Cast.Plus
-  | Ast.Minus _ -> Cast.Minus
-  | Ast.Multiply _ -> Cast.Mult
-  | Ast.GT _ -> Cast.GT
-  | Ast.GTE _ -> Cast.GTE
-  | Ast.LT _ -> Cast.LT
-  | Ast.LTE _ -> Cast.LTE
-  | Ast.Equal _ -> Cast.Eq
-  | Ast.NEqual _ -> Cast.Neq
-  | Ast.L_And _ -> Cast.BitAnd
-  | Ast.L_Or _ -> Cast.BitOr
-  | Ast.LeftShift _ -> Cast.LeftShift
-  | Ast.RightShift _ -> Cast.RightShift
-  | Ast.B_And _ -> Cast.BitAnd
-  | Ast.B_Or _ -> Cast.BitOr
-  | Ast.B_Xor _ -> Cast.BitXor
+and transform_unop =
+  let transform_unop' = function
+    | Ast.Neg -> Cast.Neg
+    | Ast.L_Not -> Cast.BitNot
+    | Ast.B_Not -> Cast.BitNot
+  in
+    Ast.unpack transform_unop'
 
-and transform_fdec = function
-  | Ast.FunctionDec(name,args,rt,body,_) ->
-    let get_rt_signedness = function
-      | { Ast.ty=Ast.Int32 } -> Cast.Int8
-      | { Ast.ty=Ast.Int16 } -> Cast.Int8
-      | { Ast.ty=Ast.Int8 } -> Cast.Int8
-      | { Ast.ty=Ast.UInt32 } -> Cast.UInt8
-      | { Ast.ty=Ast.UInt16 } -> Cast.UInt8
-      | { Ast.ty=Ast.UInt8 } -> Cast.UInt8
-      | _ -> raise (TransformError "Cannot get signedness of return type") in
-    let args' = List.map transform_arg args in
-    let { Cast.ty=t; Cast.kind=k } as rt' = transform_lt(rt) in
-    let i8 = get_rt_signedness rt in
-    let i8_lt = { Cast.ty=i8; Cast.kind=Cast.Val } in
-    let ctx = Context(Cast.Primitive(Cast.Number (-1))) in
-    let body' = List.flatten(List.map (transform_stm ctx) body) in
-    let rval = Cast.VarDec("rval",i8_lt,Cast.Primitive(Cast.Number 0)) in
-    let rset = Cast.VarDec("rset",i8_lt,Cast.Primitive(Cast.Number 0)) in
-    let body'' = [rval]@[rset]@body' in
-    Cast.FunctionDec(name,args',rt',body'',Cast.VarExp("rval"))
+and transform_binop =
+  let transform_binop' = function
+    | Ast.Plus -> Cast.Plus
+    | Ast.Minus -> Cast.Minus
+    | Ast.Multiply -> Cast.Mult
+    | Ast.GT -> Cast.GT
+    | Ast.GTE -> Cast.GTE
+    | Ast.LT -> Cast.LT
+    | Ast.LTE -> Cast.LTE
+    | Ast.Equal -> Cast.Eq
+    | Ast.NEqual -> Cast.Neq
+    | Ast.L_And -> Cast.BitAnd
+    | Ast.L_Or -> Cast.BitOr
+    | Ast.LeftShift -> Cast.LeftShift
+    | Ast.RightShift -> Cast.RightShift
+    | Ast.B_And -> Cast.BitAnd
+    | Ast.B_Or -> Cast.BitOr
+    | Ast.B_Xor -> Cast.BitXor
+  in
+    Ast.unpack transform_binop'
+
+and transform_fdec { Ast.data } =
+  let transform_fdec' = function
+    | { Tast.t_name=name; Tast.t_params=args; Tast.t_rty; Tast.t_rlbl; Tast.t_body=body } ->
+      (*let get_rt_signedness = function
+        | { Ast.ty=Ast.Int32 } -> Cast.Int8
+        | { Ast.ty=Ast.Int16 } -> Cast.Int8
+        | { Ast.ty=Ast.Int8 } -> Cast.Int8
+        | { Ast.ty=Ast.UInt32 } -> Cast.UInt8
+        | { Ast.ty=Ast.UInt16 } -> Cast.UInt8
+        | { Ast.ty=Ast.UInt8 } -> Cast.UInt8
+        | _ -> raise (TransformError "Cannot get signedness of return type") in*)
+      let args' = List.map transform_param args in
+      let rt = { Ast.ty=t_rty; Ast.label=t_rlbl; Ast.kind=Ast.Ref } in
+      let { Cast.ty=t; Cast.kind=k } as rt' = transform_lt(rt) in
+      let i8 = Cast.UInt32 (* get_rt_signedness rt *) in (* XXX *)
+      let i8_lt = { Cast.ty=i8; Cast.kind=Cast.Val } in
+      let ctx = Context(Cast.Primitive(Cast.Number (-1))) in
+      let body' = List.flatten(List.map (transform_stm ctx) body) in
+      let rval = Cast.VarDec("rval",i8_lt,Cast.Primitive(Cast.Number 0)) in
+      let rset = Cast.VarDec("rset",i8_lt,Cast.Primitive(Cast.Number 0)) in
+      let body'' = [rval]@[rset]@body' in
+        Cast.FunctionDec(name,args',rt',body'',Cast.VarExp("rval"))
+  in
+    transform_fdec' data

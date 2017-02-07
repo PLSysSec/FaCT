@@ -2,48 +2,26 @@
 open Ast
 open Lexing
 
-type ty_info = { ty:string; attr:int option }
-
 let parse_error s = (* Called by the parser function on error *)
   print_endline s;
   flush stdout
 
 exception ParseError of string
 
-(* TODO: I dont like this.. We need to think of another way
-         to go from string to constantc type *)
 let to_type = function
-  | { ty="int"; attr=None } -> Int 32
-  | { ty="int32"; attr=None } -> Int 32
-  | { ty="int16"; attr=None } -> Int 16
-  | { ty="int8"; attr=None } -> Int 8
-  | { ty="uint32"; attr=None } -> UInt 32
-  | { ty="uint16"; attr=None } -> UInt 16
-  | { ty="uint8"; attr=None } -> UInt 8
-  | { ty="bool"; attr=None } -> Bool
-  | { ty="int"; attr=(Some n) } ->
-    Array { size=n; ty=Int 32 }
-  | { ty="int32"; attr=(Some n) } ->
-    Array { size=n; ty=Int 32 }
-  | { ty="int16"; attr=(Some n) } ->
-    Array { size=n; ty=Int 16 }
-  | { ty="int8"; attr=(Some n) } ->
-    Array { size=n; ty=Int 8 }
-  | { ty="uint32"; attr=(Some n) } ->
-    Array { size=n; ty=UInt 32 }
-  | { ty="uint16"; attr=(Some n) } ->
-    Array { size=n; ty=UInt 16 }
-  | { ty="uint8"; attr=(Some n) } ->
-    Array { size=n; ty=UInt 8 }
-  | { ty="bool"; attr=(Some n) } ->
-    Array { size=n; ty=Bool }
-  | { ty=t } -> raise (ParseError("Unknown type: " ^ t))
-
-let make_exp p e = make_pos p { e=e; ty=None; label=None }
-
+  | "bool" -> Bool
+  | "int" -> Int (Z.of_int 32)
+  | "int8" -> Int (Z.of_int 8)
+  | "int16" -> Int (Z.of_int 16)
+  | "int32" -> Int (Z.of_int 32)
+  | "uint8" -> UInt (Z.of_int 32)
+  | "uint8" -> UInt (Z.of_int 8)
+  | "uint16" -> UInt (Z.of_int 16)
+  | "uint32" -> UInt (Z.of_int 32)
+  | _ as t -> raise (ParseError("Unknown type: " ^ t))
 %}
 
-%token <int> INT
+%token <Z.t> INT
 %token <bool> BOOL
 %token PLUS MINUS TIMES
 %token EQUAL NEQUAL GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
@@ -56,6 +34,7 @@ let make_exp p e = make_pos p { e=e; ty=None; label=None }
 
 %token IF ELSE
 %token <string> IDENT
+%token <string> TYPE
 %token FOR TO
 %token LBRACK RBRACK
 %token LBRACE RBRACE
@@ -82,8 +61,8 @@ let make_exp p e = make_pos p { e=e; ty=None; label=None }
 %left TIMES
 %left LOGNOT BITNOT UMINUS
 
-%nonassoc INT
-%nonassoc RBRACK
+(* %nonassoc INT *)
+(* %nonassoc RBRACK *)
 
 %start main
 %type <Ast.fdec list> main
@@ -101,17 +80,17 @@ fdeclist:
 ;
 
 fdec:
-  | expr_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
-    { make_pos $startpos ({ name=$2; params=(List.rev $4); rty=$1; body=$7 }) }
+  | PUBLIC const_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
+    { make_pos $startpos ({ name=$3; params=(List.rev $5); rty=$2; rlbl=Public; body=$8 }) }
+  | SECRET const_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
+    { make_pos $startpos ({ name=$3; params=(List.rev $5); rty=$2; rlbl=Secret; body=$8 }) }
+  | const_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
+    { make_pos $startpos ({ name=$2; params=(List.rev $4); rty=$1; rlbl=Unknown; body=$7 }) }
 ;
 
 const_type:
-  | IDENT
-    { let ty_info = { ty=$1; attr=None } in
-      to_type ty_info }
-  | IDENT LBRACK INT RBRACK
-    { let ty_info = { ty=$1; attr=(Some $3) } in
-      to_type ty_info }
+  | TYPE { to_type $1 }
+  | TYPE LBRACK INT RBRACK { Array { ty=to_type $1; size=$3 } }
 
 arg_labeled_type:
   | OUT labeled_type
@@ -124,27 +103,19 @@ arg_labeled_type:
     { let lt = $1 in
       { lt with kind=Val } }
 
-expr_type:
-  | PUBLIC const_type
-    { { ty=$2; label=Some Public } }
-  | SECRET const_type
-    { { ty=$2; label=Some Secret } }
-  | const_type
-    { { ty=$1; label=None } }
-
 labeled_type:
   | PUBLIC const_type
-    { { ty=$2; label=Some Public; kind=Val } }
+    { { ty=$2; label=Public; kind=Val } }
   | SECRET const_type
-    { { ty=$2; label=Some Secret; kind=Val } }
+    { { ty=$2; label=Secret; kind=Val } }
   | const_type
-    { { ty=$1; label=None; kind=Val } }
+    { { ty=$1; label=Unknown; kind=Val } }
 
 fargs:
   | fargs COMMA arg_labeled_type IDENT
-    { {name=$4; lt=$3}::$1}
+    { (make_pos $startpos { name=$4; lt=$3 })::$1}
   | arg_labeled_type IDENT
-    { [{name=($2); lt=$1}] }
+    { [make_pos $startpos { name=$2; lt=$1 }] }
   | { [] }
 
 expr:
@@ -152,7 +123,7 @@ expr:
     { $2 }
   | expr binopexpr
     { let (b,e) = $2 in
-      make_exp $startpos (BinOp(b,$1,e)) }
+      make_pos $startpos (BinOp(b,$1,e)) }
   | unopexpr { $1 }
   | varexpr { $1 }
   | arrexpr { $1 }
@@ -183,7 +154,7 @@ stmlist:
     { (make_pos $startpos (Assign($1,$3)))::$5 }
   | IDENT binopeq expr SEMICOLON stmlist
     { let makep = make_pos $startpos in
-      let makee e = make_exp $startpos e in
+      let makee e = make_pos $startpos e in
       (makep (Assign($1,makee (BinOp($2,makee (VarExp($1)),$3)))))::$5 }
   | IF LPAREN expr RPAREN LBRACE stmlist RBRACE ELSE LBRACE stmlist RBRACE stmlist
     { (make_pos $startpos (If($3,$6,$10)))::$12 }
@@ -193,86 +164,90 @@ stmlist:
     { (make_pos $startpos (Return($2))::$4) }
   | { [] }
 
+(* XXX unreachable
 list_elements:
   | INT
     { [$1] }
   | INT COMMA list_elements
     { $1::$3 }
+    *)
 
+(* XXX unreachable
 bytearr_list:
   | LBRACK list_elements RBRACK
     { make_pos $startpos (Primitive(ByteArray $2)) }
+    *)
 
 binopexpr:
   | PLUS expr
-    { (Plus,$2) }
+    { (make_pos $startpos Plus,$2) }
   | MINUS expr
-    { (Minus,$2) }
+    { (make_pos $startpos Minus,$2) }
   | TIMES expr
-    { (Multiply,$2) }
+    { (make_pos $startpos Multiply,$2) }
   | EQUAL expr
-    { (Equal,$2) }
+    { (make_pos $startpos Equal,$2) }
   | NEQUAL expr
-    { (NEqual,$2) }
+    { (make_pos $startpos NEqual,$2) }
   | GREATERTHAN expr
-    { (GT,$2) }
+    { (make_pos $startpos GT,$2) }
   | GREATERTHANEQ expr
-    { (GTE,$2) }
+    { (make_pos $startpos GTE,$2) }
   | LESSTHAN expr
-    { (LT,$2) }
+    { (make_pos $startpos LT,$2) }
   | LESSTHANEQ expr
-    { (LTE,$2) }
+    { (make_pos $startpos LTE,$2) }
   | LOGAND expr
-    { (L_And,$2) }
+    { (make_pos $startpos L_And,$2) }
   | LOGOR expr
-    { (L_Or,$2) }
+    { (make_pos $startpos L_Or,$2) }
   | BITOR expr
-    { (B_Or,$2) }
+    { (make_pos $startpos B_Or,$2) }
   | BITXOR expr
-    { (B_Xor,$2) }
+    { (make_pos $startpos B_Xor,$2) }
   | BITAND expr
-    { (B_And,$2) }
+    { (make_pos $startpos B_And,$2) }
   | LEFTSHIFT expr
-    { (LeftShift,$2) }
+    { (make_pos $startpos LeftShift,$2) }
   | RIGHTSHIFT expr
-    { (RightShift,$2) }
+    { (make_pos $startpos RightShift,$2) }
 ;
 
 binopeq:
-  | PLUSEQ { Plus }
-  | MINUSEQ { Minus }
-  | TIMESEQ { Multiply }
-  | BITOREQ { B_Or }
-  | BITXOREQ { B_Xor }
-  | BITANDEQ { B_And }
-  | LEFTSHIFTEQ { LeftShift }
-  | RIGHTSHIFTEQ { RightShift }
+  | PLUSEQ { make_pos $startpos Plus }
+  | MINUSEQ { make_pos $startpos Minus }
+  | TIMESEQ { make_pos $startpos Multiply }
+  | BITOREQ { make_pos $startpos B_Or }
+  | BITXOREQ { make_pos $startpos B_Xor }
+  | BITANDEQ { make_pos $startpos B_And }
+  | LEFTSHIFTEQ { make_pos $startpos LeftShift }
+  | RIGHTSHIFTEQ { make_pos $startpos RightShift }
 ;
 
 unopexpr:
   | MINUS expr %prec UMINUS
-    { make_exp $startpos (UnOp(Neg,$2)) }
+    { make_pos $startpos (UnOp(make_pos $startpos Neg,$2)) }
   | LOGNOT expr
-    { make_exp $startpos (UnOp(L_Not,$2)) }
+    { make_pos $startpos (UnOp(make_pos $startpos L_Not,$2)) }
   | BITNOT expr
-    { make_exp $startpos (UnOp(B_Not,$2)) }
+    { make_pos $startpos (UnOp(make_pos $startpos B_Not,$2)) }
 ;
 
 varexpr:
-  | IDENT { make_exp $startpos (VarExp $1) }
+  | IDENT { make_pos $startpos (VarExp $1) }
 ;
 
 arrexpr:
-  | IDENT LBRACK expr RBRACK { make_exp $startpos (ArrExp($1,$3)) }
+  | IDENT LBRACK expr RBRACK { make_pos $startpos (ArrExp($1,$3)) }
 ;
 
 primitive:
   | INT
-    { make_exp $startpos (Primitive(Number $1)) }
+    { make_pos $startpos (Primitive(make_pos $startpos @@ Number $1)) }
   | BOOL
-    { make_exp $startpos (Primitive(Boolean $1)) }
+    { make_pos $startpos (Primitive(make_pos $startpos @@ Boolean $1)) }
 ;
 
 callexp:
   | IDENT LPAREN arglist RPAREN
-    { make_exp $startpos (CallExp($1,$3)) }
+    { make_pos $startpos (CallExp($1,$3)) }

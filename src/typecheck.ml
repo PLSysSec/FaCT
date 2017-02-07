@@ -1,8 +1,8 @@
 open Ast
 open Env
+open Tast
 
 exception NotImplemented
-exception VariableNotDefined of string
 exception FunctionNotDefined of string
 exception TypeError of string
 exception UnknownType of string
@@ -10,351 +10,338 @@ exception CallError of string
 exception ForError of string
 exception InternalCompilerError of string
 
-let errVarNotDefined v =
-  VariableNotDefined("Variable `" ^ v ^ "` not defined")
-let errFnNotDefined v =
-  FunctionNotDefined("Function `" ^ v ^ "` not defined")
-let errFoundNotVar v =
-  TypeError("Cannot use `" ^ v ^ "` as variable")
-let errFoundNotFn v =
-  TypeError("Cannot use `" ^ v ^ "` as function")
-let errTypeError =
-  TypeError("Types cannot be unified for given operation")
-let errFlowError =
-  TypeError("Invalid type flow")
-let errPassError =
-  TypeError("Cannot call function with this type")
+(* because I'm lazy *)
+let ( << ) s p = s ^ " @ " ^ pos_string p
 
-let isInt = function
-  | NumericTop -> true
+let err p =
+  InternalCompilerError(__LOC__ << p)
+let errTypeError p =
+  TypeError("Types cannot be unified for given operation" << p)
+let errFlowError p =
+  TypeError("Invalid type flow" << p)
+let errPassError p =
+  TypeError("Cannot call function with this type" << p)
+
+let is_int = function
   | Int _ -> true
   | UInt _ -> true
-  | NumericBottom -> true
   | _ -> false
 
-let isBool = function
+let is_bool = function
   | Bool -> true
   | _ -> false
 
+let fit_num n =
+  let numbits = Z.numbits n in
+    if Z.sign n = -1 then Int (Z.of_int @@ numbits + 1)
+    else UInt (Z.of_int numbits)
+
+(* ctype -> ctype -> ctype *)
 let unify_ty t1 t2 =
   match (t1,t2) with
     | _ when t1 = t2 -> t1
-    | (NumericTop, a) when isInt a -> NumericTop
-    | (a, NumericTop) when isInt a -> NumericTop
-    | (Int a, Int b) -> Int (max a b)
-    | (UInt a, UInt b) -> UInt (max a b)
-    | (NumericBottom, a) when isInt a -> a
-    | (a, NumericBottom) when isInt a -> a
+    | (Int a, Int b) -> Int Z.(max a b)
+    | (UInt a, UInt b) -> UInt Z.(max a b)
+    | (Int a, UInt b) -> Int Z.(max a (~$2 * b))
+    | (UInt a, Int b) -> Int Z.(max (~$2 * a) b)
     | _ -> raise (TypeError(ty_to_string(t1) ^ " does not unify with " ^ ty_to_string(t2)))
 
+(* label -> label -> label *)
 let unify_label lbl1 lbl2 =
   match lbl1,lbl2 with
-    | Some Secret,_ -> Some Secret
-    | _,Some Secret -> Some Secret
-    | Some Public,Some Public -> Some Public
-    | _ -> None
-
-let tc_prim = function
-  | Number n -> NumericBottom, Some Public
-  | ByteArray s -> Array { size=(List.length s); ty=NumericBottom }, Some Public
-  | Boolean b -> Bool, Some Public
+    | Secret,_ -> Secret
+    | _,Secret -> Secret
+    | Public,Public -> Public
+    | _ -> Unknown
 
 (* See note below *)
-let tc_unop op ty =
-  match ty with
-    | (Some ty') ->
-      (match op with
-        | Neg when isInt ty' -> ty
-        | L_Not when isBool ty' -> ty
-        | B_Not when isInt ty' -> ty
-        | _ -> raise errTypeError)
-    | _ -> raise errTypeError
+(* op -> ctype -> ctype *)
+let tc_unop { pos=p; data=op } ty =
+  match op with
+    | Neg when is_int ty -> ty
+    | L_Not when is_bool ty -> ty
+    | B_Not when is_int ty -> ty
+    | _ -> raise @@ errTypeError p
 
 (* Note: apparently C just turns all bitwise operations (including shifts)
    into ints. Should we match C or do it our way?
    [scauligi] My vote is for keeping it our way. *)
-let tc_binop op lhs' rhs' =
-  match lhs',rhs' with
-    | Some lhs,Some rhs ->
-      (match op with
-        | Plus when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
-        | Minus when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
-        | Multiply when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
-        | Equal when isInt(lhs) && isInt(rhs) -> Bool
-        | NEqual when isInt(lhs) && isInt(rhs) -> Bool
-        | GT when isInt(lhs) && isInt(rhs) -> Bool
-        | GTE when isInt(lhs) && isInt(rhs) -> Bool
-        | LT when isInt(lhs) && isInt(rhs) -> Bool
-        | LTE when isInt(lhs) && isInt(rhs) -> Bool
-        | L_And when isBool(lhs) && isBool(rhs) -> Bool
-        | L_Or when isBool(lhs) && isBool(rhs) -> Bool
-        | B_And when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
-        | B_Or when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
-        | B_Xor when isInt(lhs) && isInt(rhs) -> unify_ty lhs rhs
-        | LeftShift when isInt(lhs) && isInt(rhs) -> lhs
-        | RightShift when isInt(lhs) && isInt(rhs) -> lhs
-        | _ -> raise errTypeError)
-    | _ -> raise errTypeError
+(* op -> ctype -> ctype -> ctype *)
+let tc_binop { pos=p; data=op } lhs rhs =
+  match op with
+    | Plus when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
+    | Minus when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
+    | Multiply when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
+    | Equal when is_int(lhs) && is_int(rhs) -> Bool
+    | NEqual when is_int(lhs) && is_int(rhs) -> Bool
+    | GT when is_int(lhs) && is_int(rhs) -> Bool
+    | GTE when is_int(lhs) && is_int(rhs) -> Bool
+    | LT when is_int(lhs) && is_int(rhs) -> Bool
+    | LTE when is_int(lhs) && is_int(rhs) -> Bool
+    | L_And when is_bool(lhs) && is_bool(rhs) -> Bool
+    | L_Or when is_bool(lhs) && is_bool(rhs) -> Bool
+    | B_And when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
+    | B_Or when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
+    | B_Xor when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
+    | LeftShift when is_int(lhs) && is_int(rhs) -> lhs
+    | RightShift when is_int(lhs) && is_int(rhs) -> lhs
+    | _ -> raise @@ errTypeError p
 
-(* ctype -> ctype option -> unit *)
-let ty_can_flow lhs rhs =
+(* ctype -> ctype -> unit *)
+let ty_can_flow p lhs rhs =
   match lhs, rhs with
-    | _, None -> raise NotImplemented
-    | a, Some b when a = b -> ()
-    | Int a, Some (Int b) when a > b -> ()
-    | Int _, Some NumericBottom -> ()
-    | UInt a, Some (UInt b) when a > b -> ()
-    | UInt _, Some NumericBottom -> ()
-    | _ -> raise errPassError
+    | a, b when a = b -> ()
+    | Int a, Int b when a > b -> ()
+    | UInt a, UInt b when a > b -> ()
+    | _ -> raise @@ errPassError p
 
-let ty_can_pass lhs rhs =
+(* labeled_type -> labeled_type -> unit *)
+let ty_can_pass p lhs rhs =
   match lhs, rhs with
     | { kind=Out }, _ -> raise NotImplemented
     | _, { kind=Out } -> raise NotImplemented
-    | { kind=Ref }, { kind=Val } -> raise errPassError
+    | { kind=Ref }, { kind=Val } -> raise @@ errPassError p
     | { ty=a }, { ty=b } when a = b -> ()
-    | _ -> raise errPassError
+    | _ -> raise @@ errPassError p
 
-let rec fill_public' venv expr =
-  let fill v =
-    match Hashtbl.find venv v with
-      | VarEntry lt when !lt.label = None -> update_label venv v (Some Public)
-      | _ -> () in
-  let { e } = expr in
-    match e with
-      | VarExp v -> fill v
-      | ArrExp(v,_) -> fill v
-      | UnOp(_,e1) -> fill_public venv e1
-      | BinOp(_,e1,e2) ->
-        fill_public venv e1;
-        fill_public venv e2
-      | Primitive _ -> ()
-      | CallExp(_,args) ->
-        ignore(List.map (unpack (function
-                          | ValArg e -> fill_public venv e
-                          | VarArg(_,v) -> fill v
-                          | ArrArg(_,v) -> fill v))
-                 args)
-and fill_public venv = unpack (fill_public' venv)
+(* name -> unit *)
+let update_public venv p v = update_label venv v Public
 
-(* env -> labeled_type -> expr -> labeled_type *)
-let lbl_can_flow venv lt e =
-  ignore(lt.kind);
-  match lt.label, e.data.label with
-    | Some Public, Some Secret -> raise errFlowError
-    | Some Public, None -> fill_public venv e; lt
-    | None, Some Secret -> { lt with label=(Some Secret) }
+(* targ -> unit *)
+let rec fill_arg venv { pos=p; data=targ } =
+  match targ with
+    | TValArg texpr -> fill_public venv texpr
+    | TVarArg(name,_)
+    | TArrArg(name,_) -> update_public venv p name
+
+(* texpr -> unit *)
+and fill_public venv { pos=p; data=te } =
+  match te.e with
+    | TVarExp v -> update_public venv p v
+    | TArrExp(v,_) -> update_public venv p v
+    | TUnOp(_,e1) -> fill_public venv e1
+    | TBinOp(_,e1,e2) ->
+      fill_public venv e1;
+      fill_public venv e2
+    | TPrimitive _ -> ()
+    | TCallExp(_,targs) ->
+      ignore(List.map (fill_arg venv) targs)
+
+(* labeled_type -> texpr -> labeled_type *)
+let lbl_can_flow venv lt ({ pos=p; data=te } as pte) =
+  match lt.label, te.e_lbl with
+    | Public, Secret -> raise @@ errFlowError p
+    | Public, Unknown -> fill_public venv pte; lt
+    | Unknown, Secret -> { lt with label=Secret }
     | _ -> lt
 
-(* env -> labeled_type -> (arg * labeled_type) -> labeled_type *)
-let lbl_can_pass venv lhs (arg,rhs) =
-  let update_venv = function
-    | VarArg(_,name)
-    | ArrArg(_,name) -> update_label venv name (Some Public)
-    | _ -> raise NotImplemented
+(* labeled_type -> targ -> labeled_type *)
+let lbl_can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
+  let rhs =
+    match targ with
+      | TValArg te -> { ty=te.data.e_ty; label=te.data.e_lbl; kind=Val }
+      | TVarArg(name,lt) -> lt
+      | _ -> raise NotImplemented
   in
   match lhs, rhs with
     | { kind=Out }, _ -> raise NotImplemented
     | _, { kind=Out } -> raise NotImplemented
-    | { kind=Ref }, { kind=Val } -> raise errPassError
-    | { label=Some Public }, { label=Some Secret } -> raise errPassError
-    | { kind=Ref; label=Some Secret }, { kind=Ref; label=Some Public } -> raise errPassError
-    | { label=None }, { label=Some Secret } -> { lhs with label=Some Secret }
-    | { label=Some Public }, { label=None } -> update_venv arg; lhs
-    | { kind=Val; label=Some Secret }, _ -> lhs
+    | { kind=Ref }, { kind=Val } -> raise @@ errPassError p
+    | { label=Public }, { label=Secret } -> raise @@ errPassError p
+    | { kind=Ref; label=Secret }, { kind=Ref; label=Public } -> raise @@ errPassError p
+    | { label=Unknown }, { label=Secret } -> { lhs with label=Secret }
+    | { label=Public }, { label=Unknown } -> fill_arg venv ptarg; lhs
+    | { kind=Val; label=Secret }, _ -> lhs
     | _ -> lhs
 
-let can_pass venv lhs (arg',rhs) =
-  let { data=arg } = arg' in
-  match arg with
-  | ValArg e ->
-    ignore(lhs.kind);
-    ty_can_flow lhs.ty e.data.ty;
-    ignore(lbl_can_flow venv lhs e)
-  | VarArg(kind,name) ->
-    let rhs' = (match rhs with Some lt -> lt | _ -> raise NotImplemented) in
-      ty_can_pass lhs rhs';
-      ignore(lbl_can_pass venv lhs (arg,rhs'))
-  | ArrArg(kind,name) ->
-    let rhs' = (match rhs with Some lt -> lt | _ -> raise NotImplemented) in
-      ty_can_pass lhs rhs';
-      ignore(lbl_can_pass venv lhs (arg,rhs'))
+(* labeled_type -> texpr -> labeled_type *)
+let can_flow venv lt ({ pos=p; data=texpr } as ptexpr) =
+  ty_can_flow p lt.ty texpr.e_ty;
+  lbl_can_flow venv lt ptexpr
 
-let rec tc_arg venv { pos; data } =
-  let make_pos arg = { pos=pos; data=arg } in
-  match data with
-  | ValArg e ->
-    let e' = tc_expr venv e in
-      make_pos (ValArg e'),None
-  | VarArg(kind,name) ->
-    (try
-       match Hashtbl.find venv name with
-         | VarEntry lt -> make_pos (VarArg(!lt.kind,name)),Some !lt
-         | _ -> raise NotImplemented
-     with
-       Not_found -> raise (errVarNotDefined name))
-  | _ -> raise NotImplemented
+(* labeled_type -> targ -> labeled_type *)
+let can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
+  ignore(
+    match targ with
+      | TValArg te ->
+        ty_can_flow p lhs.ty te.data.e_ty;
+      | TVarArg(name,kind) ->
+        let rhs = get_var venv name in
+          ty_can_pass p lhs rhs;
+      | TArrArg(name,kind) ->
+        let rhs = get_var venv name in
+          ty_can_pass p lhs rhs);
+  lbl_can_pass venv lhs ptarg
 
-(* fills ty and lbl strictly via unify *)
-and tc_expr' venv expr =
-  let make_exp e ty lbl = { e=e; ty=ty; label=lbl } in
-  let { e; ty; label=lbl } = expr in
-    match e with
-      | VarExp v ->
-        (try
-           match Hashtbl.find venv v with
-             | VarEntry lt ->
-               make_exp e (Some !lt.ty) !lt.label
-             | _ -> raise (errFoundNotVar v)
-         with
-             Not_found -> raise (errVarNotDefined v))
-      | ArrExp(v,i) ->
-        let i' = tc_expr venv i in
-          (try
-             match Hashtbl.find venv v with
-               | VarEntry { contents=({ ty=(Array a) } as lt) } ->
-                 make_exp (ArrExp(v,i')) (Some a.ty) lt.label
-               | _ -> raise (errFoundNotVar v)
-           with
-               Not_found -> raise (errVarNotDefined v))
-      | UnOp(op,e1) ->
-        let e1' = tc_expr venv e1 in
-        let ty' = tc_unop op e1'.data.ty in
-          make_exp (UnOp(op,e1')) ty' lbl
-      | BinOp(op,e1,e2) ->
-        let e1' = tc_expr venv e1 in
-        let e2' = tc_expr venv e2 in
-        let ty' = tc_binop op e1'.data.ty e2'.data.ty in
-        let lbl' = unify_label e1'.data.label e2'.data.label in
-          make_exp (BinOp(op,e1',e2')) (Some ty') lbl'
-      | Primitive prim ->
-        let ty',lbl' = tc_prim prim in
-          make_exp e (Some ty') lbl'
-      | CallExp(name,args) ->
-        let args' = List.map (tc_arg venv) args in
-          (try
-             match Hashtbl.find venv name with
-               | FunEntry { f_ty=rty; f_args=params } ->
-                 ignore(List.map2 (can_pass venv) params args');
-                 let args'' = List.map fst args' in
-                   make_exp (CallExp(name,args'')) (Some rty.ty) rty.label
-               | _ -> raise (errFoundNotFn name)
-           with
-               Not_found -> raise (errFnNotDefined name))
-and tc_expr venv = posmap (tc_expr' venv)
+(* primitive -> texpr *)
+let rec tc_prim venv { pos=p; data=expr } =
+  let make_texpr prim ty lbl = { e=TPrimitive (make_ast p prim); e_ty=ty; e_lbl=lbl } in
+  match expr with
+    | Number n -> make_texpr (TNumber n) (fit_num n) Public
+    | Boolean b -> make_texpr (TBoolean b) Bool Public
+    | ArrayLiteral s ->
+      let s' = List.map (tc_expr venv) s in
+      let ty = List.fold_left
+                 (fun a b -> unify_ty a b.data.e_ty)
+                 ((List.hd s').data.e_ty) (List.tl s') in
+      let lbl = List.fold_left
+                  (fun a b -> unify_label a b.data.e_lbl)
+                  ((List.hd s').data.e_lbl) (List.tl s') in
+        make_texpr (TArrayLiteral s') (Array { size=Z.of_int (List.length s); ty=ty }) lbl
 
-and can_flow venv lt expr =
-  ignore(lt.kind);
-  ty_can_flow lt.ty expr.data.ty;
-  lbl_can_flow venv lt expr
+(* arg -> targ *)
+and tc_arg venv { pos=p; data=arg } =
+  let tc_arg' = function
+    | ValArg e ->
+      let e' = tc_expr venv e in
+        TValArg e'
+    | VarArg(kind,name) ->
+      let lt = get_var venv name in
+        (match kind,lt.kind with
+          | Out,_ -> raise NotImplemented
+          | _,Out -> raise NotImplemented
+          | Ref,Val -> raise @@ err p
+          | _ -> TVarArg(name, { lt with kind=kind }))
+    | _ -> raise NotImplemented
+  in make_ast p @@ tc_arg' arg
 
-and tc_stm venv fn_ty lbl_ctx { pos=p; data=stm } =
-  let unify_ctx' e = { e with label=(unify_label lbl_ctx e.label) } in
+(* expr -> texpr *)
+and tc_expr venv { pos=p; data=expr } =
+  let tc_expr' = function
+    | VarExp v ->
+      let lt = get_var venv v in
+        { e=TVarExp v; e_ty=lt.ty; e_lbl=lt.label }
+    | ArrExp(v,i) ->
+      let i' = tc_expr venv i in
+      if not (is_int i'.data.e_ty) then raise @@ err p;
+      (* TODO add dynamic bounds check *)
+      let lta = get_var venv v in
+        (match lta.ty with
+          | Array { ty } -> { e=TArrExp(v,i'); e_ty=ty; e_lbl=lta.label }
+          | _ -> raise @@ err p)
+    | UnOp(op,e1) ->
+      let e1' = tc_expr venv e1 in
+      let ty' = tc_unop op e1'.data.e_ty in
+        { e=TUnOp(op,e1'); e_ty=ty'; e_lbl=e1'.data.e_lbl }
+    | BinOp(op,e1,e2) ->
+      let e1' = tc_expr venv e1 in
+      let e2' = tc_expr venv e2 in
+      let ty' = tc_binop op e1'.data.e_ty e2'.data.e_ty in
+      let lbl' = unify_label e1'.data.e_lbl e2'.data.e_lbl in
+        { e=TBinOp(op,e1',e2'); e_ty=ty'; e_lbl=lbl' }
+    | Primitive prim -> tc_prim venv prim
+    | CallExp(name,args) ->
+      let args' = List.map (tc_arg venv) args in
+      let f = get_fn venv name in
+        ignore(List.map2 (can_pass venv) f.f_args args'); (* TODO infer fn param labels *)
+        { e=TCallExp(name,args'); e_ty=f.f_rty; e_lbl=f.f_rlbl }
+  in make_ast p @@ tc_expr' expr
+
+(* tstm list -> unit *)
+let rec set_missing_labels_to_public venv stms =
+  ignore(List.map (fun { data=s' } ->
+                    match s' with
+                      | TVarDec(_,_,e) -> fill_public venv e
+                      | TAssign(_,e) -> fill_public venv e
+                      | TArrAssign(_,i,e) -> fill_public venv i; fill_public venv e
+                      | TIf(e,s1,s2) ->
+                        fill_public venv e;
+                        set_missing_labels_to_public venv s1;
+                        set_missing_labels_to_public venv s2
+                      | TFor(_,_,l,h,s) ->
+                        fill_public venv l;
+                        fill_public venv h;
+                        set_missing_labels_to_public venv s
+                      | TReturn e -> fill_public venv e)
+           stms)
+
+(* ret:lt -> ctx:lt -> stm -> (tstm * add_ctx:lt) *)
+let rec tc_stm venv fn_ty lbl_ctx { pos=p; data=stm } =
+  let unify_ctx' e = { e with e_lbl=(unify_label lbl_ctx e.e_lbl) } in
   let unify_ctx = posmap unify_ctx' in
   match stm with
   | VarDec(name,lt,expr) ->
     let expr' = unify_ctx (tc_expr venv expr) in
     let lt' = can_flow venv lt expr' in
       Hashtbl.add venv name (VarEntry (ref lt'));
-      VarDec(name,lt',expr'), Some Public
+      TVarDec(name,lt',expr'), Public
   | Assign(name,expr) ->
     let expr' = unify_ctx (tc_expr venv expr) in
-    let v = try Hashtbl.find venv name with
-      | Not_found -> raise (errVarNotDefined name) in
-      (match v with
-        | VarEntry { contents={ kind=Val } } ->
-          raise (TypeError("Cannot assign to read-only variable @ " ^ pos_string p))
-        | VarEntry lt ->
-          let lt' = can_flow venv !lt expr' in
-            if !lt.label = None then update_label venv name lt'.label;
-            Assign(name,expr'), Some Public
-        | _ -> raise (errFoundNotVar name))
-  | ArrAssign(name,index,expr) ->
-    let index' = tc_expr venv index in
-    let public_num = { ty=NumericTop; label=Some Public; kind=Val } in
-    let _ = can_flow venv public_num index' in
+    let lt = get_var venv name in
+      if lt.kind = Val then raise (TypeError("Cannot assign to read-only variable @ " ^ pos_string p));
+      let lt' = can_flow venv lt expr' in
+        update_label venv name lt'.label;
+        TAssign(name,expr'), Public
+  | ArrAssign(name,i,expr) ->
+    let i' = tc_expr venv i in
+    if not (is_int i'.data.e_ty) then raise @@ err p;
+    (* TODO add dynamic bounds check *)
     let expr' = unify_ctx (tc_expr venv expr) in
-    let v = try Hashtbl.find venv name with
-      | Not_found -> raise (errVarNotDefined name) in
-      (match v with
-        | VarEntry { contents={ kind=Val } } ->
-          raise (TypeError("Cannot assign to read-only array @ " ^ pos_string p))
-        | VarEntry { contents=({ ty=(Array a); kind=_ } as lt) } ->
-          let lte = { lt with ty=a.ty } in
+    let lt = get_var venv name in
+      if lt.kind = Val then raise (TypeError("Cannot assign to read-only array @ " ^ pos_string p));
+      (match lt.ty with
+        | Array { ty } ->
+          let lte = { lt with ty=ty } in
           let lte' = can_flow venv lte expr' in
           let lt' = { lt with label=lte'.label } in
-            if lt.label = None then update_label venv name lt'.label;
-            ArrAssign(name,index',expr'), Some Public
-        | _ -> raise (errFoundNotVar name))
+            update_label venv name lt'.label;
+            TArrAssign(name,i',expr'), Public
+        | _ -> raise @@ err p)
   | If(cond,tstms,fstms) ->
     (* TODO: implement 2 if statements in the core language:
        a constant if and non constant if. *)
     let cond' = tc_expr venv cond in
-    ignore(ty_can_flow Bool cond'.data.ty);
-    let lbl_ctx' = unify_label lbl_ctx cond'.data.label in
+    if not (is_bool cond'.data.e_ty) then raise @@ err p;
+    let lbl_ctx' = unify_label lbl_ctx cond'.data.e_lbl in
     let tstms',ctx_t = tc_block (Hashtbl.copy venv) fn_ty lbl_ctx' tstms in
     let fstms',ctx_f = tc_block (Hashtbl.copy venv) fn_ty lbl_ctx' fstms in
-      If(cond',tstms',fstms'), (unify_label ctx_t ctx_f)
+      TIf(cond',tstms',fstms'), (unify_label ctx_t ctx_f)
   | For(name,ty,l,h,body) ->
+    if not (is_int ty) then raise @@ err p;
     let l' = tc_expr venv l in
     let h' = tc_expr venv h in
-    let lt = { ty=ty; label=Some Public; kind=Val } in
+    let lt = { ty=ty; label=Public; kind=Val } in
     ignore(can_flow venv lt l');
     ignore(can_flow venv lt h');
     let venv' = Hashtbl.copy venv in
-      Hashtbl.add venv' name (VarEntry (ref { ty=ty; label=Some Public; kind=Val }));
+      Hashtbl.add venv' name (VarEntry (ref { ty=ty; label=Public; kind=Val }));
       let body',_ = tc_block venv' fn_ty lbl_ctx body in
-        For(name,ty,l',h',body'), Some Public
+        TFor(name,ty,l',h',body'), Public
   | Return expr ->
     let expr' = unify_ctx (tc_expr venv expr) in
     let fn_ty' = can_flow venv fn_ty expr' in
-      Return expr', lbl_ctx
+      TReturn expr', lbl_ctx
 
+(* ret:lt -> ctx:lt -> stm list -> (tstm list * ctx:lt) *)
+and tc_block venv fn_ty lbl_ctx stms =
+  let stms',_ = tc_stms venv fn_ty lbl_ctx stms in
+    set_missing_labels_to_public venv stms';
+    tc_stms venv fn_ty lbl_ctx stms (* XXX there should probably be a better way of doing this *)
+
+(* ret:lt -> ctx:lt -> stm list -> (tstm list * ctx:lt) *)
 and tc_stms venv fn_ty lbl_ctx = function
   | [] -> [], lbl_ctx
   | stm::stms ->
     let stm',lbl_ctx' = tc_stm venv fn_ty lbl_ctx stm in
-    let stm' = { stm with data=stm' } in
+    let stm' = { pos=stm.pos; data=stm' } in
     let lbl_ctx' = unify_label lbl_ctx lbl_ctx' in
     let stms',_ = tc_stms venv fn_ty lbl_ctx' stms in
       stm'::stms', lbl_ctx'
 
-and set_missing_labels_to_public venv stms =
-  ignore(List.map (fun { data=s' } ->
-                    match s' with
-                      | VarDec(_,_,e) -> fill_public venv e
-                      | Assign(_,e) -> fill_public venv e
-                      | ArrAssign(_,i,e) -> fill_public venv i; fill_public venv e
-                      | If(e,s1,s2) ->
-                        fill_public venv e;
-                        set_missing_labels_to_public venv s1;
-                        set_missing_labels_to_public venv s2
-                      | For(_,_,l,h,s) ->
-                        fill_public venv l;
-                        fill_public venv h;
-                        set_missing_labels_to_public venv s
-                      | Return e -> fill_public venv e)
-           stms)
-
-and tc_block venv fn_ty lbl_ctx stms =
-  let stms',_ = tc_stms venv fn_ty lbl_ctx stms in
-    set_missing_labels_to_public venv stms';
-    tc_stms venv fn_ty lbl_ctx stms'
-
-and tc_fdec venv { pos; data=fdec } =
+let tc_fdec venv { pos=p; data=fdec } =
   match fdec with
-    | { rty={ ty=(Array _) } } ->
-      raise (TypeError ("Function cannot return an array @ " ^ pos_string pos))
+    | { rty=Array _ } ->
+      raise (TypeError ("Function cannot return an array @ " ^ pos_string p))
     | _ ->
       let venv' = Hashtbl.copy venv in
-      let args_ty = List.map (fun { name=n; lt=lt } ->
+      let args_ty = List.map (fun { data={ name=n; lt=lt } } ->
                                Hashtbl.add venv' n (VarEntry (ref lt)); lt)
                       fdec.params in
-      let rty = { ty=fdec.rty.ty; label=fdec.rty.label; kind=Val } in
-      let body',_ = tc_block venv' rty (Some Public) fdec.body in
-      let fdec' = { fdec with body=body' } in
-        Hashtbl.add venv fdec.name (FunEntry { f_ty=fdec'.rty; f_args=args_ty });
-        fdec'
+      let rty = { ty=fdec.rty; label=fdec.rlbl; kind=Val } in
+      let body',_ = tc_block venv' rty Public fdec.body in
+      let fdec' = { t_name=fdec.name; t_params=fdec.params; t_rty=fdec.rty; t_rlbl=fdec.rlbl; t_body=body' } in
+      let fdec' = { pos=p; data=fdec' } in
+        update_fn venv fdec'; fdec'
 
-and tc_module (CModule l) =
-  ignore(List.map (tc_fdec Env.venv) l)
+let tc_module (CModule l) =
+  TCModule (List.map (tc_fdec Env.venv) l)
