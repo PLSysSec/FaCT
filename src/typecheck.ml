@@ -200,10 +200,8 @@ and tc_expr venv { pos=p; data=expr } =
       let i' = tc_expr venv i in
       if not (is_int i'.data.e_ty) then raise @@ err p;
       (* TODO add dynamic bounds check *)
-      let lta = get_var venv v in
-        (match lta.ty with
-          | Array { ty } -> { e=TArrExp(v,i'); e_ty=ty; e_lbl=lta.label }
-          | _ -> raise @@ err p)
+      let lt = get_arr venv v in
+        { e=TArrExp(v,i'); e_ty=lt.ty; e_lbl=lt.label }
     | UnOp(op,e1) ->
       let e1' = tc_expr venv e1 in
       let ty' = tc_unop op e1'.data.e_ty in
@@ -262,16 +260,11 @@ let rec tc_stm venv fn_ty lbl_ctx { pos=p; data=stm } =
     if not (is_int i'.data.e_ty) then raise @@ err p;
     (* TODO add dynamic bounds check *)
     let expr' = unify_ctx (tc_expr venv expr) in
-    let lt = get_var venv name in
-      if lt.kind = Val then raise (TypeError("Cannot assign to read-only array @ " ^ pos_string p));
-      (match lt.ty with
-        | Array { ty } ->
-          let lte = { lt with ty=ty } in
-          let lte' = can_flow venv lte expr' in
-          let lt' = { lt with label=lte'.label } in
-            update_label venv name lt'.label;
-            TArrAssign(name,i',expr'), Public
-        | _ -> raise @@ err p)
+    let lte = get_arr venv name in
+      if lte.kind = Val then raise (TypeError("Cannot assign to read-only array @ " ^ pos_string p));
+      let lte' = can_flow venv lte expr' in
+        update_label venv name lte'.label;
+        TArrAssign(name,i',expr'), Public
   | If(cond,tstms,fstms) ->
     (* TODO: implement 2 if statements in the core language:
        a constant if and non constant if. *)

@@ -9,6 +9,10 @@ type ctype =
   | BoolMask
 [@@deriving show]
 
+and label =
+  | Public
+  | Secret
+
 and kind =
   | Ref
   | Val
@@ -47,7 +51,10 @@ and primitive =
   | Mask of boolmask
 [@@deriving show]
 
-and expr =
+and expr = { e:expr_base; e_ty:ctype }
+[@@deriving show]
+
+and expr_base =
   | VarExp of string
   | ArrExp of string * expr
   | Primitive of primitive
@@ -61,6 +68,8 @@ and stm =
   | Assign of string * expr
   | ArrAssign of string * expr * expr
   | For of string * expr * expr * stm list
+(*  | XXX PublicIf of blah * blah * blah *)
+(*  | XXX PublicRet of blah * blah * blah *)
 [@@deriving show]
 
 and fdec = FunctionDec of string * param list * labeled_type * stm list * expr

@@ -579,7 +579,8 @@ let codegen ctx m =
         | None -> raise (Error "Cannot determine boolmask type")
       | Some ty -> Some(unify ty BoolMask))
   
-  and expr_ty ty_ctx = function
+  and expr_ty ty_ctx { Cast.e } =
+    match e with
     | VarExp n ->
       Some (try (Hashtbl.find val_types n) with
         | Not_found ->
@@ -615,7 +616,8 @@ let codegen ctx m =
         | Not_found ->
           raise (Error ("Type not found for variable `" ^ callee ^ "`")))
 
-  and codegen_expr ty_ctx = function
+  and codegen_expr ty_ctx { Cast.e } =
+    match e with
     | VarExp n ->
       let v =
         (try (Hashtbl.find named_values n) with
@@ -636,7 +638,7 @@ let codegen ctx m =
           | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
       let arr_val' = extract_value arr_val in
       let p = build_gep arr_val'
-          [| (const_int (i32_type ctx) 0); (get_index i) |] "ptr" b in
+          [| (const_int (i32_type ctx) 0); (get_index i.Cast.e) |] "ptr" b in
       let b = build_load p "p" b in
       b
     | UnOp(op,e) -> codegen_unop op ty_ctx e

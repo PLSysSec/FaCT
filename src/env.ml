@@ -32,6 +32,17 @@ let get_var venv v =
   with
       Not_found -> raise @@ errVarNotDefined v
 
+let get_arr venv v =
+  try
+    match Hashtbl.find venv v with
+      | VarEntry lt ->
+        (match !lt.ty with
+          | Array { ty } -> { !lt with ty=ty }
+          | _ -> raise @@ errFoundNotArr v)
+      | _ -> raise @@ errFoundNotVar v
+  with
+      Not_found -> raise @@ errVarNotDefined v
+
 let get_fn venv f =
   try
     match Hashtbl.find venv f with

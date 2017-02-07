@@ -29,6 +29,8 @@ let errFnNotDefined v =
   FunctionNotDefined("Function `" ^ v ^ "` not defined")
 let errFoundNotVar v =
   TypeError("Cannot use `" ^ v ^ "` as variable")
+let errFoundNotArr v =
+  TypeError("Cannot use `" ^ v ^ "` as array")
 let errFoundNotFn v =
   TypeError("Cannot use `" ^ v ^ "` as function")
 

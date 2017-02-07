@@ -11,6 +11,7 @@ val equal_env : env -> env -> bool
 val venv : env
 
 val get_var : env -> string -> Ast.labeled_type
+val get_arr : env -> string -> Ast.labeled_type
 val get_fn : env -> string -> fentry
 val update_label : env -> string -> Ast.label -> unit
 
