@@ -34,7 +34,8 @@ let error_exit s =
   exit 1
 
 let runner prep llvm_out ast_out core_ir_out =
-  try compile prep llvm_out ast_out core_ir_out with
+  compile prep llvm_out ast_out core_ir_out
+  (*try compile prep llvm_out ast_out core_ir_out with
     | (Command_util.SyntaxError s) -> error_exit s
     | (Codegen.Error s) -> error_exit s
     | (Command_util.SyntaxError s) -> error_exit s
@@ -46,7 +47,7 @@ let runner prep llvm_out ast_out core_ir_out =
     | (Typecheck.UnknownType s) -> error_exit s
     | (Typecheck.CallError s) -> error_exit s
     | (Typecheck.ForError s) -> error_exit s
-    | _ -> error_exit "Error"
+    | _ -> error_exit "Error"*)
 
 let compile_command =
   Command.basic

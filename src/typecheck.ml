@@ -93,6 +93,7 @@ let ty_can_flow p lhs rhs =
     | a, b when a = b -> ()
     | Int a, Int b when a > b -> ()
     | UInt a, UInt b when a > b -> ()
+    | Int a, UInt b when a > Z.(~$2 * b) -> ()
     | _ -> raise @@ errPassError p
 
 (* labeled_type -> labeled_type -> unit *)
@@ -105,7 +106,9 @@ let ty_can_pass p lhs rhs =
     | _ -> raise @@ errPassError p
 
 (* name -> unit *)
-let update_public venv p v = update_label venv v Public
+let update_public venv p v =
+  let lt = get_var venv v in
+    if lt.label = Unknown then update_label venv v Public
 
 (* targ -> unit *)
 let rec fill_arg venv { pos=p; data=targ } =
@@ -246,12 +249,12 @@ let rec set_missing_labels_to_public venv stms =
                       | TArrAssign(_,i,e) -> fill_public venv i; fill_public venv e
                       | TIf(e,s1,s2) ->
                         fill_public venv e;
-                        set_missing_labels_to_public venv s1;
-                        set_missing_labels_to_public venv s2
+                        set_missing_labels_to_public s1.venv s1.body;
+                        set_missing_labels_to_public s2.venv s2.body
                       | TFor(_,_,l,h,s) ->
                         fill_public venv l;
                         fill_public venv h;
-                        set_missing_labels_to_public venv s
+                        set_missing_labels_to_public s.venv s.body
                       | TReturn e -> fill_public venv e)
            stms)
 
@@ -315,8 +318,13 @@ let rec tc_stm venv fn_ty lbl_ctx { pos=p; data=stm } =
 (* ret:lt -> ctx:lt -> stm list -> (tstm list * ctx:lt) *)
 and tc_block venv fn_ty lbl_ctx stms =
   let stms',_ = tc_stms venv fn_ty lbl_ctx stms in
-    set_missing_labels_to_public venv stms';
-    tc_stms venv fn_ty lbl_ctx stms (* XXX there should probably be a better way of doing this *)
+  set_missing_labels_to_public venv stms';
+  (* XXX there should really be a better way of doing this
+     but right now I'm purposely using stms and not stms'
+     because stms is Ast and stms' is Tast and theoretically
+     it should work out to the same, just with redundant work being done *)
+  let stms',lbl = tc_stms venv fn_ty lbl_ctx stms in
+    { venv=venv; body=stms' }, lbl
 
 (* ret:lt -> ctx:lt -> stm list -> (tstm list * ctx:lt) *)
 and tc_stms venv fn_ty lbl_ctx = function
@@ -334,9 +342,9 @@ let tc_fdec venv { pos=p; data=fdec } =
       raise (TypeError ("Function cannot return an array @ " ^ pos_string p))
     | _ ->
       let venv' = Hashtbl.copy venv in
-      let args_ty = List.map (fun { data={ name=n; lt=lt } } ->
-                               Hashtbl.add venv' n (VarEntry (ref lt)); lt)
-                      fdec.params in
+      ignore(List.map (fun { data={ name=n; lt=lt } } ->
+                        Hashtbl.add venv' n (VarEntry (ref lt)))
+               fdec.params);
       let rty = { ty=fdec.rty; label=fdec.rlbl; kind=Val } in
       let body',_ = tc_block venv' rty Public fdec.body in
       let fdec' = { t_name=fdec.name; t_params=fdec.params; t_rty=fdec.rty; t_rlbl=fdec.rlbl; t_body=body' } in

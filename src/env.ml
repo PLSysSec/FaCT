@@ -1,11 +1,11 @@
 open Stdlib
 open Ast
-open Tast
 
 exception VariableNotDefined of string
 exception FunctionNotDefined of string
 exception NotImplemented
 exception TypeError of string
+exception UnclassifiedError of string
 
 let errVarNotDefined v =
   VariableNotDefined("Variable `" ^ v ^ "` not defined")
@@ -17,12 +17,16 @@ let errFoundNotFn v =
   TypeError("Cannot use `" ^ v ^ "` as function")
 
 type fentry = { f_rty:Ast.ctype; f_rlbl:Ast.label; f_args:Ast.labeled_type list }
+[@@deriving show]
 
 type entry =
   | VarEntry of Ast.labeled_type ref
   | FunEntry of fentry
+[@@deriving show]
 
 type env = (string,entry) Hashtbl.t
+let pp_env fmt venv = Format.pp_print_text fmt "venv"
+let equal_env venv1 venv2 = true
 
 let venv =
   let v = Hashtbl.create 10 in
@@ -56,15 +60,11 @@ let update_label venv name label =
       (match !lt.label,label with
         | Unknown, _ -> ignore(lt := { !lt with label=label })
         | a, b when a = b -> ()
-        | _ -> raise NotImplemented)
+        | _ -> raise @@ UnclassifiedError (name ^ " already has label " ^ (show_label !lt.label) ^", cannot change to " ^ (show_label label)))
     | FunEntry _ -> raise NotImplemented in
   try
     update_label' (Hashtbl.find venv name) with
       Not_found -> raise NotImplemented
-
-let update_fn venv { pos=p; data=tfdec } =
-  let args = List.map (fun { data={ lt } } -> lt) tfdec.t_params in
-  Hashtbl.add venv tfdec.t_name (FunEntry { f_rty=tfdec.t_rty; f_rlbl=tfdec.t_rlbl; f_args=args })
 
 (*let print_env env =
   let print_env' k v =

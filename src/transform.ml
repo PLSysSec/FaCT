@@ -1,3 +1,5 @@
+open Tast
+
 exception TransformError of string
 
 type context = Context of Cast.expr
@@ -74,8 +76,8 @@ and transform_stm' ctx = function
     let m = Cast.VarExp tname in
     let c' = b_and m c in
     let ctx' = Context(c') in
-    let bt' = List.flatten(List.map (transform_stm ctx') bt) in
-    let bf' = List.flatten(List.map (transform_stm ctx') bf) in
+    let bt' = List.flatten(List.map (transform_stm ctx') bt.body) in
+    let bf' = List.flatten(List.map (transform_stm ctx') bf.body) in
     let lt = { Cast.ty=Cast.Int8; kind=Cast.Val } in
     let mdec = Cast.VarDec(tname,lt,b_and e' c) in
     let mnot = Cast.Assign(tname,b_not m) in
@@ -83,7 +85,7 @@ and transform_stm' ctx = function
   | Tast.TFor(n,t,l,h,b) ->
     let l' = transform_expr l in
     let h' = transform_expr h in
-    let b' = List.flatten(List.map (transform_stm ctx) b) in
+    let b' = List.flatten(List.map (transform_stm ctx) b.body) in
     [Cast.For(n,l',h',b')]
   | Tast.TReturn(e) ->
     let c = ctx_expr ctx in
@@ -174,7 +176,7 @@ and transform_fdec { Ast.data } =
       let i8 = Cast.UInt32 (* get_rt_signedness rt *) in (* XXX *)
       let i8_lt = { Cast.ty=i8; Cast.kind=Cast.Val } in
       let ctx = Context(Cast.Primitive(Cast.Number (-1))) in
-      let body' = List.flatten(List.map (transform_stm ctx) body) in
+      let body' = List.flatten(List.map (transform_stm ctx) body.body) in
       let rval = Cast.VarDec("rval",i8_lt,Cast.Primitive(Cast.Number 0)) in
       let rset = Cast.VarDec("rset",i8_lt,Cast.Primitive(Cast.Number 0)) in
       let body'' = [rval]@[rset]@body' in

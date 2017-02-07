@@ -105,11 +105,11 @@ arg_labeled_type:
 
 labeled_type:
   | PUBLIC const_type
-    { { ty=$2; label=Public; kind=Val } }
+    { { ty=$2; label=Public; kind=Ref } }
   | SECRET const_type
-    { { ty=$2; label=Secret; kind=Val } }
+    { { ty=$2; label=Secret; kind=Ref } }
   | const_type
-    { { ty=$1; label=Unknown; kind=Val } }
+    { { ty=$1; label=Unknown; kind=Ref } }
 
 fargs:
   | fargs COMMA arg_labeled_type IDENT

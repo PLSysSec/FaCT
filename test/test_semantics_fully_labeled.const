@@ -10,12 +10,12 @@ int identity(secret int my_int) {
   return my_int;
 }
 
-int mutateArray(ref secret bytearr[5] arr) {
+int mutateArray(ref secret int32[5] arr) {
   arr[4] = 44;
   return arr[4];
 }
 
-int mutateArray2(ref secret bytearr[5] arr2, secret int val) {
+int mutateArray2(ref secret int32[5] arr2, secret int val) {
   arr2[4] = val;
   int f = 4;
   return arr2[f];
@@ -76,7 +76,7 @@ int nestedIf(secret int cond) {
 }
 
 int simpleLoop() {
-  for (i = 0 to 10) {
+  for (uint32 i = 0 to 10) {
     secret int a = 666;
   }
   return 10000;
@@ -84,14 +84,14 @@ int simpleLoop() {
 
 int loopAcc() {
   secret int acc = 0;
-  for (i = 0 to 5) {
+  for (uint32 i = 0 to 5) {
     acc = acc + 1;
   }
   return acc;
 }
 
-int loopAssignArray(ref secret bytearr[5] arr) {
-  for (i = 0 to 5) {
+int loopAssignArray(ref secret uint32[5] arr) {
+  for (uint32 i = 0 to 5) {
     arr[i] = i;
   }
   return 10000;
@@ -105,10 +105,10 @@ int add10And20() {
   return add(10, 20);
 }
 
-int addAll(ref secret bytearr[5] bytearr) {
+int addAll(ref secret int32[5] arr) {
   secret int acc = 0;
-  for (i = 0 to 5) {
-    acc = acc + bytearr[i];
+  for (uint32 i = 0 to 5) {
+    acc = acc + arr[i];
   }
   return acc;
 }
