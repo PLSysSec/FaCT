@@ -2,7 +2,7 @@ open Stdlib
 open Err
 open Ast
 
-type fentry = { f_rty:Ast.ctype; f_rlbl:Ast.label; f_args:Ast.labeled_type list }
+type fentry = { f_rvt:Ast.var_type; f_args:Ast.labeled_type list }
 [@@deriving show]
 
 type entry =
@@ -16,10 +16,10 @@ let equal_env venv1 venv2 = true
 
 let venv =
   let v = Hashtbl.create 10 in
-  let add_fun {name=n; ret_ty=ret; args_ty=args} =
+  (*let add_fun {name=n; ret_ty=ret; args_ty=args} =
     Hashtbl.add v n
-      (FunEntry {f_rty=ret; f_rlbl=Unknown; f_args=args}) in
-  let _ = List.map add_fun stdlib_funs in
+      (FunEntry {f_rvt=ret; f_rlbl=Unknown; f_args=args}) in
+  let _ = List.map add_fun stdlib_funs in*)
   v
 
 let fun_ret = Hashtbl.create 10
@@ -36,8 +36,8 @@ let get_arr venv v =
   try
     match Hashtbl.find venv v with
       | VarEntry lt ->
-        (match !lt.ty with
-          | Array { ty } -> { !lt with ty=ty }
+        (match !lt.kind with
+          | Arr _ -> { !lt with kind=Ref }
           | _ -> raise @@ errFoundNotArr v)
       | _ -> raise @@ errFoundNotVar v
   with

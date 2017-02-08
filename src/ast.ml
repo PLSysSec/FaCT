@@ -10,7 +10,6 @@ and ctype =
   | Bool
   | Int of bigint
   | UInt of bigint
-  | Array of { ty:ctype; size:bigint }
 [@@deriving show, eq]
 
 and label =
@@ -19,16 +18,20 @@ and label =
   | Unknown
 [@@deriving show, eq]
 
+(* "kind" actually means "storage" here *)
 and kind =
-  | Ref
   | Val
-  | Out
+  | Ref
+  | Arr of bigint
+[@@deriving show, eq]
+
+and var_type = { v_ty:ctype; v_lbl:label }
 [@@deriving show, eq]
 
 and labeled_type = { ty:ctype; label:label; kind:kind }
 [@@deriving show, eq]
 
-and fdec' = { name:string; params:param list; rty:ctype; rlbl:label; body:stm list }
+and fdec' = { name:string; params:param list; rvt:var_type; body:stm list }
 [@@deriving show, eq]
 and fdec = fdec' pos_ast [@@deriving show, eq]
 
@@ -36,8 +39,14 @@ and param' = { name:string; lt:labeled_type }
 [@@deriving show, eq]
 and param = param' pos_ast [@@deriving show, eq]
 
+and arrinit' =
+  | ZeroArray
+[@@deriving show, eq]
+and arrinit = arrinit' pos_ast [@@deriving show, eq]
+
 and stm' =
-  | VarDec of string * labeled_type * expr
+  | VarDec of string * var_type * expr
+  | ArrDec of string * var_type * bigint * arrinit
   | Assign of string * expr
   | ArrAssign of string * expr * expr
   | If of expr * stm list * stm list
@@ -93,14 +102,13 @@ and binop = binop' pos_ast [@@deriving show, eq]
 and primitive' =
   | Number of Z.t [@printer Z.pp_print]
   | Boolean of bool
-  | ArrayLiteral of expr list
 [@@deriving eq]
 and primitive = primitive' pos_ast [@@deriving show, eq]
 
-let show_primitive' x = "hi"
+let ltk vt k = { ty=vt.v_ty; label=vt.v_lbl; kind=k }
+let vtk lt = { v_ty=lt.ty; v_lbl=lt.label }
 
 let rec ty_to_string = function
   | Bool -> "bool"
   | Int size -> "int" ^ Z.to_string size
   | UInt size -> "uint" ^ Z.to_string size
-  | Array t -> (ty_to_string t.ty) ^ "[" ^ (Z.to_string t.size) ^ "]"

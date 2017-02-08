@@ -5,7 +5,6 @@ type ctype =
   | UInt32
   | UInt16
   | UInt8
-  | Array of { a_ty:ctype; size:int }
   | BoolMask
 [@@deriving show]
 
@@ -13,11 +12,15 @@ and label =
   | Public
   | Secret
 
+(* "kind" here means "storage" *)
 and kind =
   | Ref
   | Val
+  | Arr of int
 
-and labeled_type = { ty:ctype; kind:kind }
+and var_type = { v_ty:ctype; v_lbl:label }
+
+and labeled_type = { ty:ctype; lbl:label; kind:kind }
 
 and binop =
   | Plus
@@ -47,7 +50,6 @@ and boolmask =
 
 and primitive =
   | Number of int
-  | ByteArray of int list
   | Mask of boolmask
 [@@deriving show]
 
@@ -63,8 +65,13 @@ and expr_base =
   | CallExp of string * expr list
 [@@deriving show]
 
+and arrinit =
+  | ZeroArray
+[@@deriving show]
+
 and stm =
-  | VarDec of string * labeled_type * expr
+  | VarDec of string * var_type * expr
+  | ArrDec of string * var_type * int * arrinit
   | Assign of string * expr
   | ArrAssign of string * expr * expr
   | For of string * expr * expr * stm list
@@ -72,7 +79,7 @@ and stm =
 (*  | XXX PublicRet of blah * blah * blah *)
 [@@deriving show]
 
-and fdec = FunctionDec of string * param list * labeled_type * stm list * expr
+and fdec = FunctionDec of string * param list * var_type * stm list * expr
 [@@deriving show]
 
 and param = { name: string; lt: labeled_type }
@@ -80,3 +87,6 @@ and param = { name: string; lt: labeled_type }
 
 and cmodule = CModule of fdec list
 [@@deriving show]
+
+let ltk vt k = { ty=vt.v_ty; lbl=vt.v_lbl; kind=k }
+let vtk lt = { v_ty=lt.ty; v_lbl=lt.lbl }

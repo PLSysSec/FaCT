@@ -5,12 +5,13 @@ open Env
 type tconstantc_module = TCModule of tfdec list
 [@@deriving show, eq]
 
-and tfdec' = { t_name:string; t_params:param list; t_rty:ctype; t_rlbl:label; t_body:tblock }
+and tfdec' = { t_name:string; t_params:param list; t_rvt:var_type; t_body:tblock }
 [@@deriving show, eq]
 and tfdec = tfdec' pos_ast [@@deriving show, eq]
 
 and tstm' =
-  | TVarDec of string * labeled_type * texpr
+  | TVarDec of string * var_type * texpr
+  | TArrDec of string * var_type * bigint * arrinit
   | TAssign of string * texpr
   | TArrAssign of string * texpr * texpr
   | TIf of texpr * tblock * tblock
@@ -45,10 +46,9 @@ and targ = targ' pos_ast [@@deriving show, eq]
 and tprimitive' =
   | TNumber of Z.t [@printer Z.pp_print]
   | TBoolean of bool
-  | TArrayLiteral of texpr list
 [@@deriving show, eq]
 and tprimitive = tprimitive' pos_ast [@@deriving show, eq]
 
 let update_fn venv { pos=p; data=tfdec } =
   let args = List.map (fun { data={ lt } } -> lt) tfdec.t_params in
-  Hashtbl.add venv tfdec.t_name (Env.FunEntry { f_rty=tfdec.t_rty; f_rlbl=tfdec.t_rlbl; f_args=args })
+  Hashtbl.add venv tfdec.t_name (Env.FunEntry { f_rvt=tfdec.t_rvt; f_args=args })

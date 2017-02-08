@@ -43,6 +43,7 @@ let to_type = function
 %token SECRET PUBLIC
 %token REF OUT
 %token RETURN
+%token EMPTY
 %token SEMICOLON
 %token COMMA
 
@@ -81,36 +82,28 @@ fdeclist:
 ;
 
 fdec:
-  | PUBLIC const_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
-    { make_pos $startpos ({ name=$3; params=(List.rev $5); rty=$2; rlbl=Public; body=$8 }) }
-  | SECRET const_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
-    { make_pos $startpos ({ name=$3; params=(List.rev $5); rty=$2; rlbl=Secret; body=$8 }) }
-  | const_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
-    { make_pos $startpos ({ name=$2; params=(List.rev $4); rty=$1; rlbl=Unknown; body=$7 }) }
+  | var_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
+    { make_pos $startpos ({ name=$2; params=(List.rev $4); rvt=$1; body=$7 }) }
 ;
 
 const_type:
   | TYPE { to_type $1 }
-  | TYPE LBRACK INT RBRACK { Array { ty=to_type $1; size=$3 } }
 
 arg_labeled_type:
-  | OUT labeled_type
-    { let lt = $2 in
-      { lt with kind=Out } }
-  | REF labeled_type
-    { let lt = $2 in
-      { lt with kind=Ref } }
-  | labeled_type
-    { let lt = $1 in
-      { lt with kind=Val } }
+  | OUT var_type
+    { let vt = $2 in ltk vt Ref }
+  | REF var_type
+    { let vt = $2 in ltk vt Ref }
+  | var_type
+    { let vt = $1 in ltk vt Val }
 
-labeled_type:
+var_type:
   | PUBLIC const_type
-    { { ty=$2; label=Public; kind=Ref } }
+    { { v_ty=$2; v_lbl=Public } }
   | SECRET const_type
-    { { ty=$2; label=Secret; kind=Ref } }
+    { { v_ty=$2; v_lbl=Secret } }
   | const_type
-    { { ty=$1; label=Unknown; kind=Ref } }
+    { { v_ty=$1; v_lbl=Unknown } }
 
 fargs:
   | fargs COMMA arg_labeled_type IDENT
@@ -136,7 +129,7 @@ arg:
   | expr
     { make_pos $startpos (ValArg $1) }
   | OUT IDENT
-    { make_pos $startpos (VarArg(Out,$2)) }
+    { make_pos $startpos (VarArg(Ref,$2)) }
   | REF IDENT
     { make_pos $startpos (VarArg(Ref,$2)) }
     (* TODO: array slicing *)
@@ -146,11 +139,16 @@ arglist:
   | arg { [$1] }
   | arg COMMA arglist { $1::$3 }
 
+arrinit:
+  | EMPTY { make_pos $startpos ZeroArray }
+
 stmlist:
+  | var_type IDENT ASSIGN expr SEMICOLON stmlist
+    { (make_pos $startpos (VarDec($2,$1,$4)))::$6 }
+  | var_type IDENT RBRACK INT LBRACK ASSIGN arrinit SEMICOLON stmlist
+    { (make_pos $startpos (ArrDec($2,$1,$4,$7)))::$9 }
   | IDENT LBRACK expr RBRACK ASSIGN expr SEMICOLON stmlist
     { (make_pos $startpos (ArrAssign($1,$3,$6)))::$8 }
-  | labeled_type IDENT ASSIGN expr SEMICOLON stmlist
-    { (make_pos $startpos (VarDec($2,$1,$4)))::$6 }
   | IDENT ASSIGN expr SEMICOLON stmlist
     { (make_pos $startpos (Assign($1,$3)))::$5 }
   | IDENT binopeq expr SEMICOLON stmlist

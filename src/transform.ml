@@ -26,8 +26,6 @@ and transform_type = function
   | Ast.UInt n when n <= Z.(~$16) -> Cast.UInt16
   | Ast.UInt n when n <= Z.(~$32) -> Cast.UInt32
   | Ast.Bool -> Cast.BoolMask
-  | Ast.Array { ty=t; size=s } ->
-    Cast.Array { a_ty=(transform_type t); size=(Z.to_int s) }
   | _ as ty -> raise @@ TransformError ("Encountered bad type " ^ (Ast.show_ctype ty))
 
 and transform_label = function
@@ -38,14 +36,22 @@ and transform_label = function
 and transform_kind = function
   | Ast.Val -> Cast.Val
   | Ast.Ref -> Cast.Ref
-  | Ast.Out -> Cast.Ref
+  | Ast.Arr s -> Cast.Arr (Z.to_int s)
 
-and transform_lt = function
-  | { Ast.ty=t; Ast.kind=k } ->
-    { Cast.ty=(transform_type t); Cast.kind=(transform_kind k)}
+and transform_vt { Ast.v_ty; Ast.v_lbl } =
+  { Cast.v_ty=transform_type v_ty; Cast.v_lbl=transform_label v_lbl }
+
+and transform_lt { Ast.ty=t; Ast.label=l; Ast.kind=k } =
+    { Cast.ty=(transform_type t);
+      Cast.lbl=(transform_label l);
+      Cast.kind=(transform_kind k) }
 
 and transform_param { Pos.data={Ast.name=n; Ast.lt=t} } =
     {Cast.name=n; Cast.lt=transform_lt(t)}
+
+and transform_init { Pos.data=init } =
+  match init with
+    | Ast.ZeroArray -> Cast.ZeroArray
 
 and transform_stm' rty venv ctx stm =
   let make_expr e ty = { Cast.e=e; Cast.e_ty=ty } in
@@ -62,10 +68,15 @@ and transform_stm' rty venv ctx stm =
   let b_or l r = make_expr (Cast.BinOp(Cast.BitOr,l,r)) Cast.BoolMask in
   let b_not e = make_expr (Cast.UnOp(Cast.BitNot,e)) Cast.BoolMask in
   match stm with
-  | Tast.TVarDec(v,ty,e) ->
-    let ty' = transform_lt(ty) in
+  | Tast.TVarDec(v,vt,e) ->
+    let vt' = transform_vt(vt) in
     let e' = transform_expr(e) in
-    [Cast.VarDec(v,ty',e')]
+    [Cast.VarDec(v,vt',e')]
+  | Tast.TArrDec(v,vt,s,init) ->
+    let vt' = transform_vt(vt) in
+    let s' = Z.to_int s in
+    let init' = transform_init(init) in
+    [Cast.ArrDec(v,vt',s',init')]
   | Tast.TAssign(v,e) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
@@ -90,8 +101,8 @@ and transform_stm' rty venv ctx stm =
     let ctx' = Context(c') in
     let bt' = List.flatten(List.map (transform_stm rty bt.venv ctx') bt.body) in
     let bf' = List.flatten(List.map (transform_stm rty bf.venv ctx') bf.body) in
-    let lt = { Cast.ty=Cast.BoolMask; kind=Cast.Ref } in
-    let mdec = Cast.VarDec(tname,lt,b_and e' c) in
+    let vt = { Cast.v_ty=Cast.BoolMask; Cast.v_lbl=Cast.Secret } in
+    let mdec = Cast.VarDec(tname,vt,b_and e' c) in
     let mnot = Cast.Assign(tname,b_not m) in
     [mdec] @ bt' @ [mnot] @ bf'
   | Tast.TFor(n,t,l,h,b) ->
@@ -139,7 +150,6 @@ and transform_primitive =
     | Tast.TNumber n -> Cast.Number (Z.to_int n) (* XXX *)
     | Tast.TBoolean true -> Cast.Mask (Cast.TRUE)
     | Tast.TBoolean false -> Cast.Mask (Cast.FALSE)
-    | Tast.TArrayLiteral s -> raise @@ TransformError "array literal not yet supported"
   in
     Pos.unpack transform_primitive'
 
@@ -174,24 +184,23 @@ and transform_binop =
 
 and transform_fdec { Pos.data } =
   let transform_fdec' = function
-    | { Tast.t_name=name; Tast.t_params=args; Tast.t_rty; Tast.t_rlbl; Tast.t_body=body } ->
+    | { Tast.t_name=name; Tast.t_params=args; Tast.t_rvt; Tast.t_body=body } ->
       let args' = List.map transform_param args in
-      let rt = { Ast.ty=t_rty; Ast.label=t_rlbl; Ast.kind=Ast.Ref } in
-      let rt' = transform_lt(rt) in
-      let bm_false = { Cast.ty=Cast.BoolMask; Cast.kind=Cast.Ref } in
+      let rvt' = transform_vt(t_rvt) in
+      let bm_false = { Cast.v_ty=Cast.BoolMask; Cast.v_lbl=Cast.Secret } in
       let prim_false = Cast.Primitive(Cast.Mask(Cast.FALSE)) in
       let bm_prim_false = { Cast.e=prim_false; Cast.e_ty=Cast.BoolMask } in
       let ctx = Context {
                   Cast.e=Cast.Primitive(Cast.Mask Cast.TRUE);
                   Cast.e_ty=Cast.BoolMask
                 } in
-      let body' = List.flatten(List.map (transform_stm rt'.Cast.ty body.venv ctx) body.body) in
-      let r0 = { Cast.e=Cast.Primitive(Cast.Number 0); Cast.e_ty=rt'.Cast.ty } in
-      let rval = Cast.VarDec("rval",rt',r0) in
+      let body' = List.flatten(List.map (transform_stm rvt'.Cast.v_ty body.venv ctx) body.body) in
+      let r0 = { Cast.e=Cast.Primitive(Cast.Number 0); Cast.e_ty=rvt'.Cast.v_ty } in
+      let rval = Cast.VarDec("rval",rvt',r0) in
       let rset = Cast.VarDec("rset",bm_false,bm_prim_false) in
       let body'' = [rval]@[rset]@body' in
-        Cast.FunctionDec(name,args',rt',body'',
+        Cast.FunctionDec(name,args',rvt',body'',
                          { Cast.e=Cast.VarExp("rval");
-                           Cast.e_ty=rt'.Cast.ty })
+                           Cast.e_ty=rvt'.Cast.v_ty })
   in
     transform_fdec' data

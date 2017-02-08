@@ -1,4 +1,4 @@
-type fentry = { f_rty:Ast.ctype; f_rlbl:Ast.label; f_args:Ast.labeled_type list }
+type fentry = { f_rvt:Ast.var_type; f_args:Ast.labeled_type list }
 
 type entry =
   | VarEntry of Ast.labeled_type ref
