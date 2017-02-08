@@ -40,6 +40,8 @@
 \DeclarePairedDelimiterY{vc}{\langle}{\rangle}
 
 \newcommand\has\vdash
+\newcommand\stmto{\ \Longrightarrow\ }
+
 \newcommand\G\Gamma
 \newcommand\F{\mathbb{F}}
 \newcommand\Z{\mathbb{Z}}
@@ -47,11 +49,20 @@
 \renewcommand\k{k}
 \renewcommand\l\ell
 \newcommand\m\mu
+\newcommand\M{\mathcal{M}}
+
 \newcommand\public{\textsc{Public}}
 \newcommand\secret{\textsc{Secret}}
 \newcommand\val{\textsc{Val}}
 \renewcommand\ref{\textsc{Ref}}
 \newcommand\arr[1]{\textsc{Arr}\vc{#1}}
+
+\newcommand\kif{\textnormal{if }}
+\newcommand\kelse{\textnormal{ else }}
+\newcommand\kfor{\textnormal{for }}
+\newcommand\kfrom{\textnormal{ from }}
+\newcommand\kto{\textnormal{ to }}
+\newcommand\kret{\textnormal{return }}
 
 \begin{document}
 
@@ -103,8 +114,8 @@
   { \G \has e_1 \oplus e_2 : \vc{\tau_3, \ell_1 \cup \ell_2 } }
 
   \infer[ArrGet]
-  { \G \has e : uint\vc{max}_\public \\
-    \m (a) = \vc{\tau,\ell,\arr{s}} }
+  { \m (a) = \vc{\tau,\ell,\arr{s}} \\
+    \G \has e : uint\vc{max}_\public }
   { \G \has a[e] : \vc{\t,\l} }
 
   \infer[ValPass]
@@ -135,9 +146,21 @@
     \m (a) = \vc{\tau,\public,\arr{s}} }
   { p \gets a }
 
+  \infer[ArrPassSecretSlice]
+  { p : \vc{\t,\secret,\arr{s_1}} \\
+    \m (a) = \vc{\tau,\l,\arr{s_2}} \\
+    s_1 \leq s_2 }
+  { p \gets a[n:n+s_1] }
+
+  \infer[ArrPassPublicSlice]
+  { p : \vc{\t,\public,\arr{s_1}} \\
+    \m (a) = \vc{\tau,\public,\arr{s_2}} \\
+    s_1 \leq s_2 }
+  { p \gets a[n:n+s_1] }
+
   \infer[FnCall]
-  { \F (f) = fdec (x_1:\vc{\t_1,\l_1,\k_1}, \dots, x_n:\vc{\t_n,\l_n,\k_n}) : \vc{\t_r,\l_r} \\
-    x_1 \gets v_1 \\ \cdots \\ x_n \gets v_n }
+  { \F (f) = fdec (p_1:\vc{\t_1,\l_1,\k_1}, \dots, p_n:\vc{\t_n,\l_n,\k_n}) : \vc{\t_r,\l_r} \\
+    p_1 \gets v_1 \\ \cdots \\ p_n \gets v_n }
   { \G \has f(v_1,\dots,v_n) : \vc{\t_r,\l_r} }
 
   \infer[True] { } { \Gamma \has true : \vc{bool,\public} } \\
@@ -154,6 +177,60 @@
   { n < 0 \\
     s = \ceil{\log_2 \abs{n}}  + 1 }
   { \Gamma \has n : \vc{int\vc{s},\public} }
+
+\end{mathpar}
+
+\subsubsection*{Statements}
+\begin{mathpar}
+
+  \newcommand\stmtitle{}
+  \newcommand\stt[1]{\renewcommand\stmtitle{$#1 \stmto$}}
+  \newcommand\xinfer[3]{\stt{#1}\infer[\stmtitle]{#2}{#3}}
+
+  \xinfer{\vc{\t,\l_x} x := e} % VarDec
+  { x \notin \mu \\
+    \G \has e : \vc{\t,\l_e} \\
+    \l_e \leq_\l \l_x }
+  { \mu (x) := \vc{\t,\l_x,\val} \\
+    \M (x) := e }
+
+  \xinfer{\vc{\t,\l_a} a[s] := \textsc{ArrayInitializer}} % ArrDec
+  { a \notin \mu \\
+    \textsc{ArrayInitializer} : \vc{\t,\l_e} \\
+    \l_e \leq_\l \l_a }
+  { \mu (a) := \vc{\t,\l_a,\arr{s}} \\
+    \M (a) := \textsc{ArrayInitializer} }
+
+  \xinfer{x := e} % VarAssign
+  { \mu (x) = \vc{\t,\l_x,\k} \\
+    \k \neq \arr{s} \\
+    \G \has e : \vc{\t,\l_e} \\
+    \l_e \leq_\l \l_x }
+  { \M (x) := e }
+
+  \xinfer{a[e_1] := e_2} % ArrAssign
+  { \mu (a) = \vc{\t,\l_x,\k} \\
+    \k = \arr{s} \\
+    \G \has e_1 : \vc{uint\vc{max},\public} \\
+    \G \has e_2 : \vc{\t,\l_e} \\
+    \l_e \leq_\l \l_x }
+  { \M (a,e_1) := e_2 }
+
+  \xinfer{\kif (e) \{ s_1 \} \kelse \{ s_2 \}} % If
+  { \G \has e : \vc{bool,\l} }
+  { }
+
+  \xinfer{\kfor (\vc{\t,\public}i \kfrom e_1 \kto e_2) \{ s \}} % For
+  { i \notin \mu \\
+    \G \has e_1 : \vc{\t,\public} \\
+    \G \has e_2 : \vc{\t,\public} }
+  { }
+
+  \xinfer{\kret e} % Ret
+  { \G \has e : \vc{\t,\l_e} \\
+    \F (f) = fdec : \vc{\t,\l_f} \\
+    \l_e \leq_\l \l_f }
+  { }
 
 \end{mathpar}
 \end{document}
