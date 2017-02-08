@@ -44,6 +44,14 @@
 \newcommand\F{\mathbb{F}}
 \newcommand\Z{\mathbb{Z}}
 \renewcommand\t\tau
+\renewcommand\k{k}
+\renewcommand\l\ell
+\newcommand\m\mu
+\newcommand\public{\textsc{Public}}
+\newcommand\secret{\textsc{Secret}}
+\newcommand\val{\textsc{Val}}
+\renewcommand\ref{\textsc{Ref}}
+\newcommand\arr[1]{\textsc{Arr}\vc{#1}}
 
 \begin{document}
 
@@ -51,21 +59,27 @@
 \begin{mathpar}
 
   \infer
-  { n_1 < n_2 }
-  { uint\vc{n_1} <: uint\vc{n_2} }
+  { s_1 < s_2 }
+  { uint\vc{s_1} <_\tau uint\vc{s_2} }
 
   \infer
-  { n_1 < n_2 }
-  { int\vc{n_1} <: int\vc{n_2} }
+  { s_1 < s_2 }
+  { int\vc{s_1} <_\tau int\vc{s_2} }
+
+  \infer { }
+  { uint\vc{s} <_\tau int\vc{2s} }
 
   \infer
-  { }
-  { uint\vc{n} <: int\vc{2n} }
+  { \t_1 <_\tau \t_2 \\
+    \Gamma \has e : \vc{\t_1, \ell} }
+  { \Gamma \has e : \vc{\t_2, \ell} }
+
+  \infer { }
+  { \public <_\ell \secret }
 
   \infer
-  { \t_1 <: \t_2 \\
-    \Gamma \has e : \t_1 }
-  { \Gamma \has e : \t_2 }
+  { \ell_1 \leq_\ell \ell_2 }
+  { \ell_1 \cup \ell_2 = \ell_2 }
 
 \end{mathpar}
 
@@ -73,46 +87,73 @@
 \begin{mathpar}
 
   \infer[Var]
-  { \G (x) = \tau }
-  { \G \has x : \tau }
+  { \m (x) = \vc{\tau,\ell,\k} \\
+    \k \neq \arr{s} }
+  { \G \has x : \vc{\tau,\ell} }
 
   \infer[Unop]
-  { \G \has e : \tau \\
+  { \G \has e : \vc{\tau,\ell} \\
     \ominus : \tau \to \tau }
-  { \G \has \ominus e : \tau }
+  { \G \has \ominus e : \vc{\tau,\ell} }
 
   \infer[Binop]
-  { \G \has e_1 : \tau_1 \\
-    \G \has e_2 : \tau_2 \\
+  { \G \has e_1 : \vc{\tau_1,\ell_1} \\
+    \G \has e_2 : \vc{\tau_2,\ell_2} \\
     \oplus : \tau_1 \to \tau_2 \to \tau_3 }
-  { \G \has e_1 \oplus e_2 : \tau_3 }
+  { \G \has e_1 \oplus e_2 : \vc{\tau_3, \ell_1 \cup \ell_2 } }
 
   \infer[ArrGet]
-  { \G \has e : uint\vc{max} \\
-    \G \has a : array\vc{\tau,n} }
-  { \G \has a[e] : \tau }
+  { \G \has e : uint\vc{max}_\public \\
+    \m (a) = \vc{\tau,\ell,\arr{s}} }
+  { \G \has a[e] : \vc{\t,\l} }
+
+  \infer[ValPass]
+  { p : \vc{\t,\l_1,\val} \\
+    \G \has e : \vc{\t,\l_2} \\
+    \l_2 \leq_\l \l_1 }
+  { p \gets e }
+
+  \infer[RefPassSecret]
+  { p : \vc{\t,\secret,\ref} \\
+    \m (x) = \vc{\tau,\l,\k} \\
+    \k \neq \arr{s} }
+  { p \gets x }
+
+  \infer[RefPassPublic]
+  { p : \vc{\t,\public,\ref} \\
+    \m (x) = \vc{\tau,\public,\k} \\
+    \k \neq \arr{s} }
+  { p \gets x }
+
+  \infer[ArrPassSecret]
+  { p : \vc{\t,\secret,\arr{s}} \\
+    \m (a) = \vc{\tau,\l,\arr{s}} }
+  { p \gets a }
+
+  \infer[ArrPassPublic]
+  { p : \vc{\t,\public,\arr{s}} \\
+    \m (a) = \vc{\tau,\public,\arr{s}} }
+  { p \gets a }
 
   \infer[FnCall]
-  { \F (f) = fdec f(x_1:\t_1, \dots, x_n:\t_n) : \t_r \\
-    \G \has e_1 : \t_1 \\ \cdots \\ \G \has e_n : \t_n }
-  { \G \has f(e_1,\dots,e_n) : \t_r }
+  { \F (f) = fdec (x_1:\vc{\t_1,\l_1,\k_1}, \dots, x_n:\vc{\t_n,\l_n,\k_n}) : \vc{\t_r,\l_r} \\
+    x_1 \gets v_1 \\ \cdots \\ x_n \gets v_n }
+  { \G \has f(v_1,\dots,v_n) : \vc{\t_r,\l_r} }
 
-  \infer[True] { } { \Gamma \has true : bool } \\
-  \infer[False] { } { \Gamma \has false : bool }
+  \infer[True] { } { \Gamma \has true : \vc{bool,\public} } \\
+  \infer[False] { } { \Gamma \has false : \vc{bool,\public} }
 
-  \infer[ArrLiteral]
-  { \forall i : \Gamma \has e_i : \tau }
-  { \Gamma \has [ e_1, \dots, e_n ] : array\vc{\tau,n} }
+  \textnormal{Array literals are not expressions since they can only be used with \textsc{ArrDec}.}
 
   \infer[PosNumber]
-  { \ell >= 0 \\
-    n = \ceil{\log_2 \ell} }
-  { \Gamma \has \ell : uint\vc{n} }
+  { n >= 0 \\
+    s = \ceil{\log_2 n} }
+  { \Gamma \has n : \vc{uint\vc{s},\public} }
 
   \infer[NegNumber]
-  { \ell < 0 \\
-    n = \ceil{\log_2 \abs{\ell}}  + 1 }
-  { \Gamma \has \ell : int\vc{n} }
+  { n < 0 \\
+    s = \ceil{\log_2 \abs{n}}  + 1 }
+  { \Gamma \has n : \vc{int\vc{s},\public} }
 
 \end{mathpar}
 \end{document}
