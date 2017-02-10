@@ -1,4 +1,5 @@
 open Pos
+open Err
 open Ast
 open Env
 
@@ -51,4 +52,5 @@ and tprimitive = tprimitive' pos_ast [@@deriving show, eq]
 
 let update_fn venv { pos=p; data=tfdec } =
   let args = List.map (fun { data={ lt } } -> lt) tfdec.t_params in
-  Hashtbl.add venv tfdec.t_name (Env.FunEntry { f_rvt=tfdec.t_rvt; f_args=args })
+    if Hashtbl.mem venv tfdec.t_name then raise (UnclassifiedError "redefining fn");
+    Hashtbl.add venv tfdec.t_name (Env.FunEntry { f_rvt=tfdec.t_rvt; f_args=args })

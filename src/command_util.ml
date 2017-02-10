@@ -1,6 +1,6 @@
 open Pos
 open Cast
-(*open Codegen*)
+open Codegen
 open Ast
 open Env
 open Typecheck
@@ -89,7 +89,7 @@ let compile (in_file,out_file,out_dir) llvm_out ast_out core_ir_out =
   output_core_ir core_ir_out core_ir;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
-  (*let _ = codegen llvm_ctx llvm_mod core_ir in*)
+  let _ = codegen llvm_ctx llvm_mod core_ir in
   let triple = Llvm_target.Target.default_triple () in
   let lltarget = Llvm_target.Target.by_triple triple in
   let llmachine = Llvm_target.TargetMachine.create ~triple:triple lltarget in

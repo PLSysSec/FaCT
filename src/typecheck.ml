@@ -9,6 +9,10 @@ let is_int = function
   | UInt _ -> true
   | _ -> false
 
+let is_unsigned = function
+  | UInt _ -> true
+  | _ -> false
+
 let is_bool = function
   | Bool -> true
   | _ -> false
@@ -65,8 +69,8 @@ let tc_binop { pos=p; data=op } lhs rhs =
     | B_And when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
     | B_Or when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
     | B_Xor when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
-    | LeftShift when is_int(lhs) && is_int(rhs) -> lhs
-    | RightShift when is_int(lhs) && is_int(rhs) -> lhs
+    | LeftShift when is_int(lhs) && is_unsigned(rhs) -> lhs
+    | RightShift when is_int(lhs) && is_unsigned(rhs) -> lhs
     | _ -> raise @@ errTypeError p
 
 (* ctype -> ctype -> unit *)
@@ -186,7 +190,7 @@ and tc_expr venv { pos=p; data=expr } =
         { e=TVarExp v; e_ty=lt.ty; e_lbl=lt.label }
     | ArrExp(v,i) ->
       let i' = tc_expr venv i in
-      if not (is_int i'.data.e_ty) then raise @@ err p;
+      if not (is_unsigned i'.data.e_ty) then raise @@ err p;
       (* TODO add dynamic bounds check *)
       let lt = get_arr venv v in
         { e=TArrExp(v,i'); e_ty=lt.ty; e_lbl=lt.label }
@@ -235,11 +239,12 @@ let rec tc_stm venv fn_vt lbl_ctx { pos=p; data=stm } =
   | VarDec(name,vt,expr) ->
     let expr' = unify_ctx (tc_expr venv expr) in
     let vt' = can_flow venv vt expr' in
-      Hashtbl.add venv name (VarEntry (ref (ltk vt' Val)));
+      (* XXX need to check if redefining variable *)
+      add_var venv name (ltk vt' Val);
       TVarDec(name,vt',expr'), Public
   | ArrDec(name,vt,size,init) ->
     if not (is_int vt.v_ty) then raise @@ err p;
-    Hashtbl.add venv name (VarEntry (ref (ltk vt (Arr size))));
+    add_var venv name (ltk vt (Arr size));
     TArrDec(name,vt,size,init), Public
   | Assign(name,expr) ->
     let expr' = unify_ctx (tc_expr venv expr) in
@@ -249,7 +254,7 @@ let rec tc_stm venv fn_vt lbl_ctx { pos=p; data=stm } =
         TAssign(name,expr'), Public
   | ArrAssign(name,i,expr) ->
     let i' = tc_expr venv i in
-    if not (is_int i'.data.e_ty) then raise @@ err p;
+    if not (is_unsigned i'.data.e_ty) then raise @@ err p;
     (* TODO add dynamic bounds check *)
     let expr' = unify_ctx (tc_expr venv expr) in
     let lt = get_arr venv name in
@@ -273,7 +278,7 @@ let rec tc_stm venv fn_vt lbl_ctx { pos=p; data=stm } =
     ignore(can_flow venv vt l');
     ignore(can_flow venv vt h');
     let venv' = Hashtbl.copy venv in
-      Hashtbl.add venv' name (VarEntry (ref { ty=ty; label=Public; kind=Val }));
+      add_var venv' name { ty=ty; label=Public; kind=Val };
       let body',_ = tc_block venv' fn_vt lbl_ctx body in
         TFor(name,ty,l',h',body'), Public
   | Return expr ->
@@ -305,7 +310,7 @@ and tc_stms venv fn_vt lbl_ctx = function
 let tc_fdec venv { pos=p; data=fdec } =
   let venv' = Hashtbl.copy venv in
     ignore(List.map (fun { data={ name=n; lt=lt } } ->
-                      Hashtbl.add venv' n (VarEntry (ref lt)))
+                      add_var venv' n lt)
              fdec.params);
     let body',_ = tc_block venv' fdec.rvt Public fdec.body in
     let fdec' = { t_name=fdec.name; t_params=fdec.params; t_rvt=fdec.rvt; t_body=body' } in

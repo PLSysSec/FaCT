@@ -22,7 +22,9 @@ let venv =
   let _ = List.map add_fun stdlib_funs in*)
   v
 
-let fun_ret = Hashtbl.create 10
+let add_var venv v lt =
+  if Hashtbl.mem venv v then raise (UnclassifiedError "redefining var");
+  Hashtbl.add venv v (VarEntry (ref lt))
 
 let get_var venv v =
   try
