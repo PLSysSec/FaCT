@@ -43,6 +43,7 @@ llvmutop
 final
 .vscode
 ast.txt
+tast.txt
 test/testbin*
 *.runner.c
 *_runner.c
