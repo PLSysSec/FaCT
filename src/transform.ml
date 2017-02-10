@@ -77,11 +77,9 @@ and transform_venv venv =
       in Hashtbl.add cvenv name fentry
   in Hashtbl.iter transform_entry venv; cvenv
 
-and venv_add_to venv prefix subvenv =
+and venv_add_to venv subvenv =
   Hashtbl.iter (fun k v ->
-                 if Hashtbl.mem venv k
-                 then raise (UnclassifiedError "venv_add_to");
-                 Hashtbl.add venv (prefix ^ k) v)
+                 Hashtbl.add venv k v)
     subvenv
 
 and transform_stm' rty venv ctx stm =
@@ -142,16 +140,15 @@ and transform_stm' rty venv ctx stm =
     let mdec = Cast.VarDec(tname,vt,b_and e' c) in
       Env.add_var venv tname { Ast.ty=Ast.Bool; Ast.label=Ast.Secret; Ast.kind=Ast.Val };
     let bt' = List.flatten(List.map (transform_stm rty bt.venv ctx') bt.body) in
-      venv_add_to venv "__t_" bt.venv;
+      venv_add_to venv bt.venv;
     let bf' = List.flatten(List.map (transform_stm rty bf.venv ctx') bf.body) in
-      venv_add_to venv "__f_" bf.venv;
+      venv_add_to venv bf.venv;
     let mnot = Cast.Assign(tname,b_not m) in
     [mdec] @ bt' @ [mnot] @ bf'
   | Tast.TFor(n,t,l,h,b) ->
     let t' = transform_type t in
     let l' = transform_expr l in
     let h' = transform_expr h in
-      Env.add_var b.venv n { Ast.ty=t; Ast.label=Ast.Public; Ast.kind=Ast.Val };
     let b' = List.flatten(List.map (transform_stm rty b.venv ctx) b.body) in
     [Cast.For(n,t',l',h',make_block b')]
   | Tast.TReturn(e) ->

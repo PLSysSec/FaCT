@@ -114,13 +114,13 @@ and fill_public venv { pos=p; data=te } =
     | TCallExp(_,targs) ->
       ignore(List.map (fill_arg venv) targs)
 
-(* var_type -> texpr -> var_type *)
-let lbl_can_flow venv vt ({ pos=p; data=te } as pte) =
-  match vt.v_lbl, te.e_lbl with
+(* label -> texpr -> label *)
+let lbl_can_flow venv lbl ({ pos=p; data=te } as pte) =
+  match lbl, te.e_lbl with
     | Public, Secret -> raise @@ errFlowError p
-    | Public, Unknown -> fill_public venv pte; vt
-    | Unknown, Secret -> { vt with v_lbl=Secret }
-    | _ -> vt
+    | Public, Unknown -> fill_public venv pte; lbl
+    | Unknown, Secret -> Secret
+    | _ -> lbl
 
 (* labeled_type -> targ -> labeled_type *)
 let lbl_can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
@@ -141,7 +141,8 @@ let lbl_can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
 (* var_type -> texpr -> var_type *)
 let can_flow venv vt ({ pos=p; data=texpr } as ptexpr) =
   ty_can_flow p vt.v_ty texpr.e_ty;
-  lbl_can_flow venv vt ptexpr
+  let lbl' = lbl_can_flow venv vt.v_lbl ptexpr in
+    { vt with v_lbl=lbl' }
 
 (* kind -> kind -> unit *)
 let kind_can_pass p lhs rhs =
@@ -190,6 +191,7 @@ and tc_expr venv { pos=p; data=expr } =
         { e=TVarExp v; e_ty=lt.ty; e_lbl=lt.label }
     | ArrExp(v,i) ->
       let i' = tc_expr venv i in
+      ignore(lbl_can_flow venv Public i');
       if not (is_unsigned i'.data.e_ty) then raise @@ err p;
       (* TODO add dynamic bounds check *)
       let lt = get_arr venv v in
@@ -217,20 +219,21 @@ let rec set_missing_labels_to_public block =
   let rec fill_stms { venv; body=stms } =
     let fill_stm { data=stm } =
       match stm with
-        | TVarDec(_,_,e) -> fill_public venv e
-        | TArrDec _ -> ()
-        | TAssign(_,e) -> fill_public venv e
-        | TArrAssign(_,i,e) -> fill_public venv i; fill_public venv e
         | TIf(e,s1,s2) ->
-          fill_public venv e;
           fill_stms s1;
           fill_stms s2
         | TFor(_,_,l,h,s) ->
-          fill_public venv l;
-          fill_public venv h;
           fill_stms s
-        | TReturn e -> fill_public venv e
-    in ignore(List.map fill_stm stms)
+        | _ -> ()
+    in
+      ignore(List.map fill_stm stms);
+      Hashtbl.iter (fun v entry ->
+                     (match entry with
+                       | VarEntry lt ->
+                         if !lt.label = Unknown
+                         then lt := { !lt with label=Public }
+                       | _ -> ()))
+        venv
 
   and tc_tblock ({ venv; body=stms } as block) =
     let rec tc_texpr { pos=p; data=texpr } =
@@ -352,12 +355,19 @@ and tc_stms venv fn_vt lbl_ctx = function
 
 let tc_fdec venv { pos=p; data=fdec } =
   let venv' = Hashtbl.copy venv in
-    ignore(List.map (fun { data={ name=n; lt=lt } } ->
-                      add_var venv' n lt)
-             fdec.params);
-    let body',_ = tc_block venv' fdec.rvt Public fdec.body in
+  (* XXX eventually we will have proper label inference for parameters
+     * but for now we just assume public *)
+  let params' = List.map (fun ({ data=({ name=n; lt=lt } as arg) } as parg) ->
+                           let lt' = if lt.label = Unknown then { lt with label=Public } else lt in
+                             add_var venv' n lt';
+                             { parg with data={ arg with lt=lt' } })
+                  fdec.params in
+    (* XXX eventually we will have proper label inference for functions
+     * but for now we just assume secret *)
+    let rvt' = if fdec.rvt.v_lbl = Unknown then { fdec.rvt with v_lbl=Secret } else fdec.rvt in
+    let body',_ = tc_block venv' rvt' Public fdec.body in
     let body' = set_missing_labels_to_public body' in
-    let fdec' = { t_name=fdec.name; t_params=fdec.params; t_rvt=fdec.rvt; t_body=body' } in
+    let fdec' = { t_name=fdec.name; t_params=params'; t_rvt=rvt'; t_body=body' } in
     let fdec' = { pos=p; data=fdec' } in
       update_fn venv fdec'; fdec'
 
