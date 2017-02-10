@@ -90,10 +90,10 @@ const_type:
   | TYPE { to_type $1 }
 
 arg_labeled_type:
-  | OUT var_type
-    { let vt = $2 in ltk vt Ref }
   | REF var_type
     { let vt = $2 in ltk vt Ref }
+  | var_type LBRACK INT RBRACK
+    { let vt = $1 in ltk vt (Arr $3) }
   | var_type
     { let vt = $1 in ltk vt Val }
 
@@ -128,8 +128,6 @@ expr:
 arg:
   | expr
     { make_pos $startpos (ValArg $1) }
-  | OUT IDENT
-    { make_pos $startpos (VarArg(Ref,$2)) }
   | REF IDENT
     { make_pos $startpos (VarArg(Ref,$2)) }
     (* TODO: array slicing *)
@@ -145,7 +143,7 @@ arrinit:
 stmlist:
   | var_type IDENT ASSIGN expr SEMICOLON stmlist
     { (make_pos $startpos (VarDec($2,$1,$4)))::$6 }
-  | var_type IDENT RBRACK INT LBRACK ASSIGN arrinit SEMICOLON stmlist
+  | var_type IDENT LBRACK INT RBRACK ASSIGN arrinit SEMICOLON stmlist
     { (make_pos $startpos (ArrDec($2,$1,$4,$7)))::$9 }
   | IDENT LBRACK expr RBRACK ASSIGN expr SEMICOLON stmlist
     { (make_pos $startpos (ArrAssign($1,$3,$6)))::$8 }
