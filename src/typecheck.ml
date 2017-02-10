@@ -212,24 +212,71 @@ and tc_expr venv { pos=p; data=expr } =
         { e=TCallExp(name,args'); e_ty=f.f_rvt.v_ty; e_lbl=f.f_rvt.v_lbl }
   in make_ast p @@ tc_expr' expr
 
-(* tstm list -> unit *)
-let rec set_missing_labels_to_public venv stms =
-  ignore(List.map (fun { data=s' } ->
-                    match s' with
-                      | TVarDec(_,_,e) -> fill_public venv e
-                      | TArrDec _ -> ()
-                      | TAssign(_,e) -> fill_public venv e
-                      | TArrAssign(_,i,e) -> fill_public venv i; fill_public venv e
-                      | TIf(e,s1,s2) ->
-                        fill_public venv e;
-                        set_missing_labels_to_public s1.venv s1.body;
-                        set_missing_labels_to_public s2.venv s2.body
-                      | TFor(_,_,l,h,s) ->
-                        fill_public venv l;
-                        fill_public venv h;
-                        set_missing_labels_to_public s.venv s.body
-                      | TReturn e -> fill_public venv e)
-           stms)
+(* block -> block *)
+let rec set_missing_labels_to_public { venv; body=stms } =
+  let rec fill_stms venv stms =
+    let fill_stm { data=stm } =
+      match stm with
+        | TVarDec(_,_,e) -> fill_public venv e
+        | TArrDec _ -> ()
+        | TAssign(_,e) -> fill_public venv e
+        | TArrAssign(_,i,e) -> fill_public venv i; fill_public venv e
+        | TIf(e,s1,s2) ->
+          fill_public venv e;
+          fill_stms s1.venv s1.body;
+          fill_stms s2.venv s2.body
+        | TFor(_,_,l,h,s) ->
+          fill_public venv l;
+          fill_public venv h;
+          fill_stms s.venv s.body
+        | TReturn e -> fill_public venv e
+    in ignore(List.map fill_stm stms)
+  and tc_texpr { pos=p; data=texpr } =
+    let tc_texpr' = function
+      | TVarExp v ->
+        let lt = get_var venv v in
+          { texpr with e_lbl=lt.label }
+      | TArrExp(v,i) ->
+        let i' = tc_texpr i in
+        let lt = get_arr venv v in
+          { texpr with e=TArrExp(v,i'); e_lbl=lt.label }
+      | TUnOp(op,e1) ->
+        let e1' = tc_texpr e1 in
+          { texpr with e=TUnOp(op,e1'); e_lbl=e1'.data.e_lbl }
+      | TBinOp(op,e1,e2) ->
+        let e1' = tc_texpr e1 in
+        let e2' = tc_texpr e2 in
+        let lbl' = unify_label e1'.data.e_lbl e2'.data.e_lbl in
+          { texpr with e=TBinOp(op,e1',e2'); e_lbl=lbl' }
+      | TPrimitive prim -> texpr
+      | TCallExp(name,args) ->
+        let args' = List.map tc_targ args in
+        let f = get_fn venv name in
+          { texpr with e=TCallExp(name,args'); e_lbl=f.f_rvt.v_lbl }
+    in make_ast p @@ tc_texpr' texpr.e
+  and tc_targ { pos=p; data=arg } =
+    let tc_targ' = function
+      | TValArg e -> TValArg(tc_texpr e)
+      | TVarArg(n,lt) -> TVarArg(n,get_var venv n)
+      | TArrArg(n,lt) -> TArrArg(n,get_var venv n)
+    in make_ast p @@ tc_targ' arg
+  and tc_tblock ({ body=stms } as block) = { block with body=tc_tstms stms }
+  and tc_tstms stms =
+    List.map (fun { pos=p; data=stm } ->
+               let stm' =
+                 (match stm with
+                   | TVarDec(v,vt,e) -> TVarDec(v,vtk (get_var venv v),tc_texpr e)
+                   | TArrDec (v,vt,s,init) -> TArrDec(v,vtk (get_var venv v),s,init)
+                   | TAssign(v,e) -> TAssign(v,tc_texpr e)
+                   | TArrAssign(v,i,e) -> TArrAssign(v,tc_texpr i,tc_texpr e)
+                   | TIf(e,bt,bf) -> TIf(tc_texpr e,tc_tblock bt,tc_tblock bf)
+                   | TFor(v,vt,l,h,b) -> TFor(v,vt,tc_texpr l,tc_texpr h,tc_tblock b)
+                   | TReturn e -> TReturn(tc_texpr e))
+               in make_ast p @@ stm')
+      stms
+  in
+    fill_stms venv stms;
+    { venv=venv; body=tc_tstms stms }
 
 (* ret:vt -> ctx:label -> stm -> (tstm * add_ctx:label) *)
 let rec tc_stm venv fn_vt lbl_ctx { pos=p; data=stm } =
@@ -288,12 +335,6 @@ let rec tc_stm venv fn_vt lbl_ctx { pos=p; data=stm } =
 
 (* ret:vt -> ctx:label -> stm list -> (tstm list * ctx:label) *)
 and tc_block venv fn_vt lbl_ctx stms =
-  let stms',_ = tc_stms venv fn_vt lbl_ctx stms in
-  set_missing_labels_to_public venv stms';
-  (* XXX there should really be a better way of doing this
-     but right now I'm purposely using stms and not stms'
-     because stms is Ast and stms' is Tast and theoretically
-     it should work out to the same, just with redundant work being done *)
   let stms',lbl = tc_stms venv fn_vt lbl_ctx stms in
     { venv=venv; body=stms' }, lbl
 
@@ -313,6 +354,7 @@ let tc_fdec venv { pos=p; data=fdec } =
                       add_var venv' n lt)
              fdec.params);
     let body',_ = tc_block venv' fdec.rvt Public fdec.body in
+    let body' = set_missing_labels_to_public body' in
     let fdec' = { t_name=fdec.name; t_params=fdec.params; t_rvt=fdec.rvt; t_body=body' } in
     let fdec' = { pos=p; data=fdec' } in
       update_fn venv fdec'; fdec'
