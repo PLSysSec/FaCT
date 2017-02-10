@@ -17,13 +17,13 @@ let unify_ty e1 e2 =
   let t1,t2 = e1.Cast.e_ty,e2.Cast.e_ty in
     match t1,t2 with
       | _ when t1 = t2 -> t1
-      | Cast.Int32, Cast.Int16 -> Cast.Int32
-      | Cast.Int32, Cast.Int8 -> Cast.Int32
-      | Cast.Int16, Cast.Int8 -> Cast.Int16
-      | Cast.UInt32, Cast.UInt16 -> Cast.UInt32
-      | Cast.UInt32, Cast.UInt8 -> Cast.UInt32
-      | Cast.UInt16, Cast.UInt8 -> Cast.UInt16
-      | _ -> raise (TypeError(" does not unify with "))
+      | Cast.Int a, Cast.Int b -> Cast.Int (max a b)
+      | Cast.UInt a, Cast.UInt b -> Cast.UInt (max a b)
+      | Cast.Int a, Cast.UInt b -> Cast.Int (max a (2*b))
+      | Cast.UInt a, Cast.Int b -> Cast.Int (max (2*a) b)
+      | _, Cast.BoolMask -> t1
+      | Cast.BoolMask, _ -> t2
+      | _ -> raise (TypeError((Cast.show_ctype t1)^" does not unify with "^(Cast.show_ctype t2)))
 
 let rec transform = function
   | Tast.TCModule fdecs ->
@@ -31,12 +31,12 @@ let rec transform = function
     Cast.CModule f
 
 and transform_type = function
-  | Ast.Int n when n <= Z.(~$8) -> Cast.Int8
-  | Ast.Int n when n <= Z.(~$16) -> Cast.Int16
-  | Ast.Int n when n <= Z.(~$32) -> Cast.Int32
-  | Ast.UInt n when n <= Z.(~$8) -> Cast.UInt8
-  | Ast.UInt n when n <= Z.(~$16) -> Cast.UInt16
-  | Ast.UInt n when n <= Z.(~$32) -> Cast.UInt32
+  | Ast.Int n when n <= Z.(~$8) -> Cast.Int 8
+  | Ast.Int n when n <= Z.(~$16) -> Cast.Int 16
+  | Ast.Int n when n <= Z.(~$32) -> Cast.Int 32
+  | Ast.UInt n when n <= Z.(~$8) -> Cast.UInt 8
+  | Ast.UInt n when n <= Z.(~$16) -> Cast.UInt 16
+  | Ast.UInt n when n <= Z.(~$32) -> Cast.UInt 32
   | Ast.Bool -> Cast.BoolMask
   | _ as ty -> raise @@ TransformError ("Encountered bad type " ^ (Ast.show_ctype ty))
 

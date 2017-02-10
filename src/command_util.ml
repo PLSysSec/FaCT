@@ -31,6 +31,15 @@ let output_ast ast_out ast =
       Core.Std.Out_channel.write_all ast_out_file
         ~data:(show_constantc_module ast)
 
+let output_tast ast_out tast =
+  match ast_out with
+    | false -> Log.debug "Not outputting TAST"
+    | true ->
+      let tast_out_file = "t"^ast_out_file in
+        Log.debug "Outputting TAST to %s" tast_out_file;
+        Core.Std.Out_channel.write_all tast_out_file
+          ~data:(Tast.show_tconstantc_module tast)
+
 let output_core_ir core_ir_out core_ir =
   match core_ir_out with
     | false -> Log.debug "Not outputting core IR"
@@ -83,6 +92,7 @@ let compile (in_file,out_file,out_dir) llvm_out ast_out core_ir_out =
   Log.debug "Parsing complete";
   output_ast ast_out ast;
   let tast = tc_module ast in
+  output_tast ast_out tast;
   Log.debug "Typecheck complete";
   let core_ir = transform tast in
   Log.debug "Core IR transform complete";

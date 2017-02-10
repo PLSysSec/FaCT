@@ -4,25 +4,22 @@ open Cast
 open Stdlib
 
 let is_signed = function
-  | Int32
-  | Int16
-  | Int8
+  | Int _
   | BoolMask -> true
-  | UInt32
-  | UInt16
-  | UInt8 -> false
+  | UInt _ -> false
 
 let codegen ctx m =
   let b = builder ctx in
 
   let llvm_ty = function
-    | Int32
-    | UInt32 -> i32_type ctx
-    | Int16
-    | UInt16 -> i16_type ctx
-    | Int8
-    | UInt8 -> i8_type ctx
+    | Int 32
+    | UInt 32 -> i32_type ctx
+    | Int 16
+    | UInt 16 -> i16_type ctx
+    | Int 8
+    | UInt 8 -> i8_type ctx
     | BoolMask -> i1_type ctx
+    | _ as ty -> raise (UnclassifiedError("possibly promoted type "^(show_ctype ty)^" not supported"))
   in
 
   let lt_to_llvm_ty lt =
@@ -163,8 +160,7 @@ let codegen ctx m =
       let i' = codegen_expr venv mem i in
       (* XXX llvm treats indices as signed *)
       let p = build_gep v
-                [| const_int (i32_type ctx) 0;
-                   codegen_expr venv mem i |]
+                [| const_int (i32_type ctx) 0; i' |]
                 "ptr" b in
         build_load p (n^"_arrget") b
     | UnOp(op,e) ->
@@ -196,10 +192,9 @@ let codegen ctx m =
       let e' = codegen_ext venv mem vt.v_ty e in
       ignore(build_store e' v b);
     | ArrDec(n,vt,s,init) ->
-      let v = mem_var mem n in
-      let lt = get_arr venv n in
+      (*let v = mem_var mem n in
+      let lt = get_arr venv n in*)
         raise NotImplemented
-    | VarDec(n,_,e)
     | Assign(n,e) ->
       let v = mem_var mem n in
       let lt = get_var venv n in
@@ -212,8 +207,7 @@ let codegen ctx m =
       let e' = codegen_ext venv mem lt.ty e in
       (* XXX llvm treats indices as signed *)
       let p = build_gep v
-                [| const_int (i32_type ctx) 0;
-                   codegen_expr venv mem i |]
+                [| const_int (i32_type ctx) 0; i' |]
                 "ptr" b in
       ignore(build_store e' p b)
     | For(v,ty,l,h,s) ->
@@ -231,7 +225,7 @@ let codegen ctx m =
       let i' = build_load i v b in
       let h' = codegen_ext venv mem ty h in
       let cmp = if is_signed ty then Icmp.Slt else Icmp.Ult in
-      let cond = build_icmp cmp i h' "loopcond" b in
+      let cond = build_icmp cmp i' h' "loopcond" b in
         ignore(build_cond_br cond bb_body bb_end b);
 
       position_at_end bb_body b;

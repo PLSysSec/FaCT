@@ -1,12 +1,8 @@
 open Err
 
 type ctype =
-  | Int32
-  | Int16
-  | Int8
-  | UInt32
-  | UInt16
-  | UInt8
+  | Int of int
+  | UInt of int
   | BoolMask
 [@@deriving show]
 

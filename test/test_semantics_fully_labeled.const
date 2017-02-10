@@ -17,7 +17,7 @@ int mutateArray(secret int32[5] arr) {
 
 int mutateArray2(secret int32[5] arr2, secret int val) {
   arr2[4] = val;
-  int f = 4;
+  uint32 f = 4;
   return arr2[f];
 }
 
@@ -125,11 +125,11 @@ bool nequal(secret int a, secret int b) {
   return a != b;
 }
 
-int lshift(secret int num, secret int shift) {
+int lshift(secret int num, secret uint32 shift) {
   return num << shift;
 }
 
-int rshift(secret int num, secret int shift) {
+int rshift(secret int num, secret uint32 shift) {
   return num >> shift;
 }
 
