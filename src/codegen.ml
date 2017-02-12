@@ -18,7 +18,7 @@ let codegen ctx m =
     | UInt n when n <= 8 -> i8_type ctx
     | UInt n when n <= 16 -> i16_type ctx
     | UInt n when n <= 32 -> i32_type ctx
-    | BoolMask -> i1_type ctx
+    | BoolMask -> i32_type ctx
     | _ as ty -> raise (UnclassifiedError("possibly promoted type "^(show_ctype ty)^" not supported"))
   in
 
@@ -31,9 +31,13 @@ let codegen ctx m =
   in
 
   let extend_to signed ty v =
-    let build_ext = if signed then build_sext else build_zext in
-          ignore(Llvm.print_module "llvm.s" m);
-      build_ext v (llvm_ty ty) "extendtmp" b
+    let llty = llvm_ty ty in
+    let lb,rb = integer_bitwidth llty, integer_bitwidth @@ type_of v in
+      if lb < rb then build_trunc v llty "trunctmp" b
+      else if lb > rb then
+        let build_ext = if signed then build_sext else build_zext in
+          build_ext v llty "extendtmp" b
+      else v
   in
 
   let rec codegen_module = function
@@ -54,12 +58,10 @@ let codegen ctx m =
         position_at_end bb b;
         allocate_args body.mem args;
         let body' = allocate_stack body.mem body in
-        Core.Std.Out_channel.write_all (n^"_core_ir.ml") ~data:(Cast.show_block body');
         ignore(fold_left_params (store_args body'.mem) args the_function);
         codegen_stms body';
         let ret' = codegen_ext body'.venv body'.mem vt.v_ty ret in
           ignore(build_ret ret' b);
-          ignore(Llvm.print_module "llvm.s" m);
           ignore(Llvm_analysis.assert_valid_function the_function)
 
   and allocate_args mem args =

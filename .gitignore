@@ -44,6 +44,7 @@ final
 .vscode
 ast.txt
 tast.txt
+core_ir.txt
 test/testbin*
 *.runner.c
 *_runner.c
