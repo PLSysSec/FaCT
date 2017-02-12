@@ -12,12 +12,12 @@ let codegen ctx m =
   let b = builder ctx in
 
   let llvm_ty = function
-    | Int 32
-    | UInt 32 -> i32_type ctx
-    | Int 16
-    | UInt 16 -> i16_type ctx
-    | Int 8
-    | UInt 8 -> i8_type ctx
+    | Int n when n <= 8 -> i8_type ctx
+    | Int n when n <= 16 -> i16_type ctx
+    | Int n when n <= 32 -> i32_type ctx
+    | UInt n when n <= 8 -> i8_type ctx
+    | UInt n when n <= 16 -> i16_type ctx
+    | UInt n when n <= 32 -> i32_type ctx
     | BoolMask -> i1_type ctx
     | _ as ty -> raise (UnclassifiedError("possibly promoted type "^(show_ctype ty)^" not supported"))
   in
@@ -31,7 +31,8 @@ let codegen ctx m =
   in
 
   let extend_to signed ty v =
-    let build_ext = if signed then build_sext else build_intcast in
+    let build_ext = if signed then build_sext else build_zext in
+          ignore(Llvm.print_module "llvm.s" m);
       build_ext v (llvm_ty ty) "extendtmp" b
   in
 
@@ -52,11 +53,13 @@ let codegen ctx m =
       let bb = append_block ctx "entry" the_function in
         position_at_end bb b;
         allocate_args body.mem args;
-        ignore(allocate_stack body.mem body);
-        ignore(fold_left_params (store_args body.mem) args the_function);
-        codegen_stms body;
-        let ret' = codegen_ext body.venv body.mem vt.v_ty ret in
+        let body' = allocate_stack body.mem body in
+        Core.Std.Out_channel.write_all (n^"_core_ir.ml") ~data:(Cast.show_block body');
+        ignore(fold_left_params (store_args body'.mem) args the_function);
+        codegen_stms body';
+        let ret' = codegen_ext body'.venv body'.mem vt.v_ty ret in
           ignore(build_ret ret' b);
+          ignore(Llvm.print_module "llvm.s" m);
           ignore(Llvm_analysis.assert_valid_function the_function)
 
   and allocate_args mem args =
@@ -70,7 +73,7 @@ let codegen ctx m =
     match args with
       | { name }::args' ->
         let v = mem_var mem name in
-          ignore(build_store param v b); args
+          ignore(build_store param v b); args'
       | _ -> raise (UnclassifiedError "store_args")
 
   and allocate_stack mem { venv; body } =
@@ -106,6 +109,23 @@ let codegen ctx m =
     match op with
       | Neg -> build_neg e "negtmp" b
       | BitNot -> build_not e "nottmp" b
+
+  and binop_unify_ty op =
+    match op with
+      | Plus
+      | Minus
+      | Mult
+      | GT
+      | GTE
+      | LT
+      | LTE
+      | Eq
+      | Neq -> Transform.unify_ty
+      | BitAnd
+      | BitOr
+      | BitXor
+      | LeftShift
+      | RightShift -> Transform.unify_sz
 
   and codegen_binop op ty e1 e2 =
     match op with
@@ -159,16 +179,16 @@ let codegen ctx m =
       let v = mem_var mem n in
       let i' = codegen_expr venv mem i in
       (* XXX llvm treats indices as signed *)
-      let p = build_gep v
-                [| const_int (i32_type ctx) 0; i' |]
-                "ptr" b in
+      let v' = build_load v n b in
+      let p = build_gep v' [| const_int (i32_type ctx) 0; i' |] "ptr" b in
         build_load p (n^"_arrget") b
     | UnOp(op,e) ->
       let e' = codegen_expr venv mem e in
         codegen_unop op e'
     | BinOp(op,e1,e2) ->
-      let e1' = codegen_ext venv mem ty e1 in
-      let e2' = codegen_ext venv mem ty e2 in
+      let ty' = binop_unify_ty op e1 e2 in
+      let e1' = codegen_ext venv mem ty' e1 in
+      let e2' = codegen_ext venv mem ty' e2 in
         codegen_binop op ty e1' e2'
     | Primitive p -> codegen_prim ty p
     | CallExp(callee, args) ->
@@ -205,10 +225,9 @@ let codegen ctx m =
       let lt = get_arr venv n in
       let i' = codegen_expr venv mem i in
       let e' = codegen_ext venv mem lt.ty e in
+      let v' = build_load v n b in
       (* XXX llvm treats indices as signed *)
-      let p = build_gep v
-                [| const_int (i32_type ctx) 0; i' |]
-                "ptr" b in
+      let p = build_gep v' [| const_int (i32_type ctx) 0; i' |] "ptr" b in
       ignore(build_store e' p b)
     | For(v,ty,l,h,s) ->
       let preheader = insertion_block b in
@@ -216,7 +235,7 @@ let codegen ctx m =
       let bb_check = append_block ctx "loop_check" the_function in
       let bb_body = append_block ctx "loop_body" the_function in
       let bb_end = append_block ctx "loop_end" the_function in
-      let i = mem_var mem v in
+      let i = mem_var s.mem v in
       let l' = codegen_ext venv mem ty l in
         ignore(build_store l' i b);
         ignore(build_br bb_check b);

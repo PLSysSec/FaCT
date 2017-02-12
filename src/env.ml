@@ -11,7 +11,15 @@ type entry =
 [@@deriving show]
 
 type env = (string,entry) Hashtbl.t
-let pp_env fmt venv = Format.pp_print_text fmt "venv"
+let pp_env fmt venv =
+  let pp = Format.pp_print_text fmt in
+    begin
+      pp "{ ";
+      Hashtbl.iter
+        (fun k v -> pp (k ^ "; "))
+        venv;
+      pp "}";
+    end
 let equal_env venv1 venv2 = true
 
 let venv =

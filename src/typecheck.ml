@@ -32,6 +32,16 @@ let unify_ty t1 t2 =
     | (UInt a, Int b) -> Int Z.(max (~$2 * a) b)
     | _ -> raise (TypeError(ty_to_string(t1) ^ " does not unify with " ^ ty_to_string(t2)))
 
+(* ctype -> ctype -> ctype *)
+let unify_sz t1 t2 =
+  match (t1,t2) with
+    | _ when t1 = t2 -> t1
+    | (Int a, Int b) -> Int Z.(max a b)
+    | (UInt a, UInt b) -> UInt Z.(max a b)
+    | (Int a, UInt b) -> Int Z.(max a b)
+    | (UInt a, Int b) -> Int Z.(max a b)
+    | _ -> raise (TypeError(ty_to_string(t1) ^ " does not unify with " ^ ty_to_string(t2)))
+
 (* label -> label -> label *)
 let unify_label lbl1 lbl2 =
   match lbl1,lbl2 with
@@ -66,9 +76,9 @@ let tc_binop { pos=p; data=op } lhs rhs =
     | LTE when is_int(lhs) && is_int(rhs) -> Bool
     | L_And when is_bool(lhs) && is_bool(rhs) -> Bool
     | L_Or when is_bool(lhs) && is_bool(rhs) -> Bool
-    | B_And when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
-    | B_Or when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
-    | B_Xor when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
+    | B_And when is_int(lhs) && is_int(rhs) -> unify_sz lhs rhs
+    | B_Or when is_int(lhs) && is_int(rhs) -> unify_sz lhs rhs
+    | B_Xor when is_int(lhs) && is_int(rhs) -> unify_sz lhs rhs
     | LeftShift when is_int(lhs) && is_unsigned(rhs) -> lhs
     | RightShift when is_int(lhs) && is_unsigned(rhs) -> lhs
     | _ -> raise @@ errTypeError p

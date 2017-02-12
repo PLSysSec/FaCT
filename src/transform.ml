@@ -23,7 +23,17 @@ let unify_ty e1 e2 =
       | Cast.UInt a, Cast.Int b -> Cast.Int (max (2*a) b)
       | _, Cast.BoolMask -> t1
       | Cast.BoolMask, _ -> t2
-      | _ -> raise (TypeError((Cast.show_ctype t1)^" does not unify with "^(Cast.show_ctype t2)))
+
+let unify_sz e1 e2 =
+  let t1,t2 = e1.Cast.e_ty,e2.Cast.e_ty in
+    match t1,t2 with
+      | _ when t1 = t2 -> t1
+      | Cast.Int a, Cast.Int b -> Cast.Int (max a b)
+      | Cast.UInt a, Cast.UInt b -> Cast.UInt (max a b)
+      | Cast.Int a, Cast.UInt b -> Cast.Int (max a b)
+      | Cast.UInt a, Cast.Int b -> Cast.Int (max a b)
+      | _, Cast.BoolMask -> t1
+      | Cast.BoolMask, _ -> t2
 
 let rec transform = function
   | Tast.TCModule fdecs ->
@@ -31,6 +41,11 @@ let rec transform = function
     Cast.CModule f
 
 and transform_type = function
+  | Ast.Int n -> Cast.Int (Z.to_int n)
+  | Ast.UInt n -> Cast.UInt (Z.to_int n)
+  | Ast.Bool -> Cast.BoolMask
+
+(*and transform_type = function
   | Ast.Int n when n <= Z.(~$8) -> Cast.Int 8
   | Ast.Int n when n <= Z.(~$16) -> Cast.Int 16
   | Ast.Int n when n <= Z.(~$32) -> Cast.Int 32
@@ -38,7 +53,7 @@ and transform_type = function
   | Ast.UInt n when n <= Z.(~$16) -> Cast.UInt 16
   | Ast.UInt n when n <= Z.(~$32) -> Cast.UInt 32
   | Ast.Bool -> Cast.BoolMask
-  | _ as ty -> raise @@ TransformError ("Encountered bad type " ^ (Ast.show_ctype ty))
+  | _ as ty -> raise @@ TransformError ("Encountered bad type " ^ (Ast.show_ctype ty))*)
 
 and transform_label = function
   | Ast.Public -> Cast.Public
@@ -79,13 +94,13 @@ and transform_venv venv =
 
 and venv_add_to venv subvenv =
   Hashtbl.iter (fun k v ->
-                 Hashtbl.add venv k v)
+                 Hashtbl.replace venv k v)
     subvenv
 
 and transform_stm' rty venv ctx stm =
   let make_expr e ty = { Cast.e=e; Cast.e_ty=ty } in
 
-  let make_block stms =
+  let make_block venv stms =
     let venv' = transform_venv venv in
       { Cast.venv=venv'; Cast.mem=Hashtbl.create 1; Cast.body=stms } in
 
@@ -150,7 +165,7 @@ and transform_stm' rty venv ctx stm =
     let l' = transform_expr l in
     let h' = transform_expr h in
     let b' = List.flatten(List.map (transform_stm rty b.venv ctx) b.body) in
-    [Cast.For(n,t',l',h',make_block b')]
+    [Cast.For(n,t',l',h',make_block b.venv b')]
   | Tast.TReturn(e) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
@@ -241,8 +256,8 @@ and transform_fdec { Pos.data } =
       let rset = Cast.VarDec("__rset",bm_false,bm_prim_false) in
         Env.add_var body.venv "__rval" (Ast.ltk t_rvt Ast.Val);
         Env.add_var body.venv "__rset" { Ast.ty=Ast.Bool; Ast.label=Ast.Secret; Ast.kind=Ast.Val };
-      let venv' = transform_venv body.venv in
       let body' = List.flatten(List.map (transform_stm rvt'.Cast.v_ty body.venv ctx) body.body) in
+      let venv' = transform_venv body.venv in
       let body'' = { Cast.venv=venv'; Cast.mem=Hashtbl.create 10; Cast.body=[rval]@[rset]@body' } in
         Cast.FunctionDec(name,args',rvt',body'',
                          { Cast.e=Cast.VarExp("__rval");

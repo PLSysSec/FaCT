@@ -14,7 +14,7 @@ TESTS=$(patsubst harness%.c,testbin%,$(SRC))
 all: run
 
 %.o: %.const
-	../constanc.byte -ast-out $<
+	../constanc.byte -ast-out -core-ir-out $<
 
 %_runner.c: %.c
 	ruby $(UNITY_ROOT)/auto/generate_test_runner.rb $< $@
@@ -26,4 +26,4 @@ run: $(TESTS)
 	for x in testbin*; do ./$$x; done
 
 clean:
-	rm -f *.o *.bc *.s *_runner.c testbin* ast.txt tast.txt
+	rm -f *.o *.bc *.s *_runner.c testbin* ast.txt tast.txt core_ir.txt
