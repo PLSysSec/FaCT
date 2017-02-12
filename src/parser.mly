@@ -11,11 +11,9 @@ exception ParseError of string
 
 let to_type = function
   | "bool" -> Bool
-  | "int" -> Int (Z.of_int 32)
   | "int8" -> Int (Z.of_int 8)
   | "int16" -> Int (Z.of_int 16)
   | "int32" -> Int (Z.of_int 32)
-  | "uint8" -> UInt (Z.of_int 32)
   | "uint8" -> UInt (Z.of_int 8)
   | "uint16" -> UInt (Z.of_int 16)
   | "uint32" -> UInt (Z.of_int 32)
