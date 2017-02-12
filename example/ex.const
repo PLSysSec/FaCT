@@ -1,7 +1,0 @@
-/**
-    Filename: ex.const
-*/
-
-int get100() {
-  return 100;
-}
