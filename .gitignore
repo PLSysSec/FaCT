@@ -42,9 +42,9 @@ llvmutop
 *.s
 final
 .vscode
-ast.txt
-tast.txt
-core_ir.txt
+*.ast.ml
+*.tast.ml
+*.core.ml
 test/testbin*
 *.runner.c
 *_runner.c
