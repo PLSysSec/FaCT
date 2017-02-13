@@ -21,7 +21,29 @@ let unify t t1 p =
   | (Int16,Int8) -> Int16
   | (Int8,Int16) -> Int16
   | (Int8,Int8) -> Int8
+  | (Int,Int32) -> Int32
+  | (Int,Int16) -> Int16
+  | (Int,Int8) -> Int8
+  | (Int32,Int) -> Int32
+  | (Int16,Int) -> Int16
+  | (Int8,Int) -> Int8
+  | (UInt32,UInt32) -> UInt32
+  | (UInt32,UInt16) -> UInt32
+  | (UInt16,UInt32) -> UInt32
+  | (UInt32,UInt8) -> UInt32
+  | (UInt8,UInt32) -> UInt32
+  | (UInt16,UInt16) -> UInt16
+  | (UInt16,UInt8) -> UInt16
+  | (UInt8,UInt16) -> UInt16
+  | (UInt8,UInt8) -> UInt8
+  | (Int,UInt32) -> UInt32
+  | (Int,UInt16) -> UInt16
+  | (Int,UInt8) -> UInt8
+  | (UInt32,Int) -> UInt32
+  | (UInt16,Int) -> UInt16
+  | (UInt8,Int) -> UInt8
   | (Bool,Bool) -> Bool
+  | (Int,Int) -> Int
   | (ByteArr x, ByteArr y) when x = y -> (ByteArr x)
   | _ -> raise (TypeError(ty_to_string(t) ^ " does not unify with "
                 ^ ty_to_string(t1) ^ " @ " ^ (pos_string p)))
@@ -85,6 +107,10 @@ let isInt = function
   | Int32 -> true
   | Int16 -> true
   | Int8 -> true
+  | UInt32 -> true
+  | UInt16 -> true
+  | UInt8 -> true
+  | Int -> true
   | _ -> false
 
 let isBool = function
@@ -97,22 +123,22 @@ let rec tc_unop = function
   | B_Not _ -> (Int32, [Int32])
 
 and op_arg = function
-  | Plus _ -> Int8
-  | Minus _ -> Int8
-  | Multiply _ -> Int8
-  | Equal _ -> Int8
-  | NEqual _ -> Int8
-  | GT _ -> Int8
-  | GTE _ -> Int8
-  | LT _ -> Int8
-  | LTE _ -> Int8
+  | Plus _ -> Int
+  | Minus _ -> Int
+  | Multiply _ -> Int
+  | Equal _ -> Int
+  | NEqual _ -> Int
+  | GT _ -> Int
+  | GTE _ -> Int
+  | LT _ -> Int
+  | LTE _ -> Int
   | L_And _ -> Bool
   | L_Or _ -> Bool
-  | B_And _ -> Int8
-  | B_Or _ -> Int8
-  | B_Xor _ -> Int8
-  | LeftShift _ -> Int8
-  | RightShift _ -> Int8
+  | B_And _ -> Int
+  | B_Or _ -> Int
+  | B_Xor _ -> Int
+  | LeftShift _ -> Int
+  | RightShift _ -> Int
 
 and tc_binop lhs rhs p = function
   | Plus p when isInt(lhs) && isInt(rhs) -> unify lhs rhs p
@@ -145,7 +171,7 @@ and tc_prim lhs = function
   | Boolean b -> { ty=Bool; label=lhs.label; kind=Val }
 
 and tc_expr venv lhs_lt = function
-  | VarExp(v,p) ->
+  | VarExp(v,p) as e ->
     (try
        match Hashtbl.find venv v with
        | VarEntry { v_ty={ ty=t; label=None } } ->
@@ -209,7 +235,7 @@ and tc_expr venv lhs_lt = function
                              "` not defined @ " ^ (pos_string p))))
      | _ -> raise (TypeError ("Arrays can only be accessed with constant " ^
                       "numbers or loop variables @ " ^ (pos_string p))))
-  | UnOp(op,expr,p) ->
+  | UnOp(op,expr,p) as e ->
     let op_ty = tc_unop op in
     let expr_ty = tc_expr venv lhs_lt expr in
     ignore(unify_op op_ty [expr_ty] p);
@@ -219,7 +245,8 @@ and tc_expr venv lhs_lt = function
     let lhs = tc_expr venv arg_ty expr1 in
     let rhs = tc_expr venv arg_ty expr2 in
     let rt = tc_binop lhs.ty rhs.ty p op in
-    { ty=rt; label=(unify_lt lhs rhs p).label; kind=Val }
+    let label = (unify_lt lhs rhs p).label in
+    { ty=rt; label=label; kind=Val }
   | Primitive(p,_) -> tc_prim lhs_lt p
   | CallExp(name,args,p) ->
     (try
@@ -243,29 +270,29 @@ and tc_expr venv lhs_lt = function
 
 and tc_stm fn_ty venv f_name = function
   | VarDec(name,lt,expr,p) ->
-    let expr_ty = tc_expr venv lt expr in
-    let lt = unify_flows_to lt expr_ty p in
+    let expr' = tc_expr venv lt expr in
+    let lt = unify_flows_to lt expr' p in
     (match lt with 
       | { kind=Val; ty=(ByteArr n)} ->
         raise (TypeError ("Byte arrays must be of `ref` type @ " ^
           (pos_string p)))
       | _ -> ());
-    Hashtbl.add venv name (VarEntry { v_ty=lt });
+    Hashtbl.add venv name (VarEntry { v_ty=lt })
   | Assign(name,expr,p) ->
     let v = try Hashtbl.find venv name with
       | Not_found -> raise (VariableNotDefined("Variable, `" ^ name ^
                             "`, not defined @ " ^ (pos_string p))) in
     (match v with
      | VarEntry { v_ty={ ty=t; label=Some Secret } as lt } ->
-       let lt_expr = tc_expr venv lt expr in
-       ignore(unify_flows_to lt lt_expr p);
+       let expr' = tc_expr venv lt expr in
+       ignore(unify_flows_to lt expr' p)
      | VarEntry { v_ty={ ty=t; label=Some Public } as lt} ->
-       let lt_expr = tc_expr venv lt expr in
-       ignore(unify_flows_to lt lt_expr p);
+       let expr' = tc_expr venv lt expr in
+       ignore(unify_flows_to lt expr' p);
      | VarEntry { v_ty={ ty=t; label=None } as lt } ->
-       let lt_expr = tc_expr venv lt expr in
+       let expr' = tc_expr venv lt expr in
        let { ty=t; label=l } =
-        (unify_lt lt lt_expr p) in
+        (unify_lt lt expr' p) in
        ignore(update_label name venv l)
      | StaticVarEntry _ ->
          raise (TypeError("Cannot assign a static variable @ " ^ pos_string p))
@@ -273,23 +300,23 @@ and tc_stm fn_ty venv f_name = function
                                       ^ (pos_string p))))
   | ArrAssign(name,index,expr,p) ->
     let public_int = { ty=Int32; label=Some Public; kind=Val } in
-    let index_ty = tc_expr venv public_int index in
+    let index = tc_expr venv public_int index in
     (try
       (match Hashtbl.find venv name with
        | VarEntry { v_ty={ ty=(ByteArr x); label=Some Public } as lt } ->
-         let expr_ty = tc_expr venv lt expr in
-         ignore(unify_flows_to public_int expr_ty p);
-         ignore(unify_flows_to public_int index_ty p);
+         let expr' = tc_expr venv lt expr in
+         ignore(unify_flows_to public_int expr' p);
+         ignore(unify_flows_to public_int index p)
        | VarEntry { v_ty={ ty=(ByteArr x); label=Some Secret } as lt } ->
          let private_int = { ty=Int32; label=Some Secret; kind=Val } in
-         let expr_ty = tc_expr venv lt expr in
-         ignore(unify_flows_to private_int expr_ty p);
-         ignore(unify_flows_to public_int index_ty p);
+         let expr' = tc_expr venv lt expr in
+         ignore(unify_flows_to private_int expr' p);
+         ignore(unify_flows_to public_int index p)
        | VarEntry { v_ty={ ty=(ByteArr x); label=None } as lt } ->
-         let expr_ty = tc_expr venv lt expr in
+         let expr' = tc_expr venv lt expr in
          let { ty=t; label=l } =
           unify_flows_to
-            { ty=(ByteArr x); label=None; kind=Ref } expr_ty p in
+            { ty=(ByteArr x); label=None; kind=Ref } expr' p in
          ignore(update_label name venv l)
        | StaticVarEntry _ ->
          raise (TypeError("Cannot assign a static variable @ " ^ pos_string p))
@@ -309,10 +336,10 @@ and tc_stm fn_ty venv f_name = function
        seems like a nicer syntax
     *)
     let none_bool = { ty=Bool; label=None; kind=Val } in
-    let cond_lt = tc_expr venv none_bool cond in
-    ignore(unify Bool cond_lt.ty p);
+    let cond' = tc_expr venv none_bool cond in
+    ignore(unify Bool cond'.ty p);
     ignore(tc_stms fn_ty venv then' f_name);
-    ignore(tc_stms fn_ty venv else' f_name);
+    ignore(tc_stms fn_ty venv else' f_name)
   | For(name,l,h,body,p) ->
     (* TODO: Same as if statements *)
     let public_int = { ty=Int32; label=Some Public; kind=Val } in
@@ -326,16 +353,18 @@ and tc_stm fn_ty venv f_name = function
      | _ ->
        raise (TypeError ("Low and high values must be integers in for loop @ "
                          ^ (pos_string p))));
-    let _ = Hashtbl.add venv name (LoopEntry { v_ty=public_int }) in
-    tc_stms fn_ty venv body f_name
+    Hashtbl.add venv name (LoopEntry { v_ty=public_int });
+    ignore(tc_stms fn_ty venv body f_name)
   | Return(expr,p) ->
-    let exp_label = tc_expr venv fn_ty expr in
+    let expr = tc_expr venv fn_ty expr in
     let fn_ty' = (match fn_ty with
       | { ty=_; label=None } ->
-        save_fn_ret_label exp_label f_name;
-        exp_label
+        let lt = { fn_ty with label=expr.label } in
+        save_fn_ret_label lt f_name;
+        lt
       | _ -> fn_ty) in
-    ignore(unify_flows_to fn_ty' exp_label p)
+    ignore(unify fn_ty'.ty expr.ty p);
+    ignore(unify_flows_to fn_ty' expr p)
 
 and tc_stms fn_ty venv stms f_name =
   ignore(List.map (tc_stm fn_ty venv f_name) stms)
@@ -369,10 +398,10 @@ and tc_fdec venv = function
                               Hashtbl.add venv' n (create_entry (tc_arg lt));
                               lt)
                     args' in
-    let _ = tc_stms ty venv' body name in
+    ignore(tc_stms ty venv' body name);
     let lt = get_fn_ret_label ~default:ty name in
     Hashtbl.add venv name (FunEntry { f_ty=lt; f_args=args_ty });
     default_to_secret venv'
 
 and tc_module (CModule l) =
-  List.fold_left (fun a f -> ignore(tc_fdec Env.venv f)) () l
+  ignore(List.map (tc_fdec Env.venv) l)

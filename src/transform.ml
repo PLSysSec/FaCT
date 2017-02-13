@@ -27,6 +27,10 @@ and transform_type = function
   | Ast.Int32 -> Cast.Int32
   | Ast.Int16 -> Cast.Int16
   | Ast.Int8 -> Cast.Int8
+  | Ast.UInt32 -> Cast.UInt32
+  | Ast.UInt16 -> Cast.UInt16
+  | Ast.UInt8 -> Cast.UInt8
+  | Ast.Int -> raise (TransformError "Cannot transform base Int type")
   | Ast.Bool -> Cast.Int32
   | Ast.ByteArr s -> Cast.ByteArr s
 
@@ -135,11 +139,10 @@ and transform_binop = function
 and transform_fdec = function
   | Ast.FunctionDec(name,args,rt,body,_) ->
     let args' = List.map transform_arg args in
-    let rt' = transform_lt(rt) in
+    let { Cast.ty=t; Cast.kind=k } as rt' = transform_lt(rt) in
     let ctx = Context(Cast.Primitive(Cast.Number (-1))) in
     let body' = List.flatten(List.map (transform_stm ctx) body) in
-    let lt = { Cast.ty=Cast.Int32; Cast.kind=Cast.Val } in
-    let rval = Cast.VarDec("rval",lt,Cast.Primitive(Cast.Number 0)) in
-    let rset = Cast.VarDec("rset",lt,Cast.Primitive(Cast.Number 0)) in
+    let rval = Cast.VarDec("rval",rt',Cast.Primitive(Cast.Number 0)) in
+    let rset = Cast.VarDec("rset",rt',Cast.Primitive(Cast.Number 0)) in
     let body'' = [rval]@[rset]@body' in
     Cast.FunctionDec(name,args',rt',body'',Cast.VarExp("rval"))

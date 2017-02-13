@@ -26,6 +26,10 @@ and ctype =
   | Int32
   | Int16
   | Int8
+  | UInt32
+  | UInt16
+  | UInt8
+  | Int
   | Bool
   | ByteArr of int
 [@@deriving show, eq]
@@ -100,5 +104,9 @@ let ty_to_string = function
   | Int32 _ -> "Int32"
   | Int16 _ -> "Int16"
   | Int8 _ -> "Int8"
+  | UInt32 _ -> "UInt32"
+  | UInt16 _ -> "UInt16"
+  | UInt8 _ -> "UInt8"
   | Bool _ -> "Bool"
   | ByteArr _ -> "ByteArr"
+  | Int _ -> "Int"

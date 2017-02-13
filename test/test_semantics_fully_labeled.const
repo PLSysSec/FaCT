@@ -197,3 +197,15 @@ int32 complicatedAdd5(int num) {
   int8 smallSix = 1 + 5;
   return num + five;
 }
+
+uint32 add5uint32(uint32 num) {
+  return num + 5;
+}
+
+uint16 add5uint16(uint16 num) {
+  return num + 5;
+}
+
+uint32 add5uintUnify(uint16 num) {
+  return num + 5;
+}
