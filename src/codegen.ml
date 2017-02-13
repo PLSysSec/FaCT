@@ -68,16 +68,26 @@ let codegen ctx m =
 
     and allocate_args mem args =
       let allocate_arg { name; lt } =
-        let alloca = build_alloca (lt_to_llvm_ty lt) name b in
-          add_var mem name alloca
+        match lt.kind with
+          | Val
+          | Ref ->
+            let alloca = build_alloca (lt_to_llvm_ty lt) name b in
+              add_var mem name alloca
+          | Arr _ -> ()
       in
         ignore(List.map allocate_arg args)
 
     and store_args mem args param =
       match args with
-        | { name }::args' ->
-          let v = get_var mem name in
-            ignore(build_store param v b); args'
+        | { name; lt }::args' ->
+          (match lt.kind with
+            | Val
+            | Ref ->
+              let v = get_var mem name in
+                ignore(build_store param v b)
+            | Arr _ ->
+              add_var mem name param)
+        ; args'
         | _ -> raise (UnclassifiedError "store_args")
 
     and allocate_stack { venv; mem; body } =
@@ -86,9 +96,8 @@ let codegen ctx m =
           let alloca = build_alloca (llvm_ty vt.v_ty) n b in
             add_var mem n alloca
         | ArrDec(n,vt,s,_) ->
-          let alloca = build_array_alloca
-                         (llvm_ty vt.v_ty)
-                         (const_int (i32_type ctx) s)
+          let alloca = build_alloca
+                         (array_type (llvm_ty vt.v_ty) s)
                          n b in
             add_var mem n alloca
         | For(i,ty,l,h,block) ->
@@ -158,7 +167,7 @@ let codegen ctx m =
             | Val -> get_var mem n
             | Ref -> build_load (get_var mem n) n b
             | _ -> raise (UnclassifiedError("passing array as a ref")))
-      | ArrArg(n,_,_) -> build_load (get_var mem n) n b
+      | ArrArg(n,_,_) -> get_var mem n
 
     and codegen_ext venv mem ty e =
       extend_to (is_signed e.e_ty) ty @@ codegen_expr venv mem e
@@ -178,8 +187,7 @@ let codegen ctx m =
         let v = get_var mem n in
         let i' = codegen_expr venv mem i in
         (* XXX llvm treats indices as signed *)
-        let v' = build_load v n b in
-        let p = build_gep v' [| const_int (i32_type ctx) 0; i' |] "ptr" b in
+        let p = build_gep v [| const_int (i32_type ctx) 0; i' |] "ptr" b in
           build_load p (n^"_arrget") b
       | UnOp(op,e) ->
         let e' = codegen_expr venv mem e in
@@ -211,9 +219,9 @@ let codegen ctx m =
         let e' = codegen_ext venv mem vt.v_ty e in
         ignore(build_store e' v b);
       | ArrDec(n,vt,s,init) ->
-        (*let v = get_var mem n in
-        let lt = get_arr venv n in*)
-          raise NotImplemented
+        (* let v = get_var mem n in
+        let lt = get_var venv n in
+          XXX actually do init *) ()
       | Assign(n,e) ->
         let nlt = get_var venv n in
         let v = get_var mem n in
@@ -229,9 +237,8 @@ let codegen ctx m =
         let lt = get_var venv n in
         let i' = codegen_expr venv mem i in
         let e' = codegen_ext venv mem lt.ty e in
-        let v' = build_load v n b in
         (* XXX llvm treats indices as signed *)
-        let p = build_gep v' [| const_int (i32_type ctx) 0; i' |] "ptr" b in
+        let p = build_gep v [| const_int (i32_type ctx) 0; i' |] "ptr" b in
         ignore(build_store e' p b)
       | For(v,ty,l,h,s) ->
         let preheader = insertion_block b in

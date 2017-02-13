@@ -3,7 +3,7 @@ CC=gcc
 CFLAGS=-Wall -Wextra -Werror
 
 INCLUDE=-I$(UNITY_ROOT)/src
-CSRC=test_semantics.const test_array_passing.const
+CSRC=$(wildcard *.const)
 SRC=$(patsubst test_%.const,harness_%.c,$(CSRC))
 OBJ=$(patsubst %.const,%.o,$(CSRC))
 RUNNER=$(patsubst %.c,%_runner.c,$(SRC))

@@ -41,7 +41,7 @@ let to_type = function
 %token SECRET PUBLIC
 %token REF OUT
 %token RETURN
-%token EMPTY
+%token ZEROS
 %token SEMICOLON
 %token COMMA
 
@@ -138,13 +138,13 @@ arglist:
   | arg COMMA arglist { $1::$3 }
 
 arrinit:
-  | EMPTY { make_pos $startpos ZeroArray }
+  | ZEROS { make_pos $startpos ZeroArray }
 
 stmlist:
   | var_type IDENT ASSIGN expr SEMICOLON stmlist
     { (make_pos $startpos (VarDec($2,$1,$4)))::$6 }
-  | var_type IDENT LBRACK INT RBRACK ASSIGN arrinit SEMICOLON stmlist
-    { (make_pos $startpos (ArrDec($2,$1,$4,$7)))::$9 }
+  | var_type LBRACK INT RBRACK IDENT ASSIGN arrinit SEMICOLON stmlist
+    { (make_pos $startpos (ArrDec($5,$1,$3,$7)))::$9 }
   | IDENT LBRACK expr RBRACK ASSIGN expr SEMICOLON stmlist
     { (make_pos $startpos (ArrAssign($1,$3,$6)))::$8 }
   | IDENT ASSIGN expr SEMICOLON stmlist

@@ -44,7 +44,7 @@ let keywords = [
   ("secret",SECRET);
   ("ref",REF);
   ("out",OUT);
-  ("empty",EMPTY);
+  ("zeros",ZEROS);
 ]
 let _ = List.map add_keyword keywords
 }
