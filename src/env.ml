@@ -2,85 +2,108 @@ open Stdlib
 open Err
 open Ast
 
-type fentry = { f_rvt:Ast.var_type; f_args:Ast.labeled_type list }
-[@@deriving show]
+(* 'a can be Ast.labeled_type or Cast.labeled_type or LLvm.llvalue *)
+type 'a envtbl = (string,'a ref) Hashtbl.t
 
-type entry =
-  | VarEntry of Ast.labeled_type ref
-  | FunEntry of fentry
-[@@deriving show]
-
-type env = (string,entry) Hashtbl.t
-let pp_env fmt venv =
+let pp_envtbl fmt vtbl =
   let pp = Format.pp_print_text fmt in
     begin
       pp "{ ";
       Hashtbl.iter
         (fun k v -> pp (k ^ "; "))
-        venv;
+        vtbl;
       pp "}";
     end
-let equal_env venv1 venv2 = true
 
-let venv =
-  let v = Hashtbl.create 10 in
-  (*let add_fun {name=n; ret_ty=ret; args_ty=args} =
-    Hashtbl.add v n
-      (FunEntry {f_rvt=ret; f_rlbl=Unknown; f_args=args}) in
-  let _ = List.map add_fun stdlib_funs in*)
-  v
+type 'a env =
+  | TopEnv of 'a envtbl
+  | SubEnv of 'a envtbl * 'a env
 
-let add_var venv v lt =
-  if Hashtbl.mem venv v then raise (UnclassifiedError "redefining var");
-  Hashtbl.add venv v (VarEntry (ref lt))
+let pp_env fmt env =
+  let pp = Format.pp_print_text fmt in
+    begin
+      pp "{ ";
+      (match env with
+        | TopEnv vtbl -> pp_envtbl fmt vtbl
+        | SubEnv(vtbl,_) -> pp_envtbl fmt vtbl);
+      pp "}";
+    end
 
-let get_var venv v =
-  try
-    match Hashtbl.find venv v with
-      | VarEntry lt -> !lt
-      | _ -> raise @@ errFoundNotVar v
-  with
-      Not_found -> raise @@ errVarNotDefined v
+let new_env () = TopEnv (Hashtbl.create 10)
+
+let sub_env env = SubEnv (Hashtbl.create 10, env)
+
+let get_vtbl = function
+  | TopEnv vtbl -> vtbl
+  | SubEnv(vtbl,_) -> vtbl
+
+let add_var env v lt =
+  let vtbl = get_vtbl env in
+    if Hashtbl.mem vtbl v then raise (UnclassifiedError "redefining var");
+    Hashtbl.add vtbl v (ref lt)
+
+let rec find_var env =
+  let find_var' fn vtbl v =
+    try
+      Hashtbl.find vtbl v
+    with
+        Not_found -> fn v
+  in
+    match env with
+      | TopEnv vtbl ->
+        find_var' (fun v -> raise @@ errVarNotDefined v) vtbl
+      | SubEnv(vtbl,env') ->
+        find_var' (find_var env') vtbl
+
+let get_var env v =
+  let lt = find_var env v in !lt
 
 let get_arr venv v =
-  try
-    match Hashtbl.find venv v with
-      | VarEntry lt ->
-        (match !lt.kind with
-          | Arr _ -> { !lt with kind=Ref }
-          | _ -> raise @@ errFoundNotArr v)
-      | _ -> raise @@ errFoundNotVar v
-  with
-      Not_found -> raise @@ errVarNotDefined v
+  let lt = find_var venv v in
+    match !lt.kind with
+      | Arr _ -> { !lt with kind=Ref }
+      | _ -> raise @@ errFoundNotArr v
 
-let get_fn venv f =
+let update_label venv name label =
+  let lt = find_var venv name in
+    match !lt.label,label with
+      | Unknown, _ -> ignore(lt := { !lt with label=label })
+      | a, b when Ast.equal_label a b -> ()
+      | _ -> raise @@ UnclassifiedError (name ^ " already has label " ^ (show_label !lt.label) ^", cannot change to " ^ (show_label label))
+
+let fill_vtbl_public venv =
+  let vtbl = get_vtbl venv in
+    Hashtbl.iter (fun v lt ->
+                   if !lt.label = Unknown
+                   then lt := { !lt with label=Public })
+      vtbl
+
+
+
+type fentry = { f_rvt:Ast.var_type; f_args:Ast.labeled_type list }
+[@@deriving show]
+
+type fenv = (string,fentry) Hashtbl.t [@printer pp_fenv]
+[@@deriving show]
+
+let pp_fenv fmt fenv =
+  let pp = Format.pp_print_text fmt in
+    begin
+      pp "{ ";
+      Hashtbl.iter
+        (fun k v -> pp (k ^ "; "))
+        fenv;
+      pp "}";
+    end
+
+let new_fenv () = Hashtbl.create 10
+
+let has_fn = Hashtbl.mem
+
+let get_fn fenv f =
   try
-    match Hashtbl.find venv f with
-      | FunEntry fentry -> fentry
-      | _ -> raise @@ errFoundNotVar f
+    Hashtbl.find fenv f
   with
     Not_found -> raise @@ errFnNotDefined f
 
-let update_label venv name label =
-  let update_label' = function
-    | VarEntry lt ->
-      (match !lt.label,label with
-        | Unknown, _ -> ignore(lt := { !lt with label=label })
-        | a, b when a = b -> ()
-        | _ -> raise @@ UnclassifiedError (name ^ " already has label " ^ (show_label !lt.label) ^", cannot change to " ^ (show_label label)))
-    | FunEntry _ -> raise NotImplemented in
-  try
-    update_label' (Hashtbl.find venv name) with
-      Not_found -> raise NotImplemented
-
-(*let print_env env =
-  let print_env' k v =
-    match v with
-      | VarEntry { v_ty={ ty=_; label=None} } ->
-        print_string(k ^ ": None\n")
-      | VarEntry { v_ty={ ty=_; label=Some Public} } ->
-        print_string(k ^ ": Public\n")
-      | VarEntry { v_ty={ ty=_; label=Some Secret} } ->
-        print_string(k ^ ": Secret\n")
-      | _ -> () in
-    Hashtbl.iter print_env' env*)
+let add_fn = Hashtbl.add

@@ -36,9 +36,10 @@ let unify_sz e1 e2 =
       | Cast.BoolMask, _ -> t2
 
 let rec transform = function
-  | Tast.TCModule fdecs ->
-    let f = List.map transform_fdec fdecs in
-    Cast.CModule f
+  | Tast.TCModule(fenv,fdecs) ->
+    let fenv' = transform_fenv fenv in
+    let fdecs' = List.map transform_fdec fdecs in
+      Cast.CModule(fenv',fdecs')
 
 and transform_type = function
   | Ast.Int n -> Cast.Int (Z.to_int n)
@@ -70,39 +71,60 @@ and transform_init { Pos.data=init } =
   match init with
     | Ast.ZeroArray -> Cast.ZeroArray
 
-and transform_venv venv =
-  let cvenv = Hashtbl.create (Hashtbl.length venv) in
-  let transform_entry name = function
-    | Env.VarEntry { contents=lt } ->
-      let ventry = Cast.VarEntry(transform_lt lt)
-      in Hashtbl.add cvenv name ventry
-    | Env.FunEntry { Env.f_rvt; Env.f_args } ->
-      let fentry = Cast.FunEntry { Cast.f_rvt=transform_vt f_rvt;
-                                   Cast.f_args=List.map transform_lt f_args }
-      in Hashtbl.add cvenv name fentry
-  in Hashtbl.iter transform_entry venv; cvenv
+and transform_fenv fenv =
+  let fenv' = Env.new_fenv() in
+    Hashtbl.iter
+      (fun name { Env.f_rvt; Env.f_args } ->
+         let fentry = { Cast.f_rvt=transform_vt f_rvt;
+                        Cast.f_args=List.map transform_lt f_args }
+         in Env.add_fn fenv' name fentry)
+      fenv;
+    fenv'
 
-and venv_add_to venv subvenv =
-  Hashtbl.iter (fun k v ->
-                 Hashtbl.replace venv k v)
-    subvenv
+and transform_vtbl vtbl =
+  let vtbl' = Hashtbl.create 10 in
+    Hashtbl.iter
+      (fun name lt ->
+         let lt' = transform_lt !lt
+         in Hashtbl.add vtbl' name (ref lt'))
+      vtbl;
+    vtbl'
 
-and transform_stm' rty venv ctx stm =
+and transform_topvenv = function
+  | Env.TopEnv vtbl -> Env.TopEnv (transform_vtbl vtbl)
+  | _ -> raise (UnclassifiedError("can't transform non-topvenv"))
+
+and transform_subvenv venv = function
+  | Env.SubEnv(vtbl,_) -> Env.SubEnv (transform_vtbl vtbl, venv)
+  | _ -> raise (UnclassifiedError("can't transform non-topvenv"))
+
+and venv_merge_up = function
+  | Env.SubEnv(vtbl,venv) -> (* XXX need to check collisions *)
+    let vtbl' = Env.get_vtbl venv in
+      Hashtbl.iter (fun k v ->
+                     Hashtbl.replace vtbl' k v)
+        vtbl
+  | _ -> raise (UnclassifiedError("can't merge up topvenv"))
+
+and transform_stm' rty venv mem ctx stm =
   let make_expr e ty = { Cast.e=e; Cast.e_ty=ty } in
 
-  let make_block venv stms =
-    let venv' = transform_venv venv in
-      { Cast.venv=venv'; Cast.mem=Hashtbl.create 1; Cast.body=stms } in
+  let transform_block ctx b =
+    let venv' = transform_subvenv venv b.venv in
+    let mem' = Env.sub_env mem in
+    let stms' = List.flatten(List.map (transform_stm rty venv' mem' ctx) b.body) in
+      { Cast.venv=venv'; Cast.mem=mem'; Cast.body=stms' } in
 
   let get_var n =
     let lt = Env.get_var venv n in
-      make_expr (Cast.VarExp n)
-        (transform_type lt.Ast.ty) in
+      make_expr (Cast.VarExp n) lt.Cast.ty in
 
   let get_arr a i =
-    let lt = Env.get_arr venv a in
-      make_expr (Cast.ArrExp(a,i))
-        (transform_type lt.Ast.ty) in
+    let lt = Env.get_var venv a in
+      match lt.Cast.kind with
+        | Cast.Arr _ -> make_expr (Cast.ArrExp(a,i)) lt.Cast.ty
+        | _ -> raise @@ errFoundNotArr a in
+
 
   let rset = make_expr (Cast.VarExp "__rset") Cast.BoolMask in
   let b_and l r = make_expr (Cast.BinOp(Cast.BitAnd,l,r)) (unify_ty l r) in
@@ -143,19 +165,19 @@ and transform_stm' rty venv ctx stm =
     let ctx' = Context(c') in
     let vt = { Cast.v_ty=Cast.BoolMask; Cast.v_lbl=Cast.Secret } in
     let mdec = Cast.VarDec(tname,vt,b_and e' c) in
-      Env.add_var venv tname { Ast.ty=Ast.Bool; Ast.label=Ast.Secret; Ast.kind=Ast.Val };
-    let bt' = List.flatten(List.map (transform_stm rty bt.venv ctx') bt.body) in
-      venv_add_to venv bt.venv;
-    let bf' = List.flatten(List.map (transform_stm rty bf.venv ctx') bf.body) in
-      venv_add_to venv bf.venv;
+      Env.add_var venv tname (Cast.ltk vt Cast.Val);
+    let bt' = transform_block ctx' bt in
+    let bf' = transform_block ctx' bf in
+      venv_merge_up bt'.Cast.venv;
+      venv_merge_up bf'.Cast.venv;
     let mnot = Cast.Assign(tname,b_not m) in
-    [mdec] @ bt' @ [mnot] @ bf'
+    [mdec] @ bt'.Cast.body @ [mnot] @ bf'.Cast.body
   | Tast.TFor(n,t,l,h,b) ->
     let t' = transform_type t in
     let l' = transform_expr l in
     let h' = transform_expr h in
-    let b' = List.flatten(List.map (transform_stm rty b.venv ctx) b.body) in
-    [Cast.For(n,t',l',h',make_block b.venv b')]
+    let b' = transform_block ctx b in
+    [Cast.For(n,t',l',h',b')]
   | Tast.TReturn(e) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
@@ -163,7 +185,7 @@ and transform_stm' rty venv ctx stm =
     let assign_ok = b_and c (b_not rset) in
     let newval = b_and e' assign_ok in
     [Cast.Assign("__rval",(b_or rval newval)); Cast.Assign("__rset",(b_or rset c))]
-and transform_stm rty venv ctx = Pos.unpack (transform_stm' rty venv ctx)
+and transform_stm rty venv mem ctx = Pos.unpack (transform_stm' rty venv mem ctx)
 
 and transform_arg = fun { Pos.data } ->
   let transform_arg' = function
@@ -244,11 +266,12 @@ and transform_fdec { Pos.data } =
       let r0 = { Cast.e=Cast.Primitive(Cast.Number 0); Cast.e_ty=rvt'.Cast.v_ty } in
       let rval = Cast.VarDec("__rval",rvt',r0) in
       let rset = Cast.VarDec("__rset",bm_false,bm_prim_false) in
-        Env.add_var body.venv "__rval" (Ast.ltk t_rvt Ast.Val);
-        Env.add_var body.venv "__rset" { Ast.ty=Ast.Bool; Ast.label=Ast.Secret; Ast.kind=Ast.Val };
-      let body' = List.flatten(List.map (transform_stm rvt'.Cast.v_ty body.venv ctx) body.body) in
-      let venv' = transform_venv body.venv in
-      let body'' = { Cast.venv=venv'; Cast.mem=Hashtbl.create 10; Cast.body=[rval]@[rset]@body' } in
+      let venv' = transform_topvenv body.venv in
+        Env.add_var venv' "__rval" (Cast.ltk rvt' Cast.Val);
+        Env.add_var venv' "__rset" (Cast.ltk bm_false Cast.Val);
+      let mem' = Env.new_env() in
+      let body' = List.flatten(List.map (transform_stm rvt'.Cast.v_ty venv' mem' ctx) body.body) in
+      let body'' = { Cast.venv=venv'; Cast.mem=mem'; Cast.body=[rval]@[rset]@body' } in
         Cast.FunctionDec(name,args',rvt',body'',
                          { Cast.e=Cast.VarExp("__rval");
                            Cast.e_ty=rvt'.Cast.v_ty })

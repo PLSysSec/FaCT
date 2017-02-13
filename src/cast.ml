@@ -21,32 +21,21 @@ and var_type = { v_ty:ctype; v_lbl:label }
 and labeled_type = { ty:ctype; lbl:label; kind:kind }
 
 type fentry = { f_rvt:var_type; f_args:labeled_type list }
+
+type venv = labeled_type Env.env [@printer Env.pp_env]
 [@@deriving show]
 
-type entry =
-  | VarEntry of labeled_type
-  | FunEntry of fentry
+type mem = Llvm.llvalue Env.env [@printer Env.pp_env]
 [@@deriving show]
 
-type env = (string,entry) Hashtbl.t
-let pp_env fmt venv =
+type fenv = (string,fentry) Hashtbl.t
+let pp_fenv fmt fenv =
   let pp = Format.pp_print_text fmt in
     begin
       pp "{ ";
       Hashtbl.iter
         (fun k v -> pp (k ^ "; "))
-        venv;
-      pp "}";
-    end
-
-type mem = (string,Llvm.llvalue) Hashtbl.t
-let pp_mem fmt mem =
-  let pp = Format.pp_print_text fmt in
-    begin
-      pp "{ ";
-      Hashtbl.iter
-        (fun k v -> pp (k ^ "; "))
-        mem;
+        fenv;
       pp "}";
     end
 
@@ -113,7 +102,7 @@ and stm =
 (*  | XXX PublicRet of blah * blah * blah *)
 [@@deriving show]
 
-and block = { venv:env; mem:mem; body:stm list }
+and block = { venv:venv; mem:mem; body:stm list }
 [@@deriving show]
 
 and fdec = FunctionDec of string * param list * var_type * block * expr
@@ -122,39 +111,8 @@ and fdec = FunctionDec of string * param list * var_type * block * expr
 and param = { name: string; lt: labeled_type }
 [@@deriving show]
 
-and cmodule = CModule of fdec list
+and cmodule = CModule of fenv * fdec list
 [@@deriving show]
 
 let ltk vt k = { ty=vt.v_ty; lbl=vt.v_lbl; kind=k }
 let vtk lt = { v_ty=lt.ty; v_lbl=lt.lbl }
-
-let get_var venv v =
-  try
-    match Hashtbl.find venv v with
-      | VarEntry lt -> lt
-      | _ -> raise @@ errFoundNotVar v
-  with
-      Not_found -> raise @@ errVarNotDefined v
-
-let get_arr venv v =
-  try
-    match Hashtbl.find venv v with
-      | VarEntry lt ->
-        (match lt.kind with
-          | Arr _ -> { lt with kind=Ref }
-          | _ -> raise @@ errFoundNotArr v)
-      | _ -> raise @@ errFoundNotVar v
-  with
-      Not_found -> raise @@ errVarNotDefined v
-
-let get_fn venv f =
-  try
-    match Hashtbl.find venv f with
-      | FunEntry fentry -> fentry
-      | _ -> raise @@ errFoundNotVar f
-  with
-    Not_found -> raise @@ errFnNotDefined f
-
-let mem_var mem n =
-  try Hashtbl.find mem n with
-    | Not_found -> raise (VariableNotDefined ("Could not find var " ^ n ^ " in memory"))

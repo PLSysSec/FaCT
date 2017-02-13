@@ -95,9 +95,9 @@ let ty_can_flow p lhs rhs =
 (* lt -> lt -> unit *)
 let ty_can_pass p lhs rhs =
   match lhs.kind with
-    | Ref -> if not (equal_ctype lhs.ty rhs.ty) then raise @@ errPassErrorS p (show_ctype lhs.ty) (show_ctype rhs.ty)
     | Val -> ignore(ty_can_flow p lhs.ty rhs.ty)
-    | Arr _ -> raise @@ err p
+    | Ref
+    | Arr _ -> if not (equal_ctype lhs.ty rhs.ty) then raise @@ errPassErrorS p (show_ctype lhs.ty) (show_ctype rhs.ty)
 
 (* name -> unit *)
 let update_public venv p v =
@@ -175,216 +175,216 @@ let can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
           ty_can_pass p lhs rhs);
   lbl_can_pass venv lhs ptarg
 
-(* primitive -> texpr *)
-let rec tc_prim venv { pos=p; data=expr } =
-  let make_texpr prim ty lbl = { e=TPrimitive (make_ast p prim); e_ty=ty; e_lbl=lbl } in
-  match expr with
-    | Number n -> make_texpr (TNumber n) (fit_num n) Public
-    | Boolean b -> make_texpr (TBoolean b) Bool Public
+let tc_module (CModule fdecs) =
+  let fenv = Env.new_fenv() in
 
-(* arg -> targ *)
-and tc_arg venv { pos=p; data=arg } =
-  let tc_arg' = function
-    | ValArg e ->
-      let e' = tc_expr venv e in
-        TValArg e'
-    | RefArg(name) ->
-      let lt = get_var venv name in
-        TRefArg(name, vtk lt)
-    | ArrArg(name) ->
-      let lt = get_var venv name in
-        (match lt.kind with
-          | Arr sz -> TArrArg(name, vtk lt, sz)
-          | _ -> raise (UnclassifiedError("not an array")))
-  in make_ast p @@ tc_arg' arg
+  (* primitive -> texpr *)
+  let rec tc_prim venv { pos=p; data=expr } =
+    let make_texpr prim ty lbl = { e=TPrimitive (make_ast p prim); e_ty=ty; e_lbl=lbl } in
+    match expr with
+      | Number n -> make_texpr (TNumber n) (fit_num n) Public
+      | Boolean b -> make_texpr (TBoolean b) Bool Public
 
-(* expr -> texpr *)
-and tc_expr venv { pos=p; data=expr } =
-  let tc_expr' = function
-    | VarExp v ->
-      let lt = get_var venv v in
-        { e=TVarExp v; e_ty=lt.ty; e_lbl=lt.label }
-    | ArrExp(v,i) ->
+  (* arg -> targ *)
+  and tc_arg venv { pos=p; data=arg } =
+    let tc_arg' = function
+      | ValArg e ->
+        let e' = tc_expr venv e in
+          TValArg e'
+      | RefArg(name) ->
+        let lt = get_var venv name in
+          TRefArg(name, vtk lt)
+      | ArrArg(name) ->
+        let lt = get_var venv name in
+          (match lt.kind with
+            | Arr sz -> TArrArg(name, vtk lt, sz)
+            | _ -> raise (UnclassifiedError("not an array")))
+    in make_ast p @@ tc_arg' arg
+
+  (* expr -> texpr *)
+  and tc_expr venv { pos=p; data=expr } =
+    let tc_expr' = function
+      | VarExp v ->
+        let lt = get_var venv v in
+          { e=TVarExp v; e_ty=lt.ty; e_lbl=lt.label }
+      | ArrExp(v,i) ->
+        let i' = tc_expr venv i in
+        ignore(lbl_can_flow venv Public i');
+        if not (is_unsigned i'.data.e_ty) then raise @@ err p;
+        (* TODO add dynamic bounds check *)
+        let lt = get_arr venv v in
+          { e=TArrExp(v,i'); e_ty=lt.ty; e_lbl=lt.label }
+      | UnOp(op,e1) ->
+        let e1' = tc_expr venv e1 in
+        let ty' = tc_unop op e1'.data.e_ty in
+          { e=TUnOp(op,e1'); e_ty=ty'; e_lbl=e1'.data.e_lbl }
+      | BinOp(op,e1,e2) ->
+        let e1' = tc_expr venv e1 in
+        let e2' = tc_expr venv e2 in
+        let ty' = tc_binop op e1'.data.e_ty e2'.data.e_ty in
+        let lbl' = unify_label e1'.data.e_lbl e2'.data.e_lbl in
+          { e=TBinOp(op,e1',e2'); e_ty=ty'; e_lbl=lbl' }
+      | Primitive prim -> tc_prim venv prim
+      | CallExp(name,args) ->
+        let args' = List.map (tc_arg venv) args in
+        let f = get_fn fenv name in
+        let args_lty = List.map2 (can_pass venv) f.f_args args' in (* TODO infer fn param labels *)
+          { e=TCallExp(name,args'); e_ty=f.f_rvt.v_ty; e_lbl=f.f_rvt.v_lbl }
+    in make_ast p @@ tc_expr' expr
+  in
+
+
+  (* ret:vt -> ctx:label -> stm -> (tstm * add_ctx:label) *)
+  let rec tc_stm venv fn_vt lbl_ctx { pos=p; data=stm } =
+    let unify_ctx' e = { e with e_lbl=(unify_label lbl_ctx e.e_lbl) } in
+    let unify_ctx = posmap unify_ctx' in
+    match stm with
+    | VarDec(name,vt,expr) ->
+      let expr' = unify_ctx (tc_expr venv expr) in
+      let vt' = can_flow venv vt expr' in
+        (* XXX need to check if redefining variable *)
+        add_var venv name (ltk vt' Val);
+        TVarDec(name,vt',expr'), Public
+    | ArrDec(name,vt,size,init) ->
+      if not (is_int vt.v_ty) then raise @@ err p;
+      add_var venv name (ltk vt (Arr size));
+      TArrDec(name,vt,size,init), Public
+    | Assign(name,expr) ->
+      let expr' = unify_ctx (tc_expr venv expr) in
+      let lt = get_var venv name in
+        let vt' = can_flow venv (vtk lt) expr' in
+          update_label venv name vt'.v_lbl;
+          TAssign(name,expr'), Public
+    | ArrAssign(name,i,expr) ->
       let i' = tc_expr venv i in
-      ignore(lbl_can_flow venv Public i');
       if not (is_unsigned i'.data.e_ty) then raise @@ err p;
       (* TODO add dynamic bounds check *)
-      let lt = get_arr venv v in
-        { e=TArrExp(v,i'); e_ty=lt.ty; e_lbl=lt.label }
-    | UnOp(op,e1) ->
-      let e1' = tc_expr venv e1 in
-      let ty' = tc_unop op e1'.data.e_ty in
-        { e=TUnOp(op,e1'); e_ty=ty'; e_lbl=e1'.data.e_lbl }
-    | BinOp(op,e1,e2) ->
-      let e1' = tc_expr venv e1 in
-      let e2' = tc_expr venv e2 in
-      let ty' = tc_binop op e1'.data.e_ty e2'.data.e_ty in
-      let lbl' = unify_label e1'.data.e_lbl e2'.data.e_lbl in
-        { e=TBinOp(op,e1',e2'); e_ty=ty'; e_lbl=lbl' }
-    | Primitive prim -> tc_prim venv prim
-    | CallExp(name,args) ->
-      let args' = List.map (tc_arg venv) args in
-      let f = get_fn venv name in
-      let args_lty = List.map2 (can_pass venv) f.f_args args' in (* TODO infer fn param labels *)
-        { e=TCallExp(name,args'); e_ty=f.f_rvt.v_ty; e_lbl=f.f_rvt.v_lbl }
-  in make_ast p @@ tc_expr' expr
+      let expr' = unify_ctx (tc_expr venv expr) in
+      let lt = get_arr venv name in
+      let vt = can_flow venv (vtk lt) expr' in
+        update_label venv name vt.v_lbl;
+        TArrAssign(name,i',expr'), Public
+    | If(cond,tstms,fstms) ->
+      (* TODO: implement 2 if statements in the core language:
+         a constant if and non constant if. *)
+      let cond' = tc_expr venv cond in
+      if not (is_bool cond'.data.e_ty) then raise @@ err p;
+      let lbl_ctx' = unify_label lbl_ctx cond'.data.e_lbl in
+      let tstms',ctx_t = tc_block (Env.sub_env venv) fn_vt lbl_ctx' tstms in
+      let fstms',ctx_f = tc_block (Env.sub_env venv) fn_vt lbl_ctx' fstms in
+        TIf(cond',tstms',fstms'), (unify_label ctx_t ctx_f)
+    | For(name,ty,l,h,body) ->
+      if not (is_int ty) then raise @@ err p;
+      let l' = tc_expr venv l in
+      let h' = tc_expr venv h in
+      let vt = { v_ty=ty; v_lbl=Public } in
+      ignore(can_flow venv vt l');
+      ignore(can_flow venv vt h');
+      let venv' = Env.sub_env venv in
+        add_var venv' name { ty=ty; label=Public; kind=Val };
+        let body',_ = tc_block venv' fn_vt lbl_ctx body in
+          TFor(name,ty,l',h',body'), Public
+    | Return expr ->
+      let expr' = unify_ctx (tc_expr venv expr) in
+      let fn_vt' = can_flow venv fn_vt expr' in
+        TReturn expr', lbl_ctx
 
-(* block -> block *)
-let rec set_missing_labels_to_public block =
-  let rec fill_stms { venv; body=stms } =
-    let fill_stm { data=stm } =
-      match stm with
-        | TIf(e,s1,s2) ->
-          fill_stms s1;
-          fill_stms s2
-        | TFor(_,_,l,h,s) ->
-          fill_stms s
-        | _ -> ()
-    in
-      ignore(List.map fill_stm stms);
-      Hashtbl.iter (fun v entry ->
-                     (match entry with
-                       | VarEntry lt ->
-                         if !lt.label = Unknown
-                         then lt := { !lt with label=Public }
-                       | _ -> ()))
-        venv
+  (* ret:vt -> ctx:label -> stm list -> (tstm list * ctx:label) *)
+  and tc_block venv fn_vt lbl_ctx stms =
+    let stms',lbl = tc_stms venv fn_vt lbl_ctx stms in
+      { venv=venv; body=stms' }, lbl
 
-  and tc_tblock ({ venv; body=stms } as block) =
-    let rec tc_texpr { pos=p; data=texpr } =
-      let tc_texpr' = function
-        | TVarExp v ->
-          let lt = get_var venv v in
-            { texpr with e_lbl=lt.label }
-        | TArrExp(v,i) ->
-          let i' = tc_texpr i in
-          let lt = get_arr venv v in
-            { texpr with e=TArrExp(v,i'); e_lbl=lt.label }
-        | TUnOp(op,e1) ->
-          let e1' = tc_texpr e1 in
-            { texpr with e=TUnOp(op,e1'); e_lbl=e1'.data.e_lbl }
-        | TBinOp(op,e1,e2) ->
-          let e1' = tc_texpr e1 in
-          let e2' = tc_texpr e2 in
-          let lbl' = unify_label e1'.data.e_lbl e2'.data.e_lbl in
-            { texpr with e=TBinOp(op,e1',e2'); e_lbl=lbl' }
-        | TPrimitive prim -> texpr
-        | TCallExp(name,args) ->
-          let args' = List.map tc_targ args in
-          let f = get_fn venv name in
-            { texpr with e=TCallExp(name,args'); e_lbl=f.f_rvt.v_lbl }
-      in make_ast p @@ tc_texpr' texpr.e
-    and tc_targ { pos=p; data=arg } =
-      let tc_targ' = function
-        | TValArg e -> TValArg(tc_texpr e)
-        | TRefArg(n,vt) -> TRefArg(n,vtk @@ get_var venv n)
-        | TArrArg(n,vt,sz) -> TArrArg(n,vtk @@ get_var venv n,sz)
-      in make_ast p @@ tc_targ' arg
-    and tc_tstms stms =
-      List.map (fun { pos=p; data=stm } ->
-                 let stm' =
-                   (match stm with
-                     | TVarDec(v,vt,e) -> TVarDec(v,vtk (get_var venv v),tc_texpr e)
-                     | TArrDec (v,vt,s,init) -> TArrDec(v,vtk (get_var venv v),s,init)
-                     | TAssign(v,e) -> TAssign(v,tc_texpr e)
-                     | TArrAssign(v,i,e) -> TArrAssign(v,tc_texpr i,tc_texpr e)
-                     | TIf(e,bt,bf) -> TIf(tc_texpr e,tc_tblock bt,tc_tblock bf)
-                     | TFor(v,vt,l,h,b) -> TFor(v,vt,tc_texpr l,tc_texpr h,tc_tblock b)
-                     | TReturn e -> TReturn(tc_texpr e))
-                 in make_ast p @@ stm')
-        stms
-    in { block with body=tc_tstms stms }
+  (* ret:vt -> ctx:label -> stm list -> (tstm list * ctx:label) *)
+  and tc_stms venv fn_vt lbl_ctx = function
+    | [] -> [], lbl_ctx
+    | stm::stms ->
+      let stm',lbl_ctx' = tc_stm venv fn_vt lbl_ctx stm in
+      let stm' = { pos=stm.pos; data=stm' } in
+      let lbl_ctx' = unify_label lbl_ctx lbl_ctx' in
+      let stms',_ = tc_stms venv fn_vt lbl_ctx' stms in
+        stm'::stms', lbl_ctx'
   in
-    fill_stms block;
-    tc_tblock block
 
-(* ret:vt -> ctx:label -> stm -> (tstm * add_ctx:label) *)
-let rec tc_stm venv fn_vt lbl_ctx { pos=p; data=stm } =
-  let unify_ctx' e = { e with e_lbl=(unify_label lbl_ctx e.e_lbl) } in
-  let unify_ctx = posmap unify_ctx' in
-  match stm with
-  | VarDec(name,vt,expr) ->
-    let expr' = unify_ctx (tc_expr venv expr) in
-    let vt' = can_flow venv vt expr' in
-      (* XXX need to check if redefining variable *)
-      add_var venv name (ltk vt' Val);
-      TVarDec(name,vt',expr'), Public
-  | ArrDec(name,vt,size,init) ->
-    if not (is_int vt.v_ty) then raise @@ err p;
-    add_var venv name (ltk vt (Arr size));
-    TArrDec(name,vt,size,init), Public
-  | Assign(name,expr) ->
-    let expr' = unify_ctx (tc_expr venv expr) in
-    let lt = get_var venv name in
-      let vt' = can_flow venv (vtk lt) expr' in
-        update_label venv name vt'.v_lbl;
-        TAssign(name,expr'), Public
-  | ArrAssign(name,i,expr) ->
-    let i' = tc_expr venv i in
-    if not (is_unsigned i'.data.e_ty) then raise @@ err p;
-    (* TODO add dynamic bounds check *)
-    let expr' = unify_ctx (tc_expr venv expr) in
-    let lt = get_arr venv name in
-    let vt = can_flow venv (vtk lt) expr' in
-      update_label venv name vt.v_lbl;
-      TArrAssign(name,i',expr'), Public
-  | If(cond,tstms,fstms) ->
-    (* TODO: implement 2 if statements in the core language:
-       a constant if and non constant if. *)
-    let cond' = tc_expr venv cond in
-    if not (is_bool cond'.data.e_ty) then raise @@ err p;
-    let lbl_ctx' = unify_label lbl_ctx cond'.data.e_lbl in
-    let tstms',ctx_t = tc_block (Hashtbl.copy venv) fn_vt lbl_ctx' tstms in
-    let fstms',ctx_f = tc_block (Hashtbl.copy venv) fn_vt lbl_ctx' fstms in
-      TIf(cond',tstms',fstms'), (unify_label ctx_t ctx_f)
-  | For(name,ty,l,h,body) ->
-    if not (is_int ty) then raise @@ err p;
-    let l' = tc_expr venv l in
-    let h' = tc_expr venv h in
-    let vt = { v_ty=ty; v_lbl=Public } in
-    ignore(can_flow venv vt l');
-    ignore(can_flow venv vt h');
-    let venv' = Hashtbl.copy venv in
-      add_var venv' name { ty=ty; label=Public; kind=Val };
-      let body',_ = tc_block venv' fn_vt lbl_ctx body in
-        TFor(name,ty,l',h',body'), Public
-  | Return expr ->
-    let expr' = unify_ctx (tc_expr venv expr) in
-    let fn_vt' = can_flow venv fn_vt expr' in
-      TReturn expr', lbl_ctx
+  (* block -> block *)
+  let rec set_missing_labels_to_public block =
+    let rec fill_stms { venv; body=stms } =
+      let fill_stm { data=stm } =
+        match stm with
+          | TIf(e,s1,s2) ->
+            fill_stms s1;
+            fill_stms s2
+          | TFor(_,_,l,h,s) ->
+            fill_stms s
+          | _ -> ()
+      in
+        ignore(List.map fill_stm stms);
+        Env.fill_vtbl_public venv
 
-(* ret:vt -> ctx:label -> stm list -> (tstm list * ctx:label) *)
-and tc_block venv fn_vt lbl_ctx stms =
-  let stms',lbl = tc_stms venv fn_vt lbl_ctx stms in
-    { venv=venv; body=stms' }, lbl
+    and tc_tblock ({ venv; body=stms } as block) =
+      let rec tc_texpr { pos=p; data=texpr } =
+        let tc_texpr' = function
+          | TVarExp v ->
+            let lt = get_var venv v in
+              { texpr with e_lbl=lt.label }
+          | TArrExp(v,i) ->
+            let i' = tc_texpr i in
+            let lt = get_arr venv v in
+              { texpr with e=TArrExp(v,i'); e_lbl=lt.label }
+          | TUnOp(op,e1) ->
+            let e1' = tc_texpr e1 in
+              { texpr with e=TUnOp(op,e1'); e_lbl=e1'.data.e_lbl }
+          | TBinOp(op,e1,e2) ->
+            let e1' = tc_texpr e1 in
+            let e2' = tc_texpr e2 in
+            let lbl' = unify_label e1'.data.e_lbl e2'.data.e_lbl in
+              { texpr with e=TBinOp(op,e1',e2'); e_lbl=lbl' }
+          | TPrimitive prim -> texpr
+          | TCallExp(name,args) ->
+            let args' = List.map tc_targ args in
+            let f = get_fn fenv name in
+              { texpr with e=TCallExp(name,args'); e_lbl=f.f_rvt.v_lbl }
+        in make_ast p @@ tc_texpr' texpr.e
+      and tc_targ { pos=p; data=arg } =
+        let tc_targ' = function
+          | TValArg e -> TValArg(tc_texpr e)
+          | TRefArg(n,vt) -> TRefArg(n,vtk @@ get_var venv n)
+          | TArrArg(n,vt,sz) -> TArrArg(n,vtk @@ get_var venv n,sz)
+        in make_ast p @@ tc_targ' arg
+      and tc_tstms stms =
+        List.map (fun { pos=p; data=stm } ->
+                   let stm' =
+                     (match stm with
+                       | TVarDec(v,vt,e) -> TVarDec(v,vtk (get_var venv v),tc_texpr e)
+                       | TArrDec (v,vt,s,init) -> TArrDec(v,vtk (get_var venv v),s,init)
+                       | TAssign(v,e) -> TAssign(v,tc_texpr e)
+                       | TArrAssign(v,i,e) -> TArrAssign(v,tc_texpr i,tc_texpr e)
+                       | TIf(e,bt,bf) -> TIf(tc_texpr e,tc_tblock bt,tc_tblock bf)
+                       | TFor(v,vt,l,h,b) -> TFor(v,vt,tc_texpr l,tc_texpr h,tc_tblock b)
+                       | TReturn e -> TReturn(tc_texpr e))
+                   in make_ast p @@ stm')
+          stms
+      in { block with body=tc_tstms stms }
+    in
+      fill_stms block;
+      tc_tblock block
+  in
 
-(* ret:vt -> ctx:label -> stm list -> (tstm list * ctx:label) *)
-and tc_stms venv fn_vt lbl_ctx = function
-  | [] -> [], lbl_ctx
-  | stm::stms ->
-    let stm',lbl_ctx' = tc_stm venv fn_vt lbl_ctx stm in
-    let stm' = { pos=stm.pos; data=stm' } in
-    let lbl_ctx' = unify_label lbl_ctx lbl_ctx' in
-    let stms',_ = tc_stms venv fn_vt lbl_ctx' stms in
-      stm'::stms', lbl_ctx'
-
-let tc_fdec venv { pos=p; data=fdec } =
-  let venv' = Hashtbl.copy venv in
-  (* XXX eventually we will have proper label inference for parameters
-     * but for now we just assume public *)
-  let params' = List.map (fun ({ data=({ name=n; lt=lt } as arg) } as parg) ->
-                           let lt' = if lt.label = Unknown then { lt with label=Public } else lt in
-                             add_var venv' n lt';
-                             { parg with data={ arg with lt=lt' } })
-                  fdec.params in
-    (* XXX eventually we will have proper label inference for functions
-     * but for now we just assume secret *)
-    let rvt' = if fdec.rvt.v_lbl = Unknown then { fdec.rvt with v_lbl=Secret } else fdec.rvt in
-    let body',_ = tc_block venv' rvt' Public fdec.body in
-    let body' = set_missing_labels_to_public body' in
-    let fdec' = { t_name=fdec.name; t_params=params'; t_rvt=rvt'; t_body=body' } in
-    let fdec' = { pos=p; data=fdec' } in
-      update_fn venv fdec'; fdec'
-
-let tc_module (CModule l) =
-  TCModule (List.map (tc_fdec Env.venv) l)
+  let tc_fdec { pos=p; data=fdec } =
+    let venv = new_env() in
+    (* XXX eventually we will have proper label inference for parameters
+       * but for now we just assume public *)
+    let params' = List.map (fun ({ data=({ name=n; lt=lt } as arg) } as parg) ->
+                             let lt' = if lt.label = Unknown then { lt with label=Public } else lt in
+                               add_var venv n lt';
+                               { parg with data={ arg with lt=lt' } })
+                    fdec.params in
+      (* XXX eventually we will have proper label inference for functions
+       * but for now we just assume secret *)
+      let rvt' = if fdec.rvt.v_lbl = Unknown then { fdec.rvt with v_lbl=Secret } else fdec.rvt in
+      let body',_ = tc_block venv rvt' Public fdec.body in
+      let body' = set_missing_labels_to_public body' in
+      let fdec' = { t_name=fdec.name; t_params=params'; t_rvt=rvt'; t_body=body' } in
+      let fdec' = { pos=p; data=fdec' } in
+        Tast.update_fn fenv fdec'; fdec'
+  in
+    TCModule(fenv, List.map tc_fdec fdecs)

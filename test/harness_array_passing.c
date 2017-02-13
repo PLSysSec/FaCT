@@ -7,7 +7,7 @@ int32_t passAlong(uint8_t arr[4]);
 
 void test_mutatearray() {
   uint8_t arr[4] = {2, 3, 4, 5};
-  mutateArary(arr);
+  mutateArray(arr);
   TEST_ASSERT_EQUAL(22, arr[0]);
   TEST_ASSERT_EQUAL(22, arr[1]);
   TEST_ASSERT_EQUAL(22, arr[2]);

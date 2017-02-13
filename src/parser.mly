@@ -128,7 +128,7 @@ arg:
     { make_pos $startpos (ValArg $1) }
   | REF IDENT
     { make_pos $startpos (RefArg($2)) }
-  | IDENT RBRACK LBRACK
+  | IDENT LBRACK RBRACK
     { make_pos $startpos (ArrArg($1)) }
     (* TODO: array slicing *)
 
