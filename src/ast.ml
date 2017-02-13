@@ -1,7 +1,8 @@
 open Pos
 
-type bigint = Z.t [@@deriving eq]
+type bigint = Z.t [@printer pp_bigint][@@deriving show]
 let pp_bigint = Z.pp_print
+let equal_bigint = Z.equal
 
 type constantc_module = CModule of fdec list
 [@@deriving show, eq]
@@ -67,8 +68,8 @@ and expr = expr' pos_ast [@@deriving show, eq]
 
 and arg' =
   | ValArg of expr
-  | VarArg of kind * string (* when parsing, kind is Val only if explicitly given; it parses as a ValArg of VarExp if not *)
-  | ArrArg of kind * string (* TODO should allow slicing *)
+  | RefArg of string (* when parsing, kind is Val only if explicitly given; it parses as a ValArg of VarExp if not *)
+  | ArrArg of string (* TODO should allow slicing *)
 [@@deriving show, eq]
 and arg = arg' pos_ast [@@deriving show, eq]
 
@@ -100,7 +101,7 @@ and binop' =
 and binop = binop' pos_ast [@@deriving show, eq]
 
 and primitive' =
-  | Number of Z.t [@printer Z.pp_print]
+  | Number of bigint
   | Boolean of bool
 [@@deriving eq]
 and primitive = primitive' pos_ast [@@deriving show, eq]
@@ -110,5 +111,5 @@ let vtk lt = { v_ty=lt.ty; v_lbl=lt.label }
 
 let rec ty_to_string = function
   | Bool -> "bool"
-  | Int size -> "int" ^ Z.to_string size
-  | UInt size -> "uint" ^ Z.to_string size
+  | Int size -> "int" ^ show_bigint size
+  | UInt size -> "uint" ^ show_bigint size

@@ -39,8 +39,8 @@ and texpr_base =
 
 and targ' =
   | TValArg of texpr
-  | TVarArg of string * labeled_type
-  | TArrArg of string * labeled_type
+  | TRefArg of string * var_type
+  | TArrArg of string * var_type * bigint
 [@@deriving show, eq]
 and targ = targ' pos_ast [@@deriving show, eq]
 

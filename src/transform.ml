@@ -16,7 +16,7 @@ let new_temp_var =
 let unify_ty e1 e2 =
   let t1,t2 = e1.Cast.e_ty,e2.Cast.e_ty in
     match t1,t2 with
-      | _ when t1 = t2 -> t1
+      | _ when Cast.equal_ctype t1 t2 -> t1
       | Cast.Int a, Cast.Int b -> Cast.Int (max a b)
       | Cast.UInt a, Cast.UInt b -> Cast.UInt (max a b)
       | Cast.Int a, Cast.UInt b -> Cast.Int (max a (2*b))
@@ -27,7 +27,7 @@ let unify_ty e1 e2 =
 let unify_sz e1 e2 =
   let t1,t2 = e1.Cast.e_ty,e2.Cast.e_ty in
     match t1,t2 with
-      | _ when t1 = t2 -> t1
+      | _ when Cast.equal_ctype t1 t2 -> t1
       | Cast.Int a, Cast.Int b -> Cast.Int (max a b)
       | Cast.UInt a, Cast.UInt b -> Cast.UInt (max a b)
       | Cast.Int a, Cast.UInt b -> Cast.Int (max a b)
@@ -44,16 +44,6 @@ and transform_type = function
   | Ast.Int n -> Cast.Int (Z.to_int n)
   | Ast.UInt n -> Cast.UInt (Z.to_int n)
   | Ast.Bool -> Cast.BoolMask
-
-(*and transform_type = function
-  | Ast.Int n when n <= Z.(~$8) -> Cast.Int 8
-  | Ast.Int n when n <= Z.(~$16) -> Cast.Int 16
-  | Ast.Int n when n <= Z.(~$32) -> Cast.Int 32
-  | Ast.UInt n when n <= Z.(~$8) -> Cast.UInt 8
-  | Ast.UInt n when n <= Z.(~$16) -> Cast.UInt 16
-  | Ast.UInt n when n <= Z.(~$32) -> Cast.UInt 32
-  | Ast.Bool -> Cast.BoolMask
-  | _ as ty -> raise @@ TransformError ("Encountered bad type " ^ (Ast.show_ctype ty))*)
 
 and transform_label = function
   | Ast.Public -> Cast.Public
@@ -178,8 +168,8 @@ and transform_stm rty venv ctx = Pos.unpack (transform_stm' rty venv ctx)
 and transform_arg = fun { Pos.data } ->
   let transform_arg' = function
     | Tast.TValArg e -> Cast.ValArg (transform_expr e)
-    | Tast.TVarArg(n,lt) -> Cast.VarArg(n,transform_lt lt)
-    | Tast.TArrArg(n,lt) -> Cast.ArrArg(n,transform_lt lt)
+    | Tast.TRefArg(n,vt) -> Cast.RefArg(n,transform_vt vt)
+    | Tast.TArrArg(n,vt,sz) -> Cast.ArrArg(n,transform_vt vt,Z.to_int sz)
   in
     transform_arg' data
 

@@ -25,7 +25,7 @@ let fit_num n =
 (* ctype -> ctype -> ctype *)
 let unify_ty t1 t2 =
   match (t1,t2) with
-    | _ when t1 = t2 -> t1
+    | _ when equal_ctype t1 t2 -> t1
     | (Int a, Int b) -> Int Z.(max a b)
     | (UInt a, UInt b) -> UInt Z.(max a b)
     | (Int a, UInt b) -> Int Z.(max a (~$2 * b))
@@ -35,7 +35,7 @@ let unify_ty t1 t2 =
 (* ctype -> ctype -> ctype *)
 let unify_sz t1 t2 =
   match (t1,t2) with
-    | _ when t1 = t2 -> t1
+    | _ when equal_ctype t1 t2 -> t1
     | (Int a, Int b) -> Int Z.(max a b)
     | (UInt a, UInt b) -> UInt Z.(max a b)
     | (Int a, UInt b) -> Int Z.(max a b)
@@ -86,16 +86,16 @@ let tc_binop { pos=p; data=op } lhs rhs =
 (* ctype -> ctype -> unit *)
 let ty_can_flow p lhs rhs =
   match lhs, rhs with
-    | a, b when a = b -> ()
-    | Int a, Int b when a > b -> ()
-    | UInt a, UInt b when a > b -> ()
-    | Int a, UInt b when a > Z.(~$2 * b) -> ()
+    | a, b when equal_ctype a b -> ()
+    | Int a, Int b when Z.gt a b -> ()
+    | UInt a, UInt b when Z.gt a b -> ()
+    | Int a, UInt b when Z.(gt a (~$2 * b)) -> ()
     | _ -> raise @@ errPassError p
 
-(* ctype -> ctype -> unit *)
+(* lt -> lt -> unit *)
 let ty_can_pass p lhs rhs =
   match lhs.kind with
-    | Ref -> if lhs != rhs then raise @@ errPassError p
+    | Ref -> if not (equal_ctype lhs.ty rhs.ty) then raise @@ errPassErrorS p (show_ctype lhs.ty) (show_ctype rhs.ty)
     | Val -> ignore(ty_can_flow p lhs.ty rhs.ty)
     | Arr _ -> raise @@ err p
 
@@ -108,8 +108,8 @@ let update_public venv p v =
 let rec fill_arg venv { pos=p; data=targ } =
   match targ with
     | TValArg texpr -> fill_public venv texpr
-    | TVarArg(name,_)
-    | TArrArg(name,_) -> update_public venv p name
+    | TRefArg(name,_)
+    | TArrArg(name,_,_) -> update_public venv p name
 
 (* texpr -> unit *)
 and fill_public venv { pos=p; data=te } =
@@ -137,8 +137,8 @@ let lbl_can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
   let rhs =
     match targ with
       | TValArg te -> { ty=te.data.e_ty; label=te.data.e_lbl; kind=Val }
-      | TVarArg(name,lt) -> lt
-      | _ -> raise NotImplemented
+      | TRefArg(name,vt) -> ltk vt Ref
+      | TArrArg(name,vt,sz) -> ltk vt (Arr sz)
   in
   match lhs, rhs with
     | { label=Public }, { label=Secret } -> raise @@ errPassError p
@@ -156,20 +156,21 @@ let can_flow venv vt ({ pos=p; data=texpr } as ptexpr) =
 
 (* kind -> kind -> unit *)
 let kind_can_pass p lhs rhs =
-  if lhs != rhs then raise @@ errPassError p
+  if not (equal_kind lhs rhs) then raise @@ errPassError p
 
 (* labeled_type -> targ -> labeled_type *)
 let can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
   ignore(
     match targ with
       | TValArg te ->
+        kind_can_pass p lhs.kind Val;
         ty_can_flow p lhs.ty te.data.e_ty
-      | TVarArg(name,kind) ->
-        let rhs = get_var venv name in
+      | TRefArg(name,vt) ->
+        let rhs = ltk vt Ref in
           kind_can_pass p lhs.kind rhs.kind;
           ty_can_pass p lhs rhs
-      | TArrArg(name,kind) ->
-        let rhs = get_var venv name in
+      | TArrArg(name,vt,sz) ->
+        let rhs = ltk vt (Arr sz) in
           kind_can_pass p lhs.kind rhs.kind;
           ty_can_pass p lhs rhs);
   lbl_can_pass venv lhs ptarg
@@ -187,10 +188,14 @@ and tc_arg venv { pos=p; data=arg } =
     | ValArg e ->
       let e' = tc_expr venv e in
         TValArg e'
-    | VarArg(kind,name) ->
+    | RefArg(name) ->
       let lt = get_var venv name in
-        TVarArg(name, { lt with kind=kind })
-    | _ -> raise NotImplemented
+        TRefArg(name, vtk lt)
+    | ArrArg(name) ->
+      let lt = get_var venv name in
+        (match lt.kind with
+          | Arr sz -> TArrArg(name, vtk lt, sz)
+          | _ -> raise (UnclassifiedError("not an array")))
   in make_ast p @@ tc_arg' arg
 
 (* expr -> texpr *)
@@ -220,7 +225,7 @@ and tc_expr venv { pos=p; data=expr } =
     | CallExp(name,args) ->
       let args' = List.map (tc_arg venv) args in
       let f = get_fn venv name in
-        ignore(List.map2 (can_pass venv) f.f_args args'); (* TODO infer fn param labels *)
+      let args_lty = List.map2 (can_pass venv) f.f_args args' in (* TODO infer fn param labels *)
         { e=TCallExp(name,args'); e_ty=f.f_rvt.v_ty; e_lbl=f.f_rvt.v_lbl }
   in make_ast p @@ tc_expr' expr
 
@@ -272,8 +277,8 @@ let rec set_missing_labels_to_public block =
     and tc_targ { pos=p; data=arg } =
       let tc_targ' = function
         | TValArg e -> TValArg(tc_texpr e)
-        | TVarArg(n,lt) -> TVarArg(n,get_var venv n)
-        | TArrArg(n,lt) -> TArrArg(n,get_var venv n)
+        | TRefArg(n,vt) -> TRefArg(n,vtk @@ get_var venv n)
+        | TArrArg(n,vt,sz) -> TArrArg(n,vtk @@ get_var venv n,sz)
       in make_ast p @@ tc_targ' arg
     and tc_tstms stms =
       List.map (fun { pos=p; data=stm } ->

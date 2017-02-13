@@ -6,5 +6,5 @@ int32 mutateArray(uint8[4] arr) {
 }
 
 int32 passAlong(uint8[4] arr) {
-  return mutateArray(arr);
+  return mutateArray(arr[]);
 }

@@ -27,7 +27,7 @@ let codegen ctx m =
       match lt.kind with
         | Val -> itype
         | Ref -> pointer_type itype
-        | Arr s -> pointer_type(array_type itype s) (* TODO is pointer_type necessary here? *)
+        | Arr s -> pointer_type(array_type itype s)
   in
 
   let extend_to signed ty v =
@@ -45,6 +45,7 @@ let codegen ctx m =
 
   and codegen_fdec = function
     | FunctionDec(n,args,vt,body,ret) ->
+      print_endline @@ "FDEC " ^ n;
       let arg_to_type { lt } = lt_to_llvm_ty lt in
       let arg_types = List.map arg_to_type args in
       let arg_types' = Array.of_list arg_types in
@@ -153,21 +154,13 @@ let codegen ctx m =
 
   and codegen_arg venv mem param = function
     | ValArg e -> codegen_ext venv mem param.ty e
-    | VarArg(n,lt) ->
+    | RefArg(n,_) ->
       let nlt = get_var venv n in
-      (match nlt.kind,lt.kind with
-        | Val,Val ->
-          let var = build_load (mem_var mem n) n b in
-            extend_to (is_signed nlt.ty) lt.ty var
-        | Ref,Val ->
-          let var = build_load (mem_var mem n) n b in
-          let deref = build_load var n b in
-            extend_to (is_signed nlt.ty) lt.ty deref
-        | Val,Ref -> mem_var mem n
-        | Ref,Ref -> build_load (mem_var mem n) n b
-        | _ -> raise NotImplemented
-      )
-    | ArrArg(n,lt) -> raise NotImplemented
+        (match nlt.kind with
+          | Val -> mem_var mem n
+          | Ref -> build_load (mem_var mem n) n b
+          | _ -> raise (UnclassifiedError("passing array as a ref")))
+    | ArrArg(n,_,_) -> build_load (mem_var mem n) n b
 
   and codegen_ext venv mem ty e =
     extend_to (is_signed e.e_ty) ty @@ codegen_expr venv mem e
@@ -175,8 +168,18 @@ let codegen ctx m =
   and codegen_expr venv mem { e; e_ty=ty } =
     match e with
     | VarExp n ->
+      Hashtbl.iter (fun k v -> print_endline k) venv;
+      print_endline "--";
+      Hashtbl.iter (fun k v -> print_endline k) mem;
+      print_endline "-----------------------";
+      let nlt = get_var venv n in
       let v = mem_var mem n in
-        build_load v n b
+        (match nlt.kind with
+          | Val -> build_load v n b
+          | Ref ->
+            let var = build_load v n b in
+              build_load var n b
+          | _ -> raise (UnclassifiedError("cannot use this variable as an expression")))
     | ArrExp(n,i) ->
       let v = mem_var mem n in
       let i' = codegen_expr venv mem i in
@@ -218,10 +221,15 @@ let codegen ctx m =
       let lt = get_arr venv n in*)
         raise NotImplemented
     | Assign(n,e) ->
+      let nlt = get_var venv n in
       let v = mem_var mem n in
-      let lt = get_var venv n in
-      let e' = codegen_ext venv mem lt.ty e in
-      ignore(build_store e' v b)
+      let e' = codegen_ext venv mem nlt.ty e in
+        (match nlt.kind with
+          | Val -> ignore(build_store e' v b)
+          | Ref ->
+            let var = build_load v n b in
+              ignore(build_store e' var b)
+          | _ -> raise (UnclassifiedError("cannot use this variable for direct assignment")))
     | ArrAssign(n,i,e) ->
       let v = mem_var mem n in
       let lt = get_arr venv n in

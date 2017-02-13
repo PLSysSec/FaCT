@@ -4,7 +4,7 @@ type ctype =
   | Int of int
   | UInt of int
   | BoolMask
-[@@deriving show]
+[@@deriving show, eq]
 
 and label =
   | Public
@@ -95,8 +95,8 @@ and expr_base =
 
 and arg =
   | ValArg of expr
-  | VarArg of string * labeled_type
-  | ArrArg of string * labeled_type
+  | RefArg of string * var_type
+  | ArrArg of string * var_type * int
 [@@deriving show]
 
 and arrinit =

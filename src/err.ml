@@ -22,6 +22,8 @@ let errFlowError p =
   TypeError("Invalid type flow" << p)
 let errPassError p =
   TypeError("Cannot call function with this type" << p)
+let errPassErrorS p sty1 sty2 =
+  TypeError("Cannot call function with these types: "^sty1^", "^sty2 << p)
 
 let errVarNotDefined v =
   VariableNotDefined("Variable `" ^ v ^ "` not defined")
