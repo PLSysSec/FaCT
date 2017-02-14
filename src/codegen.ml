@@ -186,9 +186,8 @@ let codegen ctx m =
       | ArrExp(n,i) ->
         let v = get_var mem n in
         let i' = codegen_expr venv mem i in
-        (* XXX llvm treats indices as signed *)
         let p = build_gep v [| const_int (i32_type ctx) 0; i' |] "ptr" b in
-          build_load p (n^"_arrget") b
+          build_load p (n ^ "_arrget") b
       | UnOp(op,e) ->
         let e' = codegen_expr venv mem e in
           codegen_unop op e'
@@ -218,10 +217,7 @@ let codegen ctx m =
         let v = get_var mem n in
         let e' = codegen_ext venv mem vt.v_ty e in
         ignore(build_store e' v b);
-      | ArrDec(n,vt,s,init) ->
-        (* let v = get_var mem n in
-        let lt = get_var venv n in
-          XXX actually do init *) ()
+      | ArrDec(n,vt,s,init) -> ()
       | Assign(n,e) ->
         let nlt = get_var venv n in
         let v = get_var mem n in
@@ -237,7 +233,6 @@ let codegen ctx m =
         let lt = get_var venv n in
         let i' = codegen_expr venv mem i in
         let e' = codegen_ext venv mem lt.ty e in
-        (* XXX llvm treats indices as signed *)
         let p = build_gep v [| const_int (i32_type ctx) 0; i' |] "ptr" b in
         ignore(build_store e' p b)
       | For(v,ty,l,h,s) ->

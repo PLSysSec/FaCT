@@ -2,10 +2,7 @@ open Stdlib
 open Err
 open Ast
 
-(* 'a can be Ast.labeled_type or Cast.labeled_type or LLvm.llvalue *)
-type 'a envtbl = (string,'a ref) Hashtbl.t
-
-let pp_envtbl fmt vtbl =
+let pp_hashtbl fmt vtbl =
   let pp = Format.pp_print_text fmt in
     begin
       pp "{ ";
@@ -14,6 +11,9 @@ let pp_envtbl fmt vtbl =
         vtbl;
       pp "}";
     end
+
+(* 'a can be Ast.labeled_type or Cast.labeled_type or LLvm.llvalue *)
+type 'a envtbl = (string,'a ref) Hashtbl.t [@printer pp_hashtbl]
 
 type 'a env =
   | TopEnv of 'a envtbl
@@ -24,8 +24,8 @@ let pp_env fmt env =
     begin
       pp "{ ";
       (match env with
-        | TopEnv vtbl -> pp_envtbl fmt vtbl
-        | SubEnv(vtbl,_) -> pp_envtbl fmt vtbl);
+        | TopEnv vtbl -> pp_hashtbl fmt vtbl
+        | SubEnv(vtbl,_) -> pp_hashtbl fmt vtbl);
       pp "}";
     end
 
@@ -69,7 +69,10 @@ let update_label venv name label =
     match !lt.label,label with
       | Unknown, _ -> ignore(lt := { !lt with label=label })
       | a, b when Ast.equal_label a b -> ()
-      | _ -> raise @@ UnclassifiedError (name ^ " already has label " ^ (show_label !lt.label) ^", cannot change to " ^ (show_label label))
+      | _ -> raise @@ UnclassifiedError
+                        (name ^ " already has label " ^
+                         (show_label !lt.label) ^", cannot change to " ^
+                         (show_label label))
 
 let fill_vtbl_public venv =
   let vtbl = get_vtbl venv in
@@ -83,18 +86,8 @@ let fill_vtbl_public venv =
 type fentry = { f_rvt:Ast.var_type; f_args:Ast.labeled_type list }
 [@@deriving show]
 
-type fenv = (string,fentry) Hashtbl.t [@printer pp_fenv]
+type fenv = (string,fentry) Hashtbl.t [@printer pp_hashtbl]
 [@@deriving show]
-
-let pp_fenv fmt fenv =
-  let pp = Format.pp_print_text fmt in
-    begin
-      pp "{ ";
-      Hashtbl.iter
-        (fun k v -> pp (k ^ "; "))
-        fenv;
-      pp "}";
-    end
 
 let new_fenv () = Hashtbl.create 10
 

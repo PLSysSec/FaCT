@@ -35,7 +35,9 @@ let unify_ty t1 t2 =
     | (UInt a, UInt b) -> UInt (max a b)
     | (Int a, UInt b) -> Int (max a (2 * b))
     | (UInt a, Int b) -> Int (max (2 * a) b)
-    | _ -> raise (TypeError(ty_to_string(t1) ^ " does not unify with " ^ ty_to_string(t2)))
+    | _ -> raise (TypeError((ty_to_string t1) ^
+                            " does not unify with " ^
+                            (ty_to_string t2)))
 
 (* ctype -> ctype -> ctype *)
 let unify_sz t1 t2 =
@@ -45,7 +47,9 @@ let unify_sz t1 t2 =
     | (UInt a, UInt b) -> UInt (max a b)
     | (Int a, UInt b) -> Int (max a b)
     | (UInt a, Int b) -> Int (max a b)
-    | _ -> raise (TypeError(ty_to_string(t1) ^ " does not unify with " ^ ty_to_string(t2)))
+    | _ -> raise (TypeError((ty_to_string t1) ^
+                            " does not unify with " ^
+                            (ty_to_string t2)))
 
 (* label -> label -> label *)
 let unify_label lbl1 lbl2 =
@@ -102,7 +106,9 @@ let ty_can_pass p lhs rhs =
   match lhs.kind with
     | Val -> ignore(ty_can_flow p lhs.ty rhs.ty)
     | Ref
-    | Arr _ -> if not (equal_ctype lhs.ty rhs.ty) then raise @@ errPassErrorS p (show_ctype lhs.ty) (show_ctype rhs.ty)
+    | Arr _ ->
+      if not (equal_ctype lhs.ty rhs.ty)
+      then raise @@ errPassErrorS p (show_ctype lhs.ty) (show_ctype rhs.ty)
 
 (* name -> unit *)
 let update_public venv p v =
@@ -147,7 +153,8 @@ let lbl_can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
   in
   match lhs, rhs with
     | { label=Public }, { label=Secret } -> raise @@ errPassError p
-    | { kind=Ref; label=Secret }, { kind=Ref; label=Public } -> raise @@ errPassError p
+    | { kind=Ref; label=Secret }, { kind=Ref; label=Public } ->
+      raise @@ errPassError p
     | { label=Unknown }, { label=Secret } -> { lhs with label=Secret }
     | { label=Public }, { label=Unknown } -> fill_arg venv ptarg; lhs
     | { label=Secret }, _ -> lhs
@@ -185,7 +192,8 @@ let tc_module (CModule fdecs) =
 
   (* primitive -> texpr *)
   let rec tc_prim venv { pos=p; data=expr } =
-    let make_texpr prim ty lbl = { e=TPrimitive (make_ast p prim); e_ty=ty; e_lbl=lbl } in
+    let make_texpr prim ty lbl =
+      { e=TPrimitive (make_ast p prim); e_ty=ty; e_lbl=lbl } in
     match expr with
       | Number n -> make_texpr (TNumber n) (fit_num n) Public
       | Boolean b -> make_texpr (TBoolean b) Bool Public
@@ -233,7 +241,8 @@ let tc_module (CModule fdecs) =
       | CallExp(name,args) ->
         let args' = List.map (tc_arg venv) args in
         let f = get_fn fenv name in
-        let args_lty = List.map2 (can_pass venv) f.f_args args' in (* TODO infer fn param labels *)
+        (* TODO infer fn param labels *)
+        let args_lty = List.map2 (can_pass venv) f.f_args args' in
           { e=TCallExp(name,args'); e_ty=f.f_rvt.v_ty; e_lbl=f.f_rvt.v_lbl }
     in make_ast p @@ tc_expr' expr
   in
@@ -356,17 +365,27 @@ let tc_module (CModule fdecs) =
           | TArrArg(n,vt,sz) -> TArrArg(n,vtk @@ get_var venv n,sz)
         in make_ast p @@ tc_targ' arg
       and tc_tstms stms =
-        List.map (fun { pos=p; data=stm } ->
-                   let stm' =
-                     (match stm with
-                       | TVarDec(v,vt,e) -> TVarDec(v,vtk (get_var venv v),tc_texpr e)
-                       | TArrDec (v,vt,s,init) -> TArrDec(v,vtk (get_var venv v),s,init)
-                       | TAssign(v,e) -> TAssign(v,tc_texpr e)
-                       | TArrAssign(v,i,e) -> TArrAssign(v,tc_texpr i,tc_texpr e)
-                       | TIf(e,bt,bf) -> TIf(tc_texpr e,tc_tblock bt,tc_tblock bf)
-                       | TFor(v,vt,l,h,b) -> TFor(v,vt,tc_texpr l,tc_texpr h,tc_tblock b)
-                       | TReturn e -> TReturn(tc_texpr e))
-                   in make_ast p @@ stm')
+        List.map
+          (fun { pos=p; data=stm } ->
+             let stm' =
+               begin
+                 match stm with
+                   | TVarDec(v,vt,e) ->
+                     TVarDec(v,vtk (get_var venv v),tc_texpr e)
+                   | TArrDec (v,vt,s,init) ->
+                     TArrDec(v,vtk (get_var venv v),s,init)
+                   | TAssign(v,e) ->
+                     TAssign(v,tc_texpr e)
+                   | TArrAssign(v,i,e) ->
+                     TArrAssign(v,tc_texpr i,tc_texpr e)
+                   | TIf(e,bt,bf) ->
+                     TIf(tc_texpr e,tc_tblock bt,tc_tblock bf)
+                   | TFor(v,vt,l,h,b) ->
+                     TFor(v,vt,tc_texpr l,tc_texpr h,tc_tblock b)
+                   | TReturn e ->
+                     TReturn(tc_texpr e)
+               end
+             in make_ast p @@ stm')
           stms
       in { block with body=tc_tstms stms }
     in
@@ -374,22 +393,27 @@ let tc_module (CModule fdecs) =
       tc_tblock block
   in
 
-  let tc_fdec { pos=p; data=fdec } =
-    let venv = new_env() in
+  let tc_param venv { pos=p; data=arg } =
+    let { name=n; lt } = arg in
     (* XXX eventually we will have proper label inference for parameters
        * but for now we just assume public *)
-    let params' = List.map (fun ({ data=({ name=n; lt=lt } as arg) } as parg) ->
-                             let lt' = if lt.label = Unknown then { lt with label=Public } else lt in
-                               add_var venv n lt';
-                               { parg with data={ arg with lt=lt' } })
-                    fdec.params in
-      (* XXX eventually we will have proper label inference for functions
+    let lt' = if lt.label = Unknown then { lt with label=Public } else lt in
+      add_var venv n lt';
+      { pos=p; data={ arg with lt=lt' } }
+  in
+
+  let tc_fdec { pos=p; data=fdec } =
+    let venv = new_env() in
+    let params' = List.map (tc_param venv) fdec.params in
+    (* XXX eventually we will have proper label inference for functions
        * but for now we just assume secret *)
-      let rvt' = if fdec.rvt.v_lbl = Unknown then { fdec.rvt with v_lbl=Secret } else fdec.rvt in
-      let body',_ = tc_block venv rvt' Public fdec.body in
-      let body' = set_missing_labels_to_public body' in
-      let fdec' = { t_name=fdec.name; t_params=params'; t_rvt=rvt'; t_body=body' } in
-      let fdec' = { pos=p; data=fdec' } in
-        Tast.update_fn fenv fdec'; fdec'
+    let rvt' = if fdec.rvt.v_lbl = Unknown
+      then { fdec.rvt with v_lbl=Secret } else fdec.rvt in
+    let body',_ = tc_block venv rvt' Public fdec.body in
+    let body' = set_missing_labels_to_public body' in
+    let fdec' = { t_name=fdec.name; t_params=params';
+                  t_rvt=rvt'; t_body=body' } in
+    let fdec' = { pos=p; data=fdec' } in
+      Tast.update_fn fenv fdec'; fdec'
   in
     TCModule(fenv, List.map tc_fdec fdecs)
