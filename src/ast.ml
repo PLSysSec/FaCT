@@ -1,13 +1,9 @@
 open Pos
 
-type bigint = Z.t [@printer pp_bigint][@@deriving show]
-let pp_bigint = Z.pp_print
-let equal_bigint = Z.equal
-
 type ctype =
   | Bool
-  | Int of bigint
-  | UInt of bigint
+  | Int of int
+  | UInt of int
 [@@deriving show, eq]
 
 type label =
@@ -20,7 +16,7 @@ type label =
 type kind =
   | Val
   | Ref
-  | Arr of bigint
+  | Arr of int
 [@@deriving show, eq]
 
 type var_type = { v_ty:ctype; v_lbl:label }
@@ -47,7 +43,7 @@ and arrinit = arrinit' pos_ast [@@deriving show]
 
 and stm' =
   | VarDec of string * var_type * expr
-  | ArrDec of string * var_type * bigint * arrinit
+  | ArrDec of string * var_type * int * arrinit
   | Assign of string * expr
   | ArrAssign of string * expr * expr
   | If of expr * stm list * stm list
@@ -101,7 +97,7 @@ and binop' =
 and binop = binop' pos_ast [@@deriving show]
 
 and primitive' =
-  | Number of bigint
+  | Number of int
   | Boolean of bool
 [@@deriving eq]
 and primitive = primitive' pos_ast [@@deriving show]
@@ -111,5 +107,5 @@ let vtk lt = { v_ty=lt.ty; v_lbl=lt.label }
 
 let rec ty_to_string = function
   | Bool -> "bool"
-  | Int size -> "int" ^ show_bigint size
-  | UInt size -> "uint" ^ show_bigint size
+  | Int size -> "int" ^ string_of_int size
+  | UInt size -> "uint" ^ string_of_int size

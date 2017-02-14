@@ -42,8 +42,8 @@ let rec transform = function
       Cast.CModule(fenv',fdecs')
 
 and transform_type = function
-  | Ast.Int n -> Cast.Int (Z.to_int n)
-  | Ast.UInt n -> Cast.UInt (Z.to_int n)
+  | Ast.Int n -> Cast.Int n
+  | Ast.UInt n -> Cast.UInt n
   | Ast.Bool -> Cast.BoolMask
 
 and transform_label = function
@@ -54,7 +54,7 @@ and transform_label = function
 and transform_kind = function
   | Ast.Val -> Cast.Val
   | Ast.Ref -> Cast.Ref
-  | Ast.Arr s -> Cast.Arr (Z.to_int s)
+  | Ast.Arr s -> Cast.Arr s
 
 and transform_vt { Ast.v_ty; Ast.v_lbl } =
   { Cast.v_ty=transform_type v_ty; Cast.v_lbl=transform_label v_lbl }
@@ -138,9 +138,8 @@ and transform_stm' rty venv mem ctx stm =
     [Cast.VarDec(v,vt',e')]
   | Tast.TArrDec(v,vt,s,init) ->
     let vt' = transform_vt(vt) in
-    let s' = Z.to_int s in
     let init' = transform_init(init) in
-    [Cast.ArrDec(v,vt',s',init')]
+    [Cast.ArrDec(v,vt',s,init')]
   | Tast.TAssign(v,e) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
@@ -191,7 +190,7 @@ and transform_arg = fun { Pos.data } ->
   let transform_arg' = function
     | Tast.TValArg e -> Cast.ValArg (transform_expr e)
     | Tast.TRefArg(n,vt) -> Cast.RefArg(n,transform_vt vt)
-    | Tast.TArrArg(n,vt,sz) -> Cast.ArrArg(n,transform_vt vt,Z.to_int sz)
+    | Tast.TArrArg(n,vt,sz) -> Cast.ArrArg(n,transform_vt vt,sz)
   in
     transform_arg' data
 
@@ -216,7 +215,7 @@ and transform_expr = fun { Pos.data } ->
 
 and transform_primitive =
   let transform_primitive' = function
-    | Tast.TNumber n -> Cast.Number (Z.to_int n) (* XXX *)
+    | Tast.TNumber n -> Cast.Number n
     | Tast.TBoolean true -> Cast.Mask (Cast.TRUE)
     | Tast.TBoolean false -> Cast.Mask (Cast.FALSE)
   in

@@ -11,16 +11,16 @@ exception ParseError of string
 
 let to_type = function
   | "bool" -> Bool
-  | "int8" -> Int (Z.of_int 8)
-  | "int16" -> Int (Z.of_int 16)
-  | "int32" -> Int (Z.of_int 32)
-  | "uint8" -> UInt (Z.of_int 8)
-  | "uint16" -> UInt (Z.of_int 16)
-  | "uint32" -> UInt (Z.of_int 32)
+  | "int8" -> Int 8
+  | "int16" -> Int 16
+  | "int32" -> Int 32
+  | "uint8" -> UInt 8
+  | "uint16" -> UInt 16
+  | "uint32" -> UInt 32
   | _ as t -> raise (ParseError("Unknown type: " ^ t))
 %}
 
-%token <Z.t> INT
+%token <int> INT
 %token <bool> BOOL
 %token PLUS MINUS TIMES
 %token EQUAL NEQUAL GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ

@@ -12,7 +12,7 @@ and tfdec = tfdec' pos_ast [@@deriving show ]
 
 and tstm' =
   | TVarDec of string * var_type * texpr
-  | TArrDec of string * var_type * bigint * arrinit
+  | TArrDec of string * var_type * int * arrinit
   | TAssign of string * texpr
   | TArrAssign of string * texpr * texpr
   | TIf of texpr * tblock * tblock
@@ -41,12 +41,12 @@ and texpr_base =
 and targ' =
   | TValArg of texpr
   | TRefArg of string * var_type
-  | TArrArg of string * var_type * bigint
+  | TArrArg of string * var_type * int
 [@@deriving show]
 and targ = targ' pos_ast [@@deriving show]
 
 and tprimitive' =
-  | TNumber of bigint
+  | TNumber of int
   | TBoolean of bool
 [@@deriving show]
 and tprimitive = tprimitive' pos_ast [@@deriving show]

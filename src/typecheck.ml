@@ -18,28 +18,33 @@ let is_bool = function
   | _ -> false
 
 let fit_num n =
-  let numbits = Z.numbits n in
-    if Z.sign n = -1 then Int (Z.of_int @@ numbits + 1)
-    else UInt (Z.of_int numbits)
+  let rec numbits = function
+    | 0  -> 1
+    | 1  -> 1
+    | -1 -> 2
+    | n  -> 1 + (numbits (n / 2))
+  in
+    if n < 0 then Int (numbits n)
+    else UInt (numbits n)
 
 (* ctype -> ctype -> ctype *)
 let unify_ty t1 t2 =
   match (t1,t2) with
     | _ when equal_ctype t1 t2 -> t1
-    | (Int a, Int b) -> Int Z.(max a b)
-    | (UInt a, UInt b) -> UInt Z.(max a b)
-    | (Int a, UInt b) -> Int Z.(max a (~$2 * b))
-    | (UInt a, Int b) -> Int Z.(max (~$2 * a) b)
+    | (Int a, Int b) -> Int (max a b)
+    | (UInt a, UInt b) -> UInt (max a b)
+    | (Int a, UInt b) -> Int (max a (2 * b))
+    | (UInt a, Int b) -> Int (max (2 * a) b)
     | _ -> raise (TypeError(ty_to_string(t1) ^ " does not unify with " ^ ty_to_string(t2)))
 
 (* ctype -> ctype -> ctype *)
 let unify_sz t1 t2 =
   match (t1,t2) with
     | _ when equal_ctype t1 t2 -> t1
-    | (Int a, Int b) -> Int Z.(max a b)
-    | (UInt a, UInt b) -> UInt Z.(max a b)
-    | (Int a, UInt b) -> Int Z.(max a b)
-    | (UInt a, Int b) -> Int Z.(max a b)
+    | (Int a, Int b) -> Int (max a b)
+    | (UInt a, UInt b) -> UInt (max a b)
+    | (Int a, UInt b) -> Int (max a b)
+    | (UInt a, Int b) -> Int (max a b)
     | _ -> raise (TypeError(ty_to_string(t1) ^ " does not unify with " ^ ty_to_string(t2)))
 
 (* label -> label -> label *)
@@ -87,9 +92,9 @@ let tc_binop { pos=p; data=op } lhs rhs =
 let ty_can_flow p lhs rhs =
   match lhs, rhs with
     | a, b when equal_ctype a b -> ()
-    | Int a, Int b when Z.gt a b -> ()
-    | UInt a, UInt b when Z.gt a b -> ()
-    | Int a, UInt b when Z.(gt a (~$2 * b)) -> ()
+    | Int a, Int b when a > b -> ()
+    | UInt a, UInt b when a > b -> ()
+    | Int a, UInt b when a > (2 * b) -> ()
     | _ -> raise @@ errPassError p
 
 (* lt -> lt -> unit *)
