@@ -12,7 +12,6 @@ let pp_hashtbl fmt vtbl =
       pp "}";
     end
 
-(* 'a can be Ast.labeled_type or Cast.labeled_type or LLvm.llvalue *)
 type 'a envtbl = (string,'a ref) Hashtbl.t [@printer pp_hashtbl]
 
 type 'a env =

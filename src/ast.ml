@@ -64,8 +64,8 @@ and expr = expr' pos_ast [@@deriving show]
 
 and arg' =
   | ValArg of expr
-  | RefArg of string (* when parsing, kind is Val only if explicitly given; it parses as a ValArg of VarExp if not *)
-  | ArrArg of string (* TODO should allow slicing *)
+  | RefArg of string
+  | ArrArg of string
 [@@deriving show]
 and arg = arg' pos_ast [@@deriving show]
 

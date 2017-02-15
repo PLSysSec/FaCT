@@ -11,7 +11,6 @@ exception UnclassifiedError of string
 
 exception TransformError of string
 
-(* because I'm lazy *)
 let ( << ) s p = s ^ " @ " ^ Pos.pos_string p
 
 let err p =

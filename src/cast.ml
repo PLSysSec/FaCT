@@ -98,8 +98,6 @@ and stm =
   | Assign of string * expr
   | ArrAssign of string * expr * expr
   | For of string * ctype * expr * expr * block
-(*  | XXX PublicIf of blah * blah * blah *)
-(*  | XXX PublicRet of blah * blah * blah *)
 [@@deriving show]
 
 and block = { venv:venv; mem:mem; body:stm list }

@@ -27,7 +27,6 @@ let fit_num n =
     if n < 0 then Int (numbits n)
     else UInt (numbits n)
 
-(* ctype -> ctype -> ctype *)
 let unify_ty t1 t2 =
   match (t1,t2) with
     | _ when equal_ctype t1 t2 -> t1
@@ -39,7 +38,6 @@ let unify_ty t1 t2 =
                             " does not unify with " ^
                             (ty_to_string t2)))
 
-(* ctype -> ctype -> ctype *)
 let unify_sz t1 t2 =
   match (t1,t2) with
     | _ when equal_ctype t1 t2 -> t1
@@ -51,7 +49,6 @@ let unify_sz t1 t2 =
                             " does not unify with " ^
                             (ty_to_string t2)))
 
-(* label -> label -> label *)
 let unify_label lbl1 lbl2 =
   match lbl1,lbl2 with
     | Secret,_ -> Secret
@@ -59,8 +56,6 @@ let unify_label lbl1 lbl2 =
     | Public,Public -> Public
     | _ -> Unknown
 
-(* See note below *)
-(* op -> ctype -> ctype *)
 let tc_unop { pos=p; data=op } ty =
   match op with
     | Neg when is_int ty -> ty
@@ -68,10 +63,6 @@ let tc_unop { pos=p; data=op } ty =
     | B_Not when is_int ty -> ty
     | _ -> raise @@ errTypeError p
 
-(* Note: apparently C just turns all bitwise operations (including shifts)
-   into ints. Should we match C or do it our way?
-   [scauligi] My vote is for keeping it our way. *)
-(* op -> ctype -> ctype -> ctype *)
 let tc_binop { pos=p; data=op } lhs rhs =
   match op with
     | Plus when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
@@ -92,7 +83,6 @@ let tc_binop { pos=p; data=op } lhs rhs =
     | RightShift when is_int(lhs) && is_unsigned(rhs) -> lhs
     | _ -> raise @@ errTypeError p
 
-(* ctype -> ctype -> unit *)
 let ty_can_flow p lhs rhs =
   match lhs, rhs with
     | a, b when equal_ctype a b -> ()
@@ -101,7 +91,6 @@ let ty_can_flow p lhs rhs =
     | Int a, UInt b when a > (2 * b) -> ()
     | _ -> raise @@ errPassError p
 
-(* lt -> lt -> unit *)
 let ty_can_pass p lhs rhs =
   match lhs.kind with
     | Val -> ignore(ty_can_flow p lhs.ty rhs.ty)
@@ -110,19 +99,16 @@ let ty_can_pass p lhs rhs =
       if not (equal_ctype lhs.ty rhs.ty)
       then raise @@ errPassErrorS p (show_ctype lhs.ty) (show_ctype rhs.ty)
 
-(* name -> unit *)
 let update_public venv p v =
   let lt = get_var venv v in
     if lt.label = Unknown then update_label venv v Public
 
-(* targ -> unit *)
 let rec fill_arg venv { pos=p; data=targ } =
   match targ with
     | TValArg texpr -> fill_public venv texpr
     | TRefArg(name,_)
     | TArrArg(name,_,_) -> update_public venv p name
 
-(* texpr -> unit *)
 and fill_public venv { pos=p; data=te } =
   match te.e with
     | TVarExp v -> update_public venv p v
@@ -135,7 +121,6 @@ and fill_public venv { pos=p; data=te } =
     | TCallExp(_,targs) ->
       ignore(List.map (fill_arg venv) targs)
 
-(* label -> texpr -> label *)
 let lbl_can_flow venv lbl ({ pos=p; data=te } as pte) =
   match lbl, te.e_lbl with
     | Public, Secret -> raise @@ errFlowError p
@@ -143,7 +128,6 @@ let lbl_can_flow venv lbl ({ pos=p; data=te } as pte) =
     | Unknown, Secret -> Secret
     | _ -> lbl
 
-(* labeled_type -> targ -> labeled_type *)
 let lbl_can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
   let rhs =
     match targ with
@@ -160,17 +144,14 @@ let lbl_can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
     | { label=Secret }, _ -> lhs
     | _ -> lhs
 
-(* var_type -> texpr -> var_type *)
 let can_flow venv vt ({ pos=p; data=texpr } as ptexpr) =
   ty_can_flow p vt.v_ty texpr.e_ty;
   let lbl' = lbl_can_flow venv vt.v_lbl ptexpr in
     { vt with v_lbl=lbl' }
 
-(* kind -> kind -> unit *)
 let kind_can_pass p lhs rhs =
   if not (equal_kind lhs rhs) then raise @@ errPassError p
 
-(* labeled_type -> targ -> labeled_type *)
 let can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
   ignore(
     match targ with
@@ -190,7 +171,6 @@ let can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
 let tc_module (CModule fdecs) =
   let fenv = Env.new_fenv() in
 
-  (* primitive -> texpr *)
   let rec tc_prim venv { pos=p; data=expr } =
     let make_texpr prim ty lbl =
       { e=TPrimitive (make_ast p prim); e_ty=ty; e_lbl=lbl } in
@@ -198,7 +178,6 @@ let tc_module (CModule fdecs) =
       | Number n -> make_texpr (TNumber n) (fit_num n) Public
       | Boolean b -> make_texpr (TBoolean b) Bool Public
 
-  (* arg -> targ *)
   and tc_arg venv { pos=p; data=arg } =
     let tc_arg' = function
       | ValArg e ->
@@ -214,7 +193,6 @@ let tc_module (CModule fdecs) =
             | _ -> raise (UnclassifiedError("not an array")))
     in make_ast p @@ tc_arg' arg
 
-  (* expr -> texpr *)
   and tc_expr venv { pos=p; data=expr } =
     let tc_expr' = function
       | VarExp v ->
@@ -248,7 +226,6 @@ let tc_module (CModule fdecs) =
   in
 
 
-  (* ret:vt -> ctx:label -> stm -> (tstm * add_ctx:label) *)
   let rec tc_stm venv fn_vt lbl_ctx { pos=p; data=stm } =
     let unify_ctx' e = { e with e_lbl=(unify_label lbl_ctx e.e_lbl) } in
     let unify_ctx = posmap unify_ctx' in
@@ -279,8 +256,6 @@ let tc_module (CModule fdecs) =
         update_label venv name vt.v_lbl;
         TArrAssign(name,i',expr'), Public
     | If(cond,tstms,fstms) ->
-      (* TODO: implement 2 if statements in the core language:
-         a constant if and non constant if. *)
       let cond' = tc_expr venv cond in
       if not (is_bool cond'.data.e_ty) then raise @@ err p;
       let lbl_ctx' = unify_label lbl_ctx cond'.data.e_lbl in
@@ -303,12 +278,10 @@ let tc_module (CModule fdecs) =
       let fn_vt' = can_flow venv fn_vt expr' in
         TReturn expr', lbl_ctx
 
-  (* ret:vt -> ctx:label -> stm list -> (tstm list * ctx:label) *)
   and tc_block venv fn_vt lbl_ctx stms =
     let stms',lbl = tc_stms venv fn_vt lbl_ctx stms in
       { venv=venv; body=stms' }, lbl
 
-  (* ret:vt -> ctx:label -> stm list -> (tstm list * ctx:label) *)
   and tc_stms venv fn_vt lbl_ctx = function
     | [] -> [], lbl_ctx
     | stm::stms ->
@@ -319,7 +292,6 @@ let tc_module (CModule fdecs) =
         stm'::stms', lbl_ctx'
   in
 
-  (* block -> block *)
   let rec set_missing_labels_to_public block =
     let rec fill_stms { venv; body=stms } =
       let fill_stm { data=stm } =
