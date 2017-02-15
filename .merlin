@@ -6,3 +6,4 @@ PKG llvm
 PKG ounit
 PKG core
 PKG dolog
+PKG ppx_deriving.std

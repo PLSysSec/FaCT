@@ -1,0 +1,8 @@
+int32 mutateRef(ref uint8 c) {
+  c = 22;
+  return 0;
+}
+
+int32 passAlong(ref uint8 c) {
+  return mutateRef(ref c);
+}

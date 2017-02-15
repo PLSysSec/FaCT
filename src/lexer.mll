@@ -43,7 +43,8 @@ let keywords = [
   ("public",PUBLIC);
   ("secret",SECRET);
   ("ref",REF);
-  ("out",OUT)
+  ("out",OUT);
+  ("zeros",ZEROS);
 ]
 let _ = List.map add_keyword keywords
 }
@@ -51,17 +52,20 @@ let _ = List.map add_keyword keywords
 let whitespace = [' ' '\t' '\n']
 let ints = ['0'-'9']
 let chars_ints = ['_' 'a'-'z' 'A'-'Z']['_' 'a'-'z' 'A'-'Z' '0'-'9']*
+let int_type = ("int" | "uint") ("8" | "16" | "32")?
+let base_type = "bool" | int_type
 
 rule token = parse
   | [' ' '\t']     { token lexbuf }
   | '\n'
   { Lexing.new_line lexbuf;
     token lexbuf }
-  | "true"         { BOOL(true)}
-  | "false"        { BOOL(false)}
+  | "true"         { BOOL(true) }
+  | "false"        { BOOL(false) }
+  | base_type as c { TYPE(c) }
   | chars_ints * as c
     { try Hashtbl.find keywords_table c
-      with Not_found -> IDENT c}
+      with Not_found -> IDENT c }
   | ints+ as lxm   { INT(int_of_string lxm) }
   | "0b"           { let buf = Buffer.create 10 in
                      Buffer.add_string buf "0b";

@@ -1,3 +1,4 @@
+open Pos
 open Cast
 open Codegen
 open Ast
@@ -9,9 +10,6 @@ open Lexing
 exception Exception of string
 exception SyntaxError of string
 
-let ast_out_file = "ast.txt"
-let core_ir_out_file = "core_ir.txt"
-
 let run_command c args =
   let a  = Unix.fork () in
   match a with
@@ -22,18 +20,29 @@ let run_command c args =
   | -1 -> Printf.printf "%s" "error accured on fork\n"
   | _ -> ignore (Unix.wait ())
 
-let output_ast ast_out ast =
+let output_ast ast_out out_file ast =
   match ast_out with
     | false -> Log.debug "Not outputting AST"
     | true ->
+      let ast_out_file = out_file ^ ".ast.ml" in
       Log.debug "Outputting AST to %s" ast_out_file;
       Core.Std.Out_channel.write_all ast_out_file
         ~data:(show_constantc_module ast)
 
-let output_core_ir core_ir_out core_ir =
+let output_tast ast_out out_file tast =
+  match ast_out with
+    | false -> Log.debug "Not outputting TAST"
+    | true ->
+      let tast_out_file = out_file ^ ".tast.ml" in
+        Log.debug "Outputting TAST to %s" tast_out_file;
+        Core.Std.Out_channel.write_all tast_out_file
+          ~data:(Tast.show_tconstantc_module tast)
+
+let output_core_ir core_ir_out out_file core_ir =
   match core_ir_out with
     | false -> Log.debug "Not outputting core IR"
     | true ->
+      let core_ir_out_file = out_file ^ ".core.ml" in
       Log.debug "Outputting core IR to %s" core_ir_out_file;
       Core.Std.Out_channel.write_all core_ir_out_file
         ~data:(show_cmodule core_ir)
@@ -80,12 +89,13 @@ let compile (in_file,out_file,out_dir) llvm_out ast_out core_ir_out =
       | _ -> let message = pos_string(to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p) in
         raise (SyntaxError ("Syntax error @ " ^ message))) in
   Log.debug "Parsing complete";
-  output_ast ast_out ast;
-  ignore(tc_module ast);
+  output_ast ast_out out_file' ast;
+  let tast = tc_module ast in
+  output_tast ast_out out_file' tast;
   Log.debug "Typecheck complete";
-  let core_ir = transform ast in
+  let core_ir = transform tast in
   Log.debug "Core IR transform complete";
-  output_core_ir core_ir_out core_ir;
+  output_core_ir core_ir_out out_file' core_ir;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let _ = codegen llvm_ctx llvm_mod core_ir in

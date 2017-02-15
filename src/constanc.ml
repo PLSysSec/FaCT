@@ -34,12 +34,20 @@ let error_exit s =
   exit 1
 
 let runner prep llvm_out ast_out core_ir_out =
-  try compile prep llvm_out ast_out core_ir_out with
+  compile prep llvm_out ast_out core_ir_out
+  (*try compile prep llvm_out ast_out core_ir_out with
     | (Command_util.SyntaxError s) -> error_exit s
-    | (Typecheck.FunctionNotDefined s) -> error_exit s
-    | (Typecheck.TypeError s) -> error_exit s
     | (Codegen.Error s) -> error_exit s
-    | (Typecheck.VariableNotDefined s) -> error_exit s
+    | (Command_util.SyntaxError s) -> error_exit s
+    | (Codegen.Error s) -> error_exit s
+    | (Typecheck.NotImplemented) -> error_exit "Not implemented"
+    | (Env.VariableNotDefined s) -> error_exit s
+    | (Env.FunctionNotDefined s) -> error_exit s
+    | (Typecheck.TypeError s) -> error_exit s
+    | (Typecheck.UnknownType s) -> error_exit s
+    | (Typecheck.CallError s) -> error_exit s
+    | (Typecheck.ForError s) -> error_exit s
+    | _ -> error_exit "Error"*)
 
 let compile_command =
   Command.basic

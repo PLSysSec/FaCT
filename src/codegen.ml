@@ -1,565 +1,268 @@
 open Llvm
+open Err
 open Cast
 open Stdlib
 
-exception NotImplemented of string
-exception Error of string
+let add_var = Env.add_var
+let get_var = Env.get_var
+let get_fn = Env.get_fn
 
-type var =
-  | Ref of llvalue
-  | Val of llvalue
-
-let named_values:(string, var) Hashtbl.t = Hashtbl.create 10
-let loop_values:(string, var) Hashtbl.t = Hashtbl.create 10
-let function_params:(string, param list) Hashtbl.t = Hashtbl.create 10
-let val_types:(string, ctype) Hashtbl.t = Hashtbl.create 10
-
-let unify t t1 =
-  match (t,t1) with
-  | (Int32,Int32) -> Int32
-  | (Int32,Int16) -> Int32
-  | (Int16,Int32) -> Int32
-  | (Int32,Int8) -> Int32
-  | (Int8,Int32) -> Int32
-  | (Int16,Int16) -> Int16
-  | (Int16,Int8) -> Int16
-  | (Int8,Int16) -> Int16
-  | (Int8,Int8) -> Int8
-  | (UInt32,UInt32) -> UInt32
-  | (UInt32,UInt16) -> UInt32
-  | (UInt16,UInt32) -> UInt32
-  | (UInt32,UInt8) -> UInt32
-  | (UInt8,UInt32) -> UInt32
-  | (UInt16,UInt16) -> UInt16
-  | (UInt16,UInt8) -> UInt16
-  | (UInt8,UInt16) -> UInt16
-  | (UInt8,UInt8) -> UInt8
-  | (ByteArr x, ByteArr y) when x = y -> (ByteArr x)
-  | (UInt32,Int32) -> raise (Error "VEBUIWBGWRI:")
-  | _ -> raise (Error "Unification error in codegen")
-
-let lt_to_var a = function
-  | { ty=t; kind=Cast.Ref } -> Ref a
-  | { ty=t; kind=Cast.Val } -> Val a
-
-let lt_to_llvm_ty ctx = function
-  | { ty=Int32; kind=Cast.Val } -> i32_type ctx
-  | { ty=Int16; kind=Cast.Val } -> i16_type ctx
-  | { ty=Int8; kind=Cast.Val } -> i8_type ctx
-  | { ty=UInt32; kind=Cast.Val } -> i32_type ctx
-  | { ty=UInt16; kind=Cast.Val } -> i16_type ctx
-  | { ty=UInt8; kind=Cast.Val } -> i8_type ctx
-  | { ty=ByteArr n; kind=Cast.Val } ->
-    raise(Error "Byte arrays must be a `ref` type")
-  | { ty=Int32; kind=Cast.Ref } -> pointer_type(i32_type ctx)
-  | { ty=Int16; kind=Cast.Ref } -> pointer_type(i16_type ctx)
-  | { ty=Int8; kind=Cast.Ref } -> pointer_type(i8_type ctx)
-  | { ty=UInt32; kind=Cast.Ref } -> pointer_type(i32_type ctx)
-  | { ty=UInt16; kind=Cast.Ref } -> pointer_type(i16_type ctx)
-  | { ty=UInt8; kind=Cast.Ref } -> pointer_type(i8_type ctx)
-  | { ty=ByteArr n; kind=Cast.Ref } -> pointer_type(array_type (i32_type ctx) n)
+let is_signed = function
+  | Int _
+  | BoolMask -> true
+  | UInt _ -> false
 
 let codegen ctx m =
   let b = builder ctx in
 
-  let extract_value = function
-    | Ref v -> v
-    | Val v -> v in
+  let llvm_ty = function
+    | Int n when n <= 8 -> i8_type ctx
+    | Int n when n <= 16 -> i16_type ctx
+    | Int n when n <= 32 -> i32_type ctx
+    | UInt n when n <= 8 -> i8_type ctx
+    | UInt n when n <= 16 -> i16_type ctx
+    | UInt n when n <= 32 -> i32_type ctx
+    | BoolMask -> i32_type ctx
+    | _ as ty -> raise (UnclassifiedError("possibly promoted type "^(show_ctype ty)^" not supported"))
+  in
 
-  let load_value n = function
-    | Val v -> v
-    | Ref v -> build_load v n b in
+  let lt_to_llvm_ty lt =
+    let itype = llvm_ty lt.ty in
+      match lt.kind with
+        | Val -> itype
+        | Ref -> pointer_type itype
+        | Arr s -> pointer_type(array_type itype s)
+  in
 
-  let build_arg_call arg = function
-    | { ty=Int32; kind=Cast.Val } -> arg
-    | { ty=Int16; kind=Cast.Val } -> arg
-    | { ty=Int8; kind=Cast.Val } -> arg
-    | { ty=UInt32; kind=Cast.Val } -> arg
-    | { ty=UInt16; kind=Cast.Val } -> arg
-    | { ty=UInt8; kind=Cast.Val } -> arg
-    | { ty=ByteArr n; kind=Cast.Val } ->
-      let a = build_alloca (array_type (i32_type ctx) n) "arg" b in
-      ignore(build_store arg a b);
-      a
-    | { ty=Int32; kind=Cast.Ref } ->
-      let a = build_alloca (i32_type ctx) "arg" b in
-      ignore(build_store arg a b);
-      a
-    | { ty=Int16; kind=Cast.Ref } ->
-      let a = build_alloca (i16_type ctx) "arg" b in
-      ignore(build_store arg a b);
-      a
-    | { ty=Int8; kind=Cast.Ref } ->
-      let a = build_alloca (i8_type ctx) "arg" b in
-      ignore(build_store arg a b);
-      a
-    | { ty=UInt32; kind=Cast.Ref } ->
-      let a = build_alloca (i32_type ctx) "arg" b in
-      ignore(build_store arg a b);
-      a
-    | { ty=UInt16; kind=Cast.Ref } ->
-      let a = build_alloca (i16_type ctx) "arg" b in
-      ignore(build_store arg a b);
-      a
-    | { ty=UInt8; kind=Cast.Ref } ->
-      let a = build_alloca (i8_type ctx) "arg" b in
-      ignore(build_store arg a b);
-      a
-    | { ty=ByteArr n; kind=Cast.Ref } ->
-      let pt = pointer_type(array_type (i32_type ctx) n) in
-      let a = build_alloca pt "arg" b in
-      ignore(build_store arg a b);
-      a in
+  let extend_to signed ty v =
+    let llty = llvm_ty ty in
+    let lb,rb = integer_bitwidth llty, integer_bitwidth @@ type_of v in
+      if lb < rb then build_trunc v llty "trunctmp" b
+      else if lb > rb then
+        let build_ext = if signed then build_sext else build_zext in
+          build_ext v llty "extendtmp" b
+      else v
+  in
 
-  let rec codegen_module = function
-    | CModule f -> let _ = List.map codegen_fdec f in ()
+  let rec codegen_module (CModule(fenv,f)) =
+    let rec codegen_fdec = function
+      | FunctionDec(n,args,vt,body,ret) ->
+        let arg_to_type { lt } = lt_to_llvm_ty lt in
+        let arg_types = List.map arg_to_type args in
+        let arg_types' = Array.of_list arg_types in
+        let rt = llvm_ty ret.e_ty in
+        let ft = function_type rt arg_types' in
+        let the_function =
+          match lookup_function n m with
+            | None -> declare_function n ft m
+            | Some f -> raise (UnclassifiedError ("Function already defined:\t" ^ n)) in
+        let bb = append_block ctx "entry" the_function in
+          position_at_end bb b;
+          allocate_args body.mem args;
+          allocate_stack body;
+          ignore(fold_left_params (store_args body.mem) args the_function);
+          codegen_stms body;
+          let ret' = codegen_ext body.venv body.mem vt.v_ty ret in
+            ignore(build_ret ret' b);
+            ignore(Llvm_analysis.assert_valid_function the_function)
 
-  and codegen_fdec = function
-    | FunctionDec(n,args,ty,body,ret) ->
-      let arg_to_type { name=s; lt=lt } = lt_to_llvm_ty ctx lt in
-      let arg_types = List.map arg_to_type args in
-      let arg_types' = Array.of_list arg_types in
-      let ft = function_type (lt_to_llvm_ty ctx ty) arg_types' in
-      Hashtbl.add val_types n ty.ty;
-      let the_function =
-        match lookup_function n m with
-        | None -> declare_function n ft m
-        | Some f -> raise (Error ("Function already defined:\t" ^ n)) in
-      ignore(Hashtbl.add function_params n args);
-      let args_array = Array.of_list args in
-      Array.iteri (fun i a ->
-                    let { name=n; lt={ ty=t; kind=k } as lt } =
-                      args_array.(i) in
-                    set_value_name n a;
-                    let a' = lt_to_var a lt in
-                    Hashtbl.add val_types n lt.ty;
-                    Hashtbl.add named_values n a')
-                  (params the_function);
-      let bb = append_block ctx "entry" the_function in
-      let _ = position_at_end bb b in
-      let _ = List.map codegen_stm body in
-      let ret' = (codegen_expr (Some ty.ty) ret) in
-      let _ = build_ret ret' b in
-      let _ = Llvm_analysis.assert_valid_function the_function in
-      the_function
+    and allocate_args mem args =
+      let allocate_arg { name; lt } =
+        match lt.kind with
+          | Val
+          | Ref ->
+            let alloca = build_alloca (lt_to_llvm_ty lt) name b in
+              add_var mem name alloca
+          | Arr _ -> ()
+      in
+        ignore(List.map allocate_arg args)
 
-  and codegen_prim ty_ctx = function
-    | Number n ->
-      let ty = (match ty_ctx with
-                | None -> i32_type ctx
-                | Some Int32 -> i32_type ctx
-                | Some Int16 -> i16_type ctx
-                | Some Int8 -> i8_type ctx
-                | Some UInt32 -> i32_type ctx
-                | Some UInt16 -> i16_type ctx
-                | Some UInt8 -> i8_type ctx
-                | Some (ByteArr n) -> i32_type ctx) in
-      const_int ty n
-    | ByteArray l ->
-      let arr = Array.of_list l in
-      let arr' = Array.map (const_int (i32_type ctx)) arr in
-      const_array (i32_type ctx) arr'
+    and store_args mem args param =
+      match args with
+        | { name; lt }::args' ->
+          (match lt.kind with
+            | Val
+            | Ref ->
+              let v = get_var mem name in
+                ignore(build_store param v b)
+            | Arr _ ->
+              add_var mem name param)
+        ; args'
+        | _ -> raise (UnclassifiedError "store_args")
 
-  and codegen_unop op e =
-    match op with
-      | Neg -> build_neg (codegen_expr None e) "negtmp" b
-      | BitNot -> build_not (codegen_expr None e) "nottmp" b
+    and allocate_stack { venv; mem; body } =
+      let rec allocate_stack' = function
+        | VarDec(n,vt,_) ->
+          let alloca = build_alloca (llvm_ty vt.v_ty) n b in
+            add_var mem n alloca
+        | ArrDec(n,vt,s,_) ->
+          let alloca = build_alloca
+                         (array_type (llvm_ty vt.v_ty) s)
+                         n b in
+            add_var mem n alloca
+        | For(i,ty,l,h,block) ->
+          let alloca = build_alloca (llvm_ty ty) i b in
+            add_var mem i alloca;
+            allocate_stack block
+        | _ -> () in
+      ignore(List.map allocate_stack' body)
 
-  and codegen_binop ty_ctx op e e' =
-    let truncate_or_extend_rhs rhs lhs_ty rhs_ty =
-      match lhs_ty,rhs_ty with
-        | Some Int32, Some Int32 -> rhs
-        | Some Int32, Some Int16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-        | Some Int32, Some Int8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-        | Some Int16, Some Int32 ->
-          build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-        | Some Int16, Some Int16 -> rhs
-        | Some Int16, Some Int8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-        | Some Int8, Some Int32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-        | Some Int8, Some Int16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-        | Some Int8, Some Int8 -> rhs
-        | None, Some Int32 ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> rhs
-              | Some Int16 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-              | Some Int8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | None, Some Int16 ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some Int16 -> rhs
-              | Some Int8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | None, Some Int8 ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some Int16 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-              | Some Int8 -> rhs
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some Int32, None ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> rhs
-              | Some Int16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some Int8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some Int16, None ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-              | Some Int16 -> rhs
-              | Some Int8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some Int8, None ->
-          begin
-            match ty_ctx with
-              | Some Int32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | Some Int16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | Some Int8 -> rhs
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some UInt32, Some UInt32 -> rhs
-        | Some UInt32, Some UInt16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-        | Some UInt32, Some UInt8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-        | Some UInt16, Some UInt32 ->
-          build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-        | Some UInt16, Some UInt16 -> rhs
-        | Some UInt16, Some UInt8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-        | Some UInt8, Some UInt32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-        | Some UInt8, Some UInt16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-        | Some UInt8, Some UInt8 -> rhs
-        | None, Some UInt32 ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> rhs
-              | Some UInt16 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-              | Some UInt8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | None, Some UInt16 ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some UInt16 -> rhs
-              | Some UInt8 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | None, Some UInt8 ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some UInt16 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-              | Some UInt8 -> rhs
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some UInt32, None ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> rhs
-              | Some UInt16 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | Some UInt8 -> build_sext rhs (i32_type ctx) "rhssexttmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some UInt16, None ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> build_trunc rhs (i16_type ctx) "rhstrunctmp" b
-              | Some UInt16 -> rhs
-              | Some UInt8 -> build_sext rhs (i16_type ctx) "rhssexttmp" b
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | Some UInt8, None ->
-          begin
-            match ty_ctx with
-              | Some UInt32 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | Some UInt16 -> build_trunc rhs (i8_type ctx) "rhstrunctmp" b
-              | Some UInt8 -> rhs
-              | _ -> raise (Error "Cannot truncate or extend for shift")
-          end
-        | _ -> rhs
-    in
-    let unify_binops lhs rhs lhs_ty rhs_ty =
-      (match lhs_ty,rhs_ty with
-        | Some Int32, Some Int32 -> lhs,rhs
-        | Some Int32, Some Int16 ->
-          let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | Some Int32, Some Int8 ->
-          let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | Some Int16, Some Int32 ->
-          let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | Some Int8, Some Int32 ->
-          let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | Some Int16, Some Int16 -> lhs,rhs
-        | Some Int16, Some Int8 ->
-          let rhs' = build_sext rhs (i16_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | Some Int8, Some Int16 ->
-          let lhs' = build_sext lhs (i16_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | Some Int8, Some Int8 -> lhs,rhs
-        | Some Int32, None ->
-          let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | Some Int16, None ->
-          let rhs' = build_sext rhs (i16_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | Some Int8, None ->
-          let rhs' = build_sext rhs (i8_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | None, Some Int32 ->
-          let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | None, Some Int16 ->
-          let lhs' = build_sext lhs (i16_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | None, Some Int8 ->
-          let lhs' = build_sext lhs (i8_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | Some UInt32, Some UInt32 -> lhs,rhs
-        | Some UInt32, Some UInt16 ->
-          let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | Some UInt32, Some UInt8 ->
-          let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | Some UInt16, Some UInt32 ->
-          let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | Some UInt8, Some UInt32 ->
-          let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | Some UInt16, Some UInt16 -> lhs,rhs
-        | Some UInt16, Some UInt8 ->
-          let rhs' = build_sext rhs (i16_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | Some UInt8, Some UInt16 ->
-          let lhs' = build_sext lhs (i16_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | Some UInt8, Some UInt8 -> lhs,rhs
-        | Some UInt32, None ->
-          let rhs' = build_sext rhs (i32_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | Some UInt16, None ->
-          let rhs' = build_sext rhs (i16_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | Some UInt8, None ->
-          let rhs' = build_sext rhs (i8_type ctx) "rhssexttmp" b in
-          lhs,rhs'
-        | None, Some UInt32 ->
-          let lhs' = build_sext lhs (i32_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | None, Some UInt16 ->
-          let lhs' = build_sext lhs (i16_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | None, Some UInt8 ->
-          let lhs' = build_sext lhs (i8_type ctx) "lhssexttmp" b in
-          lhs',rhs
-        | None, None ->
-          let ty =
-            (match ty_ctx with
-              | Some Int32 -> i32_type ctx
-              | Some Int16 -> i16_type ctx
-              | Some Int8 -> i8_type ctx
-              | Some UInt32 -> i32_type ctx
-              | Some UInt16 -> i16_type ctx
-              | Some UInt8 -> i8_type ctx
-              | _ -> raise (Error "Unknown LHS type for binary unification"))
-          in
-          let lhs' = build_sext lhs ty "lhssexttmp" b in
-          let rhs' = build_sext rhs ty "rhssexttmp" b in
-          lhs',rhs'
-        | _ -> raise (Error "Cannot unify types for binary operation")
-      ) in
-    let lhs_ty = expr_ty ty_ctx e in
-    let rhs_ty = expr_ty ty_ctx e' in
-    let ty = match lhs_ty,rhs_ty,ty_ctx with
-               | Some lhs_ty', Some rhs_ty', _ -> unify lhs_ty' rhs_ty'
-               | Some lhs_ty', None, _ -> lhs_ty'
-               | None, Some rhs_ty', _ -> rhs_ty'
-               | None, None, Some ty_ctx' -> ty_ctx'
-               | _ -> raise (Error "Cannot determine type for binop") in
-    let lhs = (codegen_expr (Some ty) e) in
-    let rhs = (codegen_expr (Some ty) e') in
-    let lhs',rhs' = unify_binops lhs rhs lhs_ty rhs_ty in
-    begin
+    and codegen_prim ty = function
+      | Number n ->
+        const_int (llvm_ty ty) n
+      | Mask m ->
+        match m with
+          | TRUE -> const_all_ones (llvm_ty ty)
+          | FALSE -> const_null (llvm_ty ty)
+
+    and codegen_unop op e =
       match op with
-      | Plus -> build_add lhs' rhs' "addtmp" b
-      | Minus -> build_sub lhs' rhs' "subtmp" b
-      | GT ->
-        let cmp = (build_icmp Icmp.Ugt lhs' rhs' "gt" b) in
-        build_sext cmp (i32_type ctx) "gtcmp" b
-      | GTE ->
-        let cmp = (build_icmp Icmp.Uge lhs' rhs' "gte" b) in
-        build_sext cmp (i32_type ctx) "gtecmp" b
-      | LT ->
-        let cmp = (build_icmp Icmp.Ult lhs' rhs' "lt" b) in
-        build_sext cmp (i32_type ctx) "ltcmp" b
-      | LTE ->
-        let cmp = (build_icmp Icmp.Ule lhs' rhs' "lte" b) in
-        build_sext cmp (i32_type ctx) "ltecmp" b
-      | BitAnd -> build_and lhs' rhs' "andtmp" b
-      | BitOr -> build_or lhs' rhs' "ortmp" b
-      | BitXor -> build_xor lhs' rhs' "xortmp" b
-      | Mult -> build_mul lhs' rhs' "multtmp" b
-      | Eq ->
-        let cmp = build_icmp Icmp.Eq lhs' rhs' "eq" b in
-        build_sext cmp (i32_type ctx) "eqtmp" b
-      | Neq ->
-        let cmp = (build_icmp Icmp.Ne lhs' rhs' "neq" b) in
-        build_sext cmp (i32_type ctx) "neqtmp" b
-      | LeftShift -> 
-        let rhs' = truncate_or_extend_rhs rhs lhs_ty rhs_ty in
-        build_shl lhs rhs' "lshift" b
-      | RightShift ->
-        let rhs' = truncate_or_extend_rhs rhs lhs_ty rhs_ty in
-        build_lshr lhs rhs' "rshift" b
-    end
+        | Neg -> build_neg e "negtmp" b
+        | BitNot -> build_not e "nottmp" b
 
-  and prim_ty ty_ctx = function
-    | ByteArray n -> Some(ByteArr (List.length n))
-    | Number n -> ty_ctx
+    and binop_unify_ty op =
+      match op with
+        | Plus
+        | Minus
+        | Mult
+        | GT
+        | GTE
+        | LT
+        | LTE
+        | Eq
+        | Neq -> Transform.unify_ty
+        | BitAnd
+        | BitOr
+        | BitXor
+        | LeftShift
+        | RightShift -> Transform.unify_sz
 
-  and expr_ty ty_ctx = function
-    | VarExp n ->
-      Some (try (Hashtbl.find val_types n) with
-        | Not_found ->
-          raise (Error ("Type not found for variable `" ^ n ^ "`")))
-    | ArrExp(n,i) ->
-      ignore((try (Hashtbl.find val_types n) with
-        | Not_found ->
-      raise (Error ("Type not found for variable `" ^ n ^ "`"))));
-      Some Int32
-    | UnOp(op,e) -> expr_ty ty_ctx e
-    | BinOp(op,e,e') ->
-      let ty1 = expr_ty ty_ctx e in
-      let ty2 = expr_ty ty_ctx e' in
-      begin
-        match ty1,ty2 with
-          | Some ty1', Some ty2' -> Some(unify ty1' ty2')
-          | Some ty1', None -> Some ty1'
-          | None, Some ty2' -> Some ty2'
-          | None, None -> ty_ctx
-      end
-    | Primitive p -> prim_ty ty_ctx p
-    | CallExp(callee, args) ->
-      Some (try (Hashtbl.find val_types callee) with
-        | Not_found ->
-          raise (Error ("Type not found for variable `" ^ callee ^ "`")))
+    and codegen_binop op ty e1 e2 =
+      match op with
+        | Plus -> build_add e1 e2 "addtmp" b
+        | Minus -> build_sub e1 e2 "subtmp" b
+        | Mult -> build_mul e1 e2 "multtmp" b
+        | GT when is_signed ty -> build_icmp Icmp.Sgt e1 e2 "gt" b
+        | GTE when is_signed ty -> build_icmp Icmp.Sge e1 e2 "gte" b
+        | LT when is_signed ty -> build_icmp Icmp.Slt e1 e2 "lt" b
+        | LTE when is_signed ty -> build_icmp Icmp.Sle e1 e2 "lte" b
+        | GT -> build_icmp Icmp.Ugt e1 e2 "gt" b
+        | GTE -> build_icmp Icmp.Uge e1 e2 "gte" b
+        | LT -> build_icmp Icmp.Ult e1 e2 "lt" b
+        | LTE -> build_icmp Icmp.Ule e1 e2 "lte" b
+        | Eq -> build_icmp Icmp.Eq e1 e2 "eq" b
+        | Neq -> build_icmp Icmp.Ne e1 e2 "neq" b
+        | BitAnd -> build_and e1 e2 "andtmp" b
+        | BitOr -> build_or e1 e2 "ortmp" b
+        | BitXor -> build_xor e1 e2 "xortmp" b
+        | LeftShift -> build_shl e1 e2 "lshift" b
+        | RightShift when is_signed ty -> build_ashr e1 e2 "arshift" b
+        | RightShift -> build_lshr e1 e2 "lrshift" b
 
-  and codegen_expr ty_ctx = function
-    | VarExp n ->
-      let v =
-        (try (Hashtbl.find named_values n) with
-          | Not_found -> (try Hashtbl.find loop_values n with
-             | Not_found -> raise (Error ("Unknown variable: " ^ n)))) in
-      load_value n v
-    | ArrExp(n,i) ->
-      let get_index e =
-        (match e with
-         | Primitive(Number n) -> const_int (i32_type ctx) n
-         | VarExp n -> let v = (try Hashtbl.find loop_values n with
-             | Not_found -> (try Hashtbl.find named_values n with
-                | Not_found -> raise (Error ("Unknown variable: " ^ n)))) in
-           load_value n v
-         | _ -> raise (Error "Can only access arrays with loop values or int")
-        ) in
-      let arr_val = (try Hashtbl.find named_values n with
-          | Not_found -> raise (Error ("Unknown variable: " ^ n))) in
-      let arr_val' = extract_value arr_val in
-      let p = build_gep arr_val'
-          [| (const_int (i32_type ctx) 0); (get_index i)|] "ptr" b in
-      build_load p "p" b
-    | UnOp(op,e) -> codegen_unop op e
-    | BinOp(op,e,e') -> codegen_binop ty_ctx op e e'
-    | Primitive p -> codegen_prim ty_ctx p
-    | CallExp(callee, args) ->
-      let callee' =
-        (match lookup_function callee m with
-        | Some callee -> callee
-        | None -> let _ = (codegen_stdlib ctx m callee) in
-          match lookup_function callee m with
-          | Some callee -> callee
-          | None -> raise (Error ("Unknown function referenced: " ^ callee)))
-          in
-        let params = params callee' in
-        if Array.length params == List.length args then () else
-          raise (Error("Arity mismatch for `" ^ callee ^ "`"));
-        let codegen_expr' arg {name=_;lt=lt} =
-          let arg' = (codegen_expr (Some lt.ty) arg) in
-          build_arg_call arg' lt in
-        let f_args = Array.of_list(Hashtbl.find function_params callee) in
-        let args' =
-          Core.Std.Array.map2_exn (Array.of_list args) f_args codegen_expr' in
-        build_call callee' args' "calltmp" b
+    and codegen_arg venv mem param = function
+      | ValArg e -> codegen_ext venv mem param.ty e
+      | RefArg(n,_) ->
+        let nlt = get_var venv n in
+          (match nlt.kind with
+            | Val -> get_var mem n
+            | Ref -> build_load (get_var mem n) n b
+            | _ -> raise (UnclassifiedError("passing array as a ref")))
+      | ArrArg(n,_,_) -> get_var mem n
 
-  and codegen_stm = function
-    | For(v,l,h,s) ->
-      let preheader = insertion_block b in
-      let the_function = block_parent preheader in
-      let loop_bb = append_block ctx "loop" the_function in
-      ignore(build_br loop_bb b);
-      ignore(position_at_end loop_bb b);
-      let i32 = Some Int32 in
-      let l' = codegen_expr i32 (Primitive l) in
-      let variable = build_phi [(l',preheader)] v b in
-      Hashtbl.add loop_values v (Val variable);
-      Hashtbl.add val_types v Int32;
-      ignore(List.map codegen_stm s);
-      let next_var =
-        build_add variable (const_int (i32_type ctx) 1) "nextvar" b in
-      let end_cond =
-        build_icmp Icmp.Eq (codegen_prim i32 h) next_var "loopcond" b in
-      let loop_end_bb = insertion_block b in
-      let after_bb = append_block ctx "postloop" the_function in
-      ignore(build_cond_br end_cond after_bb loop_bb b);
-      position_at_end after_bb b;
-      add_incoming (next_var,loop_end_bb) variable;
-    | Assign(n,e) ->
-      let v = (try Hashtbl.find named_values n with
-        | Not_found ->
-          raise (Error ("Unknown variable in var assign: " ^ n))) in
-      let v' = extract_value v in
-      let ty = (try Hashtbl.find val_types n with
-        | Not_found -> raise (Error ("Unknown type for var: " ^ n))) in
-      ignore(build_store (codegen_expr (Some ty) e) v' b)
-    | ArrAssign(n,i,e) ->
-      let v = (try Hashtbl.find named_values n with
-        | Not_found ->
-          raise (Error ("Unknown variable in array assign: " ^ n))) in
-      let v' = extract_value v in
-      let e' = codegen_expr (Some Int32) e in
-      let i_t = const_int (i32_type ctx) in
-      let p = build_gep v' [| (i_t 0); (codegen_expr None i)|] "ptr" b in
-      ignore(build_store e' p b)
-    | VarDec(n,lt,e) ->
-      let extend v lhs_ty rhs_ty =
-        match lhs_ty,rhs_ty with
-          | Some Int32, Some Int16 -> build_sext v (i32_type ctx) "unifytmp" b
-          | Some Int32, Some Int8 -> build_sext v (i32_type ctx) "unifytmp" b
-          | Some Int16, Some Int8 -> build_sext v (i16_type ctx) "unifytmp" b
-          | Some UInt32, Some UInt16 -> build_sext v (i32_type ctx) "unifytmp" b
-          | Some UInt32, Some UInt8 -> build_sext v (i32_type ctx) "unifytmp" b
-          | Some UInt16, Some UInt8 -> build_sext v (i16_type ctx) "unifytmp" b
-          | _ -> v
+    and codegen_ext venv mem ty e =
+      extend_to (is_signed e.e_ty) ty @@ codegen_expr venv mem e
+
+    and codegen_expr venv mem { e; e_ty=ty } =
+      match e with
+      | VarExp n ->
+        let nlt = get_var venv n in
+        let v = get_var mem n in
+          (match nlt.kind with
+            | Val -> build_load v n b
+            | Ref ->
+              let var = build_load v n b in
+                build_load var n b
+            | _ -> raise (UnclassifiedError("cannot use this variable as an expression")))
+      | ArrExp(n,i) ->
+        let v = get_var mem n in
+        let i' = codegen_expr venv mem i in
+        let p = build_gep v [| const_int (i32_type ctx) 0; i' |] "ptr" b in
+          build_load p (n ^ "_arrget") b
+      | UnOp(op,e) ->
+        let e' = codegen_expr venv mem e in
+          codegen_unop op e'
+      | BinOp(op,e1,e2) ->
+        let ty' = binop_unify_ty op e1 e2 in
+        let e1' = codegen_ext venv mem ty' e1 in
+        let e2' = codegen_ext venv mem ty' e2 in
+          codegen_binop op ty e1' e2'
+      | Primitive p -> codegen_prim ty p
+      | CallExp(callee, args) ->
+        let { f_args } = get_fn fenv callee in
+        let callee' =
+          (match lookup_function callee m with
+            | Some fn -> fn
+            | None -> raise (UnclassifiedError ("Unknown function referenced: " ^ callee)))
         in
-      let llvm_ty = lt_to_llvm_ty ctx lt in
-      let v = codegen_expr (Some lt.ty) e in
-      let v' = extend v (Some lt.ty) (expr_ty (Some lt.ty) e) in
-      let alloca = build_alloca llvm_ty n b in
-      ignore(build_store v' alloca b);
-      Hashtbl.add val_types n lt.ty;
-      Hashtbl.add named_values n (Ref alloca)
+          if List.length f_args != List.length args then
+            raise (UnclassifiedError("Arity mismatch for `" ^ callee ^ "`"));
+          let args' = List.map2 (codegen_arg venv mem) f_args args in
+            build_call callee' (Array.of_list args') "calltmp" b
+
+    and codegen_stms { venv; mem; body } =
+      ignore(List.map (codegen_stm venv mem) body)
+
+    and codegen_stm venv mem = function
+      | VarDec(n,vt,e) ->
+        let v = get_var mem n in
+        let e' = codegen_ext venv mem vt.v_ty e in
+        ignore(build_store e' v b);
+      | ArrDec(n,vt,s,init) -> ()
+      | Assign(n,e) ->
+        let nlt = get_var venv n in
+        let v = get_var mem n in
+        let e' = codegen_ext venv mem nlt.ty e in
+          (match nlt.kind with
+            | Val -> ignore(build_store e' v b)
+            | Ref ->
+              let var = build_load v n b in
+                ignore(build_store e' var b)
+            | _ -> raise (UnclassifiedError("cannot use this variable for direct assignment")))
+      | ArrAssign(n,i,e) ->
+        let v = get_var mem n in
+        let lt = get_var venv n in
+        let i' = codegen_expr venv mem i in
+        let e' = codegen_ext venv mem lt.ty e in
+        let p = build_gep v [| const_int (i32_type ctx) 0; i' |] "ptr" b in
+        ignore(build_store e' p b)
+      | For(v,ty,l,h,s) ->
+        let preheader = insertion_block b in
+        let the_function = block_parent preheader in
+        let bb_check = append_block ctx "loop_check" the_function in
+        let bb_body = append_block ctx "loop_body" the_function in
+        let bb_end = append_block ctx "loop_end" the_function in
+        let i = get_var s.mem v in
+        let l' = codegen_ext venv mem ty l in
+          ignore(build_store l' i b);
+          ignore(build_br bb_check b);
+
+        position_at_end bb_check b;
+        let i' = build_load i v b in
+        let h' = codegen_ext venv mem ty h in
+        let cmp = if is_signed ty then Icmp.Slt else Icmp.Ult in
+        let cond = build_icmp cmp i' h' "loopcond" b in
+          ignore(build_cond_br cond bb_body bb_end b);
+
+        position_at_end bb_body b;
+        codegen_stms s;
+        let i' = build_load i v b in
+        let one = (const_int (llvm_ty ty) 1) in
+        let incr = build_add i' one "loopincr" b in
+          ignore(build_store incr i b);
+          ignore(build_br bb_check b);
+
+        position_at_end bb_end b;
+    in
+      ignore(List.map codegen_fdec f);
 
   in codegen_module

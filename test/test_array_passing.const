@@ -1,0 +1,19 @@
+int32 mutateArray(uint8[4] arr) {
+  for (uint32 i = 0 to 4) {
+    arr[i] = 22;
+  }
+  return 0;
+}
+
+int32 passAlong(uint8[4] arr) {
+  return mutateArray(arr[]);
+}
+
+int32 copyArray(uint8[4] arr) {
+  uint8[4] myarr = zeros;
+  int32 dummy = mutateArray(myarr[]);
+  for (uint32 i = 0 to 4) {
+    arr[i] = myarr[i];
+  }
+  return 0;
+}
