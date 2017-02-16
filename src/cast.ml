@@ -89,7 +89,6 @@ and arg =
 [@@deriving show]
 
 and arrinit =
-  | ZeroArray
   | UnsafeNoInit
 [@@deriving show]
 
