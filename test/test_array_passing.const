@@ -17,3 +17,10 @@ int32 copyArray(uint8[4] arr) {
   }
   return 0;
 }
+
+int32 dynamicArray(uint8[len] arr, uint32 len) {
+  for (uint32 i = 0 to len) {
+    arr[i] = arr[i] + 1;
+  }
+  return 0;
+}

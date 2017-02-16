@@ -32,6 +32,7 @@ let codegen ctx m =
         | Val -> itype
         | Ref -> pointer_type itype
         | Arr s -> pointer_type(array_type itype s)
+        | DArr s -> pointer_type(array_type itype 0)
   in
 
   let extend_to signed ty v =
@@ -73,20 +74,24 @@ let codegen ctx m =
           | Ref ->
             let alloca = build_alloca (lt_to_llvm_ty lt) name b in
               add_var mem name alloca
-          | Arr _ -> ()
+          | Arr _
+          | DArr _ -> ()
       in
         ignore(List.map allocate_arg args)
 
     and store_args mem args param =
       match args with
         | { name; lt }::args' ->
-          (match lt.kind with
-            | Val
-            | Ref ->
-              let v = get_var mem name in
-                ignore(build_store param v b)
-            | Arr _ ->
-              add_var mem name param)
+          begin
+            match lt.kind with
+              | Val
+              | Ref ->
+                let v = get_var mem name in
+                  ignore(build_store param v b)
+              | Arr _
+              | DArr _ ->
+                add_var mem name param
+          end
         ; args'
         | _ -> raise (UnclassifiedError "store_args")
 

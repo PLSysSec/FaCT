@@ -95,7 +95,8 @@ let ty_can_pass p lhs rhs =
   match lhs.kind with
     | Val -> ignore(ty_can_flow p lhs.ty rhs.ty)
     | Ref
-    | Arr _ ->
+    | Arr _
+    | DArr _ ->
       if not (equal_ctype lhs.ty rhs.ty)
       then raise @@ errPassErrorS p (show_ctype lhs.ty) (show_ctype rhs.ty)
 
@@ -190,7 +191,7 @@ let tc_module (CModule fdecs) =
         let lt = get_var venv name in
           (match lt.kind with
             | Arr sz -> TArrArg(name, vtk lt, sz)
-            | _ -> raise (UnclassifiedError("not an array")))
+            | _ -> raise (UnclassifiedError("not a passable array")))
     in make_ast p @@ tc_arg' arg
 
   and tc_expr venv { pos=p; data=expr } =
@@ -374,9 +375,20 @@ let tc_module (CModule fdecs) =
       { pos=p; data={ arg with lt=lt' } }
   in
 
+  let check_darr venv { pos=p; data=arg } =
+    let { name=n; lt } = arg in
+      match lt.kind with
+        | DArr lname ->
+          let lt = get_var venv lname in
+            if not (equal_label lt.label Public) then
+              raise (LabelError(("invalid label for " ^ lname) << p))
+        | _ -> ()
+  in
+
   let tc_fdec { pos=p; data=fdec } =
     let venv = new_env() in
     let params' = List.map (tc_param venv) fdec.params in
+    ignore(List.map (check_darr venv) params');
     (* XXX eventually we will have proper label inference for functions
        * but for now we just assume secret *)
     let rvt' = if fdec.rvt.v_lbl = Unknown

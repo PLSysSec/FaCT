@@ -15,6 +15,7 @@ and kind =
   | Val
   | Ref
   | Arr of int
+  | DArr of string
 
 and var_type = { v_ty:ctype; v_lbl:label }
 

@@ -55,6 +55,7 @@ and transform_kind = function
   | Ast.Val -> Cast.Val
   | Ast.Ref -> Cast.Ref
   | Ast.Arr s -> Cast.Arr s
+  | Ast.DArr s -> Cast.DArr s
 
 and transform_vt { Ast.v_ty; Ast.v_lbl } =
   { Cast.v_ty=transform_type v_ty; Cast.v_lbl=transform_label v_lbl }
@@ -122,7 +123,8 @@ and transform_stm' rty venv mem ctx stm =
   let get_arr a i =
     let lt = Env.get_var venv a in
       match lt.Cast.kind with
-        | Cast.Arr _ -> make_expr (Cast.ArrExp(a,i)) lt.Cast.ty
+        | Cast.Arr _
+        | Cast.DArr _ -> make_expr (Cast.ArrExp(a,i)) lt.Cast.ty
         | _ -> raise @@ errFoundNotArr a in
 
 
