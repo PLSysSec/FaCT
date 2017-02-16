@@ -38,6 +38,7 @@ and param = param' pos_ast [@@deriving show]
 
 and arrinit' =
   | ZeroArray
+  | UnsafeNoInit
 [@@deriving show]
 and arrinit = arrinit' pos_ast [@@deriving show]
 

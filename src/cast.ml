@@ -90,6 +90,7 @@ and arg =
 
 and arrinit =
   | ZeroArray
+  | UnsafeNoInit
 [@@deriving show]
 
 and stm =

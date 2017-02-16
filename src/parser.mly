@@ -41,7 +41,7 @@ let to_type = function
 %token SECRET PUBLIC
 %token REF OUT
 %token RETURN
-%token ZEROS
+%token ZEROS UNSAFE_NOINIT
 %token SEMICOLON
 %token COMMA
 
@@ -139,6 +139,7 @@ arglist:
 
 arrinit:
   | ZEROS { make_pos $startpos ZeroArray }
+  | UNSAFE_NOINIT { make_pos $startpos UnsafeNoInit }
 
 stmlist:
   | var_type IDENT ASSIGN expr SEMICOLON stmlist

@@ -70,6 +70,7 @@ and transform_param { Pos.data={Ast.name=n; Ast.lt=t} } =
 and transform_init { Pos.data=init } =
   match init with
     | Ast.ZeroArray -> Cast.ZeroArray
+    | Ast.UnsafeNoInit -> Cast.UnsafeNoInit
 
 and transform_fenv fenv =
   let fenv' = Env.new_fenv() in
