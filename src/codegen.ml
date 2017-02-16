@@ -64,7 +64,31 @@ let codegen ctx m =
           codegen_stms body;
           let ret' = codegen_ext body.venv body.mem vt.v_ty ret in
             ignore(build_ret ret' b);
-            ignore(Llvm_analysis.assert_valid_function the_function)
+            ignore(Llvm_analysis.assert_valid_function the_function);
+
+        (* make a wrapper to handle external callers *)
+        if n.[0] = '_' then
+          let wrap_n = String.sub n 1 ((String.length n) - 1) in
+          let wrap_arg_types = List.tl arg_types in
+          let wrap_ft = function_type rt (Array.of_list wrap_arg_types) in
+          let wrap_the_function =
+            match lookup_function wrap_n m with
+              | None -> declare_function wrap_n wrap_ft m
+              | Some f ->
+                raise (UnclassifiedError (
+                         "Function already defined:\t" ^ wrap_n)) in
+          let wrap_args = Array.to_list (params wrap_the_function) in
+          let ctx_arg = codegen_prim BoolMask (Mask TRUE) in
+          let wrap_args' = ctx_arg :: wrap_args in
+          let wrap_bb = append_block ctx "entry" wrap_the_function in
+            position_at_end wrap_bb b;
+            let wrap_call = build_call
+                              the_function
+                              (Array.of_list wrap_args')
+                              "calltmp" b in
+            ignore(build_ret wrap_call b);
+            ignore(Llvm_analysis.assert_valid_function the_function);
+        ;
 
     and allocate_args mem args =
       let allocate_arg { name; lt } =
@@ -205,7 +229,9 @@ let codegen ctx m =
             | None -> raise (UnclassifiedError ("Unknown function referenced: " ^ callee)))
         in
           if List.length f_args != List.length args then
-            raise (UnclassifiedError("Arity mismatch for `" ^ callee ^ "`"));
+            raise (UnclassifiedError("Arity mismatch for `" ^ callee ^ "`:" ^
+                                     " expected " ^ string_of_int (List.length f_args) ^
+                                     " but got " ^ string_of_int (List.length args)));
           let args' = List.map2 (codegen_arg venv mem) f_args args in
             build_call callee' (Array.of_list args') "calltmp" b
 

@@ -6,3 +6,23 @@ int32 mutateRef(ref uint8 c) {
 int32 passAlong(ref uint8 c) {
   return mutateRef(ref c);
 }
+
+int32 mutateIf5(secret int32 cond, ref uint8 c) {
+  int32 dummy = 0;
+  if (cond == 5) {
+    dummy = mutateRef(ref c);
+  } else {
+    dummy = 0;
+  }
+  return 0;
+}
+
+int32 mutateIfNot5(secret int32 cond, ref uint8 c) {
+  int32 dummy = 0;
+  if (cond == 5) {
+    dummy = 0;
+  } else {
+    dummy = mutateRef(ref c);
+  }
+  return 0;
+}
