@@ -32,7 +32,7 @@ let codegen ctx m =
         | Val -> itype
         | Ref -> pointer_type itype
         | Arr s -> pointer_type(array_type itype s)
-        | DArr s -> pointer_type(array_type itype 0)
+        | DArr _ -> pointer_type(array_type itype 0)
   in
 
   let extend_to signed ty v =
