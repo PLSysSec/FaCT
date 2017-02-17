@@ -1,13 +1,13 @@
-int32 mutateRef(ref uint8 c) {
+int32 mutateRef(ref secret uint8 c) {
   c = 22;
   return 0;
 }
 
-int32 passAlong(ref uint8 c) {
+int32 passAlong(ref secret uint8 c) {
   return mutateRef(ref c);
 }
 
-int32 mutateIf5(secret int32 cond, ref uint8 c) {
+int32 mutateIf5(secret int32 cond, ref secret uint8 c) {
   int32 dummy = 0;
   if (cond == 5) {
     dummy = mutateRef(ref c);
@@ -17,7 +17,7 @@ int32 mutateIf5(secret int32 cond, ref uint8 c) {
   return 0;
 }
 
-int32 mutateIfNot5(secret int32 cond, ref uint8 c) {
+int32 mutateIfNot5(secret int32 cond, ref secret uint8 c) {
   int32 dummy = 0;
   if (cond == 5) {
     dummy = 0;
@@ -25,4 +25,13 @@ int32 mutateIfNot5(secret int32 cond, ref uint8 c) {
     dummy = mutateRef(ref c);
   }
   return 0;
+}
+
+int32 mutateIf5ElseReturn(secret int32 cond, ref secret uint8 c) {
+  int32 dummy = 0;
+  if (cond != 5) {
+    return 1;
+  } else {
+    return mutateRef(ref c);
+  }
 }
