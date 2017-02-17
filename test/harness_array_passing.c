@@ -6,6 +6,8 @@ int32_t mutateArray(uint8_t arr[4]);
 int32_t passAlong(uint8_t arr[4]);
 int32_t copyArray(uint8_t arr[4]);
 int32_t dynamicArray(uint8_t arr[], uint32_t len);
+int32_t mutateIf5(uint8_t arr[4], int32_t cond);
+int32_t mutateIfNot5(uint8_t arr[4], int32_t cond);
 
 void test_mutatearray() {
   uint8_t arr[4] = {2, 3, 4, 5};
@@ -46,4 +48,26 @@ void test_dynamicarray() {
   for (uint32_t i = 0; i < 7; i++) {
     TEST_ASSERT_EQUAL(i + 1, arr[i]);
   }
+}
+
+void test_mutate_if() {
+  uint8_t arr[4] = {2, 3, 4, 5};
+  mutateIf5(arr, 6);
+  for (int i = 0; i < 4; i++)
+    TEST_ASSERT_EQUAL(i + 2, arr[i]);
+  mutateIf5(arr, 5);
+  for (int i = 0; i < 4; i++)
+    TEST_ASSERT_EQUAL(22, arr[i]);
+}
+
+void test_mutate_if_swapped() {
+  uint8_t arr[4] = {2, 3, 4, 5};
+  mutateIfNot5(arr, 6);
+  for (int i = 0; i < 4; i++) {
+    TEST_ASSERT_EQUAL(22, arr[i]);
+    arr[i] = i + 2;
+  }
+  mutateIfNot5(arr, 5);
+  for (int i = 0; i < 4; i++)
+    TEST_ASSERT_EQUAL(i + 2, arr[i]);
 }

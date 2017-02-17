@@ -1,15 +1,15 @@
-int32 mutateArray(uint8[4] arr) {
+int32 mutateArray(secret uint8[4] arr) {
   for (uint32 i = 0 to 4) {
     arr[i] = 22;
   }
   return 0;
 }
 
-int32 passAlong(uint8[4] arr) {
+int32 passAlong(secret uint8[4] arr) {
   return mutateArray(arr[]);
 }
 
-int32 copyArray(uint8[4] arr) {
+int32 copyArray(secret uint8[4] arr) {
   uint8[4] myarr = zeros;
   int32 dummy = mutateArray(myarr[]);
   for (uint32 i = 0 to 4) {
@@ -21,6 +21,26 @@ int32 copyArray(uint8[4] arr) {
 int32 dynamicArray(uint8[len] arr, uint32 len) {
   for (uint32 i = 0 to len) {
     arr[i] = arr[i] + 1;
+  }
+  return 0;
+}
+
+int32 mutateIf5(secret uint8[4] arr, secret int32 cond) {
+  int32 dummy = 0;
+  if (cond == 5) {
+    dummy = mutateArray(arr[]);
+  } else {
+    dummy = 0;
+  }
+  return 0;
+}
+
+int32 mutateIfNot5(secret uint8[4] arr, secret int32 cond) {
+  int32 dummy = 0;
+  if (cond == 5) {
+    dummy = 0;
+  } else {
+    dummy = mutateArray(arr[]);
   }
   return 0;
 }

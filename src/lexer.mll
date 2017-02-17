@@ -33,7 +33,6 @@ let raise_invalid_number lexbuf =
 let keywords_table = Hashtbl.create 10
 let add_keyword (k,v) = Hashtbl.add keywords_table k v
 
-(* TODO: This is incomplete *)
 let keywords = [
   ("if",IF);
   ("else",ELSE);
@@ -44,7 +43,7 @@ let keywords = [
   ("secret",SECRET);
   ("ref",REF);
   ("out",OUT);
-  ("zeros",ZEROS);
+  ("unsafe_noinit",UNSAFE_NOINIT);
 ]
 let _ = List.map add_keyword keywords
 }
