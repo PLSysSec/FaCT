@@ -5,6 +5,7 @@
 int32_t mutateArray(uint8_t arr[4]);
 int32_t passAlong(uint8_t arr[4]);
 int32_t copyArray(uint8_t arr[4]);
+int32_t dynamicArray(uint8_t arr[], uint32_t len);
 int32_t mutateIf5(uint8_t arr[4], int32_t cond);
 int32_t mutateIfNot5(uint8_t arr[4], int32_t cond);
 
@@ -33,6 +34,20 @@ void test_copyarray() {
   TEST_ASSERT_EQUAL(22, arr[1]);
   TEST_ASSERT_EQUAL(22, arr[2]);
   TEST_ASSERT_EQUAL(22, arr[3]);
+}
+
+void test_dynamicarray() {
+  uint8_t arr[7];
+
+  for (uint32_t i = 0; i < 7; i++) {
+    arr[i] = i;
+  }
+
+  dynamicArray(arr, 7);
+
+  for (uint32_t i = 0; i < 7; i++) {
+    TEST_ASSERT_EQUAL(i + 1, arr[i]);
+  }
 }
 
 void test_mutate_if() {

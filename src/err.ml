@@ -1,5 +1,6 @@
 exception NotImplemented
 exception TypeError of string
+exception LabelError of string
 exception UnknownType of string
 exception CallError of string
 exception ForError of string

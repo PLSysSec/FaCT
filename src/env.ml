@@ -60,7 +60,8 @@ let get_var env v =
 let get_arr venv v =
   let lt = find_var venv v in
     match !lt.kind with
-      | Arr _ -> { !lt with kind=Ref }
+      | Arr _
+      | DArr _ -> { !lt with kind=Ref }
       | _ -> raise @@ errFoundNotArr v
 
 let update_label venv name label =

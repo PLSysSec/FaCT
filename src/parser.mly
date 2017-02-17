@@ -92,6 +92,8 @@ arg_labeled_type:
     { let vt = $2 in ltk vt Ref }
   | var_type LBRACK INT RBRACK
     { let vt = $1 in ltk vt (Arr $3) }
+  | var_type LBRACK IDENT RBRACK
+    { let vt = $1 in ltk vt (DArr $3) }
   | var_type
     { let vt = $1 in ltk vt Val }
 
