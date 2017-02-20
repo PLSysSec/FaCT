@@ -1,4 +1,5 @@
 open Err
+open Pos
 
 type ctype =
   | Int of int
@@ -39,7 +40,7 @@ let pp_fenv fmt fenv =
       pp "}";
     end
 
-type binop =
+type binop' =
   | Plus
   | Minus
   | Mult
@@ -55,25 +56,30 @@ type binop =
   | LeftShift
   | RightShift
 [@@deriving show]
+and binop = binop' pos_ast [@@deriving show]
 
-and unop =
+and unop' =
   | Neg
   | BitNot
 [@@deriving show]
+and unop = unop' pos_ast [@@deriving show]
 
-and boolmask =
+and boolmask' =
   | TRUE
   | FALSE
+and boolmask = boolmask' pos_ast [@@deriving show]
 
-and primitive =
+and primitive' =
   | Number of int
   | Mask of boolmask
 [@@deriving show]
+and primitive = primitive' pos_ast [@@deriving show]
 
-and expr = { e:expr_base; e_ty:ctype }
+and expr' = { e:expr_base; e_ty:ctype }
 [@@deriving show]
+and expr = expr' pos_ast [@@deriving show]
 
-and expr_base =
+and expr_base' =
   | VarExp of string
   | ArrExp of string * expr
   | Primitive of primitive
@@ -81,33 +87,40 @@ and expr_base =
   | BinOp of binop * expr * expr
   | CallExp of string * arg list
 [@@deriving show]
+and expr_base = expr_base' pos_ast [@@deriving show]
 
-and arg =
+and arg' =
   | ValArg of expr
   | RefArg of string * var_type
   | ArrArg of string * var_type * int
 [@@deriving show]
+and arg = arg' pos_ast [@@deriving show]
 
-and arrinit =
+and arrinit' =
   | UnsafeNoInit
 [@@deriving show]
+and arrinit = arrinit' pos_ast [@@deriving show]
 
-and stm =
+and stm' =
   | VarDec of string * var_type * expr
   | ArrDec of string * var_type * int * arrinit
   | Assign of string * expr
   | ArrAssign of string * expr * expr
   | For of string * ctype * expr * expr * block
 [@@deriving show]
+and stm = stm' pos_ast [@@deriving show]
 
 and block = { venv:venv; mem:mem; body:stm list }
 [@@deriving show]
 
-and fdec = FunctionDec of string * param list * var_type * block * expr
+and fdec' = FunctionDec of string * param list * var_type * block * expr
 [@@deriving show]
+and fdec = fdec' pos_ast [@@deriving show]
 
-and param = { name: string; lt: labeled_type }
+
+and param' = { name: string; lt: labeled_type }
 [@@deriving show]
+and param = param' pos_ast [@@deriving show]
 
 and cmodule = CModule of fenv * fdec list
 [@@deriving show]

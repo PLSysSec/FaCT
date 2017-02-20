@@ -41,8 +41,8 @@ let add_var env v lt =
     if Hashtbl.mem vtbl v then raise (UnclassifiedError "redefining var");
     Hashtbl.add vtbl v (ref lt)
 
-let rec find_var env =
-  let find_var' fn vtbl v =
+let rec find_var env (p:Pos.pos) =
+  let find_var' fn vtbl p v =
     try
       Hashtbl.find vtbl v
     with
@@ -50,21 +50,22 @@ let rec find_var env =
   in
     match env with
       | TopEnv vtbl ->
-        find_var' (fun v -> raise @@ errVarNotDefined v) vtbl
+        find_var' (fun v -> raise_error p VariableNotDefined) vtbl p
       | SubEnv(vtbl,env') ->
-        find_var' (find_var env') vtbl
+        let fv = find_var env' p in
+        find_var' fv vtbl p
 
-let get_var env v =
-  let lt = find_var env v in !lt
+let get_var env v p =
+  let lt = find_var env p v in !lt
 
-let get_arr venv v =
-  let lt = find_var venv v in
+let get_arr venv v p =
+  let lt = find_var venv v p in
     match !lt.kind with
       | Arr _ -> { !lt with kind=Ref }
-      | _ -> raise @@ errFoundNotArr v
+      | _ -> raise_error p ArrayNotDefined
 
-let update_label venv name label =
-  let lt = find_var venv name in
+let update_label venv name label p =
+  let lt = find_var venv p name in
     match !lt.label,label with
       | Unknown, _ -> ignore(lt := { !lt with label=label })
       | a, b when Ast.equal_label a b -> ()
@@ -92,10 +93,10 @@ let new_fenv () = Hashtbl.create 10
 
 let has_fn = Hashtbl.mem
 
-let get_fn fenv f =
+let get_fn fenv f p =
   try
     Hashtbl.find fenv f
   with
-    Not_found -> raise @@ errFnNotDefined f
+    Not_found -> raise_error p FunctionNotDefined
 
 let add_fn = Hashtbl.add

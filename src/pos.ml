@@ -16,7 +16,7 @@ let to_pos ?buf:(b=None)
     { file=f; line=l; lpos=start+1; rpos=ends+1 }
 
 let make_pos pos data = { pos=(to_pos pos); data=data }
-let make_ast pos data = { pos=pos; data=data }
+let make_adt pos data = { pos=pos; data=data }
 
 let pos_string { file=f; line=l; lpos=lp; rpos=rp } =
   "file " ^ f ^ ", line " ^ string_of_int(l) ^

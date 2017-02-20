@@ -61,7 +61,7 @@ let tc_unop { pos=p; data=op } ty =
     | Neg when is_int ty -> ty
     | L_Not when is_bool ty -> ty
     | B_Not when is_int ty -> ty
-    | _ -> raise @@ errTypeError p
+    | _ -> raise_error p TypeError
 
 let tc_binop { pos=p; data=op } lhs rhs =
   match op with
@@ -81,7 +81,7 @@ let tc_binop { pos=p; data=op } lhs rhs =
     | B_Xor when is_int(lhs) && is_int(rhs) -> unify_sz lhs rhs
     | LeftShift when is_int(lhs) && is_unsigned(rhs) -> lhs
     | RightShift when is_int(lhs) && is_unsigned(rhs) -> lhs
-    | _ -> raise @@ errTypeError p
+    | _ -> raise_error p TypeError
 
 let ty_can_flow p lhs rhs =
   match lhs, rhs with
@@ -89,7 +89,7 @@ let ty_can_flow p lhs rhs =
     | Int a, Int b when a > b -> ()
     | UInt a, UInt b when a > b -> ()
     | Int a, UInt b when a > (2 * b) -> ()
-    | _ -> raise @@ errPassError p
+    | _ -> raise_error p TypeError
 
 let ty_can_pass p lhs rhs =
   match lhs.kind with
@@ -97,11 +97,11 @@ let ty_can_pass p lhs rhs =
     | Ref
     | Arr _ ->
       if not (equal_ctype lhs.ty rhs.ty)
-      then raise @@ errPassErrorS p (show_ctype lhs.ty) (show_ctype rhs.ty)
+      then raise_error p TypeError
 
 let update_public venv p v =
-  let lt = get_var venv v in
-    if lt.label = Unknown then update_label venv v Public
+  let lt = get_var venv v p in
+    if lt.label = Unknown then update_label venv v Public p
 
 let rec fill_arg venv { pos=p; data=targ } =
   match targ with
@@ -123,7 +123,7 @@ and fill_public venv { pos=p; data=te } =
 
 let lbl_can_flow venv lbl ({ pos=p; data=te } as pte) =
   match lbl, te.e_lbl with
-    | Public, Secret -> raise @@ errFlowError p
+    | Public, Secret -> raise_error p TypeFlowError
     | Public, Unknown -> fill_public venv pte; lbl
     | Unknown, Secret -> Secret
     | _ -> lbl
@@ -136,9 +136,9 @@ let lbl_can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
       | TArrArg(name,vt,sz) -> ltk vt (Arr sz)
   in
   match lhs, rhs with
-    | { label=Public }, { label=Secret } -> raise @@ errPassError p
+    | { label=Public }, { label=Secret }
     | { kind=Ref; label=Secret }, { kind=Ref; label=Public } ->
-      raise @@ errPassError p
+      raise_error p FunctionCallLabelError
     | { label=Unknown }, { label=Secret } -> { lhs with label=Secret }
     | { label=Public }, { label=Unknown } -> fill_arg venv ptarg; lhs
     | { label=Secret }, _ -> lhs
@@ -150,7 +150,7 @@ let can_flow venv vt ({ pos=p; data=texpr } as ptexpr) =
     { vt with v_lbl=lbl' }
 
 let kind_can_pass p lhs rhs =
-  if not (equal_kind lhs rhs) then raise @@ errPassError p
+  if not (equal_kind lhs rhs) then raise_error p FunctionCallKindError
 
 let can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
   ignore(
@@ -173,7 +173,7 @@ let tc_module (CModule fdecs) =
 
   let rec tc_prim venv { pos=p; data=expr } =
     let make_texpr prim ty lbl =
-      { e=TPrimitive (make_ast p prim); e_ty=ty; e_lbl=lbl } in
+      { e=TPrimitive (make_adt p prim); e_ty=ty; e_lbl=lbl } in
     match expr with
       | Number n -> make_texpr (TNumber n) (fit_num n) Public
       | Boolean b -> make_texpr (TBoolean b) Bool Public
@@ -184,26 +184,26 @@ let tc_module (CModule fdecs) =
         let e' = tc_expr venv e in
           TValArg e'
       | RefArg(name) ->
-        let lt = get_var venv name in
+        let lt = get_var venv name p in
           TRefArg(name, vtk lt)
       | ArrArg(name) ->
-        let lt = get_var venv name in
+        let lt = get_var venv name p in
           (match lt.kind with
             | Arr sz -> TArrArg(name, vtk lt, sz)
             | _ -> raise (UnclassifiedError("not an array")))
-    in make_ast p @@ tc_arg' arg
+    in make_adt p @@ tc_arg' arg
 
   and tc_expr venv { pos=p; data=expr } =
     let tc_expr' = function
       | VarExp v ->
-        let lt = get_var venv v in
+        let lt = get_var venv v p in
           { e=TVarExp v; e_ty=lt.ty; e_lbl=lt.label }
       | ArrExp(v,i) ->
         let i' = tc_expr venv i in
         ignore(lbl_can_flow venv Public i');
-        if not (is_unsigned i'.data.e_ty) then raise @@ err p;
+        if not (is_unsigned i'.data.e_ty) then raise_error p TypeError;
         (* TODO add dynamic bounds check *)
-        let lt = get_arr venv v in
+        let lt = get_arr venv p v in
           { e=TArrExp(v,i'); e_ty=lt.ty; e_lbl=lt.label }
       | UnOp(op,e1) ->
         let e1' = tc_expr venv e1 in
@@ -218,11 +218,11 @@ let tc_module (CModule fdecs) =
       | Primitive prim -> tc_prim venv prim
       | CallExp(name,args) ->
         let args' = List.map (tc_arg venv) args in
-        let f = get_fn fenv name in
+        let f = get_fn fenv name p in
         (* TODO infer fn param labels *)
         let args_lty = List.map2 (can_pass venv) f.f_args args' in
           { e=TCallExp(name,args'); e_ty=f.f_rvt.v_ty; e_lbl=f.f_rvt.v_lbl }
-    in make_ast p @@ tc_expr' expr
+    in make_adt p @@ tc_expr' expr
   in
 
 
@@ -237,46 +237,46 @@ let tc_module (CModule fdecs) =
         add_var venv name (ltk vt' Val);
         TVarDec(name,vt',expr'), Public
     | ArrDec(name,vt,size,init) ->
-      if not (is_int vt.v_ty) then raise @@ err p;
+      if not (is_int vt.v_ty) then raise_error p TypeError;
       add_var venv name (ltk vt (Arr size));
       TArrDec(name,vt,size,init), Public
     | Assign(name,expr) ->
       let expr' = unify_ctx (tc_expr venv expr) in
-      let lt = get_var venv name in
+      let lt = get_var venv name p in
         let vt' = can_flow venv (vtk lt) expr' in
           update_label venv name vt'.v_lbl;
           TAssign(name,expr'), Public
     | ArrAssign(name,i,expr) ->
       let i' = tc_expr venv i in
-      if not (is_unsigned i'.data.e_ty) then raise @@ err p;
+      if not (is_unsigned i'.data.e_ty) then raise_error p TypeError;
       (* TODO add dynamic bounds check *)
       let expr' = unify_ctx (tc_expr venv expr) in
-      let lt = get_arr venv name in
+      let lt = get_arr venv p name in
       let vt = can_flow venv (vtk lt) expr' in
-        update_label venv name vt.v_lbl;
-        TArrAssign(name,i',expr'), Public
+      update_label venv name vt.v_lbl p;
+      TArrAssign(name,i',expr'), Public
     | If(cond,tstms,fstms) ->
       let cond' = tc_expr venv cond in
-      if not (is_bool cond'.data.e_ty) then raise @@ err p;
+      if not (is_bool cond'.data.e_ty) then raise_error p TypeError;
       let lbl_ctx' = unify_label lbl_ctx cond'.data.e_lbl in
       let tstms',ctx_t = tc_block (Env.sub_env venv) fn_vt lbl_ctx' tstms in
       let fstms',ctx_f = tc_block (Env.sub_env venv) fn_vt lbl_ctx' fstms in
-        TIf(cond',tstms',fstms'), (unify_label ctx_t ctx_f)
+      TIf(cond',tstms',fstms'), (unify_label ctx_t ctx_f)
     | For(name,ty,l,h,body) ->
-      if not (is_int ty) then raise @@ err p;
+      if not (is_int ty) then raise_error p TypeError;
       let l' = tc_expr venv l in
       let h' = tc_expr venv h in
       let vt = { v_ty=ty; v_lbl=Public } in
       ignore(can_flow venv vt l');
       ignore(can_flow venv vt h');
       let venv' = Env.sub_env venv in
-        add_var venv' name { ty=ty; label=Public; kind=Val };
-        let body',_ = tc_block venv' fn_vt lbl_ctx body in
-          TFor(name,ty,l',h',body'), Public
+      add_var venv' name { ty=ty; label=Public; kind=Val };
+      let body',_ = tc_block venv' fn_vt lbl_ctx body in
+      TFor(name,ty,l',h',body'), Public
     | Return expr ->
       let expr' = unify_ctx (tc_expr venv expr) in
       let fn_vt' = can_flow venv fn_vt expr' in
-        TReturn expr', lbl_ctx
+      TReturn expr', lbl_ctx
 
   and tc_block venv fn_vt lbl_ctx stms =
     let stms',lbl = tc_stms venv fn_vt lbl_ctx stms in
@@ -310,11 +310,11 @@ let tc_module (CModule fdecs) =
       let rec tc_texpr { pos=p; data=texpr } =
         let tc_texpr' = function
           | TVarExp v ->
-            let lt = get_var venv v in
+            let lt = get_var venv v p in
               { texpr with e_lbl=lt.label }
           | TArrExp(v,i) ->
             let i' = tc_texpr i in
-            let lt = get_arr venv v in
+            let lt = get_arr venv p v in
               { texpr with e=TArrExp(v,i'); e_lbl=lt.label }
           | TUnOp(op,e1) ->
             let e1' = tc_texpr e1 in
@@ -327,15 +327,15 @@ let tc_module (CModule fdecs) =
           | TPrimitive prim -> texpr
           | TCallExp(name,args) ->
             let args' = List.map tc_targ args in
-            let f = get_fn fenv name in
+            let f = get_fn fenv name p in
               { texpr with e=TCallExp(name,args'); e_lbl=f.f_rvt.v_lbl }
-        in make_ast p @@ tc_texpr' texpr.e
+        in make_adt p @@ tc_texpr' texpr.e
       and tc_targ { pos=p; data=arg } =
         let tc_targ' = function
           | TValArg e -> TValArg(tc_texpr e)
-          | TRefArg(n,vt) -> TRefArg(n,vtk @@ get_var venv n)
-          | TArrArg(n,vt,sz) -> TArrArg(n,vtk @@ get_var venv n,sz)
-        in make_ast p @@ tc_targ' arg
+          | TRefArg(n,vt) -> TRefArg(n,vtk @@ get_var venv n p)
+          | TArrArg(n,vt,sz) -> TArrArg(n,vtk @@ get_var venv n p,sz)
+        in make_adt p @@ tc_targ' arg
       and tc_tstms stms =
         List.map
           (fun { pos=p; data=stm } ->
@@ -343,9 +343,9 @@ let tc_module (CModule fdecs) =
                begin
                  match stm with
                    | TVarDec(v,vt,e) ->
-                     TVarDec(v,vtk (get_var venv v),tc_texpr e)
+                     TVarDec(v,vtk (get_var venv v p),tc_texpr e)
                    | TArrDec (v,vt,s,init) ->
-                     TArrDec(v,vtk (get_var venv v),s,init)
+                     TArrDec(v,vtk (get_var venv v p),s,init)
                    | TAssign(v,e) ->
                      TAssign(v,tc_texpr e)
                    | TArrAssign(v,i,e) ->
@@ -357,7 +357,7 @@ let tc_module (CModule fdecs) =
                    | TReturn e ->
                      TReturn(tc_texpr e)
                end
-             in make_ast p @@ stm')
+             in make_adt p @@ stm')
           stms
       in { block with body=tc_tstms stms }
     in
