@@ -4,82 +4,40 @@
 #include <string.h>
 #include <stdlib.h>
 #include "stats.h"
+#include "inteltime.h"
 #include TARGET_LIB
 
 #define NUM_TRIALS 512
 #define NUM_ITRS 512
 #define WARMUP_COUNT 3
 
-// Compiling entire file at -O0
-//if defined(__clang__)
-//define NO_OPT __attribute__((optnone))
-//elif defined(__GNUC__)
-//define NO_OPT __attribute__((optimize("O0")))
-//endif
-
-// Now defined in TARGET_LIB since C preprocessor can't parse multiple arguments :(
-//ifndef barrier_data
-//define barrier_data(ptr) __asm__ __volatile__("# barrier": :"r"(ptr) :"memory");
-//endif
-
-#define TIME_DEC \
-    uint64_t cycles_high; \
-    uint64_t cycles_low;
-
-#define TIME_START(time) \
-    time = 0; \
-    asm volatile ("cpuid\n\t" \
-		    "rdtsc\n\t" \
-		    "mov %%rdx, %0\n\t" \
-		    "mov %%rax, %1\n\t" \
-		    : "=r" (cycles_high), "=r" (cycles_low) \
-		    :: "%rax", "%rbx", "%rcx", "%rdx"); \
-    time = (cycles_high << 32) | cycles_low; 
-
-#define TIME_STOP(time) \
-    time = 0; \
-    asm volatile ("rdtscp\n\t" \
-    		    "mov %%rdx, %0\n\t" \
-		    "mov %%rax, %1\n\t" \
-		    "cpuid\n\t" \
-		    : "=r" (cycles_high), "=r" (cycles_low) \
-		    :: "%rax", "%rbx", "%rcx", "%rdx"); \
-    time = (cycles_high << 32) | cycles_low;
-
 double test(void) {
 	uint32_t ctr = 0;
 	uint8_t real = 0;
-	uint64_t start, stop;
 	uint64_t offset_time;
 	uint64_t routine_time;
         TIME_DEC
         ROUTINE_DEC
 
 runme:
-        TIME_START(start)
-	__asm__ __volatile__("# start routine loop");
-
+        // routine loop
+        TIME_START
 	for(ctr=0;ctr<NUM_ITRS;ctr++){
                 ROUTINE_INIT
 		ROUTINE
 	        BARRIER_DATA
 	}
+        TIME_STOP
+        TIME_DIFF(routine_time)
 
-	__asm__ __volatile__("# end routine loop");
-        TIME_STOP(stop)
-	routine_time = stop-start;
-
-        TIME_START(start)
-	__asm__ __volatile__("# start offset loop");
-
+        // offset loop
+        TIME_START
 	for(ctr=0;ctr<NUM_ITRS;ctr++){
                 ROUTINE_INIT
 		BARRIER_DATA
 	}
-
-	__asm__ __volatile__("# end offset loop");
-        TIME_STOP(stop)
-	offset_time = stop-start;
+        TIME_STOP
+        TIME_DIFF(offset_time)
 
 	if(real < WARMUP_COUNT){ real++; goto runme;}
 
@@ -113,4 +71,3 @@ int main(int argc, char* argv[]) {
 
 #endif
 }
-
