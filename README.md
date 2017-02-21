@@ -44,11 +44,19 @@ Then we must configure oasis.
 
 Finally we can build the compiler.
 
-```make build```.
+```make build```
 
 If you want to add a dependency, add it to ```_oasis```, then run the 3 previous commands again.
 
 This will give us the ```constanc.byte``` executable.
+
+To install constanc, run the command
+
+```make install```
+
+This will add constanc to your path so that you can compile const files with the command,
+
+```constanc```
 
 ## Link to a C library
 

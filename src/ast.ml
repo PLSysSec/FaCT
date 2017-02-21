@@ -1,93 +1,112 @@
-open Lexing
+open Pos
 
-type pos = { file:string; line:int; lpos:int; rpos:int }
-[@@deriving show]
+type ctype =
+  | Bool
+  | Int of int
+  | UInt of int
+[@@deriving show, eq]
 
-let to_pos ?buf:(b=None)
-    { pos_fname=f; pos_lnum=l; pos_bol=bl; pos_cnum=c } =
-  match b with
-  | None -> { file=f; line=l; lpos=bl; rpos=c }
-  | Some lb ->
-    let start = (lexeme_start lb) - lb.lex_curr_p.pos_bol in
-    let ends = (lexeme_end lb) - lb.lex_curr_p.pos_bol in
-    { file=f; line=l; lpos=start+1; rpos=ends+1 }
+type label =
+  | Public
+  | Secret
+  | Unknown
+[@@deriving show, eq]
 
-let pos_string { file=f; line=l; lpos=lp; rpos=rp } =
-  "file " ^ f ^ ", line " ^ string_of_int(l) ^
-  ", from " ^ string_of_int(lp) ^ "-" ^ string_of_int(rp)
+(* "kind" actually means "storage" here *)
+type kind =
+  | Val
+  | Ref
+  | Arr of int
+  | DArr of string
+[@@deriving show, eq]
+
+type var_type = { v_ty:ctype; v_lbl:label }
+[@@deriving show, eq]
+
+type labeled_type = { ty:ctype; label:label; kind:kind }
+[@@deriving show, eq]
 
 type constantc_module = CModule of fdec list
 [@@deriving show]
 
-and fdec = FunctionDec of string * param list * labeled_type * stm list * pos
+and fdec' = { name:string; params:param list; rvt:var_type; body:stm list }
 [@@deriving show]
+and fdec = fdec' pos_ast [@@deriving show]
 
-and ctype =
-  | Int
-  | Bool
-  | ByteArr of int
+and param' = { name:string; lt:labeled_type }
 [@@deriving show]
+and param = param' pos_ast [@@deriving show]
 
-and label =
-  | Public
-  | Secret
-
-and labeled_type = { ty:ctype; label:label option }
+and arrinit' =
+  | UnsafeNoInit
 [@@deriving show]
+and arrinit = arrinit' pos_ast [@@deriving show]
 
-and param = { name:string; lt:labeled_type; p:pos }
+and stm' =
+  | VarDec of string * var_type * expr
+  | ArrDec of string * var_type * int * arrinit
+  | Assign of string * expr
+  | ArrAssign of string * expr * expr
+  | If of expr * stm list * stm list
+  | For of string * ctype * expr * expr * stm list
+  | Return of expr
 [@@deriving show]
+and stm = stm' pos_ast [@@deriving show]
 
-and stm =
-  | VarDec of string * labeled_type * expr * pos
-  | Assign of string * expr * pos
-  | ArrAssign of string * expr * expr * pos
-  | If of expr * stm list * stm list * pos
-  | For of string * primitive * primitive * stm list * pos
-  | Return of expr * pos
+and expr' =
+  | VarExp of string
+  | ArrExp of string * expr
+  | UnOp of unop * expr
+  | BinOp of binop * expr * expr
+  | Primitive of primitive
+  | CallExp of string * arg list
 [@@deriving show]
+and expr = expr' pos_ast [@@deriving show]
 
-and expr =
-  | VarExp of string * pos
-  | ArrExp of string * expr * pos
-  | UnOp of unop * expr * pos
-  | BinOp of binop * expr * expr * pos
-  | Primitive of primitive * pos option
-  | CallExp of string * expr list * pos
+and arg' =
+  | ValArg of expr
+  | RefArg of string
+  | ArrArg of string
 [@@deriving show]
+and arg = arg' pos_ast [@@deriving show]
 
-and unop =
-  | Neg of pos
-  | L_Not of pos
-  | B_Not of pos
+and unop' =
+  | Neg
+  | L_Not
+  | B_Not
 [@@deriving show]
+and unop = unop' pos_ast [@@deriving show]
 
-and binop =
-  | Plus of pos
-  | Minus of pos
-  | Multiply of pos
-  | Equal of pos
-  | NEqual of pos
-  | GT of pos
-  | GTE of pos
-  | LT of pos
-  | LTE of pos
-  | L_And of pos
-  | L_Or of pos
-  | B_And of pos
-  | B_Or of pos
-  | B_Xor of pos
-  | LeftShift of pos
-  | RightShift of pos
+and binop' =
+  | Plus
+  | Minus
+  | Multiply
+  | Equal
+  | NEqual
+  | GT
+  | GTE
+  | LT
+  | LTE
+  | L_And
+  | L_Or
+  | B_And
+  | B_Or
+  | B_Xor
+  | LeftShift
+  | RightShift
 [@@deriving show]
+and binop = binop' pos_ast [@@deriving show]
 
-and primitive =
+and primitive' =
   | Number of int
   | Boolean of bool
-  | ByteArray of int list
-[@@deriving show]
+[@@deriving eq]
+and primitive = primitive' pos_ast [@@deriving show]
 
-let ty_to_string = function
-  | Int _ -> "Int"
-  | Bool _ -> "Bool"
-  | ByteArr _ -> "ByteArr"
+let ltk vt k = { ty=vt.v_ty; label=vt.v_lbl; kind=k }
+let vtk lt = { v_ty=lt.ty; v_lbl=lt.label }
+
+let rec ty_to_string = function
+  | Bool -> "bool"
+  | Int size -> "int" ^ string_of_int size
+  | UInt size -> "uint" ^ string_of_int size

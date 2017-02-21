@@ -1,0 +1,100 @@
+uint8 zbuf[64] = zero();
+uint8 fbuf[64] = fill(0x5c);
+uint8 cbuf[64] = copy(fbuf);
+
+
+
+for (uint32 i = 0 to 64)
+    cbuf[i] = fbuf[i];
+
+arrcpy(cbuf, fbuf);
+
+cbuf[uint32 i = 0 to 64] = {
+    fbuf[i];
+};
+
+cbuf[uint32 i = 0 to 64] = { fbuf[i]; };
+
+cbuf[uint32 i] = { fbuf[i]; };
+
+cbuf[uint32 i] = fbuf[i];
+
+cbuf[] = fbuf[];
+
+
+
+for (uint32 i = 0 to 64)
+    fbuf[i] = 0x5c;
+
+arrfill(fbuf, 0x5c);
+
+fbuf[uint32 i = 0 to 64] = { 0x5c };
+
+fbuf[uint32 i] = { 0x5c };
+
+fbuf[uint32 i] = 0x5c;
+
+fbuf[] = 0x5c;
+
+
+
+for (uint32 i = 0 to 64)
+    zbuf[i] = 0x00;
+
+arrzero(zbuf);
+
+zbuf[uint32 i = 0 to 64] = { 0x00 };
+
+zbuf[uint32 i] = { 0x00 };
+
+zbuf[uint32 i] = 0x00;
+
+zbuf[] = 0x00;
+
+
+
+uint8 buf[uint32 i = 0 to 192] = { // see below for notes on initialization syntax
+    i < 64 ? zbuf[i] :
+    i >= 64 && i < 128 ? fbuf[i-64] + 1 :
+    cbuf[i-128] + 2;
+};
+
+buf[uint32 i = 0 to 192] = {
+    i < 64 ? zbuf[i] :
+    i >= 64 && i < 128 ? fbuf[i-64] + 1 :
+    cbuf[i-128] + 2;
+};
+
+buf[uint32 i] = {
+    i < 64 ? zbuf[i] :
+    i >= 64 && i < 128 ? fbuf[i-64] + 1 :
+    cbuf[i-128] + 2;
+};
+
+cbuf[uint32 i] = buf[i]; // allowed? buf is bigger than cbuf, but index i will always be valid (want to say yes)
+cbuf[] = buf[]; // allowed? same as above, but seems to imply different (want to say no)
+cbuf[] = buf[0:64]; // allowed, since it is clear
+
+cbuf[2:31] = fbuf[5:34]; // allowed? assigning into arbitrary slices (want to say it's just sugar for the following:)
+cbuf[uint32 i = 2 to 31] = fbuf[i + 3];
+
+
+
+uint8 qbuf[uint32 i = 7 to 39] = i; // is qbuf 32 bytes long or 39 bytes long? (want to say 32)
+uint8 qbuf[uint32 i = 6 to 39 by 5] = i; // how big is qbuf now? 39? 36? 7? (want to say 7)
+/* now the problem is the declarative version assigns incrementally
+   but the non-declarative version assigns based on the index expression */
+
+uint8 qbuf[uint32 i to 32] = i + 7; // force the syntax to something like this to prevent above-mentioned ambiguity?
+qbuf[uint32 i = 7 to 39 by 5] = i; // but this still makes perfect sense, so now we have discrepancy in syntax
+uint8 qbuf[uint32 i = 0 to 32] = i + 7; /* we could do this for consistency and just disallow any alternate
+                                           starting points or step sizes
+                                           the error would be something like:
+                                           "ERROR: sparse array declaration on line whateverblah" */
+
+
+
+
+uint8 zbuf[uint32 i = 0 to 32] = 0x00;
+uint8 fbuf[uint32 i = 0 to 32] = 0x5c;
+uint8 cbuf[uint32 i = 0 to 32] = fbuf[i];
