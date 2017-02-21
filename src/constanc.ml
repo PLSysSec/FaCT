@@ -1,5 +1,6 @@
 open Command_util
 open Core.Std
+open Err
 
 let summary = "Compile the given const file."
 let readme = "Compile a const file. Pass the relative path to the file " ^
@@ -9,6 +10,11 @@ let llvm_doc = " Output LLVM to file"
 let ast_doc = " Output AST to file"
 let core_ir_doc = " Output Core IR to file"
 let debug_doc = " Debug"
+
+let compiler_bug_text = "The code attempted to be compiled has found a bug " ^
+                        "the compiler. Please report the error code as well" ^
+                        "as the source code to " ^
+                        "https://github.com/PLSysSec/Constanc"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -34,20 +40,11 @@ let error_exit s =
   exit 1
 
 let runner prep llvm_out ast_out core_ir_out =
-  compile prep llvm_out ast_out core_ir_out
-  (*try compile prep llvm_out ast_out core_ir_out with
-    | (Command_util.SyntaxError s) -> error_exit s
-    | (Codegen.Error s) -> error_exit s
-    | (Command_util.SyntaxError s) -> error_exit s
-    | (Codegen.Error s) -> error_exit s
-    | (Typecheck.NotImplemented) -> error_exit "Not implemented"
-    | (Env.VariableNotDefined s) -> error_exit s
-    | (Env.FunctionNotDefined s) -> error_exit s
-    | (Typecheck.TypeError s) -> error_exit s
-    | (Typecheck.UnknownType s) -> error_exit s
-    | (Typecheck.CallError s) -> error_exit s
-    | (Typecheck.ForError s) -> error_exit s
-    | _ -> error_exit "Error"*)
+  (try compile prep llvm_out ast_out core_ir_out with
+    | ConstancError e ->
+      let code = error_code e in
+      if code < 0 then Log.error "%s" compiler_bug_text;
+      error_exit (string_of_int code))
 
 let compile_command =
   Command.basic

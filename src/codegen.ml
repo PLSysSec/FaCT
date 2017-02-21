@@ -208,12 +208,11 @@ let codegen ctx m =
           let callee' =
             (match lookup_function callee m with
               | Some fn -> fn
-              | None -> raise_error pos UnknownFunction)
-          in
-            if List.length f_args != List.length args then
-              raise (UnclassifiedError("Arity mismatch for `" ^ callee ^ "`"));
-            let args' = List.map2 (codegen_arg venv mem) f_args args in
-              build_call callee' (Array.of_list args') "calltmp" b
+              | None -> raise_error pos UnknownFunction) in
+          if List.length f_args != List.length args then
+            raise_error pos ArityError;
+          let args' = List.map2 (codegen_arg venv mem) f_args args in
+          build_call callee' (Array.of_list args') "calltmp" b
 
     and codegen_stms { venv; mem; body } =
       ignore(List.map (codegen_stm venv mem) body)
