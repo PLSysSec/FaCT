@@ -42,7 +42,7 @@ let pp_type_error fmt =
   let pp = Format.pp_print_text fmt in
   pp "Type error";
 
-type errors =
+type error =
   | LexingError
   | SyntaxError
   | TypeError
@@ -67,9 +67,30 @@ type errors =
   | ArrayRequiredError
 [@@deriving show]
 
-
-
-
 let raise_error p e = raise ConstancError
 
 let raise_error_np e = raise ConstancError
+
+let error_code = function
+  | LexingError -> 1
+  | SyntaxError -> 2
+  | TypeError -> 3
+  | TypeFlowError -> 4
+  | FunctionCallArgError _ -> 5
+  | FunctionCallLabelError -> 6
+  | FunctionCallKindError -> 7
+  | VariableNotDefined -> 8
+  | FunctionNotDefined -> 9
+  | UnknownFunction -> 10
+  | ArrayNotDefined -> 11
+  | PromotedTypeNotSupported -> 12
+  | StoreArgsError -> 13
+  | ArrayAsRefError -> 14
+  | VariableAsExpression -> 15
+  | AssignmentError -> 16
+  | FunctionAlreadyDefined -> 17
+  | RedefiningVar -> 18
+  | UpdateLabelError -> 19
+  | UnknownLabelError -> 20
+  | TransformError -> 21
+  | ArrayRequiredError -> 22
