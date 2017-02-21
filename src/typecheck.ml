@@ -27,27 +27,23 @@ let fit_num n =
     if n < 0 then Int (numbits n)
     else UInt (numbits n)
 
-let unify_ty t1 t2 =
+let unify_ty pos t1 t2 =
   match (t1,t2) with
     | _ when equal_ctype t1 t2 -> t1
     | (Int a, Int b) -> Int (max a b)
     | (UInt a, UInt b) -> UInt (max a b)
     | (Int a, UInt b) -> Int (max a (2 * b))
     | (UInt a, Int b) -> Int (max (2 * a) b)
-    | _ -> raise (TypeError((ty_to_string t1) ^
-                            " does not unify with " ^
-                            (ty_to_string t2)))
+    | _ -> raise_error pos TypeError
 
-let unify_sz t1 t2 =
+let unify_sz pos t1 t2 =
   match (t1,t2) with
     | _ when equal_ctype t1 t2 -> t1
     | (Int a, Int b) -> Int (max a b)
     | (UInt a, UInt b) -> UInt (max a b)
     | (Int a, UInt b) -> Int (max a b)
     | (UInt a, Int b) -> Int (max a b)
-    | _ -> raise (TypeError((ty_to_string t1) ^
-                            " does not unify with " ^
-                            (ty_to_string t2)))
+    | _ -> raise_error pos TypeError
 
 let unify_label lbl1 lbl2 =
   match lbl1,lbl2 with
@@ -65,9 +61,9 @@ let tc_unop { pos=p; data=op } ty =
 
 let tc_binop { pos=p; data=op } lhs rhs =
   match op with
-    | Plus when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
-    | Minus when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
-    | Multiply when is_int(lhs) && is_int(rhs) -> unify_ty lhs rhs
+    | Plus when is_int(lhs) && is_int(rhs) -> unify_ty p lhs rhs
+    | Minus when is_int(lhs) && is_int(rhs) -> unify_ty p lhs rhs
+    | Multiply when is_int(lhs) && is_int(rhs) -> unify_ty p lhs rhs
     | Equal when is_int(lhs) && is_int(rhs) -> Bool
     | NEqual when is_int(lhs) && is_int(rhs) -> Bool
     | GT when is_int(lhs) && is_int(rhs) -> Bool
@@ -76,9 +72,9 @@ let tc_binop { pos=p; data=op } lhs rhs =
     | LTE when is_int(lhs) && is_int(rhs) -> Bool
     | L_And when is_bool(lhs) && is_bool(rhs) -> Bool
     | L_Or when is_bool(lhs) && is_bool(rhs) -> Bool
-    | B_And when is_int(lhs) && is_int(rhs) -> unify_sz lhs rhs
-    | B_Or when is_int(lhs) && is_int(rhs) -> unify_sz lhs rhs
-    | B_Xor when is_int(lhs) && is_int(rhs) -> unify_sz lhs rhs
+    | B_And when is_int(lhs) && is_int(rhs) -> unify_sz p lhs rhs
+    | B_Or when is_int(lhs) && is_int(rhs) -> unify_sz p lhs rhs
+    | B_Xor when is_int(lhs) && is_int(rhs) -> unify_sz p lhs rhs
     | LeftShift when is_int(lhs) && is_unsigned(rhs) -> lhs
     | RightShift when is_int(lhs) && is_unsigned(rhs) -> lhs
     | _ -> raise_error p TypeError
@@ -190,7 +186,7 @@ let tc_module (CModule fdecs) =
         let lt = get_var venv name p in
           (match lt.kind with
             | Arr sz -> TArrArg(name, vtk lt, sz)
-            | _ -> raise (UnclassifiedError("not an array")))
+            | _ -> raise_error p ArrayRequiredError)
     in make_adt p @@ tc_arg' arg
 
   and tc_expr venv { pos=p; data=expr } =
@@ -234,18 +230,18 @@ let tc_module (CModule fdecs) =
       let expr' = unify_ctx (tc_expr venv expr) in
       let vt' = can_flow venv vt expr' in
         (* XXX need to check if redefining variable *)
-        add_var venv name (ltk vt' Val);
+        add_var venv name (ltk vt' Val) p;
         TVarDec(name,vt',expr'), Public
     | ArrDec(name,vt,size,init) ->
       if not (is_int vt.v_ty) then raise_error p TypeError;
-      add_var venv name (ltk vt (Arr size));
+      add_var venv name (ltk vt (Arr size)) p;
       TArrDec(name,vt,size,init), Public
     | Assign(name,expr) ->
       let expr' = unify_ctx (tc_expr venv expr) in
       let lt = get_var venv name p in
         let vt' = can_flow venv (vtk lt) expr' in
-          update_label venv name vt'.v_lbl;
-          TAssign(name,expr'), Public
+        update_label venv name vt'.v_lbl p;
+        TAssign(name,expr'), Public
     | ArrAssign(name,i,expr) ->
       let i' = tc_expr venv i in
       if not (is_unsigned i'.data.e_ty) then raise_error p TypeError;
@@ -270,7 +266,7 @@ let tc_module (CModule fdecs) =
       ignore(can_flow venv vt l');
       ignore(can_flow venv vt h');
       let venv' = Env.sub_env venv in
-      add_var venv' name { ty=ty; label=Public; kind=Val };
+      add_var venv' name { ty=ty; label=Public; kind=Val } p;
       let body',_ = tc_block venv' fn_vt lbl_ctx body in
       TFor(name,ty,l',h',body'), Public
     | Return expr ->
@@ -370,8 +366,8 @@ let tc_module (CModule fdecs) =
     (* XXX eventually we will have proper label inference for parameters
        * but for now we just assume public *)
     let lt' = if lt.label = Unknown then { lt with label=Public } else lt in
-      add_var venv n lt';
-      { pos=p; data={ arg with lt=lt' } }
+    add_var venv n lt' p;
+    { pos=p; data={ arg with lt=lt' } }
   in
 
   let tc_fdec { pos=p; data=fdec } =

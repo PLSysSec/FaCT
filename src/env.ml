@@ -36,9 +36,9 @@ let get_vtbl = function
   | TopEnv vtbl -> vtbl
   | SubEnv(vtbl,_) -> vtbl
 
-let add_var env v lt =
+let add_var env v lt p =
   let vtbl = get_vtbl env in
-    if Hashtbl.mem vtbl v then raise (UnclassifiedError "redefining var");
+    if Hashtbl.mem vtbl v then raise_error p RedefiningVar;
     Hashtbl.add vtbl v (ref lt)
 
 let rec find_var env (p:Pos.pos) =
@@ -69,10 +69,7 @@ let update_label venv name label p =
     match !lt.label,label with
       | Unknown, _ -> ignore(lt := { !lt with label=label })
       | a, b when Ast.equal_label a b -> ()
-      | _ -> raise @@ UnclassifiedError
-                        (name ^ " already has label " ^
-                         (show_label !lt.label) ^", cannot change to " ^
-                         (show_label label))
+      | _ -> raise_error p UpdateLabelError
 
 let fill_vtbl_public venv =
   let vtbl = get_vtbl venv in
@@ -80,8 +77,6 @@ let fill_vtbl_public venv =
                    if !lt.label = Unknown
                    then lt := { !lt with label=Public })
       vtbl
-
-
 
 type fentry = { f_rvt:Ast.var_type; f_args:Ast.labeled_type list }
 [@@deriving show]

@@ -50,7 +50,7 @@ and transform_type = function
 and transform_label = function
   | Ast.Public -> Cast.Public
   | Ast.Secret -> Cast.Secret
-  | Ast.Unknown -> raise @@ TransformError "Encountered `Unknown` label"
+  | Ast.Unknown -> raise_error_np UnknownLabelError
 
 and transform_kind = function
   | Ast.Val -> Cast.Val
@@ -93,11 +93,11 @@ and transform_vtbl vtbl =
 
 and transform_topvenv = function
   | Env.TopEnv vtbl -> Env.TopEnv (transform_vtbl vtbl)
-  | _ -> raise (UnclassifiedError("can't transform non-topvenv"))
+  | _ -> raise_error_np TransformError
 
 and transform_subvenv venv = function
   | Env.SubEnv(vtbl,_) -> Env.SubEnv (transform_vtbl vtbl, venv)
-  | _ -> raise (UnclassifiedError("can't transform non-topvenv"))
+  | _ -> raise_error_np TransformError
 
 and venv_merge_up = function
   | Env.SubEnv(vtbl,venv) -> (* XXX need to check collisions *)
@@ -105,7 +105,7 @@ and venv_merge_up = function
       Hashtbl.iter (fun k v ->
                      Hashtbl.replace vtbl' k v)
         vtbl
-  | _ -> raise (UnclassifiedError("can't merge up topvenv"))
+  | _ -> raise_error_np TransformError
 
 and transform_stm rty venv mem ctx { data; pos } =
   let make_expr e ty pos =
@@ -187,7 +187,7 @@ and transform_stm rty venv mem ctx { data; pos } =
     let vt = { Cast.v_ty=Cast.BoolMask; Cast.v_lbl=Cast.Secret } in
     let mdec_rhs = make_adt pos (b_and e' c pos) in
     let mdec = make_adt pos (Cast.VarDec(tname,vt,mdec_rhs)) in
-    Env.add_var venv tname (Cast.ltk vt Cast.Val);
+    Env.add_var venv tname (Cast.ltk vt Cast.Val) pos;
     let bt' = transform_block ctx' bt in
     let bf' = transform_block ctx' bf in
     venv_merge_up bt'.Cast.venv;
@@ -307,8 +307,8 @@ and transform_fdec { data; pos } =
       let rval = make_adt pos (Cast.VarDec("__rval",rvt',r0)) in
       let rset = make_adt pos (Cast.VarDec("__rset",bm_false,bm_prim_false)) in
       let venv' = transform_topvenv body.venv in
-      Env.add_var venv' "__rval" (Cast.ltk rvt' Cast.Val);
-      Env.add_var venv' "__rset" (Cast.ltk bm_false Cast.Val);
+      Env.add_var venv' "__rval" (Cast.ltk rvt' Cast.Val) pos;
+      Env.add_var venv' "__rset" (Cast.ltk bm_false Cast.Val) pos;
       let mem' = Env.new_env() in
       let body' = List.flatten(List.map (transform_stm rvt'.Cast.v_ty venv' mem' ctx) body.body) in
       let body'' = { Cast.venv=venv'; Cast.mem=mem'; Cast.body=[rval]@[rset]@body' } in

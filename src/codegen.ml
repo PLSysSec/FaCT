@@ -16,7 +16,7 @@ let is_signed = function
 let codegen ctx m =
   let b = builder ctx in
 
-  let llvm_ty = function
+  let llvm_ty p = function
     | Int n when n <= 8 -> i8_type ctx
     | Int n when n <= 16 -> i16_type ctx
     | Int n when n <= 32 -> i32_type ctx
@@ -24,19 +24,19 @@ let codegen ctx m =
     | UInt n when n <= 16 -> i16_type ctx
     | UInt n when n <= 32 -> i32_type ctx
     | BoolMask -> i32_type ctx
-    | _ as ty -> raise (UnclassifiedError("possibly promoted type "^(show_ctype ty)^" not supported"))
+    | _ as ty -> raise_error p PromotedTypeNotSupported
   in
 
-  let lt_to_llvm_ty lt =
-    let itype = llvm_ty lt.ty in
+  let lt_to_llvm_ty lt p =
+    let itype = llvm_ty p lt.ty in
       match lt.kind with
         | Val -> itype
         | Ref -> pointer_type itype
         | Arr s -> pointer_type(array_type itype s)
   in
 
-  let extend_to signed ty v =
-    let llty = llvm_ty ty in
+  let extend_to signed ty p v =
+    let llty = llvm_ty p ty in
     let lb,rb = integer_bitwidth llty, integer_bitwidth @@ type_of v in
       if lb < rb then build_trunc v llty "trunctmp" b
       else if lb > rb then
@@ -46,18 +46,18 @@ let codegen ctx m =
   in
 
   let rec codegen_module (CModule(fenv,f)) =
-    let rec codegen_fdec { data=fdec } =
+    let rec codegen_fdec { data=fdec; pos } =
       match fdec with
       | FunctionDec(n,args,vt,body,ret) ->
-        let arg_to_type { data=d } = lt_to_llvm_ty d.lt in
+        let arg_to_type { data=d; pos=p } = lt_to_llvm_ty d.lt p in
         let arg_types = List.map arg_to_type args in
         let arg_types' = Array.of_list arg_types in
-        let rt = llvm_ty ret.data.e_ty in
+        let rt = llvm_ty pos ret.data.e_ty in
         let ft = function_type rt arg_types' in
         let the_function =
           match lookup_function n m with
             | None -> declare_function n ft m
-            | Some f -> raise (UnclassifiedError ("Function already defined:\t" ^ n)) in
+            | Some f -> raise_error pos FunctionAlreadyDefined in
         let bb = append_block ctx "entry" the_function in
           position_at_end bb b;
           allocate_args body.mem args;
@@ -69,12 +69,12 @@ let codegen ctx m =
             ignore(Llvm_analysis.assert_valid_function the_function)
 
     and allocate_args mem args =
-      let allocate_arg { data={ lt; name } } =
+      let allocate_arg { data={ lt; name }; pos } =
         match lt.kind with
           | Val
           | Ref ->
-            let alloca = build_alloca (lt_to_llvm_ty lt) name b in
-              add_var mem name alloca
+            let alloca = build_alloca (lt_to_llvm_ty lt pos) name b in
+              add_var mem name alloca pos
           | Arr _ -> ()
       in
         ignore(List.map allocate_arg args)
@@ -88,38 +88,37 @@ let codegen ctx m =
               let v = get_var mem name pos in
                 ignore(build_store param v b)
             | Arr _ ->
-              add_var mem name param)
+              add_var mem name param pos)
         ; args'
-        | _ -> raise (UnclassifiedError "store_args")
+        | _ -> raise_error_np StoreArgsError
 
     and allocate_stack { venv; mem; body } =
       let rec allocate_stack' body =
         begin
           match body.data with
             | VarDec(n,vt,_) ->
-              let alloca = build_alloca (llvm_ty vt.v_ty) n b in
-                add_var mem n alloca
+              let alloca = build_alloca (llvm_ty body.pos vt.v_ty) n b in
+              add_var mem n alloca body.pos
             | ArrDec(n,vt,s,_) ->
-              let alloca = build_alloca
-                            (array_type (llvm_ty vt.v_ty) s)
-                            n b in
-                add_var mem n alloca
+              let alloca =
+                build_alloca (array_type (llvm_ty body.pos vt.v_ty) s) n b in
+              add_var mem n alloca body.pos
             | For(i,ty,l,h,block) ->
-              let alloca = build_alloca (llvm_ty ty) i b in
-                add_var mem i alloca;
-                allocate_stack block
+              let alloca = build_alloca (llvm_ty body.pos ty) i b in
+              add_var mem i alloca body.pos;
+              allocate_stack block
             | _ -> ()
         end in
       ignore(List.map allocate_stack' body)
 
-    and codegen_prim ty p =
-      match p.data with
+    and codegen_prim ty { data; pos } =
+      match data with
         | Number n ->
-          const_int (llvm_ty ty) n
+          const_int (llvm_ty pos ty) n
         | Mask m ->
           match m.data with
-            | TRUE -> const_all_ones (llvm_ty ty)
-            | FALSE -> const_null (llvm_ty ty)
+            | TRUE -> const_all_ones (llvm_ty pos ty)
+            | FALSE -> const_null (llvm_ty pos ty)
 
     and codegen_unop { data=op } e =
       match op with
@@ -173,11 +172,11 @@ let codegen ctx m =
             (match nlt.kind with
               | Val -> get_var mem n arg.pos
               | Ref -> build_load (get_var mem n arg.pos) n b
-              | _ -> raise (UnclassifiedError("passing array as a ref")))
+              | _ -> raise_error arg.pos ArrayAsRefError)
         | ArrArg(n,_,_) -> get_var mem n arg.pos
 
     and codegen_ext venv mem ty e =
-      extend_to (is_signed e.data.e_ty) ty @@ codegen_expr venv mem e
+      extend_to (is_signed e.data.e_ty) ty e.pos @@ codegen_expr venv mem e
 
     and codegen_expr venv mem { data={ e; e_ty }; pos } =
       match e.data with
@@ -189,7 +188,7 @@ let codegen ctx m =
               | Ref ->
                 let var = build_load v n b in
                   build_load var n b
-              | _ -> raise (UnclassifiedError("cannot use this variable as an expression")))
+              | _ -> raise_error pos VariableAsExpression)
         | ArrExp(n,i) ->
           let v = get_var mem n pos in
           let i' = codegen_expr venv mem i in
@@ -209,7 +208,7 @@ let codegen ctx m =
           let callee' =
             (match lookup_function callee m with
               | Some fn -> fn
-              | None -> raise (UnclassifiedError ("Unknown function referenced: " ^ callee)))
+              | None -> raise_error pos UnknownFunction)
           in
             if List.length f_args != List.length args then
               raise (UnclassifiedError("Arity mismatch for `" ^ callee ^ "`"));
@@ -235,7 +234,7 @@ let codegen ctx m =
               | Ref ->
                 let var = build_load v n b in
                   ignore(build_store e' var b)
-              | _ -> raise (UnclassifiedError("cannot use this variable for direct assignment")))
+              | _ -> raise_error pos AssignmentError)
         | ArrAssign(n,i,e) ->
           let v = get_var mem n pos in
           let lt = get_var venv n pos in
@@ -262,7 +261,7 @@ let codegen ctx m =
           position_at_end bb_body b;
           codegen_stms s;
           let i' = build_load i v b in
-          let one = (const_int (llvm_ty ty) 1) in
+          let one = (const_int (llvm_ty pos ty) 1) in
           let incr = build_add i' one "loopincr" b in
           ignore(build_store incr i b);
           ignore(build_br bb_check b);

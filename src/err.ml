@@ -1,3 +1,5 @@
+exception ConstancError
+
 exception NotImplemented
 exception TypeError of string
 exception UnknownType of string
@@ -13,7 +15,7 @@ exception TransformError of string
 
 let ( << ) s p = s ^ " @ " ^ Pos.pos_string p
 
-let err p =
+(*let err p =
   InternalCompilerError(__LOC__ << p)
 let errTypeError p =
   TypeError("Types cannot be unified for given operation" << p)
@@ -34,4 +36,40 @@ let errFoundNotArr v =
   TypeError("Cannot use `" ^ v ^ "` as array")
 let errFoundNotFn v =
   TypeError("Cannot use `" ^ v ^ "` as function")
+*)
 
+let pp_type_error fmt =
+  let pp = Format.pp_print_text fmt in
+  pp "Type error";
+
+type errors =
+  | LexingError
+  | SyntaxError
+  | TypeError
+  | TypeFlowError
+  | FunctionCallArgError of Ast.ctype * Ast.ctype
+  | FunctionCallLabelError
+  | FunctionCallKindError
+  | VariableNotDefined
+  | FunctionNotDefined
+  | UnknownFunction (* Used in codegen. If this is called, there is a bug *)
+  | ArrayNotDefined
+  | PromotedTypeNotSupported
+  | StoreArgsError (* Codegen *)
+  | ArrayAsRefError (* Codegen *)
+  | VariableAsExpression (* Codegen *)
+  | AssignmentError (* Codegen *)
+  | FunctionAlreadyDefined (* Codegene *)
+  | RedefiningVar
+  | UpdateLabelError
+  | UnknownLabelError
+  | TransformError
+  | ArrayRequiredError
+[@@deriving show]
+
+
+
+
+let raise_error p e = raise ConstancError
+
+let raise_error_np e = raise ConstancError

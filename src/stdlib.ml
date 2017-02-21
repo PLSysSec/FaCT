@@ -1,3 +1,4 @@
+open Err
 open Llvm
 open Ast
 
@@ -10,4 +11,4 @@ let stdlib_funs = [
 ]
 
 let codegen_stdlib ctx m = function
-  | f -> raise (Error ("Unknown function:\t" ^ f))
+  | f -> raise_error_np FunctionNotDefined

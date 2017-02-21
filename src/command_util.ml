@@ -6,9 +6,7 @@ open Env
 open Typecheck
 open Transform
 open Lexing
-
-exception Exception of string
-exception SyntaxError of string
+open Err
 
 let run_command c args =
   let a  = Unix.fork () in
@@ -82,12 +80,11 @@ let compile (in_file,out_file,out_dir) llvm_out ast_out core_ir_out =
   ignore(Llvm_X86.initialize());
   Lexer.file := Some in_file;
   let lexbuf = (try Lexing.from_channel (open_in in_file) with
-    | _ -> raise (Exception "Lexing failed")) in
+    | _ -> raise_error_np LexingError) in
   ignore(lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = in_file });
   Log.debug "Lexing complete";
   let ast = (try CModule (Parser.main Lexer.token lexbuf) with
-      | _ -> let message = pos_string(to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p) in
-        raise (SyntaxError ("Syntax error @ " ^ message))) in
+      | _ -> raise_error (to_pos ~buf:(Some lexbuf)) SyntaxError) in
   Log.debug "Parsing complete";
   output_ast ast_out out_file' ast;
   let tast = tc_module ast in
