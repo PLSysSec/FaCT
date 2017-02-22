@@ -1,8 +1,12 @@
 #include <smack.h>
-
 #include "ct-verif.h"
+#include "ssl3_cbc_remove_padding_types.h"
+#include <string.h>
 
-#include "ssl3_cbc_remove_padding.c"
+int ssl3_cbc_remove_padding(const SSL *s,
+                            SSL3_RECORD *rec,
+                            unsigned block_size, unsigned mac_size);
+
 
 int ssl3_cbc_remove_padding_wrapper(unsigned char *data,
 									                  unsigned int length,
