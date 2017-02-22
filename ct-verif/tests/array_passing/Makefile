@@ -1,6 +1,7 @@
 ########## EDIT THE SECTION BELOW ##########
 export ENTRYPOINTS =mutateIfNot5_wrapper # the name of the function to verify
 INPUTFILE         ?=test_array_passing-3.5.ll # the file containing the function to verify (a .ll or .c file)
+#INPUTFILE         ?=test_array_passing.c # the file containing the function to verify (a .ll or .c file)
 WRAPPERFILE       ?=wrapper.c  # the wrapper function (a .c file)
 ############################################
 
@@ -27,11 +28,11 @@ wrapper:
 
 link: smack wrapper
 ifeq ($(INPUTEXT),.c)
-	llvm-link-3.5 smack.bc $(WRAPPERBC) -o $(FINALBC)
+	clang-3.5 -c -emit-llvm -O0 $(INPUTFILE) -o $(INPUTBC)
 else ifeq ($(INPUTEXT),.ll)
 	llvm-as-3.5 $(INPUTFILE) -o $(INPUTBC)
-	llvm-link-3.5 smack.bc $(INPUTBC) $(WRAPPERBC) -o $(FINALBC)
 endif
+	llvm-link-3.5 smack.bc $(INPUTBC) $(WRAPPERBC) -o $(FINALBC)
 
 verify: link
 	EXAMPLE=$(FINALBC) make -C $(BINDIR) verify
