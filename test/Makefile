@@ -1,6 +1,6 @@
 UNITY_ROOT=../Unity
 CC=gcc
-CFLAGS=-Wall -Wextra -Werror
+CFLAGS=-Wall -Wextra -Werror -std=c99
 
 INCLUDE=-I$(UNITY_ROOT)/src
 CSRC=$(wildcard *.const)
