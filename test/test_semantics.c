@@ -1,4 +1,36 @@
 #include <stdint.h>
+#include <stdio.h>
+static inline unsigned int constant_time_msb(unsigned int a)
+{
+    return 0 - (a >> (sizeof(a) * 8 - 1));
+}
+
+static inline unsigned int constant_time_lt(unsigned int a, unsigned int b)
+{
+    return constant_time_msb(a ^ ((a ^ b) | ((a - b) ^ b)));
+}
+
+static inline unsigned int constant_time_select(unsigned int mask,
+                                                unsigned int a,
+                                                unsigned int b)
+{
+    return (mask & a) | (~mask & b);
+}
+
+static inline int constant_time_select_int(unsigned int mask, int a, int b)
+{
+    return (int)(constant_time_select(mask, (unsigned)(a), (unsigned)(b)));
+}
+
+static inline unsigned int constant_time_is_zero(unsigned int a)
+{
+    return constant_time_msb(~a & (a - 1));
+}
+
+static inline unsigned int constant_time_eq(unsigned int a, unsigned int b)
+{
+    return constant_time_is_zero(a ^ b);
+}
 
 int32_t get100() {
   int32_t x = 666;
@@ -23,57 +55,39 @@ int32_t mutateArray2(int32_t arr2[5], int32_t val) {
 }
 
 int32_t simpleIf(int32_t cond) {
-  if (10 > cond) {
-    return 1;
-  } else {
-    return 2;
-  }
+  unsigned good = constant_time_lt(cond, 10);
+  return constant_time_select_int(good, 1, 2);  
 }
 
 int32_t mediumComplexIf(int32_t cond) {
   int32_t complex_ret = 10;
-  if (10 > cond) {
-    complex_ret = 1;
-  } else {
-    complex_ret = 2;
-  }
+  unsigned good = constant_time_lt(cond, 10);
+  complex_ret = constant_time_select_int(good, 1, 2);
   return complex_ret;
 }
 
 int32_t mixedIf(int32_t cond) {
   int32_t complex_ret = 10;
-  if (10 == cond) {
-    return 1;
-  } else {
-    complex_ret = 2;
-  }
+  unsigned good = constant_time_eq(10, cond);
+  complex_ret = constant_time_select_int(good, 1, 2);
   return complex_ret;
 }
 
 int32_t mixedIf2(int32_t cond) {
   int32_t complex_ret = 10;
-  if (10 > cond) {
-    complex_ret = 1;
-  } else {
-    return 2;
-  }
+  unsigned good = constant_time_eq(10, cond);
+  complex_ret = constant_time_select_int(good, 1, 2);
   return complex_ret;
 }
 
 int32_t nestedIf(int32_t cond) {
-  if (10 > cond) {
-    if (5 > cond) {
-      return 1;
-    } else {
-      return 2;
-    }
-  } else {
-    if (15 > cond) {
-      return 3;
-    } else {
-      return 4;
-    }
-  }
+  unsigned good = constant_time_lt(cond, 10);
+  int ret = 0;
+  unsigned inner_good1 = constant_time_lt(cond, 5);
+  unsigned inner_good2 = constant_time_lt(cond, 15);
+  int inner1 = constant_time_select(inner_good1, 1, 2);
+  int inner2 = constant_time_select(inner_good2, 3, 4);
+  return constant_time_select(good, inner1, inner2);
 }
 
 int32_t simpleLoop() {
@@ -209,4 +223,11 @@ uint16_t add5uint16(uint16_t num) {
 
 uint32_t add5uintUnify(uint16_t num) {
   return num + 5;
+}
+
+int main() {
+  printf("%d\n", nestedIf(1));
+  printf("%d\n", nestedIf(7));
+  printf("%d\n", nestedIf(11));
+  printf("%d\n", nestedIf(16));
 }
