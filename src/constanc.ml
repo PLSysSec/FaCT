@@ -35,16 +35,16 @@ let set_log_level debug =
     | true -> Log.set_log_level Log.DEBUG
     | false -> Log.set_log_level Log.ERROR
 
-let error_exit s =
+let error_exit s c =
   Log.error "%s" s;
-  exit 1
+  exit c
 
 let runner prep llvm_out ast_out core_ir_out =
   (try compile prep llvm_out ast_out core_ir_out with
-    | ConstancError e ->
+    | ConstancError (e,p) ->
       let code = error_code e in
       if code < 0 then Log.error "%s" compiler_bug_text;
-      error_exit (string_of_int code))
+      error_exit (string_of_error e p) code)
 
 let compile_command =
   Command.basic

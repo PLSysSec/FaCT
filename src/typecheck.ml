@@ -199,7 +199,7 @@ let tc_module (CModule fdecs) =
         ignore(lbl_can_flow venv Public i');
         if not (is_unsigned i'.data.e_ty) then raise_error p TypeError;
         (* TODO add dynamic bounds check *)
-        let lt = get_arr venv p v in
+        let lt = get_arr venv v p in
           { e=TArrExp(v,i'); e_ty=lt.ty; e_lbl=lt.label }
       | UnOp(op,e1) ->
         let e1' = tc_expr venv e1 in
@@ -247,7 +247,7 @@ let tc_module (CModule fdecs) =
       if not (is_unsigned i'.data.e_ty) then raise_error p TypeError;
       (* TODO add dynamic bounds check *)
       let expr' = unify_ctx (tc_expr venv expr) in
-      let lt = get_arr venv p name in
+      let lt = get_arr venv name p in
       let vt = can_flow venv (vtk lt) expr' in
       update_label venv name vt.v_lbl p;
       TArrAssign(name,i',expr'), Public
@@ -310,7 +310,7 @@ let tc_module (CModule fdecs) =
               { texpr with e_lbl=lt.label }
           | TArrExp(v,i) ->
             let i' = tc_texpr i in
-            let lt = get_arr venv p v in
+            let lt = get_arr venv v p in
               { texpr with e=TArrExp(v,i'); e_lbl=lt.label }
           | TUnOp(op,e1) ->
             let e1' = tc_texpr e1 in

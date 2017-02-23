@@ -32,11 +32,11 @@ type error =
   | ArityError
 [@@deriving show]
 
-exception ConstancError of error
+exception ConstancError of error * Pos.pos option
 
-let raise_error p e = raise (ConstancError e)
+let raise_error p e = raise (ConstancError (e, (Some p)))
 
-let raise_error_np e = raise (ConstancError e)
+let raise_error_np e = raise (ConstancError (e, None))
 
 let error_code = function
   | LexingError -> 1
@@ -63,3 +63,7 @@ let error_code = function
   | ArrayRequiredError -> 22
   | RedefiningFunction -> 23
   | ArityError -> -24
+
+let string_of_error e = function
+  | None -> (string_of_int (error_code e)) ^ " @ Unknown..."
+  | Some p -> (string_of_int (error_code e)) ^ " @ " ^ (Pos.pos_string p)

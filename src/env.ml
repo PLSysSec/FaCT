@@ -55,11 +55,11 @@ let rec find_var env (p:Pos.pos) =
         let fv = find_var env' p in
         find_var' fv vtbl p
 
-let get_var env v p =
+let get_var env v (p:Pos.pos) =
   let lt = find_var env p v in !lt
 
-let get_arr venv v p =
-  let lt = find_var venv v p in
+let get_arr venv v (p:Pos.pos) =
+  let lt = find_var venv p v in
     match !lt.kind with
       | Arr _ -> { !lt with kind=Ref }
       | _ -> raise_error p ArrayNotDefined
