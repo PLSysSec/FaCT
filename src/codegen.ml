@@ -209,8 +209,10 @@ let codegen ctx m =
             (match lookup_function callee m with
               | Some fn -> fn
               | None -> raise_error pos (UnknownFunction callee)) in
-          if List.length f_args != List.length args then
-            raise_error pos ArityError;
+          let expected = List.length f_args in
+          let actual = List.length args in
+          if expected != actual then
+            raise_error pos (ArityError { expected; actual });
           let args' = List.map2 (codegen_arg venv mem) f_args args in
           build_call callee' (Array.of_list args') "calltmp" b
 
