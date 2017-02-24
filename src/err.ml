@@ -35,7 +35,6 @@ type error =
   | UpdateLabelError
   | UnknownLabelError
   | TransformError
-  (*| ArrayRequiredError*)
   | RedefiningFunction of string
   | ArityError of { expected: int; actual: int }
 [@@deriving show]
