@@ -4,6 +4,14 @@ open Ast
 open Env
 open Tast
 
+let number = "Int or UInt"
+let unsigned = "UInt"
+
+let get_size = function
+  | Int a -> a
+  | UInt a -> a
+  | Bool -> 8
+
 let is_int = function
   | Int _ -> true
   | UInt _ -> true
@@ -34,7 +42,7 @@ let unify_ty pos t1 t2 =
     | (UInt a, UInt b) -> UInt (max a b)
     | (Int a, UInt b) -> Int (max a (2 * b))
     | (UInt a, Int b) -> Int (max (2 * a) b)
-    | _ -> raise_error pos TypeError
+    | (expected, actual) -> raise_error pos (TypeError { expected; actual })
 
 let unify_sz pos t1 t2 =
   match (t1,t2) with
@@ -43,7 +51,7 @@ let unify_sz pos t1 t2 =
     | (UInt a, UInt b) -> UInt (max a b)
     | (Int a, UInt b) -> Int (max a b)
     | (UInt a, Int b) -> Int (max a b)
-    | _ -> raise_error pos TypeError
+    | (expected, actual) -> raise_error pos (TypeError { expected; actual })
 
 let unify_label lbl1 lbl2 =
   match lbl1,lbl2 with
@@ -57,7 +65,9 @@ let tc_unop { pos=p; data=op } ty =
     | Neg when is_int ty -> ty
     | L_Not when is_bool ty -> ty
     | B_Not when is_int ty -> ty
-    | _ -> raise_error p TypeError
+    | Neg -> raise_error p (TypeError { expected=(Int 32); actual=ty })
+    | L_Not -> raise_error p (TypeError { expected=Bool; actual=ty })
+    | B_Not -> raise_error p (TypeError { expected=(Int 32); actual=ty })
 
 let tc_binop { pos=p; data=op } lhs rhs =
   match op with
@@ -77,7 +87,35 @@ let tc_binop { pos=p; data=op } lhs rhs =
     | B_Xor when is_int(lhs) && is_int(rhs) -> unify_sz p lhs rhs
     | LeftShift when is_int(lhs) && is_unsigned(rhs) -> lhs
     | RightShift when is_int(lhs) && is_unsigned(rhs) -> lhs
-    | _ -> raise_error p TypeError
+    | Plus
+    | Minus
+    | Multiply
+    | Equal
+    | NEqual
+    | GT
+    | GTE
+    | LT
+    | LTE when is_bool(lhs) || is_bool(rhs) ->
+      raise_error p (TypeErrorGeneric { expected=number; actual=Bool })
+    | L_And
+    | L_Or when is_int(lhs) ->
+      raise_error p (TypeError { expected=Bool; actual=lhs })
+    | L_And
+    | L_Or when is_int(rhs) ->
+      raise_error p (TypeError { expected=Bool; actual=rhs })
+    | B_And
+    | B_Or
+    | B_Xor when is_bool(lhs) || is_bool(rhs) ->
+      raise_error p (TypeErrorGeneric { expected=number; actual=Bool })
+    | LeftShift when is_bool(lhs) ->
+      raise_error p (TypeErrorGeneric { expected=number; actual=lhs })
+    | LeftShift ->
+      raise_error p (TypeErrorGeneric { expected=unsigned; actual=rhs })
+    | RightShift when is_bool(lhs) ->
+      raise_error p (TypeErrorGeneric { expected=number; actual=lhs })
+    | RightShift ->
+      raise_error p (TypeErrorGeneric { expected=unsigned; actual=rhs })
+    | _ -> raise_error p UnmatchedTypeError
 
 let ty_can_flow p lhs rhs =
   match lhs, rhs with
@@ -85,7 +123,7 @@ let ty_can_flow p lhs rhs =
     | Int a, Int b when a > b -> ()
     | UInt a, UInt b when a > b -> ()
     | Int a, UInt b when a > (2 * b) -> ()
-    | _ -> raise_error p TypeError
+    | a, b -> raise_error p (TypeFlowError { lhs=a; rhs=b })
 
 let ty_can_pass p lhs rhs =
   match lhs.kind with
@@ -93,7 +131,7 @@ let ty_can_pass p lhs rhs =
     | Ref
     | Arr _ ->
       if not (equal_ctype lhs.ty rhs.ty)
-      then raise_error p TypeError
+      then raise_error p (TypeError { expected=lhs.ty; actual=rhs.ty })
 
 let update_public venv p v =
   let lt = get_var venv v p in
@@ -119,7 +157,8 @@ and fill_public venv { pos=p; data=te } =
 
 let lbl_can_flow venv lbl ({ pos=p; data=te } as pte) =
   match lbl, te.e_lbl with
-    | Public, Secret -> raise_error p TypeFlowError
+    | Public, Secret ->
+      raise_error p (LabelFlowError { lhs=Public; rhs=Secret })
     | Public, Unknown -> fill_public venv pte; lbl
     | Unknown, Secret -> Secret
     | _ -> lbl
@@ -134,7 +173,7 @@ let lbl_can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
   match lhs, rhs with
     | { label=Public }, { label=Secret }
     | { kind=Ref; label=Secret }, { kind=Ref; label=Public } ->
-      raise_error p FunctionCallLabelError
+      raise_error p (LabelFlowError { lhs=Public; rhs=Secret })
     | { label=Unknown }, { label=Secret } -> { lhs with label=Secret }
     | { label=Public }, { label=Unknown } -> fill_arg venv ptarg; lhs
     | { label=Secret }, _ -> lhs
@@ -146,7 +185,8 @@ let can_flow venv vt ({ pos=p; data=texpr } as ptexpr) =
     { vt with v_lbl=lbl' }
 
 let kind_can_pass p lhs rhs =
-  if not (equal_kind lhs rhs) then raise_error p FunctionCallKindError
+  if not (equal_kind lhs rhs)
+    then raise_error p (KindError { expected=lhs; actual=rhs })
 
 let can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
   ignore(
@@ -184,9 +224,11 @@ let tc_module (CModule fdecs) =
           TRefArg(name, vtk lt)
       | ArrArg(name) ->
         let lt = get_var venv name p in
-          (match lt.kind with
-            | Arr sz -> TArrArg(name, vtk lt, sz)
-            | _ -> raise_error p ArrayRequiredError)
+        (match lt.kind with
+          | Arr sz -> TArrArg(name, vtk lt, sz)
+          | _ as k ->
+            let size = get_size lt.ty in
+            raise_error p (KindError { expected=(Arr size); actual=k }))
     in make_adt p @@ tc_arg' arg
 
   and tc_expr venv { pos=p; data=expr } =
@@ -197,7 +239,10 @@ let tc_module (CModule fdecs) =
       | ArrExp(v,i) ->
         let i' = tc_expr venv i in
         ignore(lbl_can_flow venv Public i');
-        if not (is_unsigned i'.data.e_ty) then raise_error p TypeError;
+        (if not (is_unsigned i'.data.e_ty)
+          then let size = get_size i'.data.e_ty in
+                raise_error p
+                (TypeError { expected=(Int size); actual=i'.data.e_ty }));
         (* TODO add dynamic bounds check *)
         let lt = get_arr venv v p in
           { e=TArrExp(v,i'); e_ty=lt.ty; e_lbl=lt.label }
@@ -233,7 +278,9 @@ let tc_module (CModule fdecs) =
         add_var venv name (ltk vt' Val) p;
         TVarDec(name,vt',expr'), Public
     | ArrDec(name,vt,size,init) ->
-      if not (is_int vt.v_ty) then raise_error p TypeError;
+      if not (is_int vt.v_ty)
+        then raise_error p
+          (TypeErrorGeneric { expected=number; actual=vt.v_ty });
       add_var venv name (ltk vt (Arr size)) p;
       TArrDec(name,vt,size,init), Public
     | Assign(name,expr) ->
@@ -244,7 +291,10 @@ let tc_module (CModule fdecs) =
         TAssign(name,expr'), Public
     | ArrAssign(name,i,expr) ->
       let i' = tc_expr venv i in
-      if not (is_unsigned i'.data.e_ty) then raise_error p TypeError;
+      (if not (is_unsigned i'.data.e_ty)
+        then let size = get_size i'.data.e_ty in
+             raise_error p
+              (TypeError { expected=(UInt size); actual=i'.data.e_ty }));
       (* TODO add dynamic bounds check *)
       let expr' = unify_ctx (tc_expr venv expr) in
       let lt = get_arr venv name p in
@@ -253,13 +303,16 @@ let tc_module (CModule fdecs) =
       TArrAssign(name,i',expr'), Public
     | If(cond,tstms,fstms) ->
       let cond' = tc_expr venv cond in
-      if not (is_bool cond'.data.e_ty) then raise_error p TypeError;
+      if not (is_bool cond'.data.e_ty)
+        then raise_error p
+              (TypeError { expected=Bool; actual=cond'.data.e_ty });
       let lbl_ctx' = unify_label lbl_ctx cond'.data.e_lbl in
       let tstms',ctx_t = tc_block (Env.sub_env venv) fn_vt lbl_ctx' tstms in
       let fstms',ctx_f = tc_block (Env.sub_env venv) fn_vt lbl_ctx' fstms in
       TIf(cond',tstms',fstms'), (unify_label ctx_t ctx_f)
     | For(name,ty,l,h,body) ->
-      if not (is_int ty) then raise_error p TypeError;
+      if not (is_int ty)
+        then raise_error p (TypeErrorGeneric { expected=number; actual=ty });
       let l' = tc_expr venv l in
       let h' = tc_expr venv h in
       let vt = { v_ty=ty; v_lbl=Public } in

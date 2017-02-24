@@ -126,7 +126,7 @@ and transform_stm rty venv mem ctx { data; pos } =
     let lt = Env.get_var venv a pos in
       match lt.Cast.kind with
         | Cast.Arr _ -> make_expr (Cast.ArrExp(a,i)) lt.Cast.ty pos
-        | _ -> raise_error pos ArrayNotDefined in
+        | _ -> raise_error pos (ArrayNotDefined a) in
 
   let rset pos = make_expr (Cast.VarExp "__rset") Cast.BoolMask pos in
   let b_and l r pos =
@@ -216,9 +216,6 @@ and transform_stm rty venv mem ctx { data; pos } =
     let rval_stm = make_adt pos (Cast.Assign("__rval",rval_rhs)) in
     let rset_stm = make_adt pos (Cast.Assign("__rset",rset_rhs)) in
     [rval_stm; rset_stm]
-
-(*and transform_stm rty venv mem ctx =
-  transform_stm' rty venv mem ctx*)
 
 and transform_arg = fun { data; pos } ->
   let transform_arg' = function

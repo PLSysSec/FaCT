@@ -83,9 +83,10 @@ let compile (in_file,out_file,out_dir) llvm_out ast_out core_ir_out =
     | _ -> raise_error_np LexingError) in
   ignore(lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = in_file });
   Log.debug "Lexing complete";
-  let ast = (try CModule (Parser.main Lexer.token lexbuf) with
+  let ast = CModule (Parser.main Lexer.token lexbuf) in
+  (*let ast = (try CModule (Parser.main Lexer.token lexbuf) with
       | _ -> raise_error
-              (to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p) SyntaxError) in
+              (to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p) SyntaxError) in*)
   Log.debug "Parsing complete";
   output_ast ast_out out_file' ast;
   let tast = tc_module ast in

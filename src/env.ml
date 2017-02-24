@@ -38,7 +38,7 @@ let get_vtbl = function
 
 let add_var env v lt p =
   let vtbl = get_vtbl env in
-    if Hashtbl.mem vtbl v then raise_error p RedefiningVar;
+    if Hashtbl.mem vtbl v then raise_error p (RedefiningVar v);
     Hashtbl.add vtbl v (ref lt)
 
 let rec find_var env (p:Pos.pos) =
@@ -50,7 +50,7 @@ let rec find_var env (p:Pos.pos) =
   in
     match env with
       | TopEnv vtbl ->
-        find_var' (fun v -> raise_error p VariableNotDefined) vtbl p
+        find_var' (fun v -> raise_error p (VariableNotDefined v)) vtbl p
       | SubEnv(vtbl,env') ->
         let fv = find_var env' p in
         find_var' fv vtbl p
@@ -62,7 +62,7 @@ let get_arr venv v (p:Pos.pos) =
   let lt = find_var venv p v in
     match !lt.kind with
       | Arr _ -> { !lt with kind=Ref }
-      | _ -> raise_error p ArrayNotDefined
+      | _ -> raise_error p (ArrayNotDefined v)
 
 let update_label venv name label p =
   let lt = find_var venv p name in
@@ -92,6 +92,6 @@ let get_fn fenv f p =
   try
     Hashtbl.find fenv f
   with
-    Not_found -> raise_error p FunctionNotDefined
+    Not_found -> raise_error p (FunctionNotDefined f)
 
 let add_fn = Hashtbl.add

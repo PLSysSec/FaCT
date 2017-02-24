@@ -53,5 +53,6 @@ and tprimitive = tprimitive' pos_ast [@@deriving show]
 
 let update_fn fenv { pos=p; data=tfdec } =
   let args = List.map (fun { data={ lt } } -> lt) tfdec.t_params in
-    if has_fn fenv tfdec.t_name then raise_error p RedefiningFunction;
+    if has_fn fenv tfdec.t_name
+      then raise_error p (RedefiningFunction tfdec.t_name);
     add_fn fenv tfdec.t_name { f_rvt=tfdec.t_rvt; f_args=args }

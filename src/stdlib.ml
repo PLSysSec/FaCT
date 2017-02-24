@@ -11,4 +11,4 @@ let stdlib_funs = [
 ]
 
 let codegen_stdlib ctx m = function
-  | f -> raise_error_np FunctionNotDefined
+  | f -> raise_error_np (FunctionNotDefined f)

@@ -1,4 +1,3 @@
-open Err
 open Pos
 
 type ctype =

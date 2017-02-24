@@ -24,7 +24,7 @@ let codegen ctx m =
     | UInt n when n <= 16 -> i16_type ctx
     | UInt n when n <= 32 -> i32_type ctx
     | BoolMask -> i32_type ctx
-    | _ as ty -> raise_error p PromotedTypeNotSupported
+    | ty -> raise_error p PromotedTypeNotSupported
   in
 
   let lt_to_llvm_ty lt p =
@@ -57,7 +57,7 @@ let codegen ctx m =
         let the_function =
           match lookup_function n m with
             | None -> declare_function n ft m
-            | Some f -> raise_error pos FunctionAlreadyDefined in
+            | Some f -> raise_error pos (FunctionAlreadyDefined n) in
         let bb = append_block ctx "entry" the_function in
           position_at_end bb b;
           allocate_args body.mem args;
@@ -188,7 +188,7 @@ let codegen ctx m =
               | Ref ->
                 let var = build_load v n b in
                   build_load var n b
-              | _ -> raise_error pos VariableAsExpression)
+              | _ -> raise_error pos ArrayAsExpression)
         | ArrExp(n,i) ->
           let v = get_var mem n pos in
           let i' = codegen_expr venv mem i in
@@ -208,7 +208,7 @@ let codegen ctx m =
           let callee' =
             (match lookup_function callee m with
               | Some fn -> fn
-              | None -> raise_error pos UnknownFunction) in
+              | None -> raise_error pos (UnknownFunction callee)) in
           if List.length f_args != List.length args then
             raise_error pos ArityError;
           let args' = List.map2 (codegen_arg venv mem) f_args args in
@@ -233,7 +233,7 @@ let codegen ctx m =
               | Ref ->
                 let var = build_load v n b in
                   ignore(build_store e' var b)
-              | _ -> raise_error pos AssignmentError)
+              | _ -> raise_error pos (AssignmentError n))
         | ArrAssign(n,i,e) ->
           let v = get_var mem n pos in
           let lt = get_var venv n pos in
