@@ -15,7 +15,7 @@ type error =
   | TypeFlowError of { lhs: Ast.ctype; rhs: Ast.ctype }
   | LabelFlowError of { lhs: Ast.label; rhs: Ast.label }
   | KindError of { expected: Ast.kind; actual: Ast.kind }
-  | FunctionCallArgError of Ast.ctype * Ast.ctype
+  (*| FunctionCallArgError of Ast.ctype * Ast.ctype*)
   | VariableNotDefined of string
   | FunctionNotDefined of string
   | UnknownFunction of string
@@ -36,9 +36,9 @@ type error =
   | UpdateLabelError
   | UnknownLabelError
   | TransformError
-  | ArrayRequiredError
+  (*| ArrayRequiredError*)
   | RedefiningFunction of string
-  | ArityError
+  | ArityError of { expected: int; actual: int }
 [@@deriving show]
 
 exception ConstancError of error * Pos.pos option
@@ -52,7 +52,6 @@ let error_code = function
   | SyntaxError -> 2
   | TypeError _ -> 3
   | TypeFlowError _ -> 4
-  | FunctionCallArgError _ -> 5
   | VariableNotDefined _ -> 8
   | FunctionNotDefined _ -> 9
   | UnknownFunction _ -> -10
@@ -67,9 +66,8 @@ let error_code = function
   | UpdateLabelError -> 19
   | UnknownLabelError -> -20
   | TransformError -> -21
-  | ArrayRequiredError -> 22
   | RedefiningFunction _ -> 23
-  | ArityError -> -24
+  | ArityError _ -> -24
   | TypeErrorGeneric _ -> 25
   | UnmatchedTypeError -> -26
   | LabelFlowError _ -> 27
@@ -109,7 +107,13 @@ let string_of_error' = function
   | ArrayAsExpression -> "Array as expression error"
   | UnknownFunction f -> "Unknown function: `" ^ f ^ "`"
   | AssignmentError v -> "Cannot assign an array to variable `" ^ v ^ "`"
-  | _ -> "Unknown Error"
+  | ArityError { expected; actual } ->
+    build_expected_error
+      "Arity Error" (string_of_int expected) (string_of_int actual)
+  | UpdateLabelError -> "Update Label Error"
+  | UnmatchedTypeError -> "Unmatched Type Error"
+  | UnknownLabelError -> "Unknown Label Error"
+  | TransformError -> "Transform Error"
 
 let string_of_error e = function
   | None -> (string_of_int (error_code e)) ^ " @ Unknown..."
