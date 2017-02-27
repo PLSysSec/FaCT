@@ -22,10 +22,12 @@ def main(argv):
     fdata = fdata.replace("load i8,","load")
     fdata = fdata.replace("load i8*,","load")
     fdata = fdata.replace("load i16,","load")
+    fdata = fdata.replace("load i32*,","load")
     fdata = fdata.replace("getelementptr [2 x i32],","getelementptr")
     fdata = fdata.replace("getelementptr [4 x i8],","getelementptr")
     fdata = fdata.replace("getelementptr [0 x i8],","getelementptr")
     fdata = fdata.replace("getelementptr [5 x i32],","getelementptr")
+    fdata = fdata.replace("getelementptr [3 x i32],","getelementptr")
 
     f = open(fileout,'w')
     f.write(fdata)

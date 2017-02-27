@@ -1,0 +1,13 @@
+int32 sort3(secret uint32[3] myout, secret uint32[3] myin) {
+  for (uint32 i = 0 to 2) {
+    if(myin[i] < myin[i+1]) {
+      myout[i]   = myin[i];
+      myout[i+1] = myin[i+1];
+    } else {
+      myout[i]   = myin[i+1];
+      myout[i+1] = myin[i];
+    }
+  }
+  return 0;
+}
+
