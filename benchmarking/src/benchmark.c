@@ -7,9 +7,9 @@
 #include "inteltime.h"
 #include TARGET_LIB
 
-#define NUM_TRIALS 512
-#define NUM_ITRS 512
-#define WARMUP_COUNT 3
+#define NUM_TRIALS 2048
+#define NUM_ITRS 2048
+#define WARMUP_COUNT 7
 
 double test(void) {
 	uint32_t ctr = 0;

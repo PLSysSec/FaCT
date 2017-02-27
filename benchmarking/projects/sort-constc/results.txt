@@ -1,0 +1,4 @@
+/home/bjohannesmeyer/Research/constanc/cse291-fall16-final-it-s-about-time/benchmarking/projects/sort-constc/test.out 99.575683594 101.058906555 3.828053952 
+/home/bjohannesmeyer/Research/constanc/cse291-fall16-final-it-s-about-time/benchmarking/projects/sort-constc/test.out 98.046386719 98.189114571 3.820515115 
+/home/bjohannesmeyer/Research/constanc/cse291-fall16-final-it-s-about-time/benchmarking/projects/sort-constc/test.out 99.694335938 101.110660315 4.484836187 
+/home/bjohannesmeyer/Research/constanc/cse291-fall16-final-it-s-about-time/benchmarking/projects/sort-constc/test.out 99.799804688 101.237537384 4.949873444 
