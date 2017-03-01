@@ -11,6 +11,7 @@
 \usepackage{mathpartir}
 \usepackage{mathtools}
 \usepackage{etextools}
+\usepackage{suffix}
 
 \makeatletter
     \newcommand{\DeclarePairedDelimiterCase}[2]{%
@@ -46,16 +47,23 @@
 \newcommand\F{\mathbb{F}}
 \newcommand\Z{\mathbb{Z}}
 \renewcommand\t\tau
-\renewcommand\k{k}
+\renewcommand\k\sigma
 \renewcommand\l\ell
 \newcommand\m\mu
 \newcommand\M{\mathcal{M}}
 
+\newcommand\bool{\textsc{Bool}}
+\newcommand\uint[1]{\textsc{UInt}\vc{#1}}
+\renewcommand\int[1]{\textsc{Int}\vc{#1}}
+
 \newcommand\public{\textsc{Public}}
+\newcommand\unknown{\textsc{Unknown}}
 \newcommand\secret{\textsc{Secret}}
+
 \newcommand\val{\textsc{Val}}
 \renewcommand\ref{\textsc{Ref}}
 \newcommand\arr[1]{\textsc{Arr}\vc{#1}}
+\WithSuffix\newcommand\arr*{\textsc{Arr}}
 
 \newcommand\kif{\textnormal{if }}
 \newcommand\kelse{\textnormal{ else }}
@@ -66,19 +74,39 @@
 
 \begin{document}
 
+\subsubsection*{Types}
+\begin{mathpar}
+
+  \inferrule[Base Type $\t$]{}
+  { \bool \\
+    \uint{s} \\
+    \int{s} }
+
+  \infer[Label $\l$]{}
+  { \public \\
+    %\unknown \\
+    \secret }
+
+  \infer[Storage Type $\k$]{}
+  { \val \\
+    \ref \\
+    \arr{s} }
+
+\end{mathpar}
+
 \subsubsection*{Type Lattice}
 \begin{mathpar}
 
   \infer
   { s_1 < s_2 }
-  { uint\vc{s_1} <_\tau uint\vc{s_2} }
+  { \uint{s_1} <_\tau \uint{s_2} }
 
   \infer
   { s_1 < s_2 }
-  { int\vc{s_1} <_\tau int\vc{s_2} }
+  { \int{s_1} <_\tau \int{s_2} }
 
   \infer { }
-  { uint\vc{s} <_\tau int\vc{2s} }
+  { \uint{s} <_\tau \int{2s} }
 
   \infer
   { \t_1 <_\tau \t_2 \\
@@ -94,6 +122,32 @@
 
 \end{mathpar}
 
+\subsubsection*{Parameter Passing}
+\begin{mathpar}
+
+  \infer
+  { \G \has e : \vc{\t,\l_1} \\
+    \l_1 \leq_\l \l_2 }
+  { \vc{\t,\l_2,\val} \gets \val\ e }
+
+  \infer
+  { \m (x) = \vc{\tau,\l,\k} \\
+    \k \neq \arr{s} }
+  { \vc{\t,\l,\ref} \gets \ref\ x }
+
+  \infer
+  { \m (a) = \vc{\tau,\l,\arr{s}} }
+  { \vc{\t,\l,\arr{s}} \gets \arr*\ a }
+
+  \infer
+  { \m (a) = \vc{\tau,\l,\arr{s_1}} \\
+    s_2 \leq s_1 \\
+    n' = n + s_2 \\
+    n' \leq s_1 }
+  { \vc{\t,\l,\arr{s_2}} \gets \arr*\ a[n:n'] }
+
+\end{mathpar}
+
 \subsubsection*{Expressions}
 \begin{mathpar}
 
@@ -103,9 +157,9 @@
   { \G \has x : \vc{\tau,\ell} }
 
   \infer[Unop]
-  { \G \has e : \vc{\tau,\ell} \\
-    \ominus : \tau \to \tau }
-  { \G \has \ominus e : \vc{\tau,\ell} }
+  { \G \has e : \vc{\tau_1,\ell} \\
+    \ominus : \tau_1 \to \tau_2 }
+  { \G \has \ominus e : \vc{\tau_2,\ell} }
 
   \infer[Binop]
   { \G \has e_1 : \vc{\tau_1,\ell_1} \\
@@ -115,68 +169,26 @@
 
   \infer[ArrGet]
   { \m (a) = \vc{\tau,\ell,\arr{s}} \\
-    \G \has e : uint\vc{max}_\public }
+    \G \has e : \vc{\uint{max},\public} }
   { \G \has a[e] : \vc{\t,\l} }
 
-  \infer[ValPass]
-  { p : \vc{\t,\l_1,\val} \\
-    \G \has e : \vc{\t,\l_2} \\
-    \l_2 \leq_\l \l_1 }
-  { p \gets e }
-
-  \infer[RefPassSecret]
-  { p : \vc{\t,\secret,\ref} \\
-    \m (x) = \vc{\tau,\l,\k} \\
-    \k \neq \arr{s} }
-  { p \gets x }
-
-  \infer[RefPassPublic]
-  { p : \vc{\t,\public,\ref} \\
-    \m (x) = \vc{\tau,\public,\k} \\
-    \k \neq \arr{s} }
-  { p \gets x }
-
-  \infer[ArrPassSecret]
-  { p : \vc{\t,\secret,\arr{s}} \\
-    \m (a) = \vc{\tau,\l,\arr{s}} }
-  { p \gets a }
-
-  \infer[ArrPassPublic]
-  { p : \vc{\t,\public,\arr{s}} \\
-    \m (a) = \vc{\tau,\public,\arr{s}} }
-  { p \gets a }
-
-  \infer[ArrPassSecretSlice]
-  { p : \vc{\t,\secret,\arr{s_1}} \\
-    \m (a) = \vc{\tau,\l,\arr{s_2}} \\
-    s_1 \leq s_2 }
-  { p \gets a[n:n+s_1] }
-
-  \infer[ArrPassPublicSlice]
-  { p : \vc{\t,\public,\arr{s_1}} \\
-    \m (a) = \vc{\tau,\public,\arr{s_2}} \\
-    s_1 \leq s_2 }
-  { p \gets a[n:n+s_1] }
-
   \infer[FnCall]
-  { \F (f) = fdec (p_1:\vc{\t_1,\l_1,\k_1}, \dots, p_n:\vc{\t_n,\l_n,\k_n}) : \vc{\t_r,\l_r} \\
+  { \F (f) = fdec (p_1, \dots, p_n) : \vc{\t,\l} \\
     p_1 \gets v_1 \\ \cdots \\ p_n \gets v_n }
-  { \G \has f(v_1,\dots,v_n) : \vc{\t_r,\l_r} }
+  { \G \has f(v_1,\dots,v_n) : \vc{\t,\l} }
 
   \infer[True] { } { \Gamma \has true : \vc{bool,\public} } \\
   \infer[False] { } { \Gamma \has false : \vc{bool,\public} }
 
-  \textnormal{Array literals are not expressions since they can only be used with \textsc{ArrDec}.}
-
   \infer[PosNumber]
   { n >= 0 \\
     s = \ceil{\log_2 n} }
-  { \Gamma \has n : \vc{uint\vc{s},\public} }
+  { \Gamma \has n : \vc{\uint{s},\public} }
 
   \infer[NegNumber]
   { n < 0 \\
     s = \ceil{\log_2 \abs{n}}  + 1 }
-  { \Gamma \has n : \vc{int\vc{s},\public} }
+  { \Gamma \has n : \vc{\int{s},\public} }
 
 \end{mathpar}
 
@@ -211,7 +223,7 @@
   \xinfer{a[e_1] := e_2} % ArrAssign
   { \mu (a) = \vc{\t,\l_x,\k} \\
     \k = \arr{s} \\
-    \G \has e_1 : \vc{uint\vc{max},\public} \\
+    \G \has e_1 : \vc{\uint{max},\public} \\
     \G \has e_2 : \vc{\t,\l_e} \\
     \l_e \leq_\l \l_x }
   { \M (a,e_1) := e_2 }
