@@ -12,6 +12,7 @@
 \usepackage{mathtools}
 \usepackage{etextools}
 \usepackage{suffix}
+\usepackage{comment}
 
 \makeatletter
     \newcommand{\DeclarePairedDelimiterCase}[2]{%
@@ -38,14 +39,14 @@
 \DeclarePairedDelimiterY{floor}{\lfloor}{\rfloor}
 \DeclarePairedDelimiterY{ceil}{\lceil}{\rceil}
 \DeclarePairedDelimiterY{abs}{\lvert}{\rvert}
-\DeclarePairedDelimiterY{vc}{\langle}{\rangle}
+\DeclarePairedDelimiter{\vc}{\langle}{\rangle}
 
 \newcommand\has\vdash
 \newcommand\stmto{\ \Longrightarrow\ }
 
 \newcommand\G\Gamma
 \newcommand\F{\mathbb{F}}
-\newcommand\Z{\mathbb{Z}}
+\renewcommand\S\Sigma
 \renewcommand\t\tau
 \renewcommand\k\sigma
 \renewcommand\l\ell
@@ -55,70 +56,90 @@
 \newcommand\bool{\textsc{Bool}}
 \newcommand\uint[1]{\textsc{UInt}\vc{#1}}
 \renewcommand\int[1]{\textsc{Int}\vc{#1}}
+\newcommand\arr[1]{\textsc{Arr}\vc{#1}}
+\WithSuffix\newcommand\arr*{\textsc{Arr}}
 
 \newcommand\public{\textsc{Public}}
 \newcommand\unknown{\textsc{Unknown}}
 \newcommand\secret{\textsc{Secret}}
 
-\newcommand\val{\textsc{Val}}
-\renewcommand\ref{\textsc{Ref}}
-\newcommand\arr[1]{\textsc{Arr}\vc{#1}}
-\WithSuffix\newcommand\arr*{\textsc{Arr}}
+\newcommand\const{\textsc{Const}}
+\newcommand\mut{\textsc{Mut}}
 
-\newcommand\kif{\textnormal{if }}
-\newcommand\kelse{\textnormal{ else }}
-\newcommand\kfor{\textnormal{for }}
-\newcommand\kfrom{\textnormal{ from }}
-\newcommand\kto{\textnormal{ to }}
-\newcommand\kret{\textnormal{return }}
+\newcommand\kif{\textsc{if }}
+\newcommand\kelse{\textsc{ else }}
+\newcommand\kfor{\textsc{for }}
+\newcommand\kfrom{\textsc{ from }}
+\newcommand\kto{\textsc{ to }}
+\newcommand\kret{\textsc{return }}
+
+\newcommand{\ottcom}[1]{\text{#1}}
+\newcommand{\grammar}[1]{\begin{supertabular}{lcll}#1\\\end{supertabular}}
+\newcommand{\gramrule}[2]{\multicolumn{4}{l}{\textsc{#2}} \\ $#1$ & $::=$ }
+\newcommand{\gramitem}[2][]{& $|$ & $#2$ & $\ottcom{#1}$}
 
 \begin{document}
 
 \subsubsection*{Types}
+
 \begin{mathpar}
 
-  \inferrule[Base Type $\t$]{}
-  { \bool \\
-    \uint{s} \\
-    \int{s} }
+  \grammar
+  { \gramrule{\t}{Base type} \\
+    \gramitem{\bool} \\
+    \gramitem{\uint{n}} \\
+    \gramitem{\int{n}} \\
+    \gramitem{\arr{\t,n}} }
 
-  \infer[Label $\l$]{}
-  { \public \\
-    %\unknown \\
-    \secret }
+  \grammar
+  { \gramrule{\l}{Label} \\
+    \gramitem{\public} \\
+    %\gramitem{\unknown} \\
+    \gramitem{\secret} }
 
-  \infer[Storage Type $\k$]{}
-  { \val \\
-    \ref \\
-    \arr{s} }
+  \grammar
+  { \gramrule{\k}{Mutability} \\
+    \gramitem{\const} \\
+    \gramitem{\mut} }
 
 \end{mathpar}
 
 \subsubsection*{Type Lattice}
 \begin{mathpar}
 
-  \infer
-  { s_1 < s_2 }
-  { \uint{s_1} <_\tau \uint{s_2} }
+  \infer { }
+  { \public <_\l \secret }
 
   \infer
-  { s_1 < s_2 }
-  { \int{s_1} <_\tau \int{s_2} }
+  { n_1 < n_2 }
+  { \uint{n_1} <_\t \uint{n_2} }
+
+  \infer
+  { n_1 < n_2 }
+  { \int{n_1} <_\t \int{n_2} }
 
   \infer { }
-  { \uint{s} <_\tau \int{2s} }
+  { \uint{n} <_\t \int{2n} }
 
   \infer
-  { \t_1 <_\tau \t_2 \\
-    \Gamma \has e : \vc{\t_1, \ell} }
-  { \Gamma \has e : \vc{\t_2, \ell} }
-
-  \infer { }
-  { \public <_\ell \secret }
+  { \t_1 <_\t \t_2 \\
+    \Gamma \has e : \vc{\t_1, \l} }
+  { \Gamma \has e : \vc{\t_2, \l} }
 
   \infer
-  { \ell_1 \leq_\ell \ell_2 }
-  { \ell_1 \cup \ell_2 = \ell_2 }
+  { \l_1 \leq_\l \l_2 }
+  { \l_1 \cup \l_2 = \l_2 }
+
+  \infer
+  { \t_1 <_\t \t_2 \\
+    \Gamma \has e : \vc{\arr{\t_1,n}, \l} }
+  { \Gamma \has e : \vc{\arr{\t_2,n}, \l} }
+
+  \infer[ArrSlice]
+  { \m (a) = \vc{\arr{\t,n},\l,\k} \\
+    \G \has e : \vc{\uint{max},\public} \\
+    n' \leq n }
+  { \m(a[e:n']) : \vc{\arr{\t,n'},\l,\k} }
 
 \end{mathpar}
 
@@ -128,23 +149,11 @@
   \infer
   { \G \has e : \vc{\t,\l_1} \\
     \l_1 \leq_\l \l_2 }
-  { \vc{\t,\l_2,\val} \gets \val\ e }
+  { \vc{\t,\l_2,\const} \gets e }
 
   \infer
-  { \m (x) = \vc{\tau,\l,\k} \\
-    \k \neq \arr{s} }
-  { \vc{\t,\l,\ref} \gets \ref\ x }
-
-  \infer
-  { \m (a) = \vc{\tau,\l,\arr{s}} }
-  { \vc{\t,\l,\arr{s}} \gets \arr*\ a }
-
-  \infer
-  { \m (a) = \vc{\tau,\l,\arr{s_1}} \\
-    s_2 \leq s_1 \\
-    n' = n + s_2 \\
-    n' \leq s_1 }
-  { \vc{\t,\l,\arr{s_2}} \gets \arr*\ a[n:n'] }
+  { \m (x) = \vc{\t,\l,\mut} }
+  { \vc{\t,\l,\mut} \gets \mut\ x }
 
 \end{mathpar}
 
@@ -152,23 +161,26 @@
 \begin{mathpar}
 
   \infer[Var]
-  { \m (x) = \vc{\tau,\ell,\k} \\
-    \k \neq \arr{s} }
-  { \G \has x : \vc{\tau,\ell} }
+  { \m (x) = \vc{\t,\l,\k} }
+  { \G \has x : \vc{\t,\l} }
 
   \infer[Unop]
-  { \G \has e : \vc{\tau_1,\ell} \\
-    \ominus : \tau_1 \to \tau_2 }
-  { \G \has \ominus e : \vc{\tau_2,\ell} }
+  { \G \has e : \vc{\t_1,\l_1} \\
+    \ominus : \vc{\t_1,\l_1} \to \vc{\t_2,\l_2} }
+  { \G \has \ominus e : \vc{\t_2,\l_2} }
 
   \infer[Binop]
-  { \G \has e_1 : \vc{\tau_1,\ell_1} \\
-    \G \has e_2 : \vc{\tau_2,\ell_2} \\
-    \oplus : \tau_1 \to \tau_2 \to \tau_3 }
-  { \G \has e_1 \oplus e_2 : \vc{\tau_3, \ell_1 \cup \ell_2 } }
+  { \G \has e_1 : \vc{\t_1,\l_1} \\
+    \G \has e_2 : \vc{\t_2,\l_2} \\
+    \oplus : \vc{\t_1,\l_1} \to \vc{\t_2,\l_2} \to \vc{\t_3,\l_3} }
+  { \G \has e_1 \oplus e_2 : \vc{\t_3, \l_3 } }
 
+  % Instead of dynamic looping or masking,
+  % just fall back to static analysis;
+  % if we cannot determine statically that it's ok
+  % then the program fails typechecking
   \infer[ArrGet]
-  { \m (a) = \vc{\tau,\ell,\arr{s}} \\
+  { \m (a) = \vc{\arr{\t,n},\l,\k} \\
     \G \has e : \vc{\uint{max},\public} }
   { \G \has a[e] : \vc{\t,\l} }
 
@@ -181,14 +193,14 @@
   \infer[False] { } { \Gamma \has false : \vc{bool,\public} }
 
   \infer[PosNumber]
-  { n >= 0 \\
-    s = \ceil{\log_2 n} }
-  { \Gamma \has n : \vc{\uint{s},\public} }
+  { k >= 0 \\
+    n = \ceil{\log_2 k} }
+  { \Gamma \has k : \vc{\uint{n},\public} }
 
   \infer[NegNumber]
-  { n < 0 \\
-    s = \ceil{\log_2 \abs{n}}  + 1 }
-  { \Gamma \has n : \vc{\int{s},\public} }
+  { k < 0 \\
+    n = \ceil{\log_2 \abs{k}}  + 1 }
+  { \Gamma \has k : \vc{\int{n},\public} }
 
 \end{mathpar}
 
@@ -199,50 +211,49 @@
   \newcommand\stt[1]{\renewcommand\stmtitle{$#1 \stmto$}}
   \newcommand\xinfer[3]{\stt{#1}\infer[\stmtitle]{#2}{#3}}
 
-  \xinfer{\vc{\t,\l_x} x := e} % VarDec
-  { x \notin \mu \\
-    \G \has e : \vc{\t,\l_e} \\
-    \l_e \leq_\l \l_x }
-  { \mu (x) := \vc{\t,\l_x,\val} \\
-    \M (x) := e }
+  \infer[Seq]
+  { \S\vc{\l_s} \has s_1 : \l'_s \\
+    \S\vc{\l'_s} \has s_2 : \l''_s }
+  { \S\vc{\l_s} \has s_1 ; s_2 : \l'_s \cup \l''_s }
 
-  \xinfer{\vc{\t,\l_a} a[s] := \textsc{ArrayInitializer}} % ArrDec
-  { a \notin \mu \\
-    \textsc{ArrayInitializer} : \vc{\t,\l_e} \\
-    \l_e \leq_\l \l_a }
-  { \mu (a) := \vc{\t,\l_a,\arr{s}} \\
-    \M (a) := \textsc{ArrayInitializer} }
+  \infer[VarDec]
+  { \G \has e : \vc{\t,\l_1} \\
+    \l_1 \leq_\l \l_2 }
+  { \S\vc{\l_s} \has \vc{\t,\l_2,\k} x := e : \public \\\\
+    \mu (x) = \vc{\t,\l_2,\k} \text{\tiny\ (scoping?)}}
 
-  \xinfer{x := e} % VarAssign
-  { \mu (x) = \vc{\t,\l_x,\k} \\
-    \k \neq \arr{s} \\
-    \G \has e : \vc{\t,\l_e} \\
-    \l_e \leq_\l \l_x }
-  { \M (x) := e }
+  \infer[VarAssign]
+  { \mu (x) = \vc{\t,\l_1,\mut} \\
+    \G \has e : \vc{\t,\l_2} \\
+    \l_2 \leq_\l \l_1 }
+  { \S\vc{\l_s} \has x := e : \public }
 
-  \xinfer{a[e_1] := e_2} % ArrAssign
-  { \mu (a) = \vc{\t,\l_x,\k} \\
-    \k = \arr{s} \\
+  \infer[ArrAssign]
+  { \mu (a) = \vc{\arr{\t,n},\l_1,\mut} \\
     \G \has e_1 : \vc{\uint{max},\public} \\
-    \G \has e_2 : \vc{\t,\l_e} \\
-    \l_e \leq_\l \l_x }
-  { \M (a,e_1) := e_2 }
+    \G \has e_2 : \vc{\t,\l_2} \\
+    \l_2 \leq_\l \l_1 }
+  { \S\vc{\l_s} \has a[e_1] := e_2 : \public }
 
-  \xinfer{\kif (e) \{ s_1 \} \kelse \{ s_2 \}} % If
-  { \G \has e : \vc{bool,\l} }
-  { }
+  \infer[If]
+  { \G \has e : \vc{\bool,\l} \\
+    \S\vc{\l \cup \l_s} \has s_1 : \l'_s \\
+    \S\vc{\l \cup \l_s} \has s_2 : \l''_s }
+  { \S\vc{\l_s} \has \kif e\ \{ s_1 \} \kelse \{ s_2 \} : \l'_s \cup \l''_s }
 
-  \xinfer{\kfor (\vc{\t,\public}i \kfrom e_1 \kto e_2) \{ s \}} % For
-  { i \notin \mu \\
-    \G \has e_1 : \vc{\t,\public} \\
-    \G \has e_2 : \vc{\t,\public} }
-  { }
+  \infer[For]
+  { \G \has e_1 : \vc{\t,\public} \\
+    \G \has e_2 : \vc{\t,\public} \\
+    \t = \uint{s} \lor \t = \int{s} \\
+    \S\vc{\l_s} \has s : \l'_s }
+  { \S\vc{\l_s} \has \kfor \vc{\t} x \kfrom e_1 \kto e_2\ \{ s \} : \l'_s \\\\
+    \mu (x) = \vc{\t,\public,\const} \text{\tiny\ (scoping?)}}
 
-  \xinfer{\kret e} % Ret
-  { \G \has e : \vc{\t,\l_e} \\
-    \F (f) = fdec : \vc{\t,\l_f} \\
-    \l_e \leq_\l \l_f }
-  { }
+  \infer[Ret]
+  { \G \has e : \vc{\t,\l_1} \\
+    \F (f) = fdec : \vc{\t,\l_2} \\
+    \l_1 \leq_\l \l_2 }
+  { \S\vc{\l_s} \has \kret e : \l_s }
 
 \end{mathpar}
 \end{document}
