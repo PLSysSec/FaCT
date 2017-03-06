@@ -24,7 +24,7 @@ let codegen ctx m =
     | UInt n when n <= 16 -> i16_type ctx
     | UInt n when n <= 32 -> i32_type ctx
     | BoolMask -> i32_type ctx
-    | ty -> raise_error p PromotedTypeNotSupported
+    | ty -> raise_compiler_bug p PromotedTypeNotSupported
   in
 
   let lt_to_llvm_ty lt p =
@@ -57,7 +57,7 @@ let codegen ctx m =
         let the_function =
           match lookup_function n m with
             | None -> declare_function n ft m
-            | Some f -> raise_error pos (FunctionAlreadyDefined n) in
+            | Some f -> raise_compiler_bug pos (FunctionAlreadyDefined n) in
         let bb = append_block ctx "entry" the_function in
           position_at_end bb b;
           allocate_args body.mem args;
@@ -90,7 +90,7 @@ let codegen ctx m =
             | Arr _ ->
               add_var mem name param pos)
         ; args'
-        | _ -> raise_error_np StoreArgsError
+        | _ -> raise_compiler_bug_np StoreArgsError
 
     and allocate_stack { venv; mem; body } =
       let rec allocate_stack' body =
@@ -172,7 +172,7 @@ let codegen ctx m =
             (match nlt.kind with
               | Val -> get_var mem n arg.pos
               | Ref -> build_load (get_var mem n arg.pos) n b
-              | _ -> raise_error arg.pos ArrayAsRefError)
+              | _ -> raise_compiler_bug arg.pos ArrayAsRefError)
         | ArrArg(n,_,_) -> get_var mem n arg.pos
 
     and codegen_ext venv mem ty e =
@@ -188,7 +188,7 @@ let codegen ctx m =
               | Ref ->
                 let var = build_load v n b in
                   build_load var n b
-              | _ -> raise_error pos ArrayAsExpression)
+              | _ -> raise_compiler_bug pos ArrayAsExpression)
         | ArrExp(n,i) ->
           let v = get_var mem n pos in
           let i' = codegen_expr venv mem i in
@@ -212,7 +212,7 @@ let codegen ctx m =
           let expected = List.length f_args in
           let actual = List.length args in
           if expected != actual then
-            raise_error pos (ArityError { expected; actual });
+            raise_compiler_bug pos (ArityError { expected; actual });
           let args' = List.map2 (codegen_arg venv mem) f_args args in
           build_call callee' (Array.of_list args') "calltmp" b
 
@@ -235,7 +235,7 @@ let codegen ctx m =
               | Ref ->
                 let var = build_load v n b in
                   ignore(build_store e' var b)
-              | _ -> raise_error pos (AssignmentError n))
+              | _ -> raise_compiler_bug pos (AssignmentError n))
         | ArrAssign(n,i,e) ->
           let v = get_var mem n pos in
           let lt = get_var venv n pos in

@@ -50,7 +50,7 @@ and transform_type = function
 and transform_label = function
   | Ast.Public -> Cast.Public
   | Ast.Secret -> Cast.Secret
-  | Ast.Unknown -> raise_error_np UnknownLabelError
+  | Ast.Unknown -> raise_compiler_bug_np UnknownLabelError
 
 and transform_kind = function
   | Ast.Val -> Cast.Val
@@ -93,11 +93,11 @@ and transform_vtbl vtbl =
 
 and transform_topvenv = function
   | Env.TopEnv vtbl -> Env.TopEnv (transform_vtbl vtbl)
-  | _ -> raise_error_np TransformError
+  | _ -> raise_compiler_bug_np TransformError
 
 and transform_subvenv venv = function
   | Env.SubEnv(vtbl,_) -> Env.SubEnv (transform_vtbl vtbl, venv)
-  | _ -> raise_error_np TransformError
+  | _ -> raise_compiler_bug_np TransformError
 
 and venv_merge_up = function
   | Env.SubEnv(vtbl,venv) -> (* XXX need to check collisions *)
@@ -105,10 +105,10 @@ and venv_merge_up = function
       Hashtbl.iter (fun k v ->
                      Hashtbl.replace vtbl' k v)
         vtbl
-  | _ -> raise_error_np TransformError
+  | _ -> raise_compiler_bug_np TransformError
 
 and transform_stm rty venv mem ctx { data; pos } =
-  let make_expr e ty pos =
+  let make_expr e ty =
     let adt = make_adt pos e in
      { Cast.e=adt; Cast.e_ty=ty } in
 
@@ -118,26 +118,26 @@ and transform_stm rty venv mem ctx { data; pos } =
     let stms' = List.flatten(List.map (transform_stm rty venv' mem' ctx) b.body) in
       { Cast.venv=venv'; Cast.mem=mem'; Cast.body=stms' } in
 
-  let get_var n pos =
+  let get_var n =
     let lt = Env.get_var venv n pos in
-      make_expr (Cast.VarExp n) lt.Cast.ty pos in
+      make_expr (Cast.VarExp n) lt.Cast.ty in
 
-  let get_arr a i pos =
+  let get_arr a i =
     let lt = Env.get_var venv a pos in
       match lt.Cast.kind with
-        | Cast.Arr _ -> make_expr (Cast.ArrExp(a,i)) lt.Cast.ty pos
+        | Cast.Arr _ -> make_expr (Cast.ArrExp(a,i)) lt.Cast.ty
         | _ -> raise_error pos (ArrayNotDefined a) in
 
-  let rset pos = make_expr (Cast.VarExp "__rset") Cast.BoolMask pos in
-  let b_and l r pos =
+  let rset = make_expr (Cast.VarExp "__rset") Cast.BoolMask in
+  let b_and l r =
     let op = make_adt pos Cast.BitAnd in
-    make_expr (Cast.BinOp(op,l,r)) (unify_ty l.data r.data) pos in
-  let b_or l r pos =
+    make_expr (Cast.BinOp(op,l,r)) (unify_ty l.data r.data) in
+  let b_or l r =
     let op = make_adt pos Cast.BitOr in
-    make_expr (Cast.BinOp(op,l,r)) (unify_ty l.data r.data) pos in
-  let b_not e pos =
+    make_expr (Cast.BinOp(op,l,r)) (unify_ty l.data r.data) in
+  let b_not e =
     let op = make_adt pos Cast.BitNot in
-    make_expr (Cast.UnOp(op,e)) e.data.Cast.e_ty pos in
+    make_expr (Cast.UnOp(op,e)) e.data.Cast.e_ty in
 
   match data with
   | Tast.TVarDec(v,vt,e) ->
@@ -153,46 +153,46 @@ and transform_stm rty venv mem ctx { data; pos } =
   | Tast.TAssign(v,e) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
-    let rset' = make_adt pos (rset pos) in
-    let b_not' = make_adt pos (b_not rset' pos) in
-    let assign_ok = make_adt pos(b_and c b_not' pos) in
-    let newval = make_adt pos (b_and e' assign_ok pos) in
-    let not_assign_ok = make_adt pos (b_not assign_ok pos) in
-    let var = make_adt pos (get_var v pos) in
-    let oldval = make_adt pos (b_and var not_assign_ok pos) in
-    let or_val = make_adt pos (b_or newval oldval pos) in
+    let rset' = make_adt pos rset in
+    let b_not' = make_adt pos (b_not rset') in
+    let assign_ok = make_adt pos (b_and c b_not') in
+    let newval = make_adt pos (b_and e' assign_ok) in
+    let not_assign_ok = make_adt pos (b_not assign_ok) in
+    let var = make_adt pos (get_var v) in
+    let oldval = make_adt pos (b_and var not_assign_ok) in
+    let or_val = make_adt pos (b_or newval oldval) in
     let stm = make_adt pos (Cast.Assign(v,or_val)) in
     [stm]
   | Tast.TArrAssign(v,i,e) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
-    let rset' = make_adt pos (rset pos) in
-    let not_rset = make_adt pos (b_not rset' pos) in
-    let assign_ok = make_adt pos (b_and c not_rset pos) in
-    let newval = make_adt pos (b_and e' assign_ok pos) in
+    let rset' = make_adt pos rset in
+    let not_rset = make_adt pos (b_not rset') in
+    let assign_ok = make_adt pos (b_and c not_rset) in
+    let newval = make_adt pos (b_and e' assign_ok) in
     let i' = transform_expr i in
-    let arr = make_adt pos (get_arr v i' pos) in
-    let not_assign_ok = make_adt pos (b_not assign_ok pos) in
-    let oldval = make_adt pos (b_and arr not_assign_ok pos) in
-    let rhs_or = make_adt pos (b_or newval oldval pos) in
+    let arr = make_adt pos (get_arr v i') in
+    let not_assign_ok = make_adt pos (b_not assign_ok) in
+    let oldval = make_adt pos (b_and arr not_assign_ok) in
+    let rhs_or = make_adt pos (b_or newval oldval) in
     let stm = make_adt pos (Cast.ArrAssign(v,i',rhs_or)) in
     [stm]
   | Tast.TIf(e,bt,bf) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
     let tname = new_temp_var() in
-    let m = make_adt pos (make_expr (Cast.VarExp tname) Cast.BoolMask pos) in
-    let c' = make_adt pos (b_and m c pos) in
+    let m = make_adt pos (make_expr (Cast.VarExp tname) Cast.BoolMask) in
+    let c' = make_adt pos (b_and m c) in
     let ctx' = Context(c') in
     let vt = { Cast.v_ty=Cast.BoolMask; Cast.v_lbl=Cast.Secret } in
-    let mdec_rhs = make_adt pos (b_and e' c pos) in
+    let mdec_rhs = make_adt pos (b_and e' c) in
     let mdec = make_adt pos (Cast.VarDec(tname,vt,mdec_rhs)) in
     Env.add_var venv tname (Cast.ltk vt Cast.Val) pos;
     let bt' = transform_block ctx' bt in
     let bf' = transform_block ctx' bf in
     venv_merge_up bt'.Cast.venv;
     venv_merge_up bf'.Cast.venv;
-    let mnot_rhs = make_adt pos (b_not m pos) in
+    let mnot_rhs = make_adt pos (b_not m) in
     let mnot = make_adt pos (Cast.Assign(tname,mnot_rhs)) in
     [mdec] @ bt'.Cast.body @ [mnot] @ bf'.Cast.body
   | Tast.TFor(n,t,l,h,b) ->
@@ -205,14 +205,14 @@ and transform_stm rty venv mem ctx { data; pos } =
   | Tast.TReturn(e) ->
     let c = ctx_expr ctx in
     let e' = transform_expr(e) in
-    let rval = make_expr (Cast.VarExp "__rval") rty pos in
+    let rval = make_expr (Cast.VarExp "__rval") rty in
     let rval' = make_adt pos rval in
-    let rset' = make_adt pos (rset pos) in
-    let not_rset = make_adt pos (b_not rset' pos) in
-    let assign_ok = make_adt pos (b_and c not_rset pos) in
-    let newval = make_adt pos (b_and e' assign_ok pos) in
-    let rval_rhs = make_adt pos (b_or rval' newval pos) in
-    let rset_rhs = make_adt pos (b_or rset' c pos) in
+    let rset' = make_adt pos rset in
+    let not_rset = make_adt pos (b_not rset') in
+    let assign_ok = make_adt pos (b_and c not_rset) in
+    let newval = make_adt pos (b_and e' assign_ok) in
+    let rval_rhs = make_adt pos (b_or rval' newval) in
+    let rset_rhs = make_adt pos (b_or rset' c) in
     let rval_stm = make_adt pos (Cast.Assign("__rval",rval_rhs)) in
     let rset_stm = make_adt pos (Cast.Assign("__rset",rset_rhs)) in
     [rval_stm; rset_stm]

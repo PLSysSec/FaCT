@@ -41,9 +41,12 @@ let error_exit s c =
 
 let runner prep llvm_out ast_out core_ir_out =
   (try compile prep llvm_out ast_out core_ir_out with
-    | ConstancError (e,p) ->
+    | CompileError (e,p) ->
       let code = error_code e in
-      if code < 0 then Log.error "%s" compiler_bug_text;
+      error_exit (string_of_error e p) code
+    | CompilerBug (e,p) ->
+      let code = error_code e in
+      Log.error "%s" compiler_bug_text;
       error_exit (string_of_error e p) code)
 
 let compile_command =

@@ -115,7 +115,7 @@ let tc_binop { pos=p; data=op } lhs rhs =
       raise_error p (TypeErrorGeneric { expected=number; actual=lhs })
     | RightShift ->
       raise_error p (TypeErrorGeneric { expected=unsigned; actual=rhs })
-    | _ -> raise_error p UnmatchedTypeError
+    | _ -> raise_compiler_bug p UnmatchedTypeError
 
 let ty_can_flow p lhs rhs =
   match lhs, rhs with
@@ -123,7 +123,7 @@ let ty_can_flow p lhs rhs =
     | Int a, Int b when a > b -> ()
     | UInt a, UInt b when a > b -> ()
     | Int a, UInt b when a > (2 * b) -> ()
-    | a, b -> raise_error p (TypeFlowError { lhs=a; rhs=b })
+    | _ -> raise_error p (TypeFlowError { lhs; rhs })
 
 let ty_can_pass p lhs rhs =
   match lhs.kind with

@@ -39,11 +39,13 @@ type error =
   | ArityError of { expected: int; actual: int }
 [@@deriving show]
 
-exception ConstancError of error * Pos.pos option
+exception CompileError of error * Pos.pos option
+exception CompilerBug of error * Pos.pos option
 
-let raise_error p e = raise (ConstancError (e, (Some p)))
-
-let raise_error_np e = raise (ConstancError (e, None))
+let raise_error p e = raise (CompileError (e, (Some p)))
+let raise_error_np e = raise (CompileError (e, None))
+let raise_compiler_bug p e = raise (CompilerBug (e, (Some p)))
+let raise_compiler_bug_np e = raise (CompilerBug (e, None))
 
 let error_code = function
   | LexingError -> 1
@@ -52,22 +54,22 @@ let error_code = function
   | TypeFlowError _ -> 4
   | VariableNotDefined _ -> 8
   | FunctionNotDefined _ -> 9
-  | UnknownFunction _ -> -10
+  | UnknownFunction _ -> 10
   | ArrayNotDefined _ -> 11
-  | PromotedTypeNotSupported -> -12
-  | StoreArgsError -> -13
-  | ArrayAsRefError -> -14
-  | ArrayAsExpression -> -15
-  | AssignmentError _ -> -16
-  | FunctionAlreadyDefined _ -> -17
+  | PromotedTypeNotSupported -> 12
+  | StoreArgsError -> 13
+  | ArrayAsRefError -> 14
+  | ArrayAsExpression -> 15
+  | AssignmentError _ -> 16
+  | FunctionAlreadyDefined _ -> 17
   | RedefiningVar _ -> 18
   | UpdateLabelError -> 19
-  | UnknownLabelError -> -20
-  | TransformError -> -21
+  | UnknownLabelError -> 20
+  | TransformError -> 21
   | RedefiningFunction _ -> 23
-  | ArityError _ -> -24
+  | ArityError _ -> 24
   | TypeErrorGeneric _ -> 25
-  | UnmatchedTypeError -> -26
+  | UnmatchedTypeError -> 26
   | LabelFlowError _ -> 27
   | KindError _ -> 28
 
