@@ -93,19 +93,19 @@ let codegen ctx m =
         | _ -> raise_compiler_bug_np StoreArgsError
 
     and allocate_stack { venv; mem; body } =
-      let rec allocate_stack' body =
+      let rec allocate_stack' stmt =
         begin
-          match body.data with
+          match stmt.data with
             | VarDec(n,vt,_) ->
-              let alloca = build_alloca (llvm_ty body.pos vt.v_ty) n b in
-              add_var mem n alloca body.pos
+              let alloca = build_alloca (llvm_ty stmt.pos vt.v_ty) n b in
+              add_var mem n alloca stmt.pos
             | ArrDec(n,vt,s,_) ->
               let alloca =
-                build_alloca (array_type (llvm_ty body.pos vt.v_ty) s) n b in
-              add_var mem n alloca body.pos
+                build_alloca (array_type (llvm_ty stmt.pos vt.v_ty) s) n b in
+              add_var mem n alloca stmt.pos
             | For(i,ty,l,h,block) ->
-              let alloca = build_alloca (llvm_ty body.pos ty) i b in
-              add_var mem i alloca body.pos;
+              let alloca = build_alloca (llvm_ty stmt.pos ty) i b in
+              add_var mem i alloca stmt.pos;
               allocate_stack block
             | _ -> ()
         end in
