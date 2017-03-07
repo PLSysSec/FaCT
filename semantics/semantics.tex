@@ -59,6 +59,8 @@
 \newcommand\arr[1]{\textsc{Arr}\vc{#1}}
 \WithSuffix\newcommand\arr*{\textsc{Arr}}
 
+\newcommand\arrview[1]{\textsc{view}(#1)}
+
 \newcommand\public{\textsc{Public}}
 \newcommand\unknown{\textsc{Unknown}}
 \newcommand\secret{\textsc{Secret}}
@@ -107,9 +109,6 @@
 \subsubsection*{Type Lattice}
 \begin{mathpar}
 
-  \infer { }
-  { \public <_\l \secret }
-
   \infer
   { n_1 < n_2 }
   { \uint{n_1} <_\t \uint{n_2} }
@@ -121,25 +120,22 @@
   \infer { }
   { \uint{n} <_\t \int{2n} }
 
-  \infer
-  { \t_1 <_\t \t_2 \\
-    \Gamma \has e : \vc{\t_1, \l} }
-  { \Gamma \has e : \vc{\t_2, \l} }
+  \infer { }
+  { \public <_\l \secret }
 
-  \infer
-  { \l_1 \leq_\l \l_2 }
-  { \l_1 \cup \l_2 = \l_2 }
+  \infer { }
+  { \const <_\k \mut }
 
   \infer
   { \t_1 <_\t \t_2 \\
-    \Gamma \has e : \vc{\arr{\t_1,n}, \l} }
-  { \Gamma \has e : \vc{\arr{\t_2,n}, \l} }
+    \G \has e : \vc{\t_1, \l} }
+  { \G \has e : \vc{\t_2, \l} }
 
-  \infer[ArrSlice]
-  { \m (a) = \vc{\arr{\t,n},\l,\k} \\
-    \G \has e : \vc{\uint{max},\public} \\
-    n' \leq n }
-  { \m(a[e:n']) : \vc{\arr{\t,n'},\l,\k} }
+  \infer { }
+  { \l \cup \l = \l }
+
+  \infer { }
+  { \l \cup \secret = \secret }
 
 \end{mathpar}
 
@@ -189,18 +185,48 @@
     p_1 \gets v_1 \\ \cdots \\ p_n \gets v_n }
   { \G \has f(v_1,\dots,v_n) : \vc{\t,\l} }
 
-  \infer[True] { } { \Gamma \has true : \vc{bool,\public} } \\
-  \infer[False] { } { \Gamma \has false : \vc{bool,\public} }
+  \infer[True] { } { \G \has true : \vc{bool,\public} } \\
+  \infer[False] { } { \G \has false : \vc{bool,\public} }
 
   \infer[PosNumber]
   { k >= 0 \\
     n = \ceil{\log_2 k} }
-  { \Gamma \has k : \vc{\uint{n},\public} }
+  { \G \has k : \vc{\uint{n},\public} }
 
   \infer[NegNumber]
   { k < 0 \\
     n = \ceil{\log_2 \abs{k}}  + 1 }
-  { \Gamma \has k : \vc{\int{n},\public} }
+  { \G \has k : \vc{\int{n},\public} }
+
+\end{mathpar}
+
+% the supertabular inside \grammar breaks if it is straddling a page boundary
+\pagebreak
+\subsubsection*{Array Initializers}
+\begin{mathpar}
+
+  \grammar
+  { \gramrule{init}{ArrInit} \\
+    \gramitem{\vc{\t,n}\textsc{zeros}} \\
+    \gramitem{\vc{\t,n}\textsc{fill}(e)} \\
+    \gramitem{\vc{\t,n}x \Rightarrow e} \\
+    \gramitem{\textsc{copy}(a)} }
+
+  \infer[ZeroInit]
+  { \t = \uint{s} \lor \t = \int{s} }
+  { \G \has \vc{\t,n}\textsc{zeros} : \vc{\arr{\t,n},\public} }
+
+  \infer[FillInit]
+  { \G \has e : \vc{\t,\l} }
+  { \G \has \vc{\t,n}\textsc{fill}(e) : \vc{\arr{\t,n},\l} }
+
+  \infer[CompInit]
+  { \G \has e : \vc{\t,\l} }
+  { \G \has \vc{\t,n}x \Rightarrow e : \vc{\arr{\t,n},\l} }
+
+  \infer[CopyInit]
+  { \m (a) = \vc{\arr{\t,n},\l,\k} }
+  { \G \has \textsc{copy}(a) : \vc{\arr{\t,n},\l} }
 
 \end{mathpar}
 
@@ -218,12 +244,29 @@
 
   \infer[VarDec]
   { \G \has e : \vc{\t,\l_1} \\
+    \t \neq \arr{\t',n} \\
     \l_1 \leq_\l \l_2 }
   { \S\vc{\l_s} \has \vc{\t,\l_2,\k} x := e : \public \\\\
     \mu (x) = \vc{\t,\l_2,\k} \text{\tiny\ (scoping?)}}
 
+  \infer[ArrDec]
+  { \G \has init : \vc{\arr{\t,n},\l_1} \\
+    \l_1 \leq_\l \l_2 }
+  { \S\vc{\l_s} \has \vc{\arr{\t,n},\l_2,\k} a := init : \public \\\\
+    \mu (a) = \vc{\arr{\t,n},\l_2,\k} \text{\tiny\ (scoping?)}}
+
+  \infer[ArrView]
+  { \m (a) = \vc{\arr{\t,n},\l,\k} \\
+    \G \has e : \vc{\uint{max},\public} \\
+    n' \leq n \\
+    \l \leq_\l \l' \\
+    \k' \leq_\k \k }
+  { \S\vc{\l_s} \has \vc{\arr{\t,n'},\l',\k'} a' := \arrview{a,e} : \public \\\\
+    \mu (a') = \vc{\arr{\t,n'},\l',\k'} \text{\tiny\ (scoping?)}}
+
   \infer[VarAssign]
   { \mu (x) = \vc{\t,\l_1,\mut} \\
+    \t \neq \arr{\t',n} \\
     \G \has e : \vc{\t,\l_2} \\
     \l_2 \leq_\l \l_1 }
   { \S\vc{\l_s} \has x := e : \public }
