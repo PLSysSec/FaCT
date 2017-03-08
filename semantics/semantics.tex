@@ -68,6 +68,9 @@
 \newcommand\const{\textsc{Const}}
 \newcommand\mut{\textsc{Mut}}
 
+\newcommand\ktrue{\textsc{true}}
+\newcommand\kfalse{\textsc{false}}
+
 \newcommand\kif{\textsc{if }}
 \newcommand\kelse{\textsc{ else }}
 \newcommand\kfor{\textsc{for }}
@@ -82,7 +85,7 @@
 
 \begin{document}
 
-\subsubsection*{Types}
+\subsubsection*{Grammar}
 
 \begin{mathpar}
 
@@ -103,6 +106,42 @@
   { \gramrule{\k}{Mutability} \\
     \gramitem{\const} \\
     \gramitem{\mut} }
+
+  \grammar
+  { \gramrule{v}{Function argument} \\
+    \gramitem[by value]{e} \\
+    \gramitem[by reference]{\mut\ x} }
+
+  \grammar
+  { \gramrule{e}{Expression} \\
+    \gramitem{\ktrue} \\
+    \gramitem{\kfalse} \\
+    \gramitem[integer literal]{k} \\
+    \gramitem[variable]{x} \\
+    \gramitem[array get]{a[e]} \\
+    \gramitem[unary op]{\ominus e} \\
+    \gramitem[binary op]{e_1 \oplus e_2} \\
+    \gramitem[function call]{f(v_1,\dots,v_n)} }
+
+  \grammar
+  { \gramrule{init}{ArrInit} \\
+    \gramitem[memset zero]{\vc{\t,n}\textsc{zeros}} \\
+    \gramitem[memset]{\vc{\t,n}\textsc{fill}(e)} \\
+    \gramitem[array comprehension]{\vc{\t,n}x \Rightarrow e} \\
+    \gramitem[literal]{\vc{\t,n}\{e_1,\dots,e_n\}} \\
+    \gramitem[memcpy]{\textsc{copy}(a)} }
+
+  \grammar
+  { \gramrule{s}{Statement} \\
+    \gramitem[sequence]{s_1 ; s_2} \\
+    \gramitem[variable declaration]{\vc{\t,\l,\k} x := e} \\
+    \gramitem[array declaration]{\vc{\arr{\t,n},\l,\k} a := init} \\
+    \gramitem[array view declaration]{\vc{\arr{\t,n},\l,\k} a := \arrview{a',e}} \\
+    \gramitem[variable assignment]{x := e} \\
+    \gramitem[array assignment]{a[e_1] = e_2} \\
+    \gramitem[conditional]{\kif e\ \{ s_1 \} \kelse \{ s_2 \}} \\
+    \gramitem[loop]{\kfor \vc{\t} x \kfrom e_1 \kto e_2\ \{ s \}} \\
+    \gramitem[return]{\kret e} }
 
 \end{mathpar}
 
@@ -185,8 +224,8 @@
     p_1 \gets v_1 \\ \cdots \\ p_n \gets v_n }
   { \G \has f(v_1,\dots,v_n) : \vc{\t,\l} }
 
-  \infer[True] { } { \G \has true : \vc{bool,\public} } \\
-  \infer[False] { } { \G \has false : \vc{bool,\public} }
+  \infer[True] { } { \G \has \ktrue : \vc{bool,\public} } \\
+  \infer[False] { } { \G \has \kfalse : \vc{bool,\public} }
 
   \infer[PosNumber]
   { k >= 0 \\
@@ -200,17 +239,8 @@
 
 \end{mathpar}
 
-% the supertabular inside \grammar breaks if it is straddling a page boundary
-\pagebreak
 \subsubsection*{Array Initializers}
 \begin{mathpar}
-
-  \grammar
-  { \gramrule{init}{ArrInit} \\
-    \gramitem{\vc{\t,n}\textsc{zeros}} \\
-    \gramitem{\vc{\t,n}\textsc{fill}(e)} \\
-    \gramitem{\vc{\t,n}x \Rightarrow e} \\
-    \gramitem{\textsc{copy}(a)} }
 
   \infer[ZeroInit]
   { \t = \uint{s} \lor \t = \int{s} }
@@ -223,6 +253,11 @@
   \infer[CompInit]
   { \G \has e : \vc{\t,\l} }
   { \G \has \vc{\t,n}x \Rightarrow e : \vc{\arr{\t,n},\l} }
+
+  \infer[LitInit]
+  { \G \has e_i : \vc{\t,\l_i} \\
+    \textstyle\bigcup_i \l_i = \l }
+  { \G \has \vc{\t,n}\{e_1,\dots,e_n\} : \vc{\arr{\t,n},\l} }
 
   \infer[CopyInit]
   { \m (a) = \vc{\arr{\t,n},\l,\k} }
