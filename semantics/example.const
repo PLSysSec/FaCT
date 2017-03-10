@@ -1,0 +1,32 @@
+/* we need to figure out where label must be specified
+   and where they are optional.
+   right now it's optional everywhere */
+
+secret uint8 simple(public uint8 x, public uint8 y, public mut uint8 z) {
+  int32 a = x + y;
+  int32 b = x * y;
+  z = a + b;
+  return a - b;
+}
+
+// don't worry too much about what this does.
+// it doesn't actually do anything useful.
+secret int32 showcase(secret mut uint8[32] out, public uint8[32] in) {
+  uint8[32] tmp = zeros();
+
+  for (uint16 i = 0 to 32) {
+    if (out[i] > 5) {
+      mut uint8 z = 0;
+      uint8 t = simple(in[i], unsafe_public(out[i]), mut z);
+      out[i] = z + t;
+    } else {
+      out[i] = in[i];
+
+      if (out[i] > 0x3f) {
+        return 0x3f;
+      }
+    }
+  }
+
+  return 0;
+}

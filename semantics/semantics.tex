@@ -13,6 +13,7 @@
 \usepackage{etextools}
 \usepackage{suffix}
 \usepackage{comment}
+\usepackage{fancyhdr}
 
 \makeatletter
     \newcommand{\DeclarePairedDelimiterCase}[2]{%
@@ -47,6 +48,7 @@
 \newcommand\G\Gamma
 \newcommand\F{\mathbb{F}}
 \renewcommand\S\Sigma
+\renewcommand\b{b}
 \renewcommand\t\tau
 \renewcommand\k\sigma
 \renewcommand\l\ell
@@ -54,8 +56,8 @@
 \newcommand\M{\mathcal{M}}
 
 \newcommand\bool{\textsc{Bool}}
-\newcommand\uint[1]{\textsc{UInt}\vc{#1}}
-\renewcommand\int[1]{\textsc{Int}\vc{#1}}
+\newcommand\uint[1]{\textsc{UInt}\_{#1}}
+\renewcommand\int[1]{\textsc{Int}\_{#1}}
 \newcommand\arr[1]{\textsc{Arr}\vc{#1}}
 \WithSuffix\newcommand\arr*{\textsc{Arr}}
 
@@ -83,6 +85,9 @@
 \newcommand{\gramrule}[2]{\multicolumn{4}{l}{\textsc{#2}} \\ $#1$ & $::=$ }
 \newcommand{\gramitem}[2][]{& $|$ & $#2$ & $\ottcom{#1}$}
 
+\pagestyle{fancy}
+\chead{\today}
+
 \begin{document}
 
 \subsubsection*{Grammar}
@@ -90,11 +95,15 @@
 \begin{mathpar}
 
   \grammar
-  { \gramrule{\t}{Base type} \\
+  { \gramrule{\b}{Base type} \\
     \gramitem{\bool} \\
     \gramitem{\uint{n}} \\
-    \gramitem{\int{n}} \\
-    \gramitem{\arr{\t,n}} }
+    \gramitem{\int{n}} }
+
+  \grammar
+  { \gramrule{\t}{Type} \\
+    \gramitem{\b} \\
+    \gramitem{\arr{\b,n}} }
 
   \grammar
   { \gramrule{\l}{Label} \\
@@ -108,7 +117,7 @@
     \gramitem{\mut} }
 
   \grammar
-  { \gramrule{v}{Function argument} \\
+  { \gramrule{arg}{Function argument} \\
     \gramitem[by value]{e} \\
     \gramitem[by reference]{\mut\ x} }
 
@@ -116,32 +125,32 @@
   { \gramrule{e}{Expression} \\
     \gramitem{\ktrue} \\
     \gramitem{\kfalse} \\
-    \gramitem[integer literal]{k} \\
+    \gramitem[integer literal]{c} \\
     \gramitem[variable]{x} \\
+    \gramitem[array]{a} \\
     \gramitem[array get]{a[e]} \\
     \gramitem[unary op]{\ominus e} \\
     \gramitem[binary op]{e_1 \oplus e_2} \\
-    \gramitem[function call]{f(v_1,\dots,v_n)} }
+    \gramitem[function call]{f(arg_1,\dots,arg_n)} }
 
   \grammar
-  { \gramrule{init}{ArrInit} \\
-    \gramitem[memset zero]{\vc{\t,n}\textsc{zeros}} \\
-    \gramitem[memset]{\vc{\t,n}\textsc{fill}(e)} \\
+  { \gramrule{a}{Array} \\
     \gramitem[array comprehension]{\vc{\t,n}x \Rightarrow e} \\
-    \gramitem[literal]{\vc{\t,n}\{e_1,\dots,e_n\}} \\
-    \gramitem[memcpy]{\textsc{copy}(a)} }
+    \gramitem[array view]{\arrview{a,e,n}} }
 
   \grammar
   { \gramrule{s}{Statement} \\
     \gramitem[sequence]{s_1 ; s_2} \\
     \gramitem[variable declaration]{\vc{\t,\l,\k} x := e} \\
-    \gramitem[array declaration]{\vc{\arr{\t,n},\l,\k} a := init} \\
-    \gramitem[array view declaration]{\vc{\arr{\t,n},\l,\k} a := \arrview{a',e}} \\
     \gramitem[variable assignment]{x := e} \\
     \gramitem[array assignment]{a[e_1] = e_2} \\
     \gramitem[conditional]{\kif e\ \{ s_1 \} \kelse \{ s_2 \}} \\
-    \gramitem[loop]{\kfor \vc{\t} x \kfrom e_1 \kto e_2\ \{ s \}} \\
+    \gramitem[loop]{\kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s \}} \\
     \gramitem[return]{\kret e} }
+
+  \grammar
+  { \gramrule{fdec}{Function Definition} \\
+    \gramitem{\vc{\b,\l} f ( \vc{\t_1,\l_1,\k_1}x_1 , \dots , \vc{\t_n,\l_n,\k_n}x_n )\ \{ s \}} }
 
 \end{mathpar}
 
@@ -215,53 +224,37 @@
   % if we cannot determine statically that it's ok
   % then the program fails typechecking
   \infer[ArrGet]
-  { \m (a) = \vc{\arr{\t,n},\l,\k} \\
+  { \m (a) = \vc{\arr{\b,n},\l,\k} \\
     \G \has e : \vc{\uint{max},\public} }
-  { \G \has a[e] : \vc{\t,\l} }
+  { \G \has a[e] : \vc{\b,\l} }
 
   \infer[FnCall]
-  { \F (f) = fdec (p_1, \dots, p_n) : \vc{\t,\l} \\
-    p_1 \gets v_1 \\ \cdots \\ p_n \gets v_n }
-  { \G \has f(v_1,\dots,v_n) : \vc{\t,\l} }
+  { \F (f) = fdec (\vc{\t_1,\l_1,\k_1}x_1, \dots, \vc{\t_n,\l_n,\k_n}x_n) : \vc{\b,\l} \\
+    \vc{\t_1,\l_1,\k_1}x_1 \gets arg_1 \\ \cdots \\ \vc{\t_n,\l_n,\k_n}x_n \gets arg_n }
+  { \G \has f(arg_1,\dots,arg_n) : \vc{\b,\l} }
 
-  \infer[True] { } { \G \has \ktrue : \vc{bool,\public} } \\
-  \infer[False] { } { \G \has \kfalse : \vc{bool,\public} }
+  \infer[True] { } { \G \has \ktrue : \vc{\bool,\public} } \\
+  \infer[False] { } { \G \has \kfalse : \vc{\bool,\public} }
 
   \infer[PosNumber]
-  { k >= 0 \\
-    n = \ceil{\log_2 k} }
-  { \G \has k : \vc{\uint{n},\public} }
+  { c >= 0 \\
+    n = \ceil{\log_2 c} }
+  { \G \has c : \vc{\uint{n},\public} }
 
   \infer[NegNumber]
-  { k < 0 \\
-    n = \ceil{\log_2 \abs{k}}  + 1 }
-  { \G \has k : \vc{\int{n},\public} }
+  { c < 0 \\
+    n = \ceil{\log_2 \abs{c}}  + 1 }
+  { \G \has c : \vc{\int{n},\public} }
 
-\end{mathpar}
+  \infer[ArrComp]
+  { \G \has e : \vc{\b,\l} }
+  { \G \has \vc{\b,n}x \Rightarrow e : \vc{\arr{\b,n},\l} }
 
-\subsubsection*{Array Initializers}
-\begin{mathpar}
-
-  \infer[ZeroInit]
-  { \t = \uint{s} \lor \t = \int{s} }
-  { \G \has \vc{\t,n}\textsc{zeros} : \vc{\arr{\t,n},\public} }
-
-  \infer[FillInit]
-  { \G \has e : \vc{\t,\l} }
-  { \G \has \vc{\t,n}\textsc{fill}(e) : \vc{\arr{\t,n},\l} }
-
-  \infer[CompInit]
-  { \G \has e : \vc{\t,\l} }
-  { \G \has \vc{\t,n}x \Rightarrow e : \vc{\arr{\t,n},\l} }
-
-  \infer[LitInit]
-  { \G \has e_i : \vc{\t,\l_i} \\
-    \textstyle\bigcup_i \l_i = \l }
-  { \G \has \vc{\t,n}\{e_1,\dots,e_n\} : \vc{\arr{\t,n},\l} }
-
-  \infer[CopyInit]
-  { \m (a) = \vc{\arr{\t,n},\l,\k} }
-  { \G \has \textsc{copy}(a) : \vc{\arr{\t,n},\l} }
+  \infer[ArrView]
+  { \m (a) = \vc{\arr{\b,n},\l,\k} \\
+    \G \has e : \vc{\uint{max},\public} \\
+    n' \leq n }
+  { \G \has \arrview{a,e,n'} : \vc{\t,\l} }
 
 \end{mathpar}
 
@@ -279,37 +272,21 @@
 
   \infer[VarDec]
   { \G \has e : \vc{\t,\l_1} \\
-    \t \neq \arr{\t',n} \\
     \l_1 \leq_\l \l_2 }
   { \S\vc{\l_s} \has \vc{\t,\l_2,\k} x := e : \public \\\\
-    \mu (x) = \vc{\t,\l_2,\k} \text{\tiny\ (scoping?)}}
-
-  \infer[ArrDec]
-  { \G \has init : \vc{\arr{\t,n},\l_1} \\
-    \l_1 \leq_\l \l_2 }
-  { \S\vc{\l_s} \has \vc{\arr{\t,n},\l_2,\k} a := init : \public \\\\
-    \mu (a) = \vc{\arr{\t,n},\l_2,\k} \text{\tiny\ (scoping?)}}
-
-  \infer[ArrView]
-  { \m (a) = \vc{\arr{\t,n},\l,\k} \\
-    \G \has e : \vc{\uint{max},\public} \\
-    n' \leq n \\
-    \l \leq_\l \l' \\
-    \k' \leq_\k \k }
-  { \S\vc{\l_s} \has \vc{\arr{\t,n'},\l',\k'} a' := \arrview{a,e} : \public \\\\
-    \mu (a') = \vc{\arr{\t,n'},\l',\k'} \text{\tiny\ (scoping?)}}
+    \mu (x) = \vc{\t,\l_2,\k} \text{\tiny\ (scoping?)} \\\\
+    \text{\tiny (how to ensure no \mut\ view of \const\ array?)} }
 
   \infer[VarAssign]
-  { \mu (x) = \vc{\t,\l_1,\mut} \\
-    \t \neq \arr{\t',n} \\
-    \G \has e : \vc{\t,\l_2} \\
+  { \mu (x) = \vc{\b,\l_1,\mut} \\
+    \G \has e : \vc{\b,\l_2} \\
     \l_2 \leq_\l \l_1 }
   { \S\vc{\l_s} \has x := e : \public }
 
   \infer[ArrAssign]
-  { \mu (a) = \vc{\arr{\t,n},\l_1,\mut} \\
+  { \mu (a) = \vc{\arr{\b,n},\l_1,\mut} \\
     \G \has e_1 : \vc{\uint{max},\public} \\
-    \G \has e_2 : \vc{\t,\l_2} \\
+    \G \has e_2 : \vc{\b,\l_2} \\
     \l_2 \leq_\l \l_1 }
   { \S\vc{\l_s} \has a[e_1] := e_2 : \public }
 
@@ -320,16 +297,16 @@
   { \S\vc{\l_s} \has \kif e\ \{ s_1 \} \kelse \{ s_2 \} : \l'_s \cup \l''_s }
 
   \infer[For]
-  { \G \has e_1 : \vc{\t,\public} \\
-    \G \has e_2 : \vc{\t,\public} \\
-    \t = \uint{s} \lor \t = \int{s} \\
+  { \G \has e_1 : \vc{\b,\public} \\
+    \G \has e_2 : \vc{\b,\public} \\
+    \b = \uint{s} \lor \b = \int{s} \\
     \S\vc{\l_s} \has s : \l'_s }
-  { \S\vc{\l_s} \has \kfor \vc{\t} x \kfrom e_1 \kto e_2\ \{ s \} : \l'_s \\\\
-    \mu (x) = \vc{\t,\public,\const} \text{\tiny\ (scoping?)}}
+  { \S\vc{\l_s} \has \kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s \} : \l'_s \\\\
+    \mu (x) = \vc{\b,\public,\const} \text{\tiny\ (scoping?)}}
 
   \infer[Ret]
-  { \G \has e : \vc{\t,\l_1} \\
-    \F (f) = fdec : \vc{\t,\l_2} \\
+  { \G \has e : \vc{\b,\l_1} \\
+    \F (f) = fdec : \vc{\b,\l_2} \\
     \l_1 \leq_\l \l_2 }
   { \S\vc{\l_s} \has \kret e : \l_s }
 
