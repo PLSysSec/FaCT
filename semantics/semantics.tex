@@ -14,6 +14,7 @@
 \usepackage{suffix}
 \usepackage{comment}
 \usepackage{fancyhdr}
+\usepackage[en-US,showzone=false]{datetime2}
 
 \makeatletter
     \newcommand{\DeclarePairedDelimiterCase}[2]{%
@@ -42,22 +43,29 @@
 \DeclarePairedDelimiterY{abs}{\lvert}{\rvert}
 \DeclarePairedDelimiter{\vc}{\langle}{\rangle}
 
-\newcommand\has\vdash
-\newcommand\stmto{\ \Longrightarrow\ }
+\newcommand\with{\,|\,}
+\newcommand\has{\,\vdash\,}
+\newcommand\stmto{\ \rightarrow\ }
+\newcommand\aug{\mapsto}
 
 \newcommand\G\Gamma
 \newcommand\F{\mathbb{F}}
-\renewcommand\S\Sigma
+\renewcommand\S\Delta
 \renewcommand\b{b}
 \renewcommand\t\tau
 \renewcommand\k\sigma
 \renewcommand\l\ell
 \newcommand\m\mu
 \newcommand\M{\mathcal{M}}
+\renewcommand\r{r_?}
+
+\newcommand\Gm{\G \with \m}
+\newcommand\T[1]{\vc{\t_{#1},\l_{#1},\k_{#1}}}
 
 \newcommand\bool{\textsc{Bool}}
-\newcommand\uint[1]{\textsc{UInt}\_{#1}}
-\renewcommand\int[1]{\textsc{Int}\_{#1}}
+\newcommand\uint[1]{\textsc{UInt}_{#1}}
+\WithSuffix\newcommand\uint*{\textsc{UInt}}
+\renewcommand\int[1]{\textsc{Int}_{#1}}
 \newcommand\arr[1]{\textsc{Arr}\vc{#1}}
 \WithSuffix\newcommand\arr*{\textsc{Arr}}
 
@@ -69,6 +77,8 @@
 
 \newcommand\const{\textsc{Const}}
 \newcommand\mut{\textsc{Mut}}
+
+\renewcommand\ref{\textsc{ref}}
 
 \newcommand\ktrue{\textsc{true}}
 \newcommand\kfalse{\textsc{false}}
@@ -86,7 +96,7 @@
 \newcommand{\gramitem}[2][]{& $|$ & $#2$ & $\ottcom{#1}$}
 
 \pagestyle{fancy}
-\chead{\today}
+\chead{\DTMnow}
 
 \begin{document}
 
@@ -117,40 +127,32 @@
     \gramitem{\mut} }
 
   \grammar
-  { \gramrule{arg}{Function argument} \\
-    \gramitem[by value]{e} \\
-    \gramitem[by reference]{\mut\ x} }
-
-  \grammar
   { \gramrule{e}{Expression} \\
     \gramitem{\ktrue} \\
     \gramitem{\kfalse} \\
     \gramitem[integer literal]{c} \\
     \gramitem[variable]{x} \\
-    \gramitem[array]{a} \\
-    \gramitem[array get]{a[e]} \\
+    \gramitem[array get]{x[e]} \\
+    \gramitem[array comprehension]{\vc{\t,n}x \Rightarrow e} \\
+    \gramitem[array view]{\arrview{x,e,n}} \\
     \gramitem[unary op]{\ominus e} \\
     \gramitem[binary op]{e_1 \oplus e_2} \\
-    \gramitem[function call]{f(arg_1,\dots,arg_n)} }
-
-  \grammar
-  { \gramrule{a}{Array} \\
-    \gramitem[array comprehension]{\vc{\t,n}x \Rightarrow e} \\
-    \gramitem[array view]{\arrview{a,e,n}} }
+    \gramitem[mut ref]{\ref\ x} \\
+    \gramitem[function call]{f(e_1,\dots,e_n)} }
 
   \grammar
   { \gramrule{s}{Statement} \\
     \gramitem[sequence]{s_1 ; s_2} \\
     \gramitem[variable declaration]{\vc{\t,\l,\k} x := e} \\
     \gramitem[variable assignment]{x := e} \\
-    \gramitem[array assignment]{a[e_1] = e_2} \\
+    \gramitem[array assignment]{x[e_1] = e_2} \\
     \gramitem[conditional]{\kif e\ \{ s_1 \} \kelse \{ s_2 \}} \\
     \gramitem[loop]{\kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s \}} \\
     \gramitem[return]{\kret e} }
 
   \grammar
   { \gramrule{fdec}{Function Definition} \\
-    \gramitem{\vc{\b,\l} f ( \vc{\t_1,\l_1,\k_1}x_1 , \dots , \vc{\t_n,\l_n,\k_n}x_n )\ \{ s \}} }
+    \gramitem{\vc{\b,\l} f ( \vc{\t_1,\l_1,\k_1}x_1 , \,\dots\, , \vc{\t_n,\l_n,\k_n}x_n )\ \{ s \}} }
 
 \end{mathpar}
 
@@ -172,12 +174,14 @@
   { \public <_\l \secret }
 
   \infer { }
-  { \const <_\k \mut }
+  { \mut <_\k \const }
 
   \infer
-  { \t_1 <_\t \t_2 \\
-    \G \has e : \vc{\t_1, \l} }
-  { \G \has e : \vc{\t_2, \l} }
+  { \Gm \has e : \T1 \\
+    \t_1 \leq_\t \t_2 \\
+    \l_1 \leq_\l \l_2 \\
+    \k_1 \leq_\k \k_2 }
+  { \Gm \has e : \T2 }
 
   \infer { }
   { \l \cup \l = \l }
@@ -185,19 +189,8 @@
   \infer { }
   { \l \cup \secret = \secret }
 
-\end{mathpar}
-
-\subsubsection*{Parameter Passing}
-\begin{mathpar}
-
-  \infer
-  { \G \has e : \vc{\t,\l_1} \\
-    \l_1 \leq_\l \l_2 }
-  { \vc{\t,\l_2,\const} \gets e }
-
-  \infer
-  { \m (x) = \vc{\t,\l,\mut} }
-  { \vc{\t,\l,\mut} \gets \mut\ x }
+  \infer { }
+  { \secret \cup \l = \secret }
 
 \end{mathpar}
 
@@ -206,81 +199,88 @@
 
   \infer[Var]
   { \m (x) = \vc{\t,\l,\k} }
-  { \G \has x : \vc{\t,\l} }
+  { \Gm \has x : \vc{\t,\l,\const} }
 
   \infer[Unop]
-  { \G \has e : \vc{\t_1,\l_1} \\
-    \ominus : \vc{\t_1,\l_1} \to \vc{\t_2,\l_2} }
-  { \G \has \ominus e : \vc{\t_2,\l_2} }
+  { \Gm \has e : \T1 \\
+    \ominus : \T1 \to \T2 }
+  { \Gm \has \ominus e : \T2 }
 
   \infer[Binop]
-  { \G \has e_1 : \vc{\t_1,\l_1} \\
-    \G \has e_2 : \vc{\t_2,\l_2} \\
-    \oplus : \vc{\t_1,\l_1} \to \vc{\t_2,\l_2} \to \vc{\t_3,\l_3} }
-  { \G \has e_1 \oplus e_2 : \vc{\t_3, \l_3 } }
+  { \Gm \has e_1 : \T1 \\
+    \Gm \has e_2 : \T2 \\
+    \oplus : \T1 \to \T2 \to \T3 }
+  { \Gm \has e_1 \oplus e_2 : \T3 }
 
   % Instead of dynamic looping or masking,
   % just fall back to static analysis;
   % if we cannot determine statically that it's ok
   % then the program fails typechecking
   \infer[ArrGet]
-  { \m (a) = \vc{\arr{\b,n},\l,\k} \\
-    \G \has e : \vc{\uint{max},\public} }
-  { \G \has a[e] : \vc{\b,\l} }
+  { \m (x) = \vc{\arr{\b,n},\l,\k} \\
+    \Gm \has e : \vc{\uint*,\public,\const} \\
+    S\hspace{-.7px}MT(e < n) }
+  { \Gm \has x[e] : \vc{\b,\l,\const} }
+
+  \infer[ArrComp]
+  { \Gm [ x \aug \vc{\b,\l,\const} ] \has e : \vc{\b,\l,\k} }
+  { \Gm \has \vc{\b,n}x \Rightarrow e : \vc{\arr{\b,n},\l,\mut} }
+
+  \infer[ArrView]
+  { \m (x) = \vc{\arr{\b,n},\l,\k} \\
+    \Gm \has e : \vc{\uint*,\public,\const} \\
+    S\hspace{-.7px}MT(e + n' < n) }
+  { \Gm \has \arrview{x,e,n'} : \vc{\arr{\b,n'},\l,\k} }
+
+  \infer[MutRef]
+  { \m (x) = \vc{\t,\l,\mut} }
+  { \Gm \has \ref\ x : \vc{\t,\l,\mut} }
 
   \infer[FnCall]
-  { \F (f) = fdec (\vc{\t_1,\l_1,\k_1}x_1, \dots, \vc{\t_n,\l_n,\k_n}x_n) : \vc{\b,\l} \\
-    \vc{\t_1,\l_1,\k_1}x_1 \gets arg_1 \\ \cdots \\ \vc{\t_n,\l_n,\k_n}x_n \gets arg_n }
-  { \G \has f(arg_1,\dots,arg_n) : \vc{\b,\l} }
+  { \F (f) = fdec (\T1, \,\dots\,, \T{n}) : \T{f} \\
+    \Gm \has e_1 : \T1 \\
+    \dots \\
+    \Gm \has e_n : \T{n} }
+  { \Gm \has f(e_1,\,\dots\,,e_n) : \T{f} }
 
-  \infer[True] { } { \G \has \ktrue : \vc{\bool,\public} } \\
-  \infer[False] { } { \G \has \kfalse : \vc{\bool,\public} }
+  \infer[True] { } { \Gm \has \ktrue : \vc{\bool,\public,\const} } \\
+  \infer[False] { } { \Gm \has \kfalse : \vc{\bool,\public,\const} }
 
   \infer[PosNumber]
   { c >= 0 \\
     n = \ceil{\log_2 c} }
-  { \G \has c : \vc{\uint{n},\public} }
+  { \Gm \has c : \vc{\uint{n},\public,\const} }
 
   \infer[NegNumber]
   { c < 0 \\
     n = \ceil{\log_2 \abs{c}}  + 1 }
-  { \G \has c : \vc{\int{n},\public} }
-
-  \infer[ArrComp]
-  { \G \has e : \vc{\b,\l} }
-  { \G \has \vc{\b,n}x \Rightarrow e : \vc{\arr{\b,n},\l} }
-
-  \infer[ArrView]
-  { \m (a) = \vc{\arr{\b,n},\l,\k} \\
-    \G \has e : \vc{\uint{max},\public} \\
-    n' \leq n }
-  { \G \has \arrview{a,e,n'} : \vc{\t,\l} }
+  { \Gm \has c : \vc{\int{n},\public,\const} }
 
 \end{mathpar}
 
 \subsubsection*{Statements}
 \begin{mathpar}
 
-  \newcommand\stmtitle{}
-  \newcommand\stt[1]{\renewcommand\stmtitle{$#1 \stmto$}}
-  \newcommand\xinfer[3]{\stt{#1}\infer[\stmtitle]{#2}{#3}}
-
   \infer[Seq]
-  { \S\vc{\l_s} \has s_1 : \l'_s \\
-    \S\vc{\l'_s} \has s_2 : \l''_s }
-  { \S\vc{\l_s} \has s_1 ; s_2 : \l'_s \cup \l''_s }
+  { \S \has s_1 \stmto \S' \\
+    \S' \has s_2 \stmto \S'' }
+  { \S \has s_1 ; s_2 \stmto \S'' }
 
   \infer[VarDec]
-  { \G \has e : \vc{\t,\l_1} \\
-    \l_1 \leq_\l \l_2 }
-  { \S\vc{\l_s} \has \vc{\t,\l_2,\k} x := e : \public \\\\
-    \mu (x) = \vc{\t,\l_2,\k} \text{\tiny\ (scoping?)} \\\\
-    \text{\tiny (how to ensure no \mut\ view of \const\ array?)} }
+  { x \notin Dom(\m) \\
+    \l_s \leq_\l \l \\
+    \Gm \has e : \T{} }
+  { \vc{\m,\l_s,\r} \has \T{} x := e \stmto \vc{\m \aug x : \T{},\l_s,\r} }
+
+  \infer[VarDec*]
+  { x \notin Dom(\m) \\
+    \l_s \leq_\l \l \\
+    \Gm \has e : \vc{\b,\l,\const} }
+  { \vc{\m,\l_s,\r} \has \vc{\b,\l,\mut} x := e \stmto \vc{\m \aug x : \vc{\b,\l,\mut},\l_s,\r} }
 
   \infer[VarAssign]
-  { \mu (x) = \vc{\b,\l_1,\mut} \\
-    \G \has e : \vc{\b,\l_2} \\
-    \l_2 \leq_\l \l_1 }
+  { \mu (x) = \vc{\b,\l,\mut} \\
+    \Gm \has e : \vc{\b,\l,\const} }
   { \S\vc{\l_s} \has x := e : \public }
 
   \infer[ArrAssign]
