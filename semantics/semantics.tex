@@ -156,6 +156,26 @@
 
 \end{mathpar}
 
+\subsubsection*{Metavariables}
+\begin{mathpar}
+
+  \grammar
+  { \gramrule{\G}{Type context} \\
+    \gramitem{\emptyset} \\
+    \gramitem{\G [ e \aug \T{} ] } }
+
+  \grammar
+  { \gramrule{\mu}{Variable type store} \\
+    \gramitem{\emptyset} \\
+    \gramitem{\mu [ x \aug \T{} ] } }
+
+  \grammar
+  { \gramrule{\F}{Function type store} \\
+    \gramitem{\emptyset} \\
+    \gramitem{\F [ f \aug fdec (\T1, \,\dots\,, \T{n}) : \T{f} ] } }
+
+\end{mathpar}
+
 \subsubsection*{Type Lattice}
 \begin{mathpar}
 
@@ -194,7 +214,7 @@
 
 \end{mathpar}
 
-\subsubsection*{Expressions}
+\subsubsection*{Expressions \hfill \fbox{$\Gm \has e : \T{}$}}
 \begin{mathpar}
 
   \infer[Var]
@@ -258,7 +278,7 @@
 
 \end{mathpar}
 
-\subsubsection*{Statements}
+\subsubsection*{Statements \hfill \fbox{$\vc{\m,\l_s,\r} \has s \stmto \vc{\m',\l_s',\r'}$}}
 \begin{mathpar}
 
   \infer[Seq]
