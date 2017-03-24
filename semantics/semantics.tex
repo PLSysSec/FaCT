@@ -47,6 +47,9 @@
 \newcommand\has{\,\vdash\,}
 \newcommand\stmto{\ \rightarrow\ }
 \newcommand\aug{\mapsto}
+\newcommand\huh{\,\texttt{?}\,}
+\newcommand\helse{\,\texttt{:}\,}
+\newcommand\huhelse{\,\texttt{?:}\,}
 
 \newcommand\G\Gamma
 \newcommand\F{\mathbb{F}}
@@ -133,10 +136,11 @@
     \gramitem[integer literal]{c} \\
     \gramitem[variable]{x} \\
     \gramitem[array get]{x[e]} \\
-    \gramitem[array comprehension]{\vc{\t,n}x \Rightarrow e} \\
+    \gramitem[array comprehension]{\vc{\b,n,\b_x}x \Rightarrow e} \\
     \gramitem[array view]{\arrview{x,e,n}} \\
     \gramitem[unary op]{\ominus e} \\
     \gramitem[binary op]{e_1 \oplus e_2} \\
+    \gramitem[ternary op]{e_1 \huh e_2 \helse e_3} \\
     \gramitem[mut ref]{\ref\ x} \\
     \gramitem[function call]{f(e_1,\dots,e_n)} }
 
@@ -172,7 +176,7 @@
   \grammar
   { \gramrule{\F}{Function type store} \\
     \gramitem{\emptyset} \\
-    \gramitem{\F [ f \aug fdec (\T1, \,\dots\,, \T{n}) : \T{f} ] } }
+    \gramitem{\F [ f \aug fdec (\T1, \,\dots\,, \T{n}) : \vc{\b,\l} ] } }
 
 \end{mathpar}
 
@@ -232,6 +236,13 @@
     \oplus : \T1 \to \T2 \to \T3 }
   { \Gm \has e_1 \oplus e_2 : \T3 }
 
+  \infer[Ternop]
+  { \Gm \has e_1 : \T1 \\
+    \Gm \has e_2 : \T2 \\
+    \Gm \has e_3 : \T3 \\
+    \huhelse : \T1 \to \T2 \to \T3 \to \T4 }
+  { \Gm \has e_1 \huh e_2 \helse e_3 : \T4 }
+
   % Instead of dynamic looping or masking,
   % just fall back to static analysis;
   % if we cannot determine statically that it's ok
@@ -243,8 +254,8 @@
   { \Gm \has x[e] : \vc{\b,\l,\const} }
 
   \infer[ArrComp]
-  { \Gm [ x \aug \vc{\b,\l,\const} ] \has e : \vc{\b,\l,\k} }
-  { \Gm \has \vc{\b,n}x \Rightarrow e : \vc{\arr{\b,n},\l,\mut} }
+  { \Gm [ x \aug \vc{\b_x,\l,\const} ] \has e : \vc{\b,\l,\const} }
+  { \Gm \has \vc{\b,n,\b_x}x \Rightarrow e : \vc{\arr{\b,n},\l,\mut} }
 
   \infer[ArrView]
   { \m (x) = \vc{\arr{\b,n},\l,\k} \\
@@ -257,11 +268,11 @@
   { \Gm \has \ref\ x : \vc{\t,\l,\mut} }
 
   \infer[FnCall]
-  { \F (f) = fdec (\T1, \,\dots\,, \T{n}) : \T{f} \\
+  { \F (f) = fdec (\T1, \,\dots\,, \T{n}) : \vc{\b,\l} \\
     \Gm \has e_1 : \T1 \\
     \dots \\
     \Gm \has e_n : \T{n} }
-  { \Gm \has f(e_1,\,\dots\,,e_n) : \T{f} }
+  { \Gm \has f(e_1,\,\dots\,,e_n) : \vc{\b,\l,\const} }
 
   \infer[True] { } { \Gm \has \ktrue : \vc{\bool,\public,\const} } \\
   \infer[False] { } { \Gm \has \kfalse : \vc{\bool,\public,\const} }
