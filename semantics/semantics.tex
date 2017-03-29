@@ -122,7 +122,8 @@
   \grammar
   { \gramrule{\t}{Type} \\
     \gramitem{\b} \\
-    \gramitem{\arr{\b,n}} }
+    \gramitem{\arr{\b,n}} \\
+    \gramitem[$x$ must be $\vc{\uint*,\public,\const}$]{\arr{\b,x}} }
 
   \grammar
   { \gramrule{\l}{Label} \\
@@ -221,6 +222,12 @@
     \l \leq_\l \l' }
   { \Gm \has e : \vc{\arr{\b,n},\l',\const} }
 
+  % these arrays are no different
+  \infer
+  { \Gm \has e : \vc{\arr{\b,x},\l,\k} \\
+    \l \leq_\l \l' }
+  { \Gm \has e : \vc{\arr{\b,x},\l',\const} }
+
 \end{mathpar}
 
 \subsubsection*{Expressions \hfill \fbox{$\Gm \has e : \T{}$}}
@@ -258,6 +265,12 @@
     S\hspace{-.7px}MT(e < n) }
   { \Gm \has x[e] : \vc{\b,\l,\const} }
 
+  \infer[ArrGetDyn]
+  { \m (x) = \vc{\arr{\b,x_n},\l,\k} \\
+    \Gm \has e : \vc{\uint*,\public,\const} \\
+    S\hspace{-.7px}MT(e < x_n) }
+  { \Gm \has x[e] : \vc{\b,\l,\const} }
+
   \infer[ArrComp]
   { \Gm [ x \aug \vc{\b_x,\public,\const} ] \has e : \vc{\b,\l,\const} \\
     \uint{\ceil{\log_2 n}} \leq_\t \b_x }
@@ -267,6 +280,12 @@
   { \m (x) = \vc{\arr{\b,n},\l,\k} \\
     \Gm \has e : \vc{\uint*,\public,\const} \\
     S\hspace{-.7px}MT(e + n' < n) }
+  { \Gm \has \arrview{x,e,n'} : \vc{\arr{\b,n'},\l,\k} }
+
+  \infer[ArrViewDyn]
+  { \m (x) = \vc{\arr{\b,x_n},\l,\k} \\
+    \Gm \has e : \vc{\uint*,\public,\const} \\
+    S\hspace{-.7px}MT(e + n' < x_n) }
   { \Gm \has \arrview{x,e,n'} : \vc{\arr{\b,n'},\l,\k} }
 
   \infer[MutRef]
@@ -323,6 +342,14 @@
   { \mu (x) = \vc{\arr{\b,n},\l,\mut} \\
     \Gm \has e_1 : \vc{\uint*,\public,\const} \\
     S\hspace{-.7px}MT(e_1 < n) \\
+    \Gm \has e_2 : \vc{\b,\l_e,\const} \\
+    \ls \join \l_e \leq_\l \l }
+  { \vc{\m,\l_s,\r} \has x[e_1] := e_2 \stmto \vc{\m,\l_s,\r} }
+
+  \infer[ArrAssignDyn]
+  { \mu (x) = \vc{\arr{\b,x_n},\l,\mut} \\
+    \Gm \has e_1 : \vc{\uint*,\public,\const} \\
+    S\hspace{-.7px}MT(e_1 < x_n) \\
     \Gm \has e_2 : \vc{\b,\l_e,\const} \\
     \ls \join \l_e \leq_\l \l }
   { \vc{\m,\l_s,\r} \has x[e_1] := e_2 \stmto \vc{\m,\l_s,\r} }
