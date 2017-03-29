@@ -78,7 +78,7 @@ fdeclist:
 ;
 
 fdec:
-  | description IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
+  | ret_description IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
     { make_pos $startpos ($2, (List.rev $4), $1, $7) }
 
 base_type:
@@ -99,24 +99,19 @@ mutability:
   | CONST { Const }
   | MUT { Mut }
 
+ret_description:
+  | label mutability base_type { ($1,$2,$3) }
+  | label base_type { ($1,Const,$3) }
+
 description:
-  | label mutability base_type
-    { let lab = $1 in
-      let mut = $2 in
-      let ct = Base $3 in
-      (ct, lab, mut) }
+  | label mutability ctype { ($1,$2,$3) }
+  | label ctype { ($1,Const,$3) }
+  | mutability ctype { (Unknown,$2,$3) }
+  | ctype { (Unknown,Const,$3) }
 
 arg_description:
-  | label mutability ctype
-    { let lab = $1 in
-      let mut = $2 in
-      let ct = $3 in
-      (ct, lab, mut) }
-  | label ctype
-    { let lab = $1 in
-      let mut = Const in
-      let ct = $2 in
-      (ct, lab, mut) }
+  | label mutability ctype { ($1,$2,$3) }
+  | label ctype { ($1,Const,$3) }
 
 fargs:
   | fargs COMMA arg_description IDENT
