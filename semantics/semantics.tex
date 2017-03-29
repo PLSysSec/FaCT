@@ -47,6 +47,10 @@
 \newcommand\has{\,\vdash\,}
 \newcommand\stmto{\ \rightarrow\ }
 \newcommand\aug{\mapsto}
+\newcommand\update{\Mapsto}
+\newcommand\join{\vee}
+\newcommand\meet{\wedge}
+
 \newcommand\huh{\,\texttt{?}\,}
 \newcommand\helse{\,\texttt{:}\,}
 \newcommand\huhelse{\,\texttt{?:}\,}
@@ -60,7 +64,8 @@
 \renewcommand\l\ell
 \newcommand\m\mu
 \newcommand\M{\mathcal{M}}
-\renewcommand\r{r_?}
+\newcommand\ls{\l_s}
+\renewcommand\r{r}
 
 \newcommand\Gm{\G \with \m}
 \newcommand\T[1]{\vc{\t_{#1},\l_{#1},\k_{#1}}}
@@ -69,6 +74,7 @@
 \newcommand\uint[1]{\textsc{UInt}_{#1}}
 \WithSuffix\newcommand\uint*{\textsc{UInt}}
 \renewcommand\int[1]{\textsc{Int}_{#1}}
+\WithSuffix\newcommand\int*{\textsc{Int}}
 \newcommand\arr[1]{\textsc{Arr}\vc{#1}}
 \WithSuffix\newcommand\arr*{\textsc{Arr}}
 
@@ -147,7 +153,7 @@
   \grammar
   { \gramrule{s}{Statement} \\
     \gramitem[sequence]{s_1 ; s_2} \\
-    \gramitem[variable declaration]{\vc{\t,\l,\k} x := e} \\
+    \gramitem[variable declaration]{\vc{\t,\k} x := e} \\
     \gramitem[variable assignment]{x := e} \\
     \gramitem[array assignment]{x[e_1] = e_2} \\
     \gramitem[conditional]{\kif e\ \{ s_1 \} \kelse \{ s_2 \}} \\
@@ -200,21 +206,20 @@
   \infer { }
   { \mut <_\k \const }
 
+  % cannot upgrade base mut to base const
+  % no subtyping allowed for mut -> mut
   \infer
-  { \Gm \has e : \T1 \\
-    \t_1 \leq_\t \t_2 \\
-    \l_1 \leq_\l \l_2 \\
-    \k_1 \leq_\k \k_2 }
-  { \Gm \has e : \T2 }
+  { \Gm \has e : \vc{\b,\l,\const} \\
+    \b \leq_\t \b' \\
+    \l \leq_\l \l' }
+  { \Gm \has e : \vc{\b',\l',\const} }
 
-  \infer { }
-  { \l \cup \l = \l }
-
-  \infer { }
-  { \l \cup \secret = \secret }
-
-  \infer { }
-  { \secret \cup \l = \secret }
+  % subtyping can only upgrade to const
+  % no subtyping allowed for mut -> mut
+  \infer
+  { \Gm \has e : \vc{\arr{\b,n},\l,\k} \\
+    \l \leq_\l \l' }
+  { \Gm \has e : \vc{\arr{\b,n},\l',\const} }
 
 \end{mathpar}
 
@@ -240,7 +245,7 @@
   { \Gm \has e_1 : \T1 \\
     \Gm \has e_2 : \T2 \\
     \Gm \has e_3 : \T3 \\
-    \huhelse : \T1 \to \T2 \to \T3 \to \T4 }
+    (\!\huhelse\!\!) : \T1 \to \T2 \to \T3 \to \T4 }
   { \Gm \has e_1 \huh e_2 \helse e_3 : \T4 }
 
   % Instead of dynamic looping or masking,
@@ -254,7 +259,8 @@
   { \Gm \has x[e] : \vc{\b,\l,\const} }
 
   \infer[ArrComp]
-  { \Gm [ x \aug \vc{\b_x,\l,\const} ] \has e : \vc{\b,\l,\const} }
+  { \Gm [ x \aug \vc{\b_x,\public,\const} ] \has e : \vc{\b,\l,\const} \\
+    \uint{\ceil{\log_2 n}} \leq_\t \b_x }
   { \Gm \has \vc{\b,n,\b_x}x \Rightarrow e : \vc{\arr{\b,n},\l,\mut} }
 
   \infer[ArrView]
@@ -289,57 +295,57 @@
 
 \end{mathpar}
 
-\subsubsection*{Statements \hfill \fbox{$\vc{\m,\l_s,\r} \has s \stmto \vc{\m',\l_s',\r'}$}}
+\subsubsection*{Statements \hfill \fbox{$\vc{\m,\ls,\r} \has s \stmto \vc{\m',\ls',\r'}$}}
 \begin{mathpar}
 
   \infer[Seq]
-  { \S \has s_1 \stmto \S' \\
-    \S' \has s_2 \stmto \S'' }
-  { \S \has s_1 ; s_2 \stmto \S'' }
+  { \vc{\m,\ls,\r} \has s_1 \stmto \vc{\m',\ls',\r'} \\
+    \vc{\m',\ls',\r'} \has s_2 \stmto \vc{\m'',\ls'',\r''} }
+  { \vc{\m,\ls,\r} \has s_1 ; s_2 \stmto \vc{\m'',\ls'',\r''} }
+
+  % needed because in the general case (e.g. arrays), vardec Mut := Const is not allowed
+  \infer[VarDecBaseMut]
+  { x \notin Dom(\m) \\
+    \Gm \has e : \vc{\b,\l,\const} }
+  { \vc{\m,\l_s,\r} \has \vc{\b,\mut} x := e \stmto \vc{\m [ x \aug \vc{\b,\l,\mut} ],\l_s,\r} }
 
   \infer[VarDec]
   { x \notin Dom(\m) \\
-    \l_s \leq_\l \l \\
     \Gm \has e : \T{} }
-  { \vc{\m,\l_s,\r} \has \T{} x := e \stmto \vc{\m \aug x : \T{},\l_s,\r} }
-
-  \infer[VarDec*]
-  { x \notin Dom(\m) \\
-    \l_s \leq_\l \l \\
-    \Gm \has e : \vc{\b,\l,\const} }
-  { \vc{\m,\l_s,\r} \has \vc{\b,\l,\mut} x := e \stmto \vc{\m \aug x : \vc{\b,\l,\mut},\l_s,\r} }
+  { \vc{\m,\l_s,\r} \has \vc{\t,\k} x := e \stmto \vc{\m [ x \aug \vc{\t,\l,\k} ],\l_s,\r} }
 
   \infer[VarAssign]
   { \mu (x) = \vc{\b,\l,\mut} \\
-    \Gm \has e : \vc{\b,\l,\const} }
-  { \S\vc{\l_s} \has x := e : \public }
+    \Gm \has e : \vc{\b,\l_e,\const} }
+  { \vc{\m,\l_s,\r} \has x := e \stmto \vc{\m [ x \aug \vc{\b,\l_e,\mut} ],\l_s,\r} }
 
   \infer[ArrAssign]
-  { \mu (a) = \vc{\arr{\b,n},\l_1,\mut} \\
-    \G \has e_1 : \vc{\uint{max},\public} \\
-    \G \has e_2 : \vc{\b,\l_2} \\
-    \l_2 \leq_\l \l_1 }
-  { \S\vc{\l_s} \has a[e_1] := e_2 : \public }
+  { \mu (x) = \vc{\arr{\b,n},\l,\mut} \\
+    \Gm \has e_1 : \vc{\uint*,\public,\const} \\
+    S\hspace{-.7px}MT(e_1 < n) \\
+    \Gm \has e_2 : \vc{\b,\l_e,\const} \\
+    \ls \join \l_e \leq_\l \l }
+  { \vc{\m,\l_s,\r} \has x[e_1] := e_2 \stmto \vc{\m,\l_s,\r} }
 
   \infer[If]
-  { \G \has e : \vc{\bool,\l} \\
-    \S\vc{\l \cup \l_s} \has s_1 : \l'_s \\
-    \S\vc{\l \cup \l_s} \has s_2 : \l''_s }
-  { \S\vc{\l_s} \has \kif e\ \{ s_1 \} \kelse \{ s_2 \} : \l'_s \cup \l''_s }
+  { \Gm \has e : \vc{\bool,\l,\k} \\\\
+    \vc{\m,\l_s,\r} \has s_1 \stmto \vc{\m',\ls',\r'} \\
+    \vc{\m,\l_s,\r} \has s_2 \stmto \vc{\m'',\ls'',\r''} \\\\
+    \m^* = join\m(\m,\m',\m'',\l) \\
+    \ls^*,\r^* = join\ls\r(\ls,\ls',\ls'',\r,\r',\r'') }
+  { \vc{\m,\l_s,\r} \has \kif e\ \{ s_1 \} \kelse \{ s_2 \} \stmto \vc{\m^*,\ls^*,\r^*} }
 
   \infer[For]
-  { \G \has e_1 : \vc{\b,\public} \\
-    \G \has e_2 : \vc{\b,\public} \\
-    \b = \uint{s} \lor \b = \int{s} \\
-    \S\vc{\l_s} \has s : \l'_s }
-  { \S\vc{\l_s} \has \kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s \} : \l'_s \\\\
-    \mu (x) = \vc{\b,\public,\const} \text{\tiny\ (scoping?)}}
+  { \Gm \has e_1 : \vc{\b,\public,\const} \\
+    \Gm \has e_2 : \vc{\b,\public,\const} \\
+    \b = \uint* \text{ or } \b = \int* \\
+    \vc{\m [ x \aug \vc{\b,\public,\const} ],\ls,\r} \has s \stmto \vc{\m',\ls',\r'} }
+  { \vc{\m,\ls,\r} \has \kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s \} \stmto \vc{\m',\ls',\r'} }
 
   \infer[Ret]
-  { \G \has e : \vc{\b,\l_1} \\
-    \F (f) = fdec : \vc{\b,\l_2} \\
-    \l_1 \leq_\l \l_2 }
-  { \S\vc{\l_s} \has \kret e : \l_s }
+  { \F (f) = fdec : \vc{\b,\l_1} \\
+    \Gm \has e : \vc{\b,\l_2} }
+  { \vc{\m,\ls,\r} \has \kret e \stmto \vc{\m,\ls,\ktrue} }
 
 \end{mathpar}
 \end{document}
