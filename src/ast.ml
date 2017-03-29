@@ -1,9 +1,21 @@
 open Pos
 
-type ctype =
+
+type symbol = string
+[@@deriving show, eq]
+
+type size = int
+[@@deriving show, eq]
+
+type base_type =
   | Bool
   | Int of int
   | UInt of int
+[@@deriving show, eq]
+
+type ctype =
+  | Base of base_type
+  | Arr of base_type * int
 [@@deriving show, eq]
 
 type label =
@@ -12,71 +24,36 @@ type label =
   | Unknown
 [@@deriving show, eq]
 
-(* "kind" actually means "storage" here *)
-type kind =
-  | Val
-  | Ref
-  | Arr of int
+type mutability =
+  | Const
+  | Mut
 [@@deriving show, eq]
 
-type var_type = { v_ty:ctype; v_lbl:label }
+type description = ctype * label * mutability
 [@@deriving show, eq]
 
-type labeled_type = { ty:ctype; label:label; kind:kind }
+type ret_description = description
 [@@deriving show, eq]
 
-type constantc_module = CModule of fdec list
-[@@deriving show]
+type param_base = symbol * description
+[@@deriving show, eq]
 
-and fdec' = { name:string; params:param list; rvt:var_type; body:stm list }
-[@@deriving show]
-and fdec = fdec' pos_ast [@@deriving show]
+type param = param_base pos_ast
+[@@deriving show, eq]
 
-and param' = { name:string; lt:labeled_type }
-[@@deriving show]
-and param = param' pos_ast [@@deriving show]
+type params = param list
+[@@deriving show, eq]
 
-and arrinit' =
-  | UnsafeNoInit
-[@@deriving show]
-and arrinit = arrinit' pos_ast [@@deriving show]
+type unop_base =
+  | Negation
+  | LogicalNot
+  | BitwiseNot
+[@@deriving show, eq]
 
-and stm' =
-  | VarDec of string * var_type * expr
-  | ArrDec of string * var_type * int * arrinit
-  | Assign of string * expr
-  | ArrAssign of string * expr * expr
-  | If of expr * stm list * stm list
-  | For of string * ctype * expr * expr * stm list
-  | Return of expr
-[@@deriving show]
-and stm = stm' pos_ast [@@deriving show]
+type unop = unop_base pos_ast
+[@@deriving show, eq]
 
-and expr' =
-  | VarExp of string
-  | ArrExp of string * expr
-  | UnOp of unop * expr
-  | BinOp of binop * expr * expr
-  | Primitive of primitive
-  | CallExp of string * arg list
-[@@deriving show]
-and expr = expr' pos_ast [@@deriving show]
-
-and arg' =
-  | ValArg of expr
-  | RefArg of string
-  | ArrArg of string
-[@@deriving show]
-and arg = arg' pos_ast [@@deriving show]
-
-and unop' =
-  | Neg
-  | L_Not
-  | B_Not
-[@@deriving show]
-and unop = unop' pos_ast [@@deriving show]
-
-and binop' =
+type binop_base =
   | Plus
   | Minus
   | Multiply
@@ -86,26 +63,61 @@ and binop' =
   | GTE
   | LT
   | LTE
-  | L_And
-  | L_Or
-  | B_And
-  | B_Or
-  | B_Xor
+  | LogicalAnd
+  | LogicalOr
+  | BitwiseAnd
+  | BitwiseOr
+  | BitwiseXor
   | LeftShift
   | RightShift
-[@@deriving show]
-and binop = binop' pos_ast [@@deriving show]
+[@@deriving show, eq]
 
-and primitive' =
-  | Number of int
+type binop = binop_base pos_ast
+[@@deriving show, eq]
+
+type expr_base =
   | Boolean of bool
-[@@deriving eq]
-and primitive = primitive' pos_ast [@@deriving show]
+  | Number of int
+  | Var of symbol
+  | ArrAccess of symbol * expr
+  | ArrComprehension of base_type * size * base_type * symbol * expr
+  | ArrView of symbol * expr * size
+  | UnOp of unop * expr
+  | BinOp of binop * expr * expr
+  | TernaryOp of expr * expr * expr
+  | Ref of symbol
+  | FunCall of symbol * exprs
+[@@deriving show, eq]
 
-let ltk vt k = { ty=vt.v_ty; label=vt.v_lbl; kind=k }
-let vtk lt = { v_ty=lt.ty; v_lbl=lt.label }
+and expr = expr_base pos_ast
+[@@deriving show, eq]
 
-let rec ty_to_string = function
-  | Bool -> "bool"
-  | Int size -> "int" ^ string_of_int size
-  | UInt size -> "uint" ^ string_of_int size
+and exprs = expr list
+[@@deriving show, eq]
+
+and stms = stm list
+[@@deriving show, eq]
+
+and stm_base =
+  | VarDec of symbol * description * expr
+  | VarAssign of symbol * expr
+  | ArrAssign of symbol * expr * expr
+  | If of expr * stms * stms
+  | For of base_type * symbol * expr * expr * stms
+  | Return of expr
+[@@deriving show, eq]
+
+and stm = stm_base pos_ast
+[@@deriving show, eq]
+
+type fdec_base = symbol * params * ret_description * stms
+[@@deriving show, eq]
+
+type fdec = fdec_base pos_ast
+[@@deriving show, eq]
+
+type fdecs = fdec list
+[@@deriving show, eq]
+
+type fact_module = Module of fdecs
+[@@deriving show, eq]

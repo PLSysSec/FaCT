@@ -42,8 +42,8 @@ let keywords = [
   ("public",PUBLIC);
   ("secret",SECRET);
   ("ref",REF);
-  ("out",OUT);
-  ("unsafe_noinit",UNSAFE_NOINIT);
+  ("const",CONST);
+  ("mut",MUT);
 ]
 let _ = List.map add_keyword keywords
 }
@@ -106,7 +106,9 @@ rule token = parse
   | ']'            { RBRACK }
   | "="            { ASSIGN }
   | ';'            { SEMICOLON }
+  | ':'            { COLON }
   | ','            { COMMA }
+  | '?'            { QUESTIONMARK }
   | "/*"           { depth := !depth + 1; commented lexbuf }
   | "//"           { ignore_line lexbuf }
   | eof            { EOF }

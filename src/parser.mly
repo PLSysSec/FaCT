@@ -38,17 +38,18 @@ let to_type = function
 %token LBRACK RBRACK
 %token LBRACE RBRACE
 
+%token CONST MUT
 %token SECRET PUBLIC
-%token REF OUT
+%token REF
 %token RETURN
-%token UNSAFE_NOINIT
-%token SEMICOLON
+%token SEMICOLON COLON QUESTIONMARK
 %token COMMA
 
 %token EOF
 
 (* precedence based on C operator precedence
  * http://en.cppreference.com/w/c/language/operator_precedence *)
+%left QUESTIONMARK COLON
 %left LOGOR
 %left LOGAND
 %left BITOR
@@ -60,9 +61,6 @@ let to_type = function
 %left PLUS MINUS
 %left TIMES
 %left LOGNOT BITNOT UMINUS
-
-(* %nonassoc INT *)
-(* %nonassoc RBRACK *)
 
 %start main
 %type <Ast.fdec list> main
@@ -80,34 +78,51 @@ fdeclist:
 ;
 
 fdec:
-  | var_type IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
-    { make_pos $startpos ({ name=$2; params=(List.rev $4); rvt=$1; body=$7 }) }
-;
+  | description IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
+    { make_pos $startpos ($2, (List.rev $4), $1, $7) }
 
-const_type:
+base_type:
   | TYPE { to_type $1 }
 
-arg_labeled_type:
-  | REF var_type
-    { let vt = $2 in ltk vt Ref }
-  | var_type LBRACK INT RBRACK
-    { let vt = $1 in ltk vt (Arr $3) }
-  | var_type
-    { let vt = $1 in ltk vt Val }
+ctype:
+  | base_type LBRACK INT RBRACK
+    { Arr($1, $3) }
+  | base_type
+    { Base $1 }
 
-var_type:
-  | PUBLIC const_type
-    { { v_ty=$2; v_lbl=Public } }
-  | SECRET const_type
-    { { v_ty=$2; v_lbl=Secret } }
-  | const_type
-    { { v_ty=$1; v_lbl=Unknown } }
+label:
+  | PUBLIC { Public }
+  | SECRET { Secret }
+  | { Unknown }
+
+mutability:
+  | CONST { Const }
+  | MUT { Mut }
+
+description:
+  | label mutability base_type
+    { let lab = $1 in
+      let mut = $2 in
+      let ct = Base $3 in
+      (ct, lab, mut) }
+
+arg_description:
+  | label mutability ctype
+    { let lab = $1 in
+      let mut = $2 in
+      let ct = $3 in
+      (ct, lab, mut) }
+  | label ctype
+    { let lab = $1 in
+      let mut = Const in
+      let ct = $2 in
+      (ct, lab, mut) }
 
 fargs:
-  | fargs COMMA arg_labeled_type IDENT
-    { (make_pos $startpos { name=$4; lt=$3 })::$1}
-  | arg_labeled_type IDENT
-    { [make_pos $startpos { name=$2; lt=$1 }] }
+  | fargs COMMA arg_description IDENT
+    { (make_pos $startpos ($4, $3))::$1}
+  | arg_description IDENT
+    { [make_pos $startpos ($2, $1)] }
   | { [] }
 
 expr:
@@ -121,59 +136,36 @@ expr:
   | arrexpr { $1 }
   | primitive { $1 }
   | callexp { $1 }
-;
-
-arg:
-  | expr
-    { make_pos $startpos (ValArg $1) }
-  | REF IDENT
-    { make_pos $startpos (RefArg($2)) }
-  | IDENT LBRACK RBRACK
-    { make_pos $startpos (ArrArg($1)) }
-    (* TODO: array slicing *)
+  | ternaryexp { $1 }
+  | refexp { $1 }
 
 arglist:
   | { [] }
-  | arg { [$1] }
-  | arg COMMA arglist { $1::$3 }
+  | expr { [$1] }
+  | expr COMMA arglist { $1::$3 }
 
-arrinit:
-  | UNSAFE_NOINIT { make_pos $startpos UnsafeNoInit }
-
-stmlist:
-  | var_type IDENT ASSIGN expr SEMICOLON stmlist
-    { (make_pos $startpos (VarDec($2,$1,$4)))::$6 }
-  | var_type LBRACK INT RBRACK IDENT ASSIGN arrinit SEMICOLON stmlist
-    { (make_pos $startpos (ArrDec($5,$1,$3,$7)))::$9 }
-  | IDENT LBRACK expr RBRACK ASSIGN expr SEMICOLON stmlist
-    { (make_pos $startpos (ArrAssign($1,$3,$6)))::$8 }
-  | IDENT ASSIGN expr SEMICOLON stmlist
-    { (make_pos $startpos (Assign($1,$3)))::$5 }
+augmented_assignment:
   | IDENT binopeq expr SEMICOLON stmlist
     { let makep = make_pos $startpos in
       let makee e = make_pos $startpos e in
-      (makep (Assign($1,makee (BinOp($2,makee (VarExp($1)),$3)))))::$5 }
+      (makep (VarAssign($1,makee (BinOp($2,makee (Var($1)),$3)))))::$5 }
+
+stmlist:
+  | description IDENT ASSIGN expr SEMICOLON stmlist
+    { (make_pos $startpos (VarDec($2,$1,$4)))::$6 }
+  | IDENT LBRACK expr RBRACK ASSIGN expr SEMICOLON stmlist
+    { (make_pos $startpos (ArrAssign($1,$3,$6)))::$8 }
+  | IDENT ASSIGN expr SEMICOLON stmlist
+    { (make_pos $startpos (VarAssign($1,$3)))::$5 }
+  | augmented_assignment
+    { $1 }
   | IF LPAREN expr RPAREN LBRACE stmlist RBRACE ELSE LBRACE stmlist RBRACE stmlist
     { (make_pos $startpos (If($3,$6,$10)))::$12 }
-  | FOR LPAREN const_type IDENT ASSIGN expr TO expr RPAREN LBRACE stmlist RBRACE stmlist
-    { (make_pos $startpos (For($4,$3,$6,$8,$11)))::$13 }
+  | FOR LPAREN base_type IDENT ASSIGN expr TO expr RPAREN LBRACE stmlist RBRACE stmlist
+    { (make_pos $startpos (For($3,$4,$6,$8,$11)))::$13 }
   | RETURN expr SEMICOLON stmlist
     { (make_pos $startpos (Return($2))::$4) }
   | { [] }
-
-(* XXX unreachable
-list_elements:
-  | INT
-    { [$1] }
-  | INT COMMA list_elements
-    { $1::$3 }
-    *)
-
-(* XXX unreachable
-bytearr_list:
-  | LBRACK list_elements RBRACK
-    { make_pos $startpos (Primitive(ByteArray $2)) }
-    *)
 
 binopexpr:
   | PLUS expr
@@ -195,56 +187,58 @@ binopexpr:
   | LESSTHANEQ expr
     { (make_pos $startpos LTE,$2) }
   | LOGAND expr
-    { (make_pos $startpos L_And,$2) }
+    { (make_pos $startpos LogicalAnd,$2) }
   | LOGOR expr
-    { (make_pos $startpos L_Or,$2) }
+    { (make_pos $startpos LogicalOr,$2) }
   | BITOR expr
-    { (make_pos $startpos B_Or,$2) }
+    { (make_pos $startpos BitwiseOr,$2) }
   | BITXOR expr
-    { (make_pos $startpos B_Xor,$2) }
+    { (make_pos $startpos BitwiseXor,$2) }
   | BITAND expr
-    { (make_pos $startpos B_And,$2) }
+    { (make_pos $startpos BitwiseAnd,$2) }
   | LEFTSHIFT expr
     { (make_pos $startpos LeftShift,$2) }
   | RIGHTSHIFT expr
     { (make_pos $startpos RightShift,$2) }
-;
 
 binopeq:
   | PLUSEQ { make_pos $startpos Plus }
   | MINUSEQ { make_pos $startpos Minus }
   | TIMESEQ { make_pos $startpos Multiply }
-  | BITOREQ { make_pos $startpos B_Or }
-  | BITXOREQ { make_pos $startpos B_Xor }
-  | BITANDEQ { make_pos $startpos B_And }
+  | BITOREQ { make_pos $startpos BitwiseOr }
+  | BITXOREQ { make_pos $startpos BitwiseXor }
+  | BITANDEQ { make_pos $startpos BitwiseAnd }
   | LEFTSHIFTEQ { make_pos $startpos LeftShift }
   | RIGHTSHIFTEQ { make_pos $startpos RightShift }
-;
 
 unopexpr:
   | MINUS expr %prec UMINUS
-    { make_pos $startpos (UnOp(make_pos $startpos Neg,$2)) }
+    { make_pos $startpos (UnOp(make_pos $startpos Negation,$2)) }
   | LOGNOT expr
-    { make_pos $startpos (UnOp(make_pos $startpos L_Not,$2)) }
+    { make_pos $startpos (UnOp(make_pos $startpos LogicalNot,$2)) }
   | BITNOT expr
-    { make_pos $startpos (UnOp(make_pos $startpos B_Not,$2)) }
-;
+    { make_pos $startpos (UnOp(make_pos $startpos BitwiseNot,$2)) }
 
 varexpr:
-  | IDENT { make_pos $startpos (VarExp $1) }
-;
+  | IDENT { make_pos $startpos (Var $1) }
 
 arrexpr:
-  | IDENT LBRACK expr RBRACK { make_pos $startpos (ArrExp($1,$3)) }
-;
+  | IDENT LBRACK expr RBRACK { make_pos $startpos (ArrAccess($1,$3)) }
 
 primitive:
   | INT
-    { make_pos $startpos (Primitive(make_pos $startpos @@ Number $1)) }
+    { make_pos $startpos (Number $1) }
   | BOOL
-    { make_pos $startpos (Primitive(make_pos $startpos @@ Boolean $1)) }
-;
+    { make_pos $startpos (Boolean $1) }
 
 callexp:
   | IDENT LPAREN arglist RPAREN
-    { make_pos $startpos (CallExp($1,$3)) }
+    { make_pos $startpos (FunCall($1,$3)) }
+
+ternaryexp:
+  | expr QUESTIONMARK expr COLON expr
+    { make_pos $startpos (TernaryOp($1, $3, $5)) }
+
+refexp:
+  | REF IDENT
+    { make_pos $startpos (Ref $2) }

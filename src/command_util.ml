@@ -1,12 +1,14 @@
 open Pos
-open Cast
-open Codegen
 open Ast
+open Lexing
+open Err
+
+(*open Cast
+open Codegen
 open Env
 open Typecheck
 open Transform
-open Lexing
-open Err
+*)
 
 let run_command c args =
   let a  = Unix.fork () in
@@ -25,8 +27,8 @@ let output_ast ast_out out_file ast =
       let ast_out_file = out_file ^ ".ast.ml" in
       Log.debug "Outputting AST to %s" ast_out_file;
       Core.Std.Out_channel.write_all ast_out_file
-        ~data:(show_constantc_module ast)
-
+        ~data:(show_fact_module ast)
+(*)
 let output_tast ast_out out_file tast =
   match ast_out with
     | false -> Log.debug "Not outputting TAST"
@@ -73,9 +75,10 @@ let output_object out_file =
   let out_file_o = out_file ^ ".o" in
   Log.debug "Creating object file at %s" out_file_o;
   run_command "clang" [|"clang"; "-c"; out_file_s|]
+*)
 
 let compile (in_file,out_file,out_dir) llvm_out ast_out core_ir_out =
-  let out_file' = generate_out_file out_dir out_file in
+  (*let out_file' = generate_out_file out_dir out_file in*)
   Log.debug "Compiling %s" in_file; 
   ignore(Llvm_X86.initialize());
   Lexer.file := Some in_file;
@@ -83,12 +86,12 @@ let compile (in_file,out_file,out_dir) llvm_out ast_out core_ir_out =
     | _ -> raise_error_np LexingError) in
   ignore(lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = in_file });
   Log.debug "Lexing complete";
-  let ast = CModule (Parser.main Lexer.token lexbuf) in
+  let ast = Module (Parser.main Lexer.token lexbuf) in
   (*let ast = (try CModule (Parser.main Lexer.token lexbuf) with
       | _ -> raise_error
               (to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p) SyntaxError) in*)
-  Log.debug "Parsing complete";
-  output_ast ast_out out_file' ast;
+  Log.debug "Parsing complete"
+  (*output_ast ast_out out_file' ast;
   let tast = tc_module ast in
   output_tast ast_out out_file' tast;
   Log.debug "Typecheck complete";
@@ -108,7 +111,7 @@ let compile (in_file,out_file,out_dir) llvm_out ast_out core_ir_out =
   output_llvm llvm_out out_file' llvm_mod;
   output_bitcode out_file' llvm_mod;
   output_shared out_file';
-  output_object out_file'
+  output_object out_file'*)
 
 let run = (fun () -> run_command "lli" [|"lli"; "out.ll"|])
 let link = (fun () -> run_command "llvm-as" [|"llvm-as"; "out.ll"|])
