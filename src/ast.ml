@@ -29,7 +29,7 @@ type mutability =
   | Mut
 [@@deriving show, eq]
 
-type description = ctype * label * mutability
+type description =  label * mutability * ctype
 [@@deriving show, eq]
 
 type ret_description = description

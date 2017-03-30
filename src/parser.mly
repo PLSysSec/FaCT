@@ -100,18 +100,18 @@ mutability:
   | MUT { Mut }
 
 ret_description:
-  | label mutability base_type { ($1,$2,$3) }
-  | label base_type { ($1,Const,$3) }
+  | label mutability base_type { ($1,$2,Base $3) }
+  | label base_type { ($1,Const,Base $2) }
 
 description:
   | label mutability ctype { ($1,$2,$3) }
-  | label ctype { ($1,Const,$3) }
-  | mutability ctype { (Unknown,$2,$3) }
-  | ctype { (Unknown,Const,$3) }
+  | label ctype { ($1,Const,$2) }
+  | mutability ctype { (Unknown,$1,$2) }
+  | ctype { (Unknown,Const,$1) }
 
 arg_description:
   | label mutability ctype { ($1,$2,$3) }
-  | label ctype { ($1,Const,$3) }
+  | label ctype { ($1,Const,$2) }
 
 fargs:
   | fargs COMMA arg_description IDENT
