@@ -36,10 +36,10 @@ let get_vtbl = function
   | TopEnv vtbl -> vtbl
   | SubEnv(vtbl,_) -> vtbl
 
-let add_var env v lt p =
+let add_var env v des p =
   let vtbl = get_vtbl env in
     if Hashtbl.mem vtbl v then raise_error p (RedefiningVar v);
-    Hashtbl.add vtbl v (ref lt)
+    Hashtbl.add vtbl v (ref des)
 
 let rec find_var env (p:Pos.pos) =
   let find_var' fn vtbl p v =
@@ -55,30 +55,31 @@ let rec find_var env (p:Pos.pos) =
         let fv = find_var env' p in
         find_var' fv vtbl p
 
+(* TODO: Refactor these two functions. Also, is get_var even needed?? *)
 let get_var env v (p:Pos.pos) =
-  let lt = find_var env p v in !lt
+  try !(find_var env p v) with
+    | Not_found -> raise_error p (VariableNotDefined v)
 
 let get_arr venv v (p:Pos.pos) =
-  let lt = find_var venv p v in
-    match !lt.kind with
-      | Arr _ -> { !lt with kind=Ref }
-      | _ -> raise_error p (ArrayNotDefined v)
+  try !(find_var venv p v) with
+    | Not_found -> raise_error p (ArrayNotDefined v)
 
-let update_label venv name label p =
-  let lt = find_var venv p name in
-    match !lt.label,label with
-      | Unknown, _ -> ignore(lt := { !lt with label=label })
+(* Was `update_label` *)
+let update_label venv name des p =
+  let des' = find_var venv p name in
+    match !des'.label,des.label with
+      | Unknown, _ -> ignore(des' := { !des' with label=des.label })
       | a, b when Ast.equal_label a b -> ()
       | _ -> raise_error p UpdateLabelError
 
 let fill_vtbl_public venv =
   let vtbl = get_vtbl venv in
-    Hashtbl.iter (fun v lt ->
-                   if !lt.label = Unknown
-                   then lt := { !lt with label=Public })
+    Hashtbl.iter (fun v des ->
+                   if !des.label = Unknown
+                   then des := { !des with label=Public })
       vtbl
 
-type fentry = { f_rvt:Ast.var_type; f_args:Ast.labeled_type list }
+type fentry = { f_rvt:Ast.description; f_args:Ast.description list }
 [@@deriving show]
 
 type fenv = (string,fentry) Hashtbl.t [@printer pp_hashtbl]

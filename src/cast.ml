@@ -1,4 +1,5 @@
 open Pos
+open Ast
 
 type ctype =
   | Int of int
@@ -20,9 +21,9 @@ and var_type = { v_ty:ctype; v_lbl:label }
 
 and labeled_type = { ty:ctype; lbl:label; kind:kind }
 
-type fentry = { f_rvt:var_type; f_args:labeled_type list }
+type fentry = { f_rvt:var_type; f_args:description list }
 
-type venv = labeled_type Env.env [@printer Env.pp_env]
+type venv = description Env.env [@printer Env.pp_env]
 [@@deriving show]
 
 type mem = Llvm.llvalue Env.env [@printer Env.pp_env]
@@ -39,89 +40,63 @@ let pp_fenv fmt fenv =
       pp "}";
     end
 
-type binop' =
-  | Plus
-  | Minus
-  | Mult
-  | GT
-  | GTE
-  | LT
-  | LTE
-  | Eq
-  | Neq
-  | BitAnd
-  | BitOr
-  | BitXor
-  | LeftShift
-  | RightShift
-[@@deriving show]
-and binop = binop' pos_ast [@@deriving show]
-
-and unop' =
-  | Neg
-  | BitNot
-[@@deriving show]
-and unop = unop' pos_ast [@@deriving show]
-
-and boolmask' =
+type boolmask' =
   | TRUE
   | FALSE
 and boolmask = boolmask' pos_ast [@@deriving show]
 
-and primitive' =
-  | Number of int
-  | Mask of boolmask
-[@@deriving show]
-and primitive = primitive' pos_ast [@@deriving show]
+and cexpr_base =
+  | CBoolean of bool
+  | CNumber of int
+  | CMask of boolmask
+  | CVar of symbol
+  | CArrAccess of symbol * cexpr
+  | CArrComprehension of base_type * size * base_type * symbol * cexpr
+  | CArrView of symbol * cexpr * size
+  | CUnOp of unop * cexpr
+  | CBinOp of binop * cexpr * cexpr
+  | CTernaryOp of cexpr * cexpr * cexpr
+  | CRef of symbol
+  | CFunCall of symbol * cexprs
+[@@deriving show, eq]
 
-and expr' = { e:expr_base; e_ty:ctype }
-[@@deriving show]
-and expr = expr' pos_ast [@@deriving show]
-
-and expr_base' =
-  | VarExp of string
-  | ArrExp of string * expr
-  | Primitive of primitive
-  | UnOp of unop * expr
-  | BinOp of binop * expr * expr
-  | CallExp of string * arg list
-[@@deriving show]
-and expr_base = expr_base' pos_ast [@@deriving show]
-
-and arg' =
-  | ValArg of expr
-  | RefArg of string * var_type
-  | ArrArg of string * var_type * int
-[@@deriving show]
-and arg = arg' pos_ast [@@deriving show]
-
-and arrinit' =
-  | UnsafeNoInit
-[@@deriving show]
-and arrinit = arrinit' pos_ast [@@deriving show]
-
-and stm' =
-  | VarDec of string * var_type * expr
-  | ArrDec of string * var_type * int * arrinit
-  | Assign of string * expr
-  | ArrAssign of string * expr * expr
-  | For of string * ctype * expr * expr * block
-[@@deriving show]
-and stm = stm' pos_ast [@@deriving show]
-
-and block = { venv:venv; mem:mem; body:stm list }
+and cexpr' = cexpr_base * description
 [@@deriving show]
 
-and fdec' = FunctionDec of string * param list * var_type * block * expr
+and cexpr = cexpr' pos_ast [@@deriving show]
+
+and cexprs = cexpr list
+
+and cstm_base =
+  | CVarDec of symbol * description * cexpr
+  | CVarAssign of symbol * cexpr
+  | CArrAssign of symbol * cexpr * cexpr
+  | CFor of base_type * symbol * cexpr * cexpr * cstms
+  | CReturn of cexpr
+[@@deriving show, eq]
+
+and cstm = cstm_base pos_ast
+[@@deriving show, eq]
+
+and cstms = cstm list
+
+and block = Block of venv * mem * cstms
 [@@deriving show]
-and fdec = fdec' pos_ast [@@deriving show]
 
+and ret_expr = cexpr
 
-and param' = { name: string; lt: labeled_type }
-[@@deriving show]
-and param = param' pos_ast [@@deriving show]
+and cfdec_base = {
+  name:symbol;
+  params:params;
+  ret_description:ret_description;
+  cstms:cstms
+} [@@deriving show, eq]
 
-and cmodule = CModule of fenv * fdec list
+and cfdec = cfdec_base pos_ast [@@deriving show]
+
+and cfdecs = cfdec list
+
+and cmodule = CModule of fenv * fdecs
 [@@deriving show]
 
 let ltk vt k = { ty=vt.v_ty; lbl=vt.v_lbl; kind=k }

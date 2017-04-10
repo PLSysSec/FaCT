@@ -5,7 +5,7 @@ open Ast
 exception Error of string
 
 type stdlib_desc =
-  {name:string; ret_ty:Ast.ctype; args_ty:Ast.labeled_type list}
+  { name:string; ret_ty:Ast.ctype; args_ty:Ast.description list }
 
 let stdlib_funs = [
 ]

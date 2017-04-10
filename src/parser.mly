@@ -79,7 +79,13 @@ fdeclist:
 
 fdec:
   | ret_description IDENT LPAREN fargs RPAREN LBRACE stmlist RBRACE
-    { make_pos $startpos ($2, (List.rev $4), $1, $7) }
+    { let fdec_base = {
+        name=$2;
+        params=(List.rev $4);
+        ret_description=$1;
+        stms=$7
+      } in
+      make_pos $startpos fdec_base }
 
 base_type:
   | TYPE { to_type $1 }
@@ -100,18 +106,18 @@ mutability:
   | MUT { Mut }
 
 ret_description:
-  | label mutability base_type { ($1,$2,Base $3) }
-  | label base_type { ($1,Const,Base $2) }
+  | label mutability base_type { { label=$1; mutability=$2; ctype=Base $3 } }
+  | label base_type { { label=$1; mutability=Const; ctype=Base $2 } }
 
 description:
-  | label mutability ctype { ($1,$2,$3) }
-  | label ctype { ($1,Const,$2) }
-  | mutability ctype { (Unknown,$1,$2) }
-  | ctype { (Unknown,Const,$1) }
+  | label mutability ctype { { label=$1; mutability=$2; ctype=$3 } }
+  | label ctype { { label=$1; mutability=Const; ctype=$2 } }
+  | mutability ctype { { label=Unknown; mutability=$1; ctype=$2 } }
+  | ctype { { label=Unknown; mutability=Const; ctype=$1 } }
 
 arg_description:
-  | label mutability ctype { ($1,$2,$3) }
-  | label ctype { ($1,Const,$2) }
+  | label mutability ctype { { label=$1; mutability=$2; ctype=$3 } }
+  | label ctype { { label=$1; mutability=Const; ctype=$2 } }
 
 fargs:
   | fargs COMMA arg_description IDENT

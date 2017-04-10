@@ -14,7 +14,7 @@ type error =
   | UnmatchedTypeError
   | TypeFlowError of { lhs: Ast.ctype; rhs: Ast.ctype }
   | LabelFlowError of { lhs: Ast.label; rhs: Ast.label }
-  | KindError of { expected: Ast.mutability; actual: Ast.mutability }
+  | MutabilityFlowError of { expected: Ast.mutability; actual: Ast.mutability }
   | VariableNotDefined of string
   | FunctionNotDefined of string
   | UnknownFunction of string
@@ -37,6 +37,8 @@ type error =
   | TransformError
   | RedefiningFunction of string
   | ArityError of { expected: int; actual: int }
+  | UnknownSize
+  | NotImplemented
 [@@deriving show]
 
 exception CompileError of error * Pos.pos option
@@ -71,7 +73,9 @@ let error_code = function
   | TypeErrorGeneric _ -> 25
   | UnmatchedTypeError -> 26
   | LabelFlowError _ -> 27
-  | KindError _ -> 28
+  | MutabilityFlowError _ -> 28
+  | NotImplemented -> 29
+  | UnknownSize -> 30
 
 let build_expected_error name expected actual =
   name ^ ": expected `" ^ expected ^ "`, actual `" ^ actual ^ "`"
@@ -92,9 +96,9 @@ let string_of_error' = function
   | LabelFlowError { lhs; rhs } ->
     build_flow_error
       "Label Flow Error" (Ast.show_label rhs) (Ast.show_label lhs)
-  | KindError { expected; actual } ->
-    build_expected_error
-      "Type Error" (Ast.show_mutability expected) (Ast.show_mutability actual)
+  | MutabilityFlowError { expected; actual } ->
+    build_expected_error "Mutability Flow Error"
+      (Ast.show_mutability expected) (Ast.show_mutability actual)
   | ArrayNotDefined name -> "Array Not Defined: `" ^ name ^ "`" 
   | RedefiningFunction name -> "Redefining Function: `" ^ name ^ "`"
   | RedefiningVar name -> "Redefining Variable: `" ^ name ^ "`"
@@ -114,6 +118,8 @@ let string_of_error' = function
   | UnmatchedTypeError -> "Unmatched Type Error"
   | UnknownLabelError -> "Unknown Label Error"
   | TransformError -> "Transform Error"
+  | NotImplemented -> "Not implemented"
+  | UnknownSize -> "Unknown size"
 
 let string_of_error e = function
   | None -> (string_of_int (error_code e)) ^ " @ Unknown..."

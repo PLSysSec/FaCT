@@ -1,58 +1,67 @@
 open Pos
 open Err
 open Ast
-open Env
 
-type tconstantc_module = TCModule of Env.fenv * tfdec list
-[@@deriving show]
+type texpr_base =
+  | TBoolean of bool
+  | TNumber of int
+  | TVar of symbol
+  | TArrAccess of symbol * texpr
+  | TArrComprehension of base_type * size * base_type * symbol * texpr
+  | TArrView of symbol * texpr * size
+  | TUnOp of unop * texpr
+  | TBinOp of binop * texpr * texpr
+  | TTernaryOp of texpr * texpr * texpr
+  | TRef of symbol
+  | TFunCall of symbol * texprs
+[@@deriving show, eq]
 
-and tfdec' = { t_name:string; t_params:param list; t_rvt:var_type; t_body:tblock }
-[@@deriving show ]
-and tfdec = tfdec' pos_ast [@@deriving show ]
-
-and tstm' =
-  | TVarDec of string * var_type * texpr
-  | TArrDec of string * var_type * int * arrinit
-  | TAssign of string * texpr
-  | TArrAssign of string * texpr * texpr
-  | TIf of texpr * tblock * tblock
-  | TFor of string * ctype * texpr * texpr * tblock
-  | TReturn of texpr
-[@@deriving show]
-and tstm = tstm' pos_ast [@@deriving show]
-
-and tblock = { venv:Ast.labeled_type Env.env; [@printer Env.pp_env]
-               body:tstm list }
-[@@deriving show]
-
-and texpr' = { e:texpr_base; e_ty:ctype; e_lbl:label }
+and texpr' = { expr:texpr_base; description:description }
 [@@deriving show]
 and texpr = texpr' pos_ast [@@deriving show]
 
-and texpr_base =
-  | TVarExp of string
-  | TArrExp of string * texpr
-  | TUnOp of unop * texpr
-  | TBinOp of binop * texpr * texpr
-  | TPrimitive of tprimitive
-  | TCallExp of string * targ list
+and texprs = texpr list
+[@@deriving show, eq]
+
+and tstms = tstm list
 [@@deriving show]
 
-and targ' =
-  | TValArg of texpr
-  | TRefArg of string * var_type
-  | TArrArg of string * var_type * int
-[@@deriving show]
-and targ = targ' pos_ast [@@deriving show]
+and tstm_base =
+  | TVarDec of symbol * description * texpr
+  | TVarAssign of symbol * texpr
+  | TArrAssign of symbol * texpr * texpr
+  | TIf of texpr * tstms * tstms
+  | TFor of base_type * symbol * texpr * texpr * tstms
+  | TReturn of texpr
+[@@deriving show, eq]
 
-and tprimitive' =
-  | TNumber of int
-  | TBoolean of bool
+and tstm = tstm_base pos_ast
 [@@deriving show]
-and tprimitive = tprimitive' pos_ast [@@deriving show]
+
+type tblock = {
+  venv:Ast.description Env.env; [@printer Env.pp_env]
+  body:tstms
+} [@@deriving show]
+
+type tfdec_base = {
+  name:symbol;
+  params:params;
+  ret_description:ret_description;
+  tstms: tstms
+} [@@deriving show, eq]
+
+and tfdec = tfdec_base pos_ast
+[@@deriving show]
+
+and tfdecs = tfdec list
+[@@deriving show, eq]
+
+type fact_module = TCModule of Env.fenv * tfdecs
+[@@deriving show]
 
 let update_fn fenv { pos=p; data=tfdec } =
-  let args = List.map (fun { data={ lt } } -> lt) tfdec.t_params in
-    if has_fn fenv tfdec.t_name
-      then raise_error p (RedefiningFunction tfdec.t_name);
-    add_fn fenv tfdec.t_name { f_rvt=tfdec.t_rvt; f_args=args }
+  let args = List.map (fun { data=(s,des) } -> des) tfdec.params in
+    if Env.has_fn fenv tfdec.name
+      then raise_error p (RedefiningFunction tfdec.name);
+    Env.add_fn fenv tfdec.name
+      { Env.f_rvt=tfdec.ret_description; Env.f_args=args }

@@ -1,3 +1,3 @@
-open Env
 
-val tc_module: Ast.constantc_module -> Tast.tconstantc_module
+
+val tc_module : Ast.fact_module -> Tast.fact_module

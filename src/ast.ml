@@ -29,7 +29,7 @@ type mutability =
   | Mut
 [@@deriving show, eq]
 
-type description =  label * mutability * ctype
+type description = { label:label; mutability:mutability; ctype:ctype }
 [@@deriving show, eq]
 
 type ret_description = description
@@ -37,7 +37,7 @@ type ret_description = description
 
 type param_base = symbol * description
 [@@deriving show, eq]
-
+ 
 type param = param_base pos_ast
 [@@deriving show, eq]
 
@@ -110,8 +110,12 @@ and stm_base =
 and stm = stm_base pos_ast
 [@@deriving show, eq]
 
-type fdec_base = symbol * params * ret_description * stms
-[@@deriving show, eq]
+type fdec_base = {
+  name:symbol;
+  params:params;
+  ret_description:ret_description;
+  stms:stms
+} [@@deriving show, eq]
 
 type fdec = fdec_base pos_ast
 [@@deriving show, eq]
