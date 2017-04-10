@@ -15,6 +15,7 @@
 \usepackage{comment}
 \usepackage{fancyhdr}
 \usepackage[en-US,showzone=false]{datetime2}
+\usepackage{minibox}
 
 \makeatletter
     \newcommand{\DeclarePairedDelimiterCase}[2]{%
@@ -46,6 +47,10 @@
 \newcommand\with{\,|\,}
 \newcommand\has{\,\vdash\,}
 \newcommand\stmto{\ \rightarrow\ }
+\newcommand\sstep{\ \longrightarrow\ }
+\newcommand\ssteplong{\ \longrightarrow^*\ }
+\newcommand\sstepx[1]{\ \overset{#1}{\longrightarrow}\ }
+\newcommand\estep{\ \xhookrightarrow{\quad}\ }
 \newcommand\aug{\mapsto}
 \newcommand\update{\Mapsto}
 \newcommand\join{\vee}
@@ -57,12 +62,13 @@
 
 \newcommand\G\Gamma
 \newcommand\F{\mathbb{F}}
-\renewcommand\S\Delta
+\renewcommand\S\Sigma
 \renewcommand\b{b}
 \renewcommand\t\tau
 \renewcommand\k\sigma
 \renewcommand\l\ell
 \newcommand\m\mu
+\renewcommand\a\mu
 \newcommand\M{\mathcal{M}}
 \newcommand\ls{\l_s}
 \renewcommand\r{r}
@@ -98,6 +104,7 @@
 \newcommand\kfrom{\textsc{ from }}
 \newcommand\kto{\textsc{ to }}
 \newcommand\kret{\textsc{return }}
+\newcommand\kskip{\textsc{skip}}
 
 \newcommand{\ottcom}[1]{\text{#1}}
 \newcommand{\grammar}[1]{\begin{supertabular}{lcll}#1\\\end{supertabular}}
@@ -154,7 +161,7 @@
   \grammar
   { \gramrule{s}{Statement} \\
     \gramitem[sequence]{s_1 ; s_2} \\
-    \gramitem[variable declaration]{\vc{\t,\k} x := e} \\
+    \gramitem[variable declaration]{\vc{\t,\k} x = e} \\
     \gramitem[variable assignment]{x := e} \\
     \gramitem[array assignment]{x[e_1] = e_2} \\
     \gramitem[conditional]{\kif e\ \{ s_1 \} \kelse \{ s_2 \}} \\
@@ -326,12 +333,12 @@
   \infer[VarDecBaseMut]
   { x \notin Dom(\m) \\
     \Gm \has e : \vc{\b,\l,\const} }
-  { \vc{\m,\l_s,\r} \has \vc{\b,\mut} x := e \stmto \vc{\m [ x \aug \vc{\b,\l,\mut} ],\l_s,\r} }
+  { \vc{\m,\l_s,\r} \has \vc{\b,\mut} x = e \stmto \vc{\m [ x \aug \vc{\b,\l,\mut} ],\l_s,\r} }
 
   \infer[VarDec]
   { x \notin Dom(\m) \\
     \Gm \has e : \T{} }
-  { \vc{\m,\l_s,\r} \has \vc{\t,\k} x := e \stmto \vc{\m [ x \aug \vc{\t,\l,\k} ],\l_s,\r} }
+  { \vc{\m,\l_s,\r} \has \vc{\t,\k} x = e \stmto \vc{\m [ x \aug \vc{\t,\l,\k} ],\l_s,\r} }
 
   \infer[VarAssign]
   { \mu (x) = \vc{\b,\l,\mut} \\
@@ -375,4 +382,64 @@
   { \vc{\m,\ls,\r} \has \kret e \stmto \vc{\m,\ls,\ktrue} }
 
 \end{mathpar}
+
+\subsubsection*{Interesting Semantics \hfill \minibox[c,frame]{$\S,\a,s \sstep \S',\a',s'$ \\ $\S,\a,e \estep \S',\a',e'$}}
+\begin{mathpar}
+
+  \infer[Seq]
+  { \S,\a,s_1 \sstep \S',\a',s_1' }
+  { \S,\a,s_1 ; s_2 \sstep \S',\a',s_1' ; s_2 }
+
+  \infer[Skip]
+  { }
+  { \S,\a,\kskip ; s_2 \sstep \S,\a,s_2 }
+
+  \infer[Ret]
+  { }
+  { \S,\a,\kret v ; s_2 \sstep \S,\a,\kret v }
+
+  \infer[VarDecConst]
+  { \S' = \S[x \aug v] }
+  { \S,\a,\vc{\t,\const} x = v \sstep \S',\a,\kskip }
+
+  \infer[VarDecMut]
+  { \S' = \S[x \aug r] \\
+    \a' = \a[r \aug v] \\
+    \text{fresh $r$} }
+  { \S,\a,\vc{\t,\mut} x = v \sstep \S',\a',\kskip }
+
+  \infer[VarAssign]
+  { \a' = \a[r \aug v] }
+  { \S,\a,r := v \sstep \S,\a',\kskip }
+
+  \infer[IfTrue]
+  { v = \ktrue }
+  { \S,\a,\kif v\ \{ s_1 \} \kelse \{ s_2 \} \sstep s_1 }
+
+  \infer[IfFalse]
+  { v = \kfalse }
+  { \S,\a,\kif v\ \{ s_1 \} \kelse \{ s_2 \} \sstep s_2 }
+
+  \infer[ForIter]
+  { v_1 < v_2 \\
+    v_1' = v_1 + 1 }
+  { \S,\a,\kfor \vc{\b} x \kfrom v_1 \kto v_2\ \{ s \}
+      \sstep s[x \aug v_1] ; \kfor \vc{\b} x \kfrom v_1' \kto v_2\ \{ s \} }
+
+  \infer[ForEnd]
+  { v_1 \geq v_2 }
+  { \S,\a,\kfor \vc{\b} x \kfrom v_1 \kto v_2\ \{ s \} \sstep \kskip }
+
+  \infer[Deref]
+  { \a(r) = v }
+  { \S,\a,\textsc{deref}\ r \estep \S,\a,v }
+
+  \infer[FnCall]
+  { \F(f) = fdec\ f(x_1,\dots,x_n)\ \{ s \} \\
+    \S_0 = \{ x_1 \aug v_1, \dots, x_n \aug v_n \} \\
+    \S_0,\a,s \ssteplong \S_0',\a',\kret v }
+  { \S,\a,f(v_1,\dots,v_n) \estep \S,\a',v }
+
+\end{mathpar}
+
 \end{document}
