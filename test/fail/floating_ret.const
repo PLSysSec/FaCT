@@ -1,0 +1,10 @@
+secret uint8 floating_if(secret uint8 s, secret uint8[256] a) {
+  mut uint8 x = 2; // x is public
+  if (s > 2) {
+    x = 1; // x is "public"
+    return a[x]; // so this should be ok
+  } else { }
+
+  // x should now be secret
+  return a[x]; // so this should fail
+}

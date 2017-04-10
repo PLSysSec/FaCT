@@ -1,0 +1,29 @@
+secret uint8 floating_labels(secret uint8 s, secret uint8[256] a) {
+  mut uint8 x = s; // x is secret
+  x = 5; // now x is public
+  return a[x]; // so this should be ok
+}
+
+secret uint8 floating_if(secret uint8 s, secret mut uint8[256] a) {
+  mut uint8 x = s; // x is secret
+  if (s > 2) {
+    x = 1; // x is "public"
+    a[x] = s; // so this should be ok
+  } else { }
+
+  return 0;
+}
+
+secret uint8 floating_if2(secret uint8 s, secret mut uint8[256] a) {
+  mut uint8 x = s;
+  if (s > 2) {
+    x = 1;
+    a[x] = s;
+  } else {
+    x = 2;
+    a[x] = s;
+  }
+
+  return 0;
+}
+

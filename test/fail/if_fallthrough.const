@@ -1,0 +1,12 @@
+secret uint8 if_fallthrough(secret uint8 s, secret mut uint8[256] a) {
+  mut uint8 x = s;
+  if (s > 2) {
+    x = 1;
+    a[x] = s;
+  } else {
+    a[x] = s; // x should be back to secret here, so this should fail
+  }
+
+  return 0;
+}
+
