@@ -71,16 +71,20 @@
 \renewcommand\a\mu
 \newcommand\M{\mathcal{M}}
 \newcommand\ls{\l_s}
+\newcommand\lx{\l^x}
 \renewcommand\r{r}
 
 \newcommand\Gm{\G \with \m}
 \newcommand\T[1]{\vc{\t_{#1},\l_{#1},\k_{#1}}}
+\newcommand\Tx[1]{\vc{\t_{#1},\lx_{#1},\k_{#1}}}
 
 \newcommand\bool{\textsc{Bool}}
 \newcommand\uint[1]{\textsc{UInt}_{#1}}
 \WithSuffix\newcommand\uint*{\textsc{UInt}}
 \renewcommand\int[1]{\textsc{Int}_{#1}}
 \WithSuffix\newcommand\int*{\textsc{Int}}
+\renewcommand\ref[1]{\textsc{Ref}\vc{#1}}
+\WithSuffix\newcommand\ref*{\textsc{Ref}}
 \newcommand\arr[1]{\textsc{Arr}\vc{#1}}
 \WithSuffix\newcommand\arr*{\textsc{Arr}}
 
@@ -89,11 +93,12 @@
 \newcommand\public{\textsc{Public}}
 \newcommand\unknown{\textsc{Unknown}}
 \newcommand\secret{\textsc{Secret}}
+\newcommand\float[1]{\textsc{Float}\vc{#1}}
 
 \newcommand\const{\textsc{Const}}
 \newcommand\mut{\textsc{Mut}}
 
-\renewcommand\ref{\textsc{ref}}
+\newcommand\kref{\textsc{ref}}
 
 \newcommand\ktrue{\textsc{true}}
 \newcommand\kfalse{\textsc{false}}
@@ -129,14 +134,20 @@
   \grammar
   { \gramrule{\t}{Type} \\
     \gramitem{\b} \\
+    \gramitem{\ref{\b}} \\
     \gramitem{\arr{\b,n}} \\
-    \gramitem[$x$ must be $\vc{\uint*,\public,\const}$]{\arr{\b,x}} }
+    \gramitem[$x$ must be $\vc{\ref{\uint*},\public,\const}$]{\arr{\b,x}} }
 
   \grammar
   { \gramrule{\l}{Label} \\
     \gramitem{\public} \\
     %\gramitem{\unknown} \\
     \gramitem{\secret} }
+
+  \grammar
+  { \gramrule{\lx}{Variable label} \\
+    \gramitem{\l} \\
+    \gramitem{\float{\l}} }
 
   \grammar
   { \gramrule{\k}{Mutability} \\
@@ -155,15 +166,16 @@
     \gramitem[unary op]{\ominus e} \\
     \gramitem[binary op]{e_1 \oplus e_2} \\
     \gramitem[ternary op]{e_1 \huh e_2 \helse e_3} \\
-    \gramitem[mut ref]{\ref\ x} \\
+    \gramitem[mut ref]{\kref\ x} \\
     \gramitem[function call]{f(e_1,\dots,e_n)} }
 
   \grammar
   { \gramrule{s}{Statement} \\
     \gramitem[sequence]{s_1 ; s_2} \\
-    \gramitem[variable declaration]{\vc{\t,\k} x = e} \\
+    \gramitem[variable declaration]{\vc{\ref{\b},\k} x = e} \\
+    \gramitem[array declaration]{\vc{\arr{\b,n},\l,\k} x = e} \\
     \gramitem[variable assignment]{x := e} \\
-    \gramitem[array assignment]{x[e_1] = e_2} \\
+    \gramitem[array assignment]{x[e_1] := e_2} \\
     \gramitem[conditional]{\kif e\ \{ s_1 \} \kelse \{ s_2 \}} \\
     \gramitem[loop]{\kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s \}} \\
     \gramitem[return]{\kret e} }
@@ -185,7 +197,7 @@
   \grammar
   { \gramrule{\mu}{Variable type store} \\
     \gramitem{\emptyset} \\
-    \gramitem{\mu [ x \aug \T{} ] } }
+    \gramitem{\mu [ x \aug \Tx{} ] } }
 
   \grammar
   { \gramrule{\F}{Function type store} \\
@@ -241,8 +253,13 @@
 \begin{mathpar}
 
   \infer[Var]
-  { \m (x) = \vc{\t,\l,\k} }
-  { \Gm \has x : \vc{\t,\l,\const} }
+  { \m (x) = \vc{\ref{\b},\lx,\k} \\
+    \lx = \l' \text{~~or~~} \lx = \float{\l'} }
+  { \Gm \has x : \vc{\b,\l',\const} }
+
+  \infer[ArrVar]
+  { \m (x) = \vc{\arr{\b,n},\l,\k} }
+  { \Gm \has x : \vc{\arr{\b,n},\l,\const} }
 
   \infer[Unop]
   { \Gm \has e : \T1 \\
@@ -296,8 +313,9 @@
   { \Gm \has \arrview{x,e,n'} : \vc{\arr{\b,n'},\l,\k} }
 
   \infer[MutRef]
-  { \m (x) = \vc{\t,\l,\mut} }
-  { \Gm \has \ref\ x : \vc{\t,\l,\mut} }
+  { \m (x) = \vc{\t,\lx,\mut} \\
+    \lx = \l' \text{~~or~~} \lx = \float{\l'} }
+  { \Gm \has \kref\ x : \vc{\t,\l',\mut} }
 
   \infer[FnCall]
   { \F (f) = fdec (\T1, \,\dots\,, \T{n}) : \vc{\b,\l} \\
@@ -333,32 +351,43 @@
   \infer[VarDecBaseMut]
   { x \notin Dom(\m) \\
     \Gm \has e : \vc{\b,\l,\const} }
-  { \vc{\m,\l_s,\r} \has \vc{\b,\mut} x = e \stmto \vc{\m [ x \aug \vc{\b,\l,\mut} ],\l_s,\r} }
+  { \vc{\m,\l_s,\r} \has \vc{\ref{\b},\mut} x = e \stmto \vc{\m [ x \aug \vc{\ref{\b},\float{\l},\mut} ],\l_s,\r} }
 
   \infer[VarDec]
   { x \notin Dom(\m) \\
-    \Gm \has e : \T{} }
-  { \vc{\m,\l_s,\r} \has \vc{\t,\k} x = e \stmto \vc{\m [ x \aug \vc{\t,\l,\k} ],\l_s,\r} }
+    \Gm \has e : \vc{\b,\l,\k} }
+  { \vc{\m,\l_s,\r} \has \vc{\ref{\b},\k} x = e \stmto \vc{\m [ x \aug \vc{\ref{\b},\float{\l},\k} ],\l_s,\r} }
+
+  \infer[ArrDec]
+  { x \notin Dom(\m) \\
+    \Gm \has e : \vc{\arr{\b,n},\l,\k} }
+  { \vc{\m,\l_s,\r} \has \vc{\arr{\b,n},\l,\k} x = e \stmto \vc{\m [ x \aug \vc{\arr{\b,n},\l,\k} ],\l_s,\r} }
 
   \infer[VarAssign]
-  { \mu (x) = \vc{\b,\l,\mut} \\
-    \Gm \has e : \vc{\b,\l_e,\const} }
-  { \vc{\m,\l_s,\r} \has x := e \stmto \vc{\m [ x \aug \vc{\b,\l_e,\mut} ],\l_s,\r} }
+  { \mu (x) = \vc{\ref{\b},\l,\mut} \\
+    \Gm \has e : \vc{\b,\l',\const} \\
+    \ls \join \l' \leq_\l \l }
+  { \vc{\m,\l_s,\r} \has x := e \stmto \vc{\m,\l_s,\r} }
+
+  \infer[VarAssignFloat]
+  { \mu (x) = \vc{\ref{\b},\float{\l},\mut} \\
+    \Gm \has e : \vc{\b,\l',\const} }
+  { \vc{\m,\l_s,\r} \has x := e \stmto \vc{\m [ x \aug \vc{\ref{\b},\float{\l'},\mut} ],\l_s,\r} }
 
   \infer[ArrAssign]
   { \mu (x) = \vc{\arr{\b,n},\l,\mut} \\
     \Gm \has e_1 : \vc{\uint*,\public,\const} \\
     S\hspace{-.7px}MT(e_1 < n) \\
-    \Gm \has e_2 : \vc{\b,\l_e,\const} \\
-    \ls \join \l_e \leq_\l \l }
+    \Gm \has e_2 : \vc{\b,\l',\const} \\
+    \ls \join \l' \leq_\l \l }
   { \vc{\m,\l_s,\r} \has x[e_1] := e_2 \stmto \vc{\m,\l_s,\r} }
 
   \infer[ArrAssignDyn]
   { \mu (x) = \vc{\arr{\b,x_n},\l,\mut} \\
     \Gm \has e_1 : \vc{\uint*,\public,\const} \\
     S\hspace{-.7px}MT(e_1 < x_n) \\
-    \Gm \has e_2 : \vc{\b,\l_e,\const} \\
-    \ls \join \l_e \leq_\l \l }
+    \Gm \has e_2 : \vc{\b,\l',\const} \\
+    \ls \join \l' \leq_\l \l }
   { \vc{\m,\l_s,\r} \has x[e_1] := e_2 \stmto \vc{\m,\l_s,\r} }
 
   \infer[If]
@@ -373,8 +402,9 @@
   { \Gm \has e_1 : \vc{\b,\public,\const} \\
     \Gm \has e_2 : \vc{\b,\public,\const} \\
     \b = \uint* \text{ or } \b = \int* \\
-    \vc{\m [ x \aug \vc{\b,\public,\const} ],\ls,\r} \has s \stmto \vc{\m',\ls',\r'} }
-  { \vc{\m,\ls,\r} \has \kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s \} \stmto \vc{\m',\ls',\r'} }
+    \vc{\m [ x \aug \vc{\ref{\b},\public,\const} ],\ls,\r} \has s \stmto \vc{\m',\ls',\r'} \\
+    \m'' = scoping(\mu,\mu') }
+  { \vc{\m,\ls,\r} \has \kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s \} \stmto \vc{\m'',\ls',\r'} }
 
   \infer[Ret]
   { \F (f) = fdec : \vc{\b,\l_1} \\
@@ -398,15 +428,11 @@
   { }
   { \S,\a,\kret v ; s_2 \sstep \S,\a,\kret v }
 
-  \infer[VarDecConst]
-  { \S' = \S[x \aug v] }
-  { \S,\a,\vc{\t,\const} x = v \sstep \S',\a,\kskip }
-
-  \infer[VarDecMut]
+  \infer[VarDec]
   { \S' = \S[x \aug r] \\
     \a' = \a[r \aug v] \\
     \text{fresh $r$} }
-  { \S,\a,\vc{\t,\mut} x = v \sstep \S',\a',\kskip }
+  { \S,\a,\vc{\t,\cdot,\k} x = v \sstep \S',\a',\kskip }
 
   \infer[VarAssign]
   { \a' = \a[r \aug v] }
@@ -414,25 +440,30 @@
 
   \infer[IfTrue]
   { v = \ktrue }
-  { \S,\a,\kif v\ \{ s_1 \} \kelse \{ s_2 \} \sstep s_1 }
+  { \S,\a,\kif v\ \{ s_1 \} \kelse \{ s_2 \} \sstep \S,\a,s_1 }
 
   \infer[IfFalse]
   { v = \kfalse }
-  { \S,\a,\kif v\ \{ s_1 \} \kelse \{ s_2 \} \sstep s_2 }
+  { \S,\a,\kif v\ \{ s_1 \} \kelse \{ s_2 \} \sstep \S,\a,s_2 }
 
   \infer[ForIter]
   { v_1 < v_2 \\
     v_1' = v_1 + 1 }
   { \S,\a,\kfor \vc{\b} x \kfrom v_1 \kto v_2\ \{ s \}
-      \sstep s[x \aug v_1] ; \kfor \vc{\b} x \kfrom v_1' \kto v_2\ \{ s \} }
+      \sstep \S,\a,s[x \aug v_1] ; \kfor \vc{\b} x \kfrom v_1' \kto v_2\ \{ s \} }
 
   \infer[ForEnd]
   { v_1 \geq v_2 }
-  { \S,\a,\kfor \vc{\b} x \kfrom v_1 \kto v_2\ \{ s \} \sstep \kskip }
+  { \S,\a,\kfor \vc{\b} x \kfrom v_1 \kto v_2\ \{ s \} \sstep \S,\a,\kskip }
 
-  \infer[Deref]
-  { \a(r) = v }
-  { \S,\a,\textsc{deref}\ r \estep \S,\a,v }
+  \infer[Var]
+  { \S(x) = r \\
+    \a(r) = v }
+  { \S,\a,x \estep \S,\a,v }
+
+  \infer[Ref]
+  { \S(x) = r }
+  { \S,\a,\kref\ x \estep \S,\a,r }
 
   \infer[FnCall]
   { \F(f) = fdec\ f(x_1,\dots,x_n)\ \{ s \} \\
