@@ -53,8 +53,10 @@
 \newcommand\estep{\ \xhookrightarrow{\quad}\ }
 \newcommand\aug{\mapsto}
 \newcommand\update{\Mapsto}
-\newcommand\join{\vee}
-\newcommand\meet{\wedge}
+\newcommand\join{\sqcup}
+\newcommand\meet{\sqcap}
+\newcommand\tlt{\sqsubset}
+\newcommand\tleq{\sqsubseteq}
 
 \newcommand\huh{\,\texttt{?}\,}
 \newcommand\helse{\,\texttt{:}\,}
@@ -211,40 +213,40 @@
 
   \infer
   { n_1 < n_2 }
-  { \uint{n_1} <_\t \uint{n_2} }
+  { \uint{n_1} \tlt \uint{n_2} }
 
   \infer
   { n_1 < n_2 }
-  { \int{n_1} <_\t \int{n_2} }
+  { \int{n_1} \tlt \int{n_2} }
 
   \infer { }
-  { \uint{n} <_\t \int{2n} }
+  { \uint{n} \tlt \int{2n} }
 
   \infer { }
-  { \public <_\l \secret }
+  { \public \tlt \secret }
 
   \infer { }
-  { \mut <_\k \const }
+  { \mut \tlt \const }
 
   % cannot upgrade base mut to base const
   % no subtyping allowed for mut -> mut
   \infer
   { \Gm \has e : \vc{\b,\l,\const} \\
-    \b \leq_\t \b' \\
-    \l \leq_\l \l' }
+    \b \tleq \b' \\
+    \l \tleq \l' }
   { \Gm \has e : \vc{\b',\l',\const} }
 
   % subtyping can only upgrade to const
   % no subtyping allowed for mut -> mut
   \infer
   { \Gm \has e : \vc{\arr{\b,n},\l,\k} \\
-    \l \leq_\l \l' }
+    \l \tleq \l' }
   { \Gm \has e : \vc{\arr{\b,n},\l',\const} }
 
   % these arrays are no different
   \infer
   { \Gm \has e : \vc{\arr{\b,x},\l,\k} \\
-    \l \leq_\l \l' }
+    \l \tleq \l' }
   { \Gm \has e : \vc{\arr{\b,x},\l',\const} }
 
 \end{mathpar}
@@ -297,7 +299,7 @@
 
   \infer[ArrComp]
   { \Gm [ x \aug \vc{\b_x,\public,\const} ] \has e : \vc{\b,\l,\const} \\
-    \uint{\ceil{\log_2 n}} \leq_\t \b_x }
+    \uint{\ceil{\log_2 n}} \tleq \b_x }
   { \Gm \has \vc{\b,n,\b_x}x \Rightarrow e : \vc{\arr{\b,n},\l,\mut} }
 
   \infer[ArrView]
@@ -366,7 +368,7 @@
   \infer[VarAssign]
   { \mu (x) = \vc{\ref{\b},\l,\mut} \\
     \Gm \has e : \vc{\b,\l',\const} \\
-    \ls \join \l' \leq_\l \l }
+    \ls \join \l' \tleq \l }
   { \vc{\m,\l_s,\r} \has x := e \stmto \vc{\m,\l_s,\r} }
 
   \infer[VarAssignFloat]
@@ -379,7 +381,7 @@
     \Gm \has e_1 : \vc{\uint*,\public,\const} \\
     S\hspace{-.7px}MT(e_1 < n) \\
     \Gm \has e_2 : \vc{\b,\l',\const} \\
-    \ls \join \l' \leq_\l \l }
+    \ls \join \l' \tleq \l }
   { \vc{\m,\l_s,\r} \has x[e_1] := e_2 \stmto \vc{\m,\l_s,\r} }
 
   \infer[ArrAssignDyn]
@@ -387,7 +389,7 @@
     \Gm \has e_1 : \vc{\uint*,\public,\const} \\
     S\hspace{-.7px}MT(e_1 < x_n) \\
     \Gm \has e_2 : \vc{\b,\l',\const} \\
-    \ls \join \l' \leq_\l \l }
+    \ls \join \l' \tleq \l }
   { \vc{\m,\l_s,\r} \has x[e_1] := e_2 \stmto \vc{\m,\l_s,\r} }
 
   \infer[If]
@@ -467,9 +469,11 @@
 
   \infer[FnCall]
   { \F(f) = fdec\ f(x_1,\dots,x_n)\ \{ s \} \\
-    \S_0 = \{ x_1 \aug v_1, \dots, x_n \aug v_n \} \\
-    \S_0,\a,s \ssteplong \S_0',\a',\kret v }
-  { \S,\a,f(v_1,\dots,v_n) \estep \S,\a',v }
+    \S_0 = \{ x_1 \aug r_1, \dots, x_n \aug r_n \} \\
+    \text{fresh $r_i$s when necessary} \\
+    \S_0,\a,s \ssteplong \S_0',\a',\kret v \\
+    \a'' = copyback(\a,\a') }
+  { \S,\a,f(v_1,\dots,v_n) \estep \S,\a'',v }
 
 \end{mathpar}
 
