@@ -46,6 +46,7 @@
 
 \newcommand\with{\,|\,}
 \newcommand\has{\,\vdash\,}
+\newcommand\haspc[1]{\,\vdash_{\!\!\!#1}\,}
 \newcommand\stmto{\ \rightarrow\ }
 \newcommand\sstep{\ \longrightarrow\ }
 \newcommand\ssteplong{\ \longrightarrow^*\ }
@@ -57,6 +58,7 @@
 \newcommand\meet{\sqcap}
 \newcommand\tlt{\sqsubset}
 \newcommand\tleq{\sqsubseteq}
+\newcommand\tor{\text{~~or~~}}
 
 \newcommand\huh{\,\texttt{?}\,}
 \newcommand\helse{\,\texttt{:}\,}
@@ -72,9 +74,12 @@
 \newcommand\m\mu
 \renewcommand\a\mu
 \newcommand\M{\mathcal{M}}
+\newcommand\pc{pc}
 \newcommand\ls{\l_s}
 \newcommand\lx{\l^x}
 \renewcommand\r{r}
+
+\newcommand\SMT{S\hspace{-.7px}MT}
 
 \newcommand\Gm{\G \with \m}
 \newcommand\T[1]{\vc{\t_{#1},\l_{#1},\k_{#1}}}
@@ -95,7 +100,7 @@
 \newcommand\public{\textsc{Public}}
 \newcommand\unknown{\textsc{Unknown}}
 \newcommand\secret{\textsc{Secret}}
-\newcommand\float[1]{\textsc{Float}\vc{#1}}
+\newcommand\float[1]{\textsc{FlowS}\vc{#1}}
 
 \newcommand\const{\textsc{Const}}
 \newcommand\mut{\textsc{Mut}}
@@ -105,6 +110,7 @@
 \newcommand\ktrue{\textsc{true}}
 \newcommand\kfalse{\textsc{false}}
 
+\newcommand\kempty{\diamond}
 \newcommand\kif{\textsc{if }}
 \newcommand\kelse{\textsc{ else }}
 \newcommand\kfor{\textsc{for }}
@@ -173,6 +179,7 @@
 
   \grammar
   { \gramrule{s}{Statement} \\
+    \gramitem[empty]{\kempty} \\
     \gramitem[sequence]{s_1 ; s_2} \\
     \gramitem[variable declaration]{\vc{\ref{\b},\k} x = e} \\
     \gramitem[array declaration]{\vc{\arr{\b,n},\l,\k} x = e} \\
@@ -188,6 +195,7 @@
 
 \end{mathpar}
 
+\pagebreak
 \subsubsection*{Metavariables}
 \begin{mathpar}
 
@@ -256,7 +264,7 @@
 
   \infer[Var]
   { \m (x) = \vc{\ref{\b},\lx,\k} \\
-    \lx = \l' \text{~~or~~} \lx = \float{\l'} }
+    \lx = \l' \tor \lx = \float{\l'} }
   { \Gm \has x : \vc{\b,\l',\const} }
 
   \infer[ArrVar]
@@ -288,13 +296,13 @@
   \infer[ArrGet]
   { \m (x) = \vc{\arr{\b,n},\l,\k} \\
     \Gm \has e : \vc{\uint*,\public,\const} \\
-    S\hspace{-.7px}MT(e < n) }
+    \SMT(e < n) }
   { \Gm \has x[e] : \vc{\b,\l,\const} }
 
   \infer[ArrGetDyn]
   { \m (x) = \vc{\arr{\b,x_n},\l,\k} \\
     \Gm \has e : \vc{\uint*,\public,\const} \\
-    S\hspace{-.7px}MT(e < x_n) }
+    \SMT(e < x_n) }
   { \Gm \has x[e] : \vc{\b,\l,\const} }
 
   \infer[ArrComp]
@@ -305,18 +313,18 @@
   \infer[ArrView]
   { \m (x) = \vc{\arr{\b,n},\l,\k} \\
     \Gm \has e : \vc{\uint*,\public,\const} \\
-    S\hspace{-.7px}MT(e + n' < n) }
+    \SMT(e + n' < n) }
   { \Gm \has \arrview{x,e,n'} : \vc{\arr{\b,n'},\l,\k} }
 
   \infer[ArrViewDyn]
   { \m (x) = \vc{\arr{\b,x_n},\l,\k} \\
     \Gm \has e : \vc{\uint*,\public,\const} \\
-    S\hspace{-.7px}MT(e + n' < x_n) }
+    \SMT(e + n' < x_n) }
   { \Gm \has \arrview{x,e,n'} : \vc{\arr{\b,n'},\l,\k} }
 
   \infer[MutRef]
   { \m (x) = \vc{\t,\lx,\mut} \\
-    \lx = \l' \text{~~or~~} \lx = \float{\l'} }
+    \lx = \l' \tor \lx = \float{\l'} }
   { \Gm \has \kref\ x : \vc{\t,\l',\mut} }
 
   \infer[FnCall]
@@ -341,77 +349,85 @@
 
 \end{mathpar}
 
-\subsubsection*{Statements \hfill \fbox{$\vc{\m,\ls,\r} \has s \stmto \vc{\m',\ls',\r'}$}}
+\subsubsection*{Statements \hfill \fbox{$\Gm \haspc{\pc} s$}}
 \begin{mathpar}
 
-  \infer[Seq]
-  { \vc{\m,\ls,\r} \has s_1 \stmto \vc{\m',\ls',\r'} \\
-    \vc{\m',\ls',\r'} \has s_2 \stmto \vc{\m'',\ls'',\r''} }
-  { \vc{\m,\ls,\r} \has s_1 ; s_2 \stmto \vc{\m'',\ls'',\r''} }
+  \infer[Empty]
+  { }
+  { \Gm \haspc\pc \kempty }
 
   % needed because in the general case (e.g. arrays), vardec Mut := Const is not allowed
   \infer[VarDecBaseMut]
   { x \notin Dom(\m) \\
-    \Gm \has e : \vc{\b,\l,\const} }
-  { \vc{\m,\l_s,\r} \has \vc{\ref{\b},\mut} x = e \stmto \vc{\m [ x \aug \vc{\ref{\b},\float{\l},\mut} ],\l_s,\r} }
+    \Gm \has e : \vc{\b,\l,\const} \\\\
+    \Gm [ x \aug \vc{\ref{\b},\float{\l},\mut} ] \haspc\pc s }
+  { \Gm \haspc\pc \vc{\ref{\b},\mut} x = e ; s }
 
   \infer[VarDec]
   { x \notin Dom(\m) \\
-    \Gm \has e : \vc{\b,\l,\k} }
-  { \vc{\m,\l_s,\r} \has \vc{\ref{\b},\k} x = e \stmto \vc{\m [ x \aug \vc{\ref{\b},\float{\l},\k} ],\l_s,\r} }
+    \Gm \has e : \vc{\b,\l,\k} \\\\
+    \Gm [ x \aug \vc{\ref{\b},\float{\l},\k} ] \haspc\pc s }
+  { \Gm \haspc\pc \vc{\ref{\b},\k} x = e ; s }
 
   \infer[ArrDec]
   { x \notin Dom(\m) \\
-    \Gm \has e : \vc{\arr{\b,n},\l,\k} }
-  { \vc{\m,\l_s,\r} \has \vc{\arr{\b,n},\l,\k} x = e \stmto \vc{\m [ x \aug \vc{\arr{\b,n},\l,\k} ],\l_s,\r} }
+    \Gm \has e : \vc{\arr{\b,n},\l,\k} \\\\
+    \Gm [ x \aug \vc{\arr{\b,n},\l,\k} ] \haspc\pc s }
+  { \Gm \haspc\pc \vc{\arr{\b,n},\l,\k} x = e ; s }
 
   \infer[VarAssign]
   { \mu (x) = \vc{\ref{\b},\l,\mut} \\
     \Gm \has e : \vc{\b,\l',\const} \\
-    \ls \join \l' \tleq \l }
-  { \vc{\m,\l_s,\r} \has x := e \stmto \vc{\m,\l_s,\r} }
+    \l' \join \pc \tleq \l \\
+    \Gm \haspc{\pc} s }
+  { \Gm \haspc{\pc} x := e ; s }
 
-  \infer[VarAssignFloat]
+  \infer[VarAssignFlowS]
   { \mu (x) = \vc{\ref{\b},\float{\l},\mut} \\
-    \Gm \has e : \vc{\b,\l',\const} }
-  { \vc{\m,\l_s,\r} \has x := e \stmto \vc{\m [ x \aug \vc{\ref{\b},\float{\l'},\mut} ],\l_s,\r} }
+    \Gm \has e : \vc{\b,\l',\const} \\
+    \Gm [ x \aug \vc{\ref{\b},\float{\l'}\,\mut} ] \haspc\pc s }
+  { \Gm \haspc\pc x := e ; s }
 
   \infer[ArrAssign]
   { \mu (x) = \vc{\arr{\b,n},\l,\mut} \\
     \Gm \has e_1 : \vc{\uint*,\public,\const} \\
-    S\hspace{-.7px}MT(e_1 < n) \\
+    \SMT(e_1 < n) \\
     \Gm \has e_2 : \vc{\b,\l',\const} \\
-    \ls \join \l' \tleq \l }
-  { \vc{\m,\l_s,\r} \has x[e_1] := e_2 \stmto \vc{\m,\l_s,\r} }
+    \l' \join \pc \tleq \l \\
+    \Gm \haspc{\pc} s }
+  { \Gm \haspc{\pc} x[e_1] := e_2 ; s }
 
   \infer[ArrAssignDyn]
   { \mu (x) = \vc{\arr{\b,x_n},\l,\mut} \\
     \Gm \has e_1 : \vc{\uint*,\public,\const} \\
-    S\hspace{-.7px}MT(e_1 < x_n) \\
+    \SMT(e_1 < x_n) \\
     \Gm \has e_2 : \vc{\b,\l',\const} \\
-    \ls \join \l' \tleq \l }
-  { \vc{\m,\l_s,\r} \has x[e_1] := e_2 \stmto \vc{\m,\l_s,\r} }
+    \l' \join \pc \tleq \l \\
+    \Gm \haspc{\pc} s }
+  { \Gm \haspc{\pc} x[e_1] := e_2 ; s }
 
   \infer[If]
-  { \Gm \has e : \vc{\bool,\l,\k} \\\\
-    \vc{\m,\l_s,\r} \has s_1 \stmto \vc{\m',\ls',\r'} \\
-    \vc{\m,\l_s,\r} \has s_2 \stmto \vc{\m'',\ls'',\r''} \\\\
-    \m^* = join\m(\m,\m',\m'',\l) \\
-    \ls^*,\r^* = join\ls\r(\ls,\ls',\ls'',\r,\r',\r'') }
-  { \vc{\m,\l_s,\r} \has \kif e\ \{ s_1 \} \kelse \{ s_2 \} \stmto \vc{\m^*,\ls^*,\r^*} }
+  { \Gm \has e : \vc{\bool,\l,\k} \\
+    \pc' = \l \join \pc \\
+    \Gm \haspc{\pc'} s_1 \\
+    \Gm \haspc{\pc'} s_2 \\
+    \m^* = extract\m[\l](s_1,s_2) \\
+    \pc^* = extract\pc[\pc'](s_1,s_2) \\
+    \Gm^* \haspc{\pc^*} s }
+  { \Gm \haspc\pc \kif e\ \{ s_1 \} \kelse \{ s_2 \} ; s }
 
   \infer[For]
   { \Gm \has e_1 : \vc{\b,\public,\const} \\
     \Gm \has e_2 : \vc{\b,\public,\const} \\
-    \b = \uint* \text{ or } \b = \int* \\
-    \vc{\m [ x \aug \vc{\ref{\b},\public,\const} ],\ls,\r} \has s \stmto \vc{\m',\ls',\r'} \\
-    \m'' = scoping(\mu,\mu') }
-  { \vc{\m,\ls,\r} \has \kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s \} \stmto \vc{\m'',\ls',\r'} }
+    \b = \uint* \tor \b = \int* \\
+    \text{typecheck $s_1$ somehow???} }
+  { \Gm \haspc\pc \kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s_1 \} ; s }
 
   \infer[Ret]
-  { \F (f) = fdec : \vc{\b,\l_1} \\
-    \Gm \has e : \vc{\b,\l_2} }
-  { \vc{\m,\ls,\r} \has \kret e \stmto \vc{\m,\ls,\ktrue} }
+  { \F (f) = fdec : \vc{\b,\l} \\
+    \Gm \has e : \vc{\b,\l'} \\
+    \l' \join \pc \tleq \l }
+  { \Gm \haspc\pc \kret e }
 
 \end{mathpar}
 
@@ -470,7 +486,7 @@
   \infer[FnCall]
   { \F(f) = fdec\ f(x_1,\dots,x_n)\ \{ s \} \\
     \S_0 = \{ x_1 \aug r_1, \dots, x_n \aug r_n \} \\
-    \text{fresh $r_i$s when necessary} \\
+    \text{fresh $r_i$ when necessary} \\
     \S_0,\a,s \ssteplong \S_0',\a',\kret v \\
     \a'' = copyback(\a,\a') }
   { \S,\a,f(v_1,\dots,v_n) \estep \S,\a'',v }
