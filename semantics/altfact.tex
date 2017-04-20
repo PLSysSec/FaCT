@@ -1,0 +1,366 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{supertabular}
+\usepackage{geometry}
+\usepackage{ifthen}
+\usepackage{alltt}%hack
+\geometry{a4paper,dvips,twoside,left=22.5mm,right=22.5mm,top=20mm,bottom=30mm}
+\usepackage{color}
+\usepackage{xcolor}
+\usepackage{stmaryrd}
+\usepackage{graphicx}
+\usepackage{mathpartir}
+\usepackage{mathtools}
+\usepackage{etextools}
+\usepackage{suffix}
+\usepackage{comment}
+\usepackage{fancyhdr}
+\usepackage[en-US,showzone=false]{datetime2}
+\usepackage{minibox}
+
+\makeatletter
+    \newcommand{\DeclarePairedDelimiterCase}[2]{%
+        \newcommand#1[1][]{%
+            \ifthenelse{\equal{##1}{normal}}%
+            {#2}%
+            {%
+                \ifthenelse{\equal{##1}{big}\OR\equal{##1}{Big}\OR\equal{##1}{bigg}\OR\equal{##1}{Bigg}}%
+                {\expandnext{#2[}{\csname##1\endcsname}]}%
+                {#2*}%        % standard case using \left and \right
+            }%
+        }%
+    }
+    \newcommand{\DeclarePairedDelimiterY}[4][Temp]{%
+        \expandafter\DeclarePairedDelimiter\csname#2#1\endcsname{#3}{#4}%
+        \expandnext{\expandnext{\DeclarePairedDelimiterCase}{\csname#2\endcsname}}{\csname#2#1\endcsname}%
+    }
+    \newcommand{\DeclarePairedDelimiterXY}[6][Temp]{%
+        \expandafter\DeclarePairedDelimiterX\csname#2#1\endcsname[#3]{#4}{#5}{#6}%
+        \expandnext{\expandnext{\DeclarePairedDelimiterCase}{\csname#2\endcsname}}{\csname#2#1\endcsname}%
+    }
+\makeatother
+
+% math symbols
+\DeclarePairedDelimiterY{floor}{\lfloor}{\rfloor}
+\DeclarePairedDelimiterY{ceil}{\lceil}{\rceil}
+\DeclarePairedDelimiterY{abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\vc}{\langle}{\rangle}
+
+% derivation operators
+\newcommand\with{\,|\,}
+\newcommand\has{\,\vdash\,}
+\newcommand\haspc[1]{\,\vdash_{\!\!\!#1}\,}
+\newcommand\hasrpc[2]{\,\vdash^{\!\!\!#1}_{\!\!\!#2}\,}
+\WithSuffix\newcommand\hasrpc*{\hasrpc\rp\pc}
+\newcommand\stmto{\ \rightarrow\ }
+\newcommand\sstep{\ \longrightarrow\ }
+\newcommand\ssteplong{\ \longrightarrow^*\ }
+\newcommand\sstepx[1]{\ \overset{#1}{\longrightarrow}\ }
+\newcommand\estep{\ \xhookrightarrow{\quad}\ }
+\newcommand\aug{\mapsto}
+\newcommand\update{\Mapsto}
+\newcommand\join{\sqcup}
+\newcommand\meet{\sqcap}
+\newcommand\tlt{\sqsubset}
+\newcommand\tleq{\sqsubseteq}
+\newcommand\tor{\text{~~or~~}}
+
+% derivation functions
+\newcommand\SMT{\text{SMT}}
+
+% type vars and metavars
+\newcommand\G\Gamma
+\newcommand\F{\mathbb{F}}
+\renewcommand\b{\beta}
+\renewcommand\t{t}
+\newcommand\T{\tau}
+\renewcommand\l\ell
+\newcommand\m{m}
+\renewcommand\a{\alpha}
+\let\oldae\ae
+\renewcommand\ae{\mathit{\oldae}}
+\renewcommand\arg{\mathit{arg}}
+\newcommand\pc{\mathit{pc}}
+\newcommand\rp{\mathit{rp}}
+\renewcommand\u[1]{\color{orange}\underline{{\color{black}#1}}\color{black}}
+
+% base types
+\newcommand\bool{\textsc{Bool}}
+\newcommand\uint[1]{\textsc{UInt}_{#1}}
+\WithSuffix\newcommand\uint*{\textsc{UInt}}
+\renewcommand\int[1]{\textsc{Int}_{#1}}
+\WithSuffix\newcommand\int*{\textsc{Int}}
+
+% storage
+\renewcommand\ref[1]{\textsc{Ref}\vc{#1}}
+\WithSuffix\newcommand\ref*{\textsc{Ref}}
+\newcommand\arr[1]{\textsc{Arr}\!\left[{#1}\right]}
+\WithSuffix\newcommand\arr*{\textsc{Arr}}
+
+% labels
+\newcommand\public{\textsc{Public}}
+\newcommand\unknown{\textsc{Unknown}}
+\newcommand\secret{\textsc{Secret}}
+
+% mutability
+\newcommand\const{\textsc{Const}}
+\newcommand\mut{\textsc{Mut}}
+
+% literals
+\newcommand\ktrue{\textsc{true}}
+\newcommand\kfalse{\textsc{false}}
+
+% expressions
+\newcommand\at{\scalebox{0.5}[0.75]{\textbf{@}\,}}
+\newcommand\huh{\,\texttt{?}\,}
+\newcommand\helse{\,\texttt{:}\,}
+\newcommand\huhelse{\,\texttt{?:}\,}
+\newcommand\klen{\textsc{len }}
+\newcommand\kref{\textsc{ref }}
+\newcommand\kzeros{\textsc{zeros}}
+\newcommand\kcopy{\textsc{copy }}
+\newcommand\karrview{\textsc{view}}
+\newcommand\karrcomp{\textsc{arrcomp }}
+
+% statements
+\newcommand\kempty{\diamond}
+\newcommand\kif{\textsc{if }}
+\newcommand\kthen{\textsc{ then }}
+\newcommand\kelse{\textsc{ else }}
+\newcommand\kfor{\textsc{for }}
+\newcommand\kfrom{\textsc{ from }}
+\newcommand\kto{\textsc{ to }}
+\newcommand\kdo{\textsc{ do }}
+\newcommand\kret{\textsc{return }}
+\newcommand\kskip{\textsc{skip}}
+\newcommand\klet{\textsc{let }}
+\newcommand\kin{\textsc{ in }}
+
+\newcommand{\ottcom}[1]{\text{#1}}
+\newcommand{\grammar}[1]{\begin{supertabular}{lcll}#1\\\end{supertabular}}
+\newcommand{\gramrule}[2]{\multicolumn{4}{l}{\textsc{#2}} \\ $#1$ & $::=$ }
+\newcommand{\gramrulex}[3]{\multicolumn{4}{l}{\textsc{#2}} \\ $#1$ & $::=$ & $#3$}
+\newcommand{\gramitem}[2][]{& $|$ & $#2$ & $\ottcom{#1}$}
+
+\pagestyle{fancy}
+\chead{Alternative FaCT: \DTMnow}
+
+\begin{document}
+
+\subsubsection*{Grammar}
+\begin{mathpar}
+
+  \grammar
+  { \gramrule{\b}{Base type} \\
+    \gramitem{\bool} \\
+    \gramitem{\int*} }
+
+  \grammar
+  { \gramrulex{\a}{Array type}{\arr{\b,\u e}} }
+
+  \grammar
+  { \gramrule{\l,\pc,\rp}{Label} \\
+    \gramitem{\public} \\
+    \gramitem{\secret} }
+
+  \grammar
+  { \gramrule{\m}{Mutability} \\
+    \gramitem{\const} \\
+    \gramitem{\mut} }
+
+  \grammar
+  { \gramrulex{\t}{Base type tuple}{\b^\m_\l} }
+
+  \grammar
+  { \gramrule{\T}{Type tuple} \\
+    \gramitem{\b^\m_\l} \\
+    \gramitem{\a^\m_\l} }
+
+  \grammar
+  { \gramrule{e}{Expression} \\
+    \gramitem{b} \\
+    \gramitem{\u n} \\
+    \gramitem{\u x} \\
+    \gramitem{a[e]} \\
+    \gramitem{\u{\klen a}} \\
+    \gramitem{\ominus e} \\
+    \gramitem{\u{e \oplus e}} \\
+    \gramitem{e \huh e \helse e} \\
+    \gramitem{f(\arg,\dots,\arg)} }
+
+  \grammar
+  { \gramrule{a}{Array expression} \\
+    \gramitem{x} \\
+    \gramitem{\kzeros\ \u e} \\
+    \gramitem{\kcopy a} \\
+    \gramitem{\karrview\ ???} \\
+    \gramitem{\karrcomp ???} }
+
+  \grammar
+  { \gramrule{\ae}{Any expression} \\
+    \gramitem{e} \\
+    \gramitem{a} }
+
+  \grammar
+  { \gramrule{\arg}{Argument} \\
+    \gramitem{\ae} \\
+    \gramitem{\kref x} }
+
+  \grammar
+  { \gramrule{C}{Command} \\
+    \gramitem{\kskip} \\
+    \gramitem{C ; C} \\
+    \gramitem{\klet x \at m = \ae \kin C} \\
+    \gramitem{x := e} \\
+    \gramitem{x[e] := e} \\
+    \gramitem{\kif e \kthen C \kelse C} \\
+    \gramitem{\kfor x \kfrom e \kto e \kdo C} \\
+    \gramitem{\kret e} }
+
+
+  \grammar
+  { \gramrulex{f}{Function definition}
+    { \textsc{func } f(x \at \T , \cdots , x \at \T) : \t\ \{ C \} } }
+
+\end{mathpar}
+
+\subsubsection*{Type Lattice}
+\begin{mathpar}
+
+  \infer { }
+  { \public \tlt \secret }
+
+  \infer
+  { \l_1 \tleq \l_2 }
+  { \b_{\l_1}^\m \tlt \b_{\l_2}^\const }
+
+  \infer
+  { \l_1 \tleq \l_2 }
+  { \arr{\b,\u e}_{\l_1}^\mut \tlt \arr{\b,\u e}_{\l_2}^\const }
+
+  \infer
+  { \G \has e : \T_1 \\
+    \T_1 \tlt \T_2 }
+  { \G \has e : \T_2 }
+
+\end{mathpar}
+
+\pagebreak
+\subsubsection*{Expressions \hfill \fbox{$\G \has \ae : \T$}}
+\begin{mathpar}
+
+  \infer { }
+  { \G \has b : \bool_\public^\const }
+
+  \infer { }
+  { \G \has n : \int*_\public^\const }
+
+  \infer
+  { \G(x) = \b_\l^\m }
+  { \G \has x : \b_\l^\const }
+
+  \infer
+  { \G \has a : \arr{\b,\u{e_a}}_\l^\m \\
+    \SMT(0 \leq e < e_a) }
+  { \G \has a[e] : \b_\l^\const }
+
+  \infer
+  { \G \has a : \arr{\b,\u e}_\l^\m }
+  { \G \has \klen a : \int*_\public^\const }
+
+  \infer
+  { \G \has e : \t_1 \\
+    \ominus : \t_1 \to \t_2 }
+  { \G \has \ominus e : \t_2 }
+
+  \infer
+  { \G \has e_1 : \t_1 \\
+    \G \has e_2 : \t_2 \\
+    \oplus : \t_1 \to \t_2 \to \t_3 }
+  { \G \has e_1 \oplus e_2 : \t_3 }
+
+  \infer
+  { \G \has e_1 : \bool^\const_\l \\
+    \G \has e_2 : \b_\l^\const \\
+    \G \has e_3 : \b_\l^\const }
+  { \G \has e_1 \huh e_2 \helse e_3 : \b^\const_\l }
+
+  \infer
+  { \G(f) = \prod_{i=1}^n \b_{i_{\l_i}}^{\m_i} \to \b_\l^\const \\
+    \bigwedge_{i=1}^n
+      \mbox{$\begin{cases}
+        \G \has \l_i : \b_{i_{\l_i}}^\const &\text{ if } \arg_i = \ae_i \\
+        \G \has  x_i : \b_{i_{\l_i}}^\mut   &\text{ if } \arg_i = \kref x_i
+      \end{cases}$} }
+  { \G \has f(\arg_1,\dots,\arg_n) : \b_\l^\const }
+
+  \infer { }
+  { \G \has \kzeros_\l\ \u e : \arr{\int,\u e}^\mut_\l }
+
+  \infer
+  { \G \has a : \arr{\b,\u e}^\m_\l }
+  { \G \has \kcopy a : \arr{\b,\u e}^\mut_\l }
+
+  \infer
+  { \G \has a : \arr{\b,\u e}^\m_\l }
+  { \G \has \karrview\ ??? : \arr{\b,\u{e'}}^\m_\l }
+
+  \infer
+  { ??? }
+  { \G \has \karrcomp ??? : \arr{\b,\u e}^\mut_\l }
+
+\end{mathpar}
+
+\pagebreak
+\subsubsection*{Statements \hfill \fbox{$\G \hasrpc* C : \rp$}}
+\begin{mathpar}
+
+  \infer { }
+  { \G \hasrpc* \kskip : \rp }
+
+  \infer
+  { \G \hasrpc\rp\pc C_1 : \rp' \\
+    \G \hasrpc{\rp'}\pc C_2 : \rp'' }
+  { \G \hasrpc\rp\pc C_1 ; C_2 : \rp'' }
+
+  \infer
+  { \G \has e : \b_{\l}^\const \\
+    \l \join \pc \tleq \l' \\
+    \G [ x \aug \b^\m_{\l'} ] \hasrpc* C : \rp' }
+  { \G \hasrpc* \klet x \at m = e \kin C : \rp' }
+
+  \infer
+  { \G(x) = \b_{\l}^\mut \\
+    \G \has e : \b_\l^\const \\
+    \rp \join \pc \tleq \l }
+  { \G \hasrpc* x := e : \rp }
+
+  \infer
+  { \G(x) = \arr{\b,\u{e_a}}_\l^\mut \\
+    \SMT(0 \leq e_1 < e_a) \\
+    \G \has e_2 : \b_\l^\const \\
+    \rp \join \pc \tleq \l }
+  { \G \hasrpc* x[e_1] := e_2 : \rp }
+
+  \infer
+  { \G \has e : \bool^\const_\l \\
+    \pc' = \pc \join \l \\
+    \G \hasrpc{\rp}{\pc'} C_1 : \rp_1 \\
+    \G \hasrpc{\rp}{\pc'} C_2 : \rp_2 }
+  { \G \hasrpc* \kif e \kthen C_1 \kelse C_2 : \rp_1 \join \rp_2 }
+
+  \infer
+  { \G \has e_1 : \int*^\const_\public \\
+    \G \has e_2 : \int*^\const_\public \\
+    \G [ x \aug \int*^\const_\public ] \hasrpc* C : \rp' }
+  { \G \hasrpc* \kfor x \kfrom e_1 \kto e_2 \kdo C : \rp' }
+
+  \infer
+  { \G(\mathit{rval}) = \b_\l^\const \\
+    \G \has e : \b_\l^\const \\
+    \rp \join \pc \tleq \l }
+  { \G \hasrpc* \kret e : \rp \join \pc }
+
+\end{mathpar}
+
+\end{document}
