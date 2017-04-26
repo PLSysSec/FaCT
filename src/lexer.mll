@@ -49,6 +49,7 @@ let _ = List.map add_keyword keywords
 }
 
 let whitespace = [' ' '\t' '\n']
+let all_ints = ['0'-'9' 'A'-'F']
 let ints = ['0'-'9']
 let chars_ints = ['_' 'a'-'z' 'A'-'Z']['_' 'a'-'z' 'A'-'Z' '0'-'9']*
 let int_type = ("int" | "uint") ("8" | "16" | "32")?
@@ -126,7 +127,7 @@ and ignore_line = parse
   | _     { ignore_line lexbuf }
 
 and num buf = parse
-  | ints+
+  | all_ints+
     { Buffer.add_string buf (Lexing.lexeme lexbuf);
       let s = Buffer.contents buf in
       INT(int_of_string s)
