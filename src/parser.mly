@@ -155,6 +155,10 @@ stmlist:
     { let makep = make_pos $startpos in
       let makee e = make_pos $startpos e in
       (makep (Assign($1,makee (BinOp($2,makee (VarExp($1)),$3)))))::$5 }
+  | IDENT LBRACK expr RBRACK binopeq expr SEMICOLON stmlist
+    { let makep = make_pos $startpos in
+      let makee e = make_pos $startpos e in
+      (makep (ArrAssign($1,$3,makee (BinOp($5,makee (ArrExp($1,$3)),$6)))))::$8 }
   | IF LPAREN expr RPAREN LBRACE stmlist RBRACE ELSE LBRACE stmlist RBRACE stmlist
     { (make_pos $startpos (If($3,$6,$10)))::$12 }
   | FOR LPAREN const_type IDENT ASSIGN expr TO expr RPAREN LBRACE stmlist RBRACE stmlist
