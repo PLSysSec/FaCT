@@ -6,6 +6,7 @@
 \usepackage{alltt}%hack
 \geometry{a4paper,dvips,twoside,left=22.5mm,right=22.5mm,top=20mm,bottom=30mm}
 \usepackage{color}
+\usepackage{xcolor}
 \usepackage{stmaryrd}
 \usepackage{graphicx}
 \usepackage{mathpartir}
@@ -39,14 +40,19 @@
     }
 \makeatother
 
+% math symbols
 \DeclarePairedDelimiterY{floor}{\lfloor}{\rfloor}
 \DeclarePairedDelimiterY{ceil}{\lceil}{\rceil}
 \DeclarePairedDelimiterY{abs}{\lvert}{\rvert}
 \DeclarePairedDelimiter{\vc}{\langle}{\rangle}
+\DeclarePairedDelimiter{\xvc}{[}{]}
 
+% derivation operators
 \newcommand\with{\,|\,}
 \newcommand\has{\,\vdash\,}
 \newcommand\haspc[1]{\,\vdash_{\!\!\!#1}\,}
+\newcommand\hasrpc[2]{\,\vdash^{\!\!\!#1}_{\!\!\!#2}\,}
+\WithSuffix\newcommand\hasrpc*{\hasrpc\rp\pc}
 \newcommand\stmto{\ \rightarrow\ }
 \newcommand\sstep{\ \longrightarrow\ }
 \newcommand\ssteplong{\ \longrightarrow^*\ }
@@ -59,69 +65,97 @@
 \newcommand\tlt{\sqsubset}
 \newcommand\tleq{\sqsubseteq}
 \newcommand\tor{\text{~~or~~}}
+\newcommand\tand{\text{~and~~}}
 
-\newcommand\huh{\,\texttt{?}\,}
-\newcommand\helse{\,\texttt{:}\,}
-\newcommand\huhelse{\,\texttt{?:}\,}
+% derivation functions
+\newcommand\SMT{\text{SMT}}
 
+% type vars and metavars
 \newcommand\G\Gamma
 \newcommand\F{\mathbb{F}}
 \renewcommand\S\Sigma
-\renewcommand\b{b}
+\renewcommand\b{\beta}
 \renewcommand\t\tau
-\renewcommand\k\sigma
+\newcommand\e\eta
+\renewcommand\k{m}
 \renewcommand\l\ell
 \newcommand\m\mu
-\renewcommand\a\mu
+\renewcommand\r\rho
+\renewcommand\a\alpha
+\let\oldae\ae
+\renewcommand\ae{\mathit{\oldae}}
 \newcommand\M{\mathcal{M}}
-\newcommand\pc{pc}
 \newcommand\ls{\l_s}
-\newcommand\lx{\l^x}
-\renewcommand\r{r}
-
-\newcommand\SMT{S\hspace{-.7px}MT}
+\newcommand\lx{{\color{red}{\l_x}}}
+\renewcommand\arg{\mathit{arg}}
+\newcommand\pc{\mathit{pc}}
+\newcommand\rp{\mathit{rp}}
+\renewcommand\u[1]{{\color{orange}\underline{{\color{black}#1}}}}
 
 \newcommand\Gm{\G \with \m}
 \newcommand\T[1]{\vc{\t_{#1},\l_{#1},\k_{#1}}}
 \newcommand\Tx[1]{\vc{\t_{#1},\lx_{#1},\k_{#1}}}
 
+% base types
 \newcommand\bool{\textsc{Bool}}
 \newcommand\uint[1]{\textsc{UInt}_{#1}}
 \WithSuffix\newcommand\uint*{\textsc{UInt}}
 \renewcommand\int[1]{\textsc{Int}_{#1}}
 \WithSuffix\newcommand\int*{\textsc{Int}}
-\renewcommand\ref[1]{\textsc{Ref}\vc{#1}}
+
+% storage
+\renewcommand\ref[1]{\textsc{Ref}\!\left[{#1}\right]}
 \WithSuffix\newcommand\ref*{\textsc{Ref}}
-\newcommand\arr[1]{\textsc{Arr}\vc{#1}}
+\newcommand\arr[1]{\textsc{Arr}\!\left[{#1}\right]}
 \WithSuffix\newcommand\arr*{\textsc{Arr}}
 
-\newcommand\arrview[1]{\textsc{view}(#1)}
-
+% labels
 \newcommand\public{\textsc{Public}}
 \newcommand\unknown{\textsc{Unknown}}
 \newcommand\secret{\textsc{Secret}}
 \newcommand\float[1]{\textsc{FlowS}\vc{#1}}
 
+% mutability
 \newcommand\const{\textsc{Const}}
 \newcommand\mut{\textsc{Mut}}
 
-\newcommand\kref{\textsc{ref}}
-
+% literals
 \newcommand\ktrue{\textsc{true}}
 \newcommand\kfalse{\textsc{false}}
 
+% expressions
+\newcommand\at{\scalebox{0.5}[0.75]{\textbf{@}\,}}
+\newcommand\huh{\,\texttt{?}\,}
+\newcommand\helse{\,\texttt{:}\,}
+\newcommand\huhelse{\,\texttt{?:}\,}
+\newcommand\klen{\textsc{len }}
+\newcommand\kref{\textsc{ref }}
+
+% array expressions
+\newcommand\kzeros{\textsc{zeros}}
+\newcommand\kcopy{\textsc{copy }}
+\newcommand\arrview[1]{\textsc{dep-usekarrview}(#1)}
+\newcommand\karrview{\textsc{view}}
+\newcommand\karrcomp{\textsc{arrcomp}}
+
+% statements
 \newcommand\kempty{\diamond}
+\newcommand\kvardec{\textsc{let}}
+\newcommand\karrdec{\textsc{let}}
 \newcommand\kif{\textsc{if }}
+\newcommand\kthen{\textsc{ then }}
 \newcommand\kelse{\textsc{ else }}
 \newcommand\kfor{\textsc{for }}
 \newcommand\kfrom{\textsc{ from }}
 \newcommand\kto{\textsc{ to }}
+\newcommand\kdo{\textsc{ do }}
 \newcommand\kret{\textsc{return }}
 \newcommand\kskip{\textsc{skip}}
 
 \newcommand{\ottcom}[1]{\text{#1}}
 \newcommand{\grammar}[1]{\begin{supertabular}{lcll}#1\\\end{supertabular}}
 \newcommand{\gramrule}[2]{\multicolumn{4}{l}{\textsc{#2}} \\ $#1$ & $::=$ }
+\newcommand{\gramrulex}[3]{\multicolumn{4}{l}{\textsc{#2}} \\ $#1$ & $::=$ & $#3$}
 \newcommand{\gramitem}[2][]{& $|$ & $#2$ & $\ottcom{#1}$}
 
 \pagestyle{fancy}
@@ -129,22 +163,36 @@
 
 \begin{document}
 
-\subsubsection*{Grammar}
-
+\subsubsection*{Types}
 \begin{mathpar}
 
   \grammar
-  { \gramrule{\b}{Base type} \\
-    \gramitem{\bool} \\
+  { \gramrule{I}{Integer type} \\
     \gramitem{\uint{n}} \\
     \gramitem{\int{n}} }
 
   \grammar
-  { \gramrule{\t}{Type} \\
-    \gramitem{\b} \\
-    \gramitem{\ref{\b}} \\
-    \gramitem{\arr{\b,n}} \\
-    \gramitem[$x$ must be $\vc{\ref{\uint*},\public,\const}$]{\arr{\b,x}} }
+  { \gramrule{\b}{Base type} \\
+    \gramitem{I} \\
+    \gramitem{\bool} }
+
+  \grammar
+  { \gramrule{\r}{Ref type} \\
+    \gramitem{\ref{\b}} }
+
+  \grammar
+  { \gramrule{\a}{Array type} \\
+    \gramitem{\arr{\b,\u e}} }
+
+  \grammar
+  { \gramrule{\e}{Expression Type} \\
+    \gramitem{\b_\l} \\
+    \gramitem{\a_\l^\k} }
+
+  \grammar
+  { \gramrule{\t}{Variable Type} \\
+    \gramitem{\r_\l^\k} \\
+    \gramitem{\a_\l^\k} }
 
   \grammar
   { \gramrule{\l}{Label} \\
@@ -153,275 +201,290 @@
     \gramitem{\secret} }
 
   \grammar
-  { \gramrule{\lx}{Variable label} \\
-    \gramitem{\l} \\
-    \gramitem{\float{\l}} }
-
-  \grammar
   { \gramrule{\k}{Mutability} \\
     \gramitem{\const} \\
     \gramitem{\mut} }
 
-  \grammar
-  { \gramrule{e}{Expression} \\
-    \gramitem{\ktrue} \\
-    \gramitem{\kfalse} \\
-    \gramitem[integer literal]{c} \\
-    \gramitem[variable]{x} \\
-    \gramitem[array get]{x[e]} \\
-    \gramitem[array comprehension]{\vc{\b,n,\b_x}x \Rightarrow e} \\
-    \gramitem[array view]{\arrview{x,e,n}} \\
-    \gramitem[unary op]{\ominus e} \\
-    \gramitem[binary op]{e_1 \oplus e_2} \\
-    \gramitem[ternary op]{e_1 \huh e_2 \helse e_3} \\
-    \gramitem[mut ref]{\kref\ x} \\
-    \gramitem[function call]{f(e_1,\dots,e_n)} }
-
-  \grammar
-  { \gramrule{s}{Statement} \\
-    \gramitem[empty]{\kempty} \\
-    \gramitem[sequence]{s_1 ; s_2} \\
-    \gramitem[variable declaration]{\vc{\ref{\b},\k} x = e} \\
-    \gramitem[array declaration]{\vc{\arr{\b,n},\l,\k} x = e} \\
-    \gramitem[variable assignment]{x := e} \\
-    \gramitem[array assignment]{x[e_1] := e_2} \\
-    \gramitem[conditional]{\kif e\ \{ s_1 \} \kelse \{ s_2 \}} \\
-    \gramitem[loop]{\kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s \}} \\
-    \gramitem[return]{\kret e} }
-
-  \grammar
-  { \gramrule{fdec}{Function Definition} \\
-    \gramitem{\vc{\b,\l} f ( \vc{\t_1,\l_1,\k_1}x_1 , \,\dots\, , \vc{\t_n,\l_n,\k_n}x_n )\ \{ s \}} }
-
 \end{mathpar}
 
-\pagebreak
 \subsubsection*{Metavariables}
 \begin{mathpar}
 
   \grammar
   { \gramrule{\G}{Type context} \\
     \gramitem{\emptyset} \\
-    \gramitem{\G [ e \aug \T{} ] } }
+    \gramitem{\G [ \ae \aug \e ] } \\
+    \gramitem{\G [ x \aug \t ] } }
 
-  \grammar
-  { \gramrule{\mu}{Variable type store} \\
-    \gramitem{\emptyset} \\
-    \gramitem{\mu [ x \aug \Tx{} ] } }
+%  \grammar
+%  { \gramrule{\mu}{Variable type store} \\
+%    \gramitem{\emptyset} \\
+%    \gramitem{\mu [ x \aug \t^\k_\l ] } }
 
   \grammar
   { \gramrule{\F}{Function type store} \\
     \gramitem{\emptyset} \\
-    \gramitem{\F [ f \aug fdec (\T1, \,\dots\,, \T{n}) : \vc{\b,\l} ] } }
+    \gramitem{\F [ f \aug \prod_{i=1}^n \t_i \to \b_\l ] } }
 
 \end{mathpar}
 
 \subsubsection*{Type Lattice}
 \begin{mathpar}
 
-  \infer
-  { n_1 < n_2 }
-  { \uint{n_1} \tlt \uint{n_2} }
+  \textnormal{No implicit casts between any integer types; explicit casting only.} \\
 
-  \infer
-  { n_1 < n_2 }
-  { \int{n_1} \tlt \int{n_2} }
-
-  \infer { }
-  { \uint{n} \tlt \int{2n} }
+%  \infer
+%  { n_1 < n_2 }
+%  { \uint{n_1} \tlt \uint{n_2} }
+%
+%  \infer
+%  { n_1 < n_2 }
+%  { \int{n_1} \tlt \int{n_2} }
+%
+%  \infer { }
+%  { \uint{n} \tlt \int{2n} }
 
   \infer { }
   { \public \tlt \secret }
 
-  \infer { }
-  { \mut \tlt \const }
+%  \infer { }
+%  { \mut \tlt \const }
 
   % cannot upgrade base mut to base const
   % no subtyping allowed for mut -> mut
   \infer
-  { \Gm \has e : \vc{\b,\l,\const} \\
-    \b \tleq \b' \\
-    \l \tleq \l' }
-  { \Gm \has e : \vc{\b',\l',\const} }
+  { \b_1 \tleq \b_2 \\
+    \l_1 \tleq \l_2 }
+  { \b_{\l_1} \tleq \b_{\l_2} }
 
   % subtyping can only upgrade to const
   % no subtyping allowed for mut -> mut
   \infer
-  { \Gm \has e : \vc{\arr{\b,n},\l,\k} \\
-    \l \tleq \l' }
-  { \Gm \has e : \vc{\arr{\b,n},\l',\const} }
+  { \l_1 \tleq \l_2 }
+  { \a_{\l_1}^\k \tleq \a_{\l_2}^\const }
 
-  % these arrays are no different
   \infer
-  { \Gm \has e : \vc{\arr{\b,x},\l,\k} \\
-    \l \tleq \l' }
-  { \Gm \has e : \vc{\arr{\b,x},\l',\const} }
+  { \G \has \ae : \e_1 \\
+    \t_1 \tlt \e_2 }
+  { \G \has \ae : \e_2 }
+
+  \infer
+  { \G \has a : \arr{\b,\u{e_1}}_\l^\k \\
+    \SMT(e_1 = e_2) }
+  { \G \has a : \arr{\b,\u{e_2}}_\l^\k }
 
 \end{mathpar}
 
-\subsubsection*{Expressions \hfill \fbox{$\Gm \has e : \T{}$}}
+\subsubsection*{Parameter Passing}
 \begin{mathpar}
 
+  \infer
+  { \G \has e : \b_\l }
+  { \textsc{canpass } \ref{\b}_\l^\const \gets e }
+
+  \infer
+  { \G \has a : \a_\l^\const }
+  { \textsc{canpass } \a_\l^\const \gets a }
+
+  \infer
+  { \G (x) = \r_\l^\mut }
+  { \textsc{canpass } \r_\l^\mut \gets \kref x }
+
+  \infer
+  { \G (x) = \a_\l^\mut }
+  { \textsc{canpass } \a_\l^\mut \gets \kref x }
+
+\end{mathpar}
+
+\pagebreak
+\subsubsection*{Grammar}
+\begin{mathpar}
+
+  \grammar
+  { \gramrule{e}{Expression} \\
+    \gramitem{\ktrue} \\
+    \gramitem{\kfalse} \\
+    \gramitem[integer literal]{\u c} \\
+    \gramitem[variable]{\u x} \\
+    \gramitem[array get]{x[e]} \\
+    \gramitem[array length]{\u{\klen x}} \\
+    \gramitem[int cast]{(I) e} \\
+    \gramitem[unary op]{\ominus e} \\
+    \gramitem[binary op]{e_1 \oplus e_2} \\
+    \gramitem[ternary op]{e_1 \huh e_2 \helse e_3} \\
+    \gramitem[function call]{f(\arg_1,\dots,\arg_n)} \\
+    \gramitem[declassify]{\textsc{declassify } e} }
+
+  \grammar
+  { \gramrule{a}{Array expression} \\
+    \gramitem[variable]{x} \\
+    \gramitem[zero array]{\kzeros\ \u e} \\
+    \gramitem[array copy]{\kcopy x} \\
+    \gramitem[array view]{\karrview\ x,e_1,\u{e'}} \\
+    \gramitem[array comprehension]{\karrcomp\xvc{\b,\u e}\ x \Rightarrow e} }
+
+  \grammar
+  { \gramrule{\arg}{Argument} \\
+    \gramitem[expression (by value)]{e} \\
+    \gramitem[array (by const ref)]{a} \\
+    \gramitem[variable (by mut ref)]{\kref x} }
+
+  \grammar
+  { \gramrule{s}{Statement} \\
+    \gramitem[empty]{\kempty} \\
+    \gramitem[skip]{\kskip} \\
+    \gramitem[sequence]{s_1 ; s_2} \\
+    \gramitem[variable declaration]{\kvardec\ x \at \t = \ae} \\
+    \gramitem[variable assignment]{x := e} \\
+    \gramitem[array assignment]{x[e_1] := e_2} \\
+    \gramitem[conditional]{\kif e \kthen s_1 \kelse s_2} \\
+    \gramitem[loop]{\kfor x \at I \kfrom e_1 \kto e_2 \kdo s} \\
+    \gramitem[return]{\kret e} }
+
+  \grammar
+  { \gramrule{fdec}{Function definition} \\
+    \gramitem{\textsc{fdec } f(x \at \t_1 , \cdots , x \at \t_n) : \b_\l\ \{ s \} } }
+
+\end{mathpar}
+
+\subsubsection*{Expressions \hfill \fbox{$\G \has e : \e$}}
+\begin{mathpar}
+
+  \infer[True] { } { \G \has \ktrue : \bool_\public } \\
+  \infer[False] { } { \G \has \kfalse : \bool_\public }
+
+  \infer[PosNumber]
+  { c >= 0 \\
+    n = \ceil{\log_2 c} }
+  { \G \has c : {\uint{n}}_\public }
+
+  \infer[NegNumber]
+  { c < 0 \\
+    n = \ceil{\log_2 \abs{c}}  + 1 }
+  { \G \has c : {\int{n}}_\public }
+
   \infer[Var]
-  { \m (x) = \vc{\ref{\b},\lx,\k} \\
-    \lx = \l' \tor \lx = \float{\l'} }
-  { \Gm \has x : \vc{\b,\l',\const} }
+  { \G (x) = \r_\l^\k }
+  { \G \has x : \b_\l }
 
   \infer[ArrVar]
-  { \m (x) = \vc{\arr{\b,n},\l,\k} }
-  { \Gm \has x : \vc{\arr{\b,n},\l,\const} }
+  { \G (x) = \a_\l^\k }
+  { \G \has x : \a_\l^\const }
+
+  \infer[IntCast]
+  { \G \has e : I_\l }
+  { \G \has (I') e : I'_\l }
 
   \infer[Unop]
-  { \Gm \has e : \T1 \\
-    \ominus : \T1 \to \T2 }
-  { \Gm \has \ominus e : \T2 }
+  { \G \has e : \e_1 \\
+    \ominus : \e_1 \to \e_2 }
+  { \G \has \ominus e : \e_2 }
 
   \infer[Binop]
-  { \Gm \has e_1 : \T1 \\
-    \Gm \has e_2 : \T2 \\
-    \oplus : \T1 \to \T2 \to \T3 }
-  { \Gm \has e_1 \oplus e_2 : \T3 }
+  { \G \has e_1 : \e_1 \\
+    \G \has e_2 : \e_2 \\
+    \oplus : \e_1 \to \e_2 \to \e_3 }
+  { \G \has e_1 \oplus e_2 : \e_3 }
 
   \infer[Ternop]
-  { \Gm \has e_1 : \T1 \\
-    \Gm \has e_2 : \T2 \\
-    \Gm \has e_3 : \T3 \\
-    (\!\huhelse\!\!) : \T1 \to \T2 \to \T3 \to \T4 }
-  { \Gm \has e_1 \huh e_2 \helse e_3 : \T4 }
+  { \G \has e_1 : \e_1 \\
+    \G \has e_2 : \e_2 \\
+    \G \has e_3 : \e_3 \\
+    (\!\huhelse\!\!) : \e_1 \to \e_2 \to \e_3 \to \e_4 }
+  { \G \has e_1 \huh e_2 \helse e_3 : \e_4 }
 
   % Instead of dynamic looping or masking,
   % just fall back to static analysis;
   % if we cannot determine statically that it's ok
   % then the program fails typechecking
   \infer[ArrGet]
-  { \m (x) = \vc{\arr{\b,n},\l,\k} \\
-    \Gm \has e : \vc{\uint*,\public,\const} \\
-    \SMT(e < n) }
-  { \Gm \has x[e] : \vc{\b,\l,\const} }
+  { \G (x) = \arr{\b,\u{e_a}}_\l^\k \\
+    \G \has e : I_\public \\
+    \SMT(0 \leq e < e_a) }
+  { \G \has x[e] : \b_\l }
 
-  \infer[ArrGetDyn]
-  { \m (x) = \vc{\arr{\b,x_n},\l,\k} \\
-    \Gm \has e : \vc{\uint*,\public,\const} \\
-    \SMT(e < x_n) }
-  { \Gm \has x[e] : \vc{\b,\l,\const} }
+  \infer[ArrLen]
+  { \G (x) = \arr{\b,\u{e_a}}_\l^\k \\
+    \G \has e_a : I_\public }
+  { \G \has \klen x : I_\public }
 
-  \infer[ArrComp]
-  { \Gm [ x \aug \vc{\b_x,\public,\const} ] \has e : \vc{\b,\l,\const} \\
-    \uint{\ceil{\log_2 n}} \tleq \b_x }
-  { \Gm \has \vc{\b,n,\b_x}x \Rightarrow e : \vc{\arr{\b,n},\l,\mut} }
+  \infer[ZeroArray] { }
+  { \G \has \kzeros_\l\ \u e : \arr{\b,\u e}^\mut_\l }
+
+  \infer[ArrCopy]
+  { \G \has a : \arr{\b,\u e}^\k_\l }
+  { \G \has \kcopy a : \arr{\b,\u e}^\mut_\l }
 
   \infer[ArrView]
-  { \m (x) = \vc{\arr{\b,n},\l,\k} \\
-    \Gm \has e : \vc{\uint*,\public,\const} \\
-    \SMT(e + n' < n) }
-  { \Gm \has \arrview{x,e,n'} : \vc{\arr{\b,n'},\l,\k} }
+  { \G \has a : \arr{\b,\u e}^\k_\l \\
+    \SMT(0 \leq e_1 \leq e_1 + e' \leq e) }
+  { \G \has \karrview\ x,e_1,\u e' : \arr{\b,\u e'}^\k_\l }
 
-  \infer[ArrViewDyn]
-  { \m (x) = \vc{\arr{\b,x_n},\l,\k} \\
-    \Gm \has e : \vc{\uint*,\public,\const} \\
-    \SMT(e + n' < x_n) }
-  { \Gm \has \arrview{x,e,n'} : \vc{\arr{\b,n'},\l,\k} }
-
-  \infer[MutRef]
-  { \m (x) = \vc{\t,\lx,\mut} \\
-    \lx = \l' \tor \lx = \float{\l'} }
-  { \Gm \has \kref\ x : \vc{\t,\l',\mut} }
+  \infer[ArrComp]
+  { \uint{\ceil{\log_2 e_a}} \tleq I \\
+    \G [ x \aug I_\public^\const ] \has e : \b_\l }
+  { \Gm \has \karrcomp\xvc{\b,\u{e_a}}\ x \Rightarrow e : \arr{\b,\u{e_a}}_\l^\mut }
 
   \infer[FnCall]
-  { \F (f) = fdec (\T1, \,\dots\,, \T{n}) : \vc{\b,\l} \\
-    \Gm \has e_1 : \T1 \\
-    \dots \\
-    \Gm \has e_n : \T{n} }
-  { \Gm \has f(e_1,\,\dots\,,e_n) : \vc{\b,\l,\const} }
-
-  \infer[True] { } { \Gm \has \ktrue : \vc{\bool,\public,\const} } \\
-  \infer[False] { } { \Gm \has \kfalse : \vc{\bool,\public,\const} }
-
-  \infer[PosNumber]
-  { c >= 0 \\
-    n = \ceil{\log_2 c} }
-  { \Gm \has c : \vc{\uint{n},\public,\const} }
-
-  \infer[NegNumber]
-  { c < 0 \\
-    n = \ceil{\log_2 \abs{c}}  + 1 }
-  { \Gm \has c : \vc{\int{n},\public,\const} }
+  { \G(f) = \prod_{i=1}^n \t_i \to \b_\l \\
+    \bigwedge_{i=1}^n \textsc{canpass }\t_i \gets \arg_i }
+  { \G \has f(\arg_1,\dots,\arg_n) : \b_\l }
 
 \end{mathpar}
 
-\subsubsection*{Statements \hfill \fbox{$\Gm \haspc{\pc} s$}}
+\subsubsection*{Statements \hfill \fbox{$\G \hasrpc* s : \rp$}}
 \begin{mathpar}
 
   \infer[Empty]
   { }
-  { \Gm \haspc\pc \kempty }
+  { \G \hasrpc* \kempty : \rp }
 
-  % needed because in the general case (e.g. arrays), vardec Mut := Const is not allowed
-  \infer[VarDecBaseMut]
-  { x \notin Dom(\m) \\
-    \Gm \has e : \vc{\b,\l,\const} \\\\
-    \Gm [ x \aug \vc{\ref{\b},\float{\l},\mut} ] \haspc\pc s }
-  { \Gm \haspc\pc \vc{\ref{\b},\mut} x = e ; s }
+  \infer[Skip]
+  { \G \hasrpc* s : \rp' }
+  { \G \hasrpc* \kskip ; s : \rp' }
 
   \infer[VarDec]
-  { x \notin Dom(\m) \\
-    \Gm \has e : \vc{\b,\l,\k} \\\\
-    \Gm [ x \aug \vc{\ref{\b},\float{\l},\k} ] \haspc\pc s }
-  { \Gm \haspc\pc \vc{\ref{\b},\k} x = e ; s }
+  { x \notin Dom(\G) \\
+    \G \has e : \b_\l \\\\
+    \G [ x \aug \ref{\b}_\l^\k ] \hasrpc* s : \rp' }
+  { \G \hasrpc* \kvardec\ x \at \ref{\b}_\l^\k = e ; s : \rp' }
 
   \infer[ArrDec]
-  { x \notin Dom(\m) \\
-    \Gm \has e : \vc{\arr{\b,n},\l,\k} \\\\
-    \Gm [ x \aug \vc{\arr{\b,n},\l,\k} ] \haspc\pc s }
-  { \Gm \haspc\pc \vc{\arr{\b,n},\l,\k} x = e ; s }
+  { x \notin Dom(\G) \\
+    \G \has a : \a_\l^\k \\\\
+    \G [ x \aug \a_\l^\k ] \hasrpc* s : \rp' }
+  { \G \hasrpc* x \at \a_\l^\k = a ; s : \rp' }
 
   \infer[VarAssign]
-  { \mu (x) = \vc{\ref{\b},\l,\mut} \\
-    \Gm \has e : \vc{\b,\l',\const} \\
-    \l' \join \pc \tleq \l \\
-    \Gm \haspc{\pc} s }
-  { \Gm \haspc{\pc} x := e ; s }
-
-  \infer[VarAssignFlowS]
-  { \mu (x) = \vc{\ref{\b},\float{\l},\mut} \\
-    \Gm \has e : \vc{\b,\l',\const} \\
-    \Gm [ x \aug \vc{\ref{\b},\float{\l'}\,\mut} ] \haspc\pc s }
-  { \Gm \haspc\pc x := e ; s }
+  { \G (x) = \ref{\b}_\l^\mut \\
+    \G \has e : \b_\l \\
+    \rp \join \pc \tleq \l \\\\
+    \G \hasrpc* s : \rp' }
+  { \G \hasrpc* x := e ; s : \rp' }
 
   \infer[ArrAssign]
-  { \mu (x) = \vc{\arr{\b,n},\l,\mut} \\
-    \Gm \has e_1 : \vc{\uint*,\public,\const} \\
-    \SMT(e_1 < n) \\
-    \Gm \has e_2 : \vc{\b,\l',\const} \\
-    \l' \join \pc \tleq \l \\
-    \Gm \haspc{\pc} s }
-  { \Gm \haspc{\pc} x[e_1] := e_2 ; s }
-
-  \infer[ArrAssignDyn]
-  { \mu (x) = \vc{\arr{\b,x_n},\l,\mut} \\
-    \Gm \has e_1 : \vc{\uint*,\public,\const} \\
-    \SMT(e_1 < x_n) \\
-    \Gm \has e_2 : \vc{\b,\l',\const} \\
-    \l' \join \pc \tleq \l \\
-    \Gm \haspc{\pc} s }
-  { \Gm \haspc{\pc} x[e_1] := e_2 ; s }
+  { \G (x) = \arr{\b,\u{e_a}}_\l^\mut \\
+    \G \has e_1 : I_\public \\
+    \SMT(0 \leq e_1 < e_a) \\
+    \G \has e_2 : \b_\l \\
+    \rp \join \pc \tleq \l \\\\
+    \G \hasrpc* s : \rp' }
+  { \Gm \hasrpc* x[e_1] := e_2 ; s : \rp' }
 
   \infer[If]
-  { \Gm \has e : \vc{\bool,\l,\k} \\
-    \pc' = \l \join \pc \\
-    \Gm \haspc{\pc'} s_1 \\
-    \Gm \haspc{\pc'} s_2 \\
-    \m^* = extract\m[\l](s_1,s_2) \\
-    \pc^* = extract\pc[\pc'](s_1,s_2) \\
-    \Gm^* \haspc{\pc^*} s }
-  { \Gm \haspc\pc \kif e\ \{ s_1 \} \kelse \{ s_2 \} ; s }
+  { \G \has e : \bool_\l \\
+    \pc' = \l \join \pc \\\\
+    \G \hasrpc\rp{\pc'} s_1 : \rp_1 \\
+    \G \hasrpc\rp{\pc'} s_2 : \rp_2 \\
+    \rp^* = \rp_1 \join \rp_2 \\
+    \G \hasrpc{\rp^*}{\pc} s : \rp' }
+  { \G \hasrpc* \kif e \kthen s_1 \kelse s_2 ; s : \rp' }
 
   \infer[For]
-  { \Gm \has e_1 : \vc{\b,\public,\const} \\
-    \Gm \has e_2 : \vc{\b,\public,\const} \\
-    \b = \uint* \tor \b = \int* \\
-    \text{typecheck $s_1$ somehow???} }
-  { \Gm \haspc\pc \kfor \vc{\b} x \kfrom e_1 \kto e_2\ \{ s_1 \} ; s }
+  { \G \has e_1 : I_\public \\
+    \G \has e_2 : I_\public \\
+    \G [ x \aug I_\public ] \hasrpc* s_1 : \rp' }
+  { \Gm \haspc\pc \kfor x \at I \kfrom e_1 \kto e_2 \kdo s_1 ; s : \rp' }
 
   \infer[Ret]
   { \F (f) = fdec : \vc{\b,\l} \\
@@ -429,7 +492,15 @@
     \l' \join \pc \tleq \l }
   { \Gm \haspc\pc \kret e }
 
+  \infer
+  { \G(\mathit{rval}) = \b_\l \\
+    \G \has e : \b_\l \\
+    \rp \join \pc \tleq \l }
+  { \G \hasrpc* \kret e : \rp \join \pc }
+
 \end{mathpar}
+
+\renewcommand\a\mu
 
 \subsubsection*{Interesting Semantics \hfill \minibox[c,frame]{$\S,\a,s \sstep \S',\a',s'$ \\ $\S,\a,e \estep \S',\a',e'$}}
 \begin{mathpar}
