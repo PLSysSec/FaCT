@@ -141,6 +141,7 @@ and transform_stm' rty venv mem ctx stm =
       | Tast.TValArg e -> Cast.ValArg (transform_expr e)
       | Tast.TRefArg(n,vt) -> Cast.RefArg(n,transform_vt vt)
       | Tast.TArrArg(n,vt,sz) -> Cast.ArrArg(n,transform_vt vt,sz)
+      | Tast.TDArrArg(n,vt,n') -> Cast.DArrArg(n, transform_vt vt,n')
     in
       transform_arg' data
 

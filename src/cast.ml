@@ -87,6 +87,7 @@ and arg =
   | ValArg of expr
   | RefArg of string * var_type
   | ArrArg of string * var_type * int
+  | DArrArg of string * var_type * string
 [@@deriving show]
 
 and arrinit =

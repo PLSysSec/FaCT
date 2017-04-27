@@ -109,6 +109,7 @@ let rec fill_arg venv { pos=p; data=targ } =
     | TValArg texpr -> fill_public venv texpr
     | TRefArg(name,_)
     | TArrArg(name,_,_) -> update_public venv p name
+    | TDArrArg(name,_,_) -> update_public venv p name
 
 and fill_public venv { pos=p; data=te } =
   match te.e with
@@ -135,6 +136,7 @@ let lbl_can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
       | TValArg te -> { ty=te.data.e_ty; label=te.data.e_lbl; kind=Val }
       | TRefArg(name,vt) -> ltk vt Ref
       | TArrArg(name,vt,sz) -> ltk vt (Arr sz)
+      | TDArrArg(name,vt,sz) -> ltk vt (DArr sz)
   in
   match lhs, rhs with
     | { label=Public }, { label=Secret } -> raise @@ errPassError p
@@ -166,7 +168,11 @@ let can_pass venv lhs ({ pos=p; data=targ } as ptarg) =
       | TArrArg(name,vt,sz) ->
         let rhs = ltk vt (Arr sz) in
           kind_can_pass p lhs.kind rhs.kind;
-          ty_can_pass p lhs rhs);
+          ty_can_pass p lhs rhs
+      | TDArrArg(name,vt,sz) ->
+        let rhs = ltk vt (DArr sz) in
+        kind_can_pass p lhs.kind rhs.kind;
+        ty_can_pass p lhs rhs);
   lbl_can_pass venv lhs ptarg
 
 let tc_module (CModule fdecs) =
@@ -191,6 +197,7 @@ let tc_module (CModule fdecs) =
         let lt = get_var venv name in
           (match lt.kind with
             | Arr sz -> TArrArg(name, vtk lt, sz)
+            | DArr n -> TDArrArg(name, vtk lt, n)
             | _ -> raise (UnclassifiedError("not a passable array")))
     in make_ast p @@ tc_arg' arg
 
@@ -336,6 +343,7 @@ let tc_module (CModule fdecs) =
           | TValArg e -> TValArg(tc_texpr e)
           | TRefArg(n,vt) -> TRefArg(n,vtk @@ get_var venv n)
           | TArrArg(n,vt,sz) -> TArrArg(n,vtk @@ get_var venv n,sz)
+          | TDArrArg(n,vt,sz) -> TDArrArg(n,vtk @@ get_var venv n,sz)
         in make_ast p @@ tc_targ' arg
       and tc_tstms stms =
         List.map

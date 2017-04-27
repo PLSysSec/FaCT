@@ -42,6 +42,7 @@ and targ' =
   | TValArg of texpr
   | TRefArg of string * var_type
   | TArrArg of string * var_type * int
+  | TDArrArg of string * var_type * string
 [@@deriving show]
 and targ = targ' pos_ast [@@deriving show]
 

@@ -199,6 +199,7 @@ let codegen ctx m =
             | Ref -> build_load (get_var mem n) n b
             | _ -> raise (UnclassifiedError("passing array as a ref")))
       | ArrArg(n,_,_) -> get_var mem n
+      | DArrArg(n,_,_) -> get_var mem n
 
     and codegen_ext venv mem ty e =
       extend_to (is_signed e.e_ty) ty @@ codegen_expr venv mem e
