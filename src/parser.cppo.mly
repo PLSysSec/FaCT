@@ -88,8 +88,14 @@ main:
 %inline plist(X):
   | LPAREN xs=separated_list(COMMA, X) RPAREN { xs }
 
+%inline block(X):
+  | LBRACE xs=list(statement) RBRACE { xs }
+
 base_type:
   | TYPE { mkpos (to_type $1) }
+
+array_type:
+  | b=base_type l=brack(lexpr) { mkpos (ArrayAT(b, l)) }
 
 label:
   | PUBLIC { mkpos Public }
@@ -127,6 +133,10 @@ arg:
   | a=array_expr { mkpos (ByArray a) }
   | REF x=IDENT { mkpos (ByRef x) }
 
+lexpr:
+  | INT { mkpos (LIntLiteral $1) }
+  (* ... *)
+
 expr:
   | e=paren(expr) { mkpos e.data }
   | BOOL { mkpos (if $1 then True else False) }
@@ -140,10 +150,6 @@ expr:
   | e1=expr QUESTION e2=expr COLON e3=expr { mkpos (TernOp(e1, e2, e3)) }
   | fn=IDENT args=plist(arg) { mkpos (FnCall(fn, args)) }
   | DECLASSIFY e=paren(expr) { mkpos (Declassify e) }
-
-lexpr:
-  | INT { mkpos (LIntLiteral $1) }
-  (* ... *)
 
 array_expr:
   | ARRZEROS l=lexpr { mkpos (ArrayZeros l) }
@@ -159,9 +165,37 @@ base_variable_type:
   | l=label m=mutability b=base_type
     { mkpos (RefVT({b with data=Ref b}, l, m)) }
 
+array_variable_type:
+  | a=array_type
+    { mkpos (ArrayVT(a, mkpos Unknown, mkpos Const)) }
+  | l=label a=array_type
+    { mkpos (ArrayVT(a, l, mkpos Const)) }
+  | m=mutability a=array_type
+    { mkpos (ArrayVT(a, mkpos Unknown, m)) }
+  | l=label m=mutability a=array_type
+    { mkpos (ArrayVT(a, l, m)) }
+
+%inline if_clause:
+  | IF c=paren(expr) thens=block(statement) elses=loption(ELSE elses=else_clause { elses })
+    { mkpos (If(c, thens, elses)) }
+
+else_clause:
+  | iff=if_clause
+    { [iff] }
+  | elses=block(statement)
+    { elses }
+
 statement:
-  (* ... *)
-  | x=IDENT ASSIGN e=expr SEMICOLON { mkpos (BaseAssign(x, e)) }
+  | b=base_variable_type x=IDENT ASSIGN e=expr SEMICOLON
+    { mkpos (BaseDec(x, b, e)) }
+  | a=array_variable_type x=IDENT ASSIGN e=array_expr SEMICOLON
+    { mkpos (ArrayDec(x, a, e)) }
+  | x=IDENT ASSIGN e=expr SEMICOLON
+    { mkpos (BaseAssign(x, e)) }
+  | a=IDENT i=brack(expr) ASSIGN e=expr SEMICOLON
+    { mkpos (ArrayAssign(a, i, e)) }
+  | iff=if_clause (* takes care of else ifs and elses too! *)
+    { iff }
   (* ... *)
 
 (*function_decs:
@@ -242,20 +276,6 @@ statement:
   | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE LBRACE statements RBRACE
     { make_pos $symbolstartpos (If($3, $6, $10)) }
   | IF LPAREN expr RPAREN LBRACE statements RBRACE ELSE IF LBRACE statements RBRACE
-
-array_variable_type:
-  | array_type
-    { let makep = make_pos $symbolstartpos in
-      makep (ArrayVT($1, makep Unknown, makep Const)) }
-  | label array_type
-    { let makep = make_pos $symbolstartpos in
-      makep (ArrayVT($2, $1, makep Const)) }
-  | mutability array_type
-    { let makep = make_pos $symbolstartpos in
-      makep (ArrayVT($2, makep Unknown, $1)) }
-  | label mutability array_type
-    { let makep = make_pos $symbolstartpos in
-      makep (ArrayVT($3, $1, $2)) }
 
 *)(* ----
 
