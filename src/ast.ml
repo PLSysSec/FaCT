@@ -64,7 +64,7 @@ and expr' =
   | UnOp of unop * expr
   | BinOp of binop * expr * expr
   | TernOp of expr * expr * expr
-  | FnCall of fun_name * arg_expr
+  | FnCall of fun_name * arg_exprs
   | Declassify of expr
 [@@deriving show, eq]
 and expr = expr' pos_ast [@@deriving show]

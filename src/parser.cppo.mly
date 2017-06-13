@@ -30,6 +30,7 @@ let to_type = function
 %token ASSIGN
 %token PLUSEQ MINUSEQ TIMESEQ
 %token BITOREQ BITXOREQ BITANDEQ LEFTSHIFTEQ RIGHTSHIFTEQ
+%token QUESTION COLON
 %token LPAREN RPAREN
 
 %token IF ELSE
@@ -43,7 +44,9 @@ let to_type = function
 %token CONST MUT
 %token REF
 %token RETURN
+%token DECLASSIFY
 %token UNSAFE_NOINIT
+%token ARRZEROS ARRCOPY ARRVIEW
 %token SEMICOLON
 %token COMMA
 %token LEN
@@ -71,16 +74,19 @@ let to_type = function
 #define mkpos make_pos $symbolstartpos $endpos
 #define mkposof(x) make_pos $startpos(x) $endpos(x)
 
-%start <Ast.expr list> main
+%start <Ast.statement list> main
 %%
 main:
-  | list(expr) EOF { $1 }
+  | list(statement) EOF { $1 }
 
 %inline paren(X):
   | LPAREN x=X RPAREN { x }
 
 %inline brack(X):
   | LBRACK x=X RBRACK { x }
+
+%inline plist(X):
+  | LPAREN xs=separated_list(COMMA, X) RPAREN { xs }
 
 base_type:
   | TYPE { mkpos (to_type $1) }
@@ -93,10 +99,36 @@ mutability:
   | CONST { mkpos Const }
   | MUT { mkpos Mut }
 
-%inline unop:
-  | MINUS { Neg }
+unop:
+  | MINUS %prec UMINUS { Neg }
+  | LOGNOT { LogicalNot }
+  | BITNOT { BitwiseNot }
+
+%inline binop:
+  | PLUS { Plus }
+  | MINUS { Minus }
+  | TIMES { Multiply }
+  | EQUAL { Equal }
+  | NEQUAL { NEqual }
+  | GREATERTHAN { GT }
+  | GREATERTHANEQ { GTE }
+  | LESSTHAN { LT }
+  | LESSTHANEQ { LTE }
+  | LOGAND { LogicalAnd }
+  | LOGOR { LogicalOr }
+  | BITOR { BitwiseOr }
+  | BITXOR { BitwiseXor }
+  | BITAND { BitwiseAnd }
+  | LEFTSHIFT { LeftShift }
+  | RIGHTSHIFT { RightShift }
+
+arg:
+  | e=expr { mkpos (ByValue e) }
+  | a=array_expr { mkpos (ByArray a) }
+  | REF x=IDENT { mkpos (ByRef x) }
 
 expr:
+  | e=paren(expr) { mkpos e.data }
   | BOOL { mkpos (if $1 then True else False) }
   | INT { mkpos (IntLiteral $1) }
   | IDENT { mkpos (Variable $1) }
@@ -104,6 +136,18 @@ expr:
   | LEN a=IDENT { mkpos (ArrayLen a) }
   | b=paren(base_type) e=expr { mkpos (IntCast(b, e)) }
   | op=unop e=expr { mkpos (UnOp(op, e)) }
+  | e1=expr op=binop e2=expr { mkpos (BinOp(op, e1, e2)) }
+  | e1=expr QUESTION e2=expr COLON e3=expr { mkpos (TernOp(e1, e2, e3)) }
+  | fn=IDENT args=plist(arg) { mkpos (FnCall(fn, args)) }
+  | DECLASSIFY e=paren(expr) { mkpos (Declassify e) }
+
+lexpr:
+  | INT { mkpos (LIntLiteral $1) }
+  (* ... *)
+
+array_expr:
+  | ARRZEROS l=lexpr { mkpos (ArrayZeros l) }
+  (* ... *)
 
 base_variable_type:
   | b=base_type
@@ -114,6 +158,11 @@ base_variable_type:
     { mkpos (RefVT({b with data=Ref b}, mkpos Unknown, m)) }
   | l=label m=mutability b=base_type
     { mkpos (RefVT({b with data=Ref b}, l, m)) }
+
+statement:
+  (* ... *)
+  | x=IDENT ASSIGN e=expr SEMICOLON { mkpos (BaseAssign(x, e)) }
+  (* ... *)
 
 (*function_decs:
   | function_dec function_decs

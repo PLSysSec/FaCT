@@ -46,7 +46,11 @@ let keywords = [
   ("mut",MUT);
   ("ref",REF);
   ("len",LEN);
+  ("declassify",DECLASSIFY);
   ("unsafe_noinit",UNSAFE_NOINIT);
+  ("arrzeros",ARRZEROS);
+  ("arrcopy",ARRCOPY);
+  ("arrview",ARRVIEW);
 ]
 let _ = List.map add_keyword keywords
 }
@@ -94,6 +98,7 @@ rule token = parse
   | '&'            { BITAND }
   | '^'            { BITXOR }
   | '|'            { BITOR }
+  | '~'            { BITNOT }
   | "&="           { BITANDEQ }
   | "^="           { BITXOREQ }
   | "|="           { BITOREQ }
@@ -101,7 +106,8 @@ rule token = parse
   | ">>"           { RIGHTSHIFT }
   | "<<="          { LEFTSHIFTEQ }
   | ">>="          { RIGHTSHIFTEQ }
-  | '~'            { BITNOT }
+  | "?"            { QUESTION }
+  | ":"            { COLON }
   | '('            { LPAREN }
   | ')'            { RPAREN }
   | '{'            { LBRACE }
