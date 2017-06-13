@@ -13,13 +13,14 @@ and mutability = mutability' pos_ast [@@deriving show]
 and label' =
   | Public
   | Secret
+  | Unknown
 [@@deriving show, eq]
 and label = label' pos_ast [@@deriving show]
 
 and base_type' =
-  | Uint of size
+  | UInt of size
   | Int of size
-  | Bool of bool
+  | Bool
 [@@deriving show, eq]
 and base_type = base_type' pos_ast [@@deriving show]
 
@@ -130,15 +131,17 @@ and statement' =
 and statement = statement' pos_ast [@@deriving show]
 
 and arg' =
-  | Arg of variable_type
+  | Arg of var_name * variable_type
 [@@deriving show, eq]
 and arg = arg' pos_ast [@@deriving show]
 
 and args = arg list [@@deriving show, eq]
 and body = statements [@@deriving show, eq]
 
+and ret_type = expr_type option [@@deriving show, eq]
+
 and function_dec' =
-  | FunDec of fun_name * expr_type * args * body
+  | FunDec of fun_name * ret_type * args * body
 [@@deriving show, eq]
 and function_dec = function_dec' pos_ast [@@deriving show]
 
@@ -148,9 +151,3 @@ and function_decs = function_dec list
 and fact_module =
   | Module of function_decs
 [@@deriving show, eq]
-
-(*
-  Auxiliary Functions
-*)
-
-val is_int : base_type -> bool

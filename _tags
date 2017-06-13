@@ -3,7 +3,7 @@ true: use_menhir, bin_annot, debug
 <*.{byte,native}>: g++, use_llvm, use_llvm_analysis, use_llvm_bitwriter, use_llvm_target, use_llvm_X86, use_llvm_bitreader
 
 # OASIS_START
-# DO NOT EDIT (digest: 9814da8e5bec6dd87f1e323985c9b572)
+# DO NOT EDIT (digest: 766f3cdab17ef75cb0ed28b2902354b0)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -18,14 +18,14 @@ true: annot, bin_annot
 ".git": not_hygienic
 "_darcs": -traverse
 "_darcs": not_hygienic
-# Executable constanc
-"src/constanc.byte": pkg_core
-"src/constanc.byte": pkg_dolog
-"src/constanc.byte": pkg_llvm
-"src/constanc.byte": pkg_oUnit
-"src/constanc.byte": pkg_ppx_deriving.eq
-"src/constanc.byte": pkg_ppx_deriving.std
-"src/constanc.byte": pkg_threads
+# Executable fact
+"src/fact.byte": pkg_core
+"src/fact.byte": pkg_dolog
+"src/fact.byte": pkg_llvm
+"src/fact.byte": pkg_oUnit
+"src/fact.byte": pkg_ppx_deriving.eq
+"src/fact.byte": pkg_ppx_deriving.std
+"src/fact.byte": pkg_threads
 <src/*.ml{,i,y}>: pkg_core
 <src/*.ml{,i,y}>: pkg_dolog
 <src/*.ml{,i,y}>: pkg_llvm

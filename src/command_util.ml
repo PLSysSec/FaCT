@@ -1,11 +1,13 @@
 open Pos
+open Ast
+open Lexing
+(*
 open Cast
 open Codegen
-open Ast
 open Env
 open Typecheck
 open Transform
-open Lexing
+*)
 
 exception Exception of string
 exception SyntaxError of string
@@ -20,22 +22,24 @@ let run_command c args =
   | -1 -> Printf.printf "%s" "error accured on fork\n"
   | _ -> ignore (Unix.wait ())
 
+let generate_out_file out_dir out_file = out_dir ^ "/" ^ out_file
+
 let output_ast ast_out out_file ast =
   match ast_out with
     | false -> Log.debug "Not outputting AST"
     | true ->
       let ast_out_file = out_file ^ ".ast.ml" in
       Log.debug "Outputting AST to %s" ast_out_file;
-      Core.Std.Out_channel.write_all ast_out_file
-        ~data:(show_constantc_module ast)
+      let xs = List.map show_expr ast in
+        Core.Out_channel.write_lines ast_out_file xs
 
-let output_tast ast_out out_file tast =
+(*let output_tast ast_out out_file tast =
   match ast_out with
     | false -> Log.debug "Not outputting TAST"
     | true ->
       let tast_out_file = out_file ^ ".tast.ml" in
         Log.debug "Outputting TAST to %s" tast_out_file;
-        Core.Std.Out_channel.write_all tast_out_file
+        Core.Out_channel.write_all tast_out_file
           ~data:(Tast.show_tconstantc_module tast)
 
 let output_core_ir core_ir_out out_file core_ir =
@@ -44,12 +48,10 @@ let output_core_ir core_ir_out out_file core_ir =
     | true ->
       let core_ir_out_file = out_file ^ ".core.ml" in
       Log.debug "Outputting core IR to %s" core_ir_out_file;
-      Core.Std.Out_channel.write_all core_ir_out_file
-        ~data:(show_cmodule core_ir)
+      Core.Out_channel.write_all core_ir_out_file
+        ~data:(show_cmodule core_ir)*)
 
-let generate_out_file out_dir out_file = out_dir ^ "/" ^ out_file
-
-let output_llvm llvm_out out_file llvm_mod =
+(*let output_llvm llvm_out out_file llvm_mod =
   match llvm_out with
     | false -> Log.debug "Not outputting LLVM IR"
     | true ->
@@ -74,22 +76,22 @@ let output_object out_file =
   let out_file_s = out_file ^ ".s" in
   let out_file_o = out_file ^ ".o" in
   Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang" [|"clang"; "-c"; out_file_s|]
+  run_command "clang" [|"clang"; "-c"; out_file_s|]*)
 
-let compile (in_file,out_file,out_dir) llvm_out ast_out core_ir_out =
+let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
   let out_file' = generate_out_file out_dir out_file in
   Log.debug "Compiling %s" in_file; 
-  ignore(Llvm_X86.initialize());
+  (*ignore(Llvm_X86.initialize());*)
   Lexer.file := Some in_file;
   let lexbuf = (try Lexing.from_channel (open_in in_file) with
     | _ -> raise (Exception "Lexing failed")) in
   ignore(lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = in_file });
   Log.debug "Lexing complete";
-  let ast = (try CModule (Parser.main Lexer.token lexbuf) with
-      | _ -> let message = pos_string(to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p) in
-        raise (SyntaxError ("Syntax error @ " ^ message))) in
+  let ast = try (Parser.main Lexer.token lexbuf) with
+    | _ -> let message = pos_string(to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p lexbuf.lex_curr_p) in
+        raise (SyntaxError ("Syntax error @ " ^ message)) in
   Log.debug "Parsing complete";
-  output_ast ast_out out_file' ast;
+  output_ast ast_out out_file' ast(*;
   let tast = tc_module ast in
   output_tast ast_out out_file' tast;
   Log.debug "Typecheck complete";
@@ -109,7 +111,7 @@ let compile (in_file,out_file,out_dir) llvm_out ast_out core_ir_out =
   output_llvm llvm_out out_file' llvm_mod;
   output_bitcode out_file' llvm_mod;
   output_shared out_file';
-  output_object out_file'
+  output_object out_file'*)
 
 let run = (fun () -> run_command "lli" [|"lli"; "out.ll"|])
 let link = (fun () -> run_command "llvm-as" [|"llvm-as"; "out.ll"|])

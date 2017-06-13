@@ -34,6 +34,7 @@ let keywords_table = Hashtbl.create 10
 let add_keyword (k,v) = Hashtbl.add keywords_table k v
 
 let keywords = [
+  ("void",VOID);
   ("if",IF);
   ("else",ELSE);
   ("for",FOR);
@@ -41,8 +42,10 @@ let keywords = [
   ("return",RETURN);
   ("public",PUBLIC);
   ("secret",SECRET);
+  ("const",CONST);
+  ("mut",MUT);
   ("ref",REF);
-  ("out",OUT);
+  ("len",LEN);
   ("unsafe_noinit",UNSAFE_NOINIT);
 ]
 let _ = List.map add_keyword keywords
