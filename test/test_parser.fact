@@ -1,3 +1,4 @@
+public bool fn(secret uint8 x) {
   _ = true;
   _ = false;
   _ = 24;
@@ -77,3 +78,28 @@
   } else {
     _ = 4;
   }
+  for (uint32 i = 0 to x + y) {
+    if (i == 3) {
+      x = 2;
+    }
+  }
+  x += 1;
+  x -= 1;
+  x *= 1;
+  x &&= 1;
+  x ||= 1;
+  x &= 1;
+  x |= -x;
+  x ^= ~x + 3;
+  x >>= 1;
+  x <<= 1;
+  return x^2 + y^2 - z^3; // `+` has higher precendence than `^` haha
+}
+
+void fn2() { }
+void fn3(public mut uint8 x, secret mut uint8 y, public const uint8 x, secret uint8 y) { return 7; }
+secret int8 fn6(public uint8[4] xs, secret mut uint8[4] ys) { }
+
+void additional() {
+  fn2(x, y, ref z, t);
+}

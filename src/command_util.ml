@@ -30,8 +30,7 @@ let output_ast ast_out out_file ast =
     | true ->
       let ast_out_file = out_file ^ ".ast.ml" in
       Log.debug "Outputting AST to %s" ast_out_file;
-      let xs = List.map show_statement ast in
-        Core.Out_channel.write_lines ast_out_file xs
+      Core.Out_channel.write_all ast_out_file ((show_fact_module ast)^"\n")
 
 (*let output_tast ast_out out_file tast =
   match ast_out with

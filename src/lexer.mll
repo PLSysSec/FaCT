@@ -47,7 +47,6 @@ let keywords = [
   ("ref",REF);
   ("len",LEN);
   ("declassify",DECLASSIFY);
-  ("unsafe_noinit",UNSAFE_NOINIT);
   ("arrzeros",ARRZEROS);
   ("arrcopy",ARRCOPY);
   ("arrview",ARRVIEW);
@@ -95,6 +94,8 @@ rule token = parse
   | "!"            { LOGNOT }
   | "&&"           { LOGAND }
   | "||"           { LOGOR }
+  | "&&="          { LOGANDEQ }
+  | "||="          { LOGOREQ }
   | '&'            { BITAND }
   | '^'            { BITXOR }
   | '|'            { BITOR }

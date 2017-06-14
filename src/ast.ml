@@ -125,23 +125,24 @@ and statement' =
   | BaseAssign of var_name * expr
   | ArrayAssign of var_name * array_index * expr
   | If of cond * thenstms * elsestms
-  | For of var_name * low_expr * high_expr * statements
+  | For of var_name * base_type * low_expr * high_expr * statements
+  | VoidFnCall of fun_name * arg_exprs
   | Return of expr
 [@@deriving show, eq]
 and statement = statement' pos_ast [@@deriving show]
 
-and arg' =
-  | Arg of var_name * variable_type
+and param' =
+  | Param of var_name * variable_type
 [@@deriving show, eq]
-and arg = arg' pos_ast [@@deriving show]
+and param = param' pos_ast [@@deriving show]
 
-and args = arg list [@@deriving show, eq]
+and params = param list [@@deriving show, eq]
 and body = statements [@@deriving show, eq]
 
 and ret_type = expr_type option [@@deriving show, eq]
 
 and function_dec' =
-  | FunDec of fun_name * ret_type * args * body
+  | FunDec of fun_name * ret_type * params * body
 [@@deriving show, eq]
 and function_dec = function_dec' pos_ast [@@deriving show]
 
