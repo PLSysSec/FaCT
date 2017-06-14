@@ -45,12 +45,13 @@ let to_type = function
 %token ARRZEROS ARRCOPY ARRVIEW
 %token SEMICOLON
 %token COMMA
-%token LEN
+%token LEN RIGHTARROW
 
 %token EOF
 
 (* precedence based on C operator precedence
  * http://en.cppreference.com/w/c/language/operator_precedence *)
+%left QUESTION
 %left LOGOR
 %left LOGAND
 %left BITOR
@@ -66,6 +67,7 @@ let to_type = function
 (* Preprocessor shenanigans *)
 #define mkpos make_pos $symbolstartpos $endpos
 #define mkposof(x) make_pos $startpos(x) $endpos(x)
+#define mkposrange(x,y) make_pos $startpos(x) $endpos(y)
 
 %start <Ast.fact_module> main
 %%
@@ -85,7 +87,7 @@ main:
   | LBRACE xs=list(X) RBRACE { xs }
 
 base_type:
-  | TYPE { mkpos (to_type $1) }
+  | t=TYPE { mkpos (to_type t) }
 
 array_type:
   | b=base_type l=brack(lexpr) { mkpos (ArrayAT(b, l)) }
@@ -135,18 +137,20 @@ unop:
 
 arg:
   | e=expr { mkpos (ByValue e) }
-  | a=array_expr { mkpos (ByArray a) }
   | REF x=IDENT { mkpos (ByRef x) }
+  (* ByArray will look like ByValue at parse time,
+   * but will get properly converted to ByArray during typecheck *)
 
 lexpr:
-  | INT { mkpos (LIntLiteral $1) }
-  (* ... *)
+  | n=INT { mkpos (LIntLiteral n) }
+  | x=IDENT { mkpos (LVariable x) }
+  | LEN a=IDENT { mkpos (LLength a) }
 
 expr:
   | e=paren(expr) { mkpos e.data }
-  | BOOL { mkpos (if $1 then True else False) }
-  | INT { mkpos (IntLiteral $1) }
-  | IDENT { mkpos (Variable $1) }
+  | b=BOOL { mkpos (if b then True else False) }
+  | n=INT { mkpos (IntLiteral n) }
+  | x=IDENT { mkpos (Variable x) }
   | a=IDENT e=brack(expr) { mkpos (ArrayGet(a, e)) }
   | LEN a=IDENT { mkpos (ArrayLen a) }
   | b=paren(base_type) e=expr { mkpos (IntCast(b, e)) }
@@ -157,8 +161,9 @@ expr:
   | DECLASSIFY e=paren(expr) { mkpos (Declassify e) }
 
 array_expr:
-  | ARRZEROS l=lexpr { mkpos (ArrayZeros l) }
-  (* ... *)
+  | ARRZEROS l=paren(lexpr) { mkpos (ArrayZeros l) }
+  | ARRCOPY a=paren(IDENT) { mkpos (ArrayCopy a) }
+  | ARRVIEW LPAREN a=IDENT COMMA i=expr COMMA l=lexpr RPAREN { mkpos (ArrayView(a, i, l)) }
 
 base_variable_type:
   | b=base_type
@@ -193,8 +198,11 @@ else_clause:
 statement:
   | b=base_variable_type x=IDENT ASSIGN e=expr SEMICOLON
     { mkpos (BaseDec(x, b, e)) }
-  | a=array_variable_type x=IDENT ASSIGN e=array_expr SEMICOLON
-    { mkpos (ArrayDec(x, a, e)) }
+  | a=array_variable_type x=IDENT ASSIGN ae=array_expr SEMICOLON
+    { mkpos (ArrayDec(x, a, ae)) }
+  | a=array_variable_type x=IDENT ASSIGN n=IDENT RIGHTARROW e=expr SEMICOLON
+    { let { data=ArrayVT({ data=ArrayAT(b, l) }, _, _) } = a in
+      mkpos (ArrayDec(x, a, mkposrange(n,e) (ArrayComp(b, l, n, e)))) }
   | x=IDENT ASSIGN e=expr SEMICOLON
     { mkpos (BaseAssign(x, e)) }
   | x=IDENT op=binopeq e=expr SEMICOLON

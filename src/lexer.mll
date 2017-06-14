@@ -118,6 +118,7 @@ rule token = parse
   | "="            { ASSIGN }
   | ';'            { SEMICOLON }
   | ','            { COMMA }
+  | "=>"           { RIGHTARROW }
   | "/*"           { depth := !depth + 1; commented lexbuf }
   | "//"           { ignore_line lexbuf }
   | eof            { EOF }

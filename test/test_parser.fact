@@ -27,19 +27,19 @@ public bool fn(secret uint8 x) {
   _ = 1 + -3;
   _ = a ? b : c;
   _ = a ? b : c ? d : e;
+  _ = (a ? b : c) ? d : e;
   _ = a ? b ? c : d : e;
   _ = f();
   _ = f(2);
   _ = f(x, y, z);
   _ = f(x, ref y, z);
-  _ = f(arrzeros 3, ref y);
   _ = declassify(xy);
   int16 x = 5;
   secret uint32 y = 22 + 3;
   mut int8 t = 9;
   public mut uint16 z = x;
   secret const int32 wat = no;
-  uint8[4] x = arrzeros 5;
+  uint8[4] x = arrzeros(5);
   x[5] = 2 + 3;
   if (x) {
     _ = 3;
@@ -102,4 +102,12 @@ secret int8 fn6(public uint8[4] xs, secret mut uint8[4] ys) { }
 
 void additional() {
   fn2(x, y, ref z, t);
+}
+
+void arrays() {
+  uint8[4] zero = arrzeros(72);
+  uint8[4] copy = arrcopy(zero);
+  uint8[4] view = arrview(copy, 2, len zero);
+  uint8[4] comp = x => x < 2 ? x ^ 0x35
+                             : 0x00;
 }
