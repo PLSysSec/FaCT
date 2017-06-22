@@ -1,4 +1,5 @@
 public int32 foo() {
   bool x = true;
-  int32 x = 22;
+  public int32 x = 22;
+  secret uint32 x = 23;
 }

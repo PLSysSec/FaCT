@@ -16,7 +16,12 @@ and label' =
   | Public
   | Secret
 [@@deriving show]
-and label = label' ref pos_ast [@@deriving show]
+and label = label' pos_ast [@@deriving show]
+
+and maybe_label' =
+  | Fixed of label'
+  | Guess of label' ref
+and maybe_label = maybe_label' pos_ast [@@deriving show]
 
 and base_type' =
   | UInt of size
@@ -50,8 +55,8 @@ and expr_type' =
 and expr_type = expr_type' pos_ast [@@deriving show]
 
 and variable_type' =
-  | RefVT of ref_type * label * mutability
-  | ArrayVT of array_type * label * mutability
+  | RefVT of ref_type * maybe_label * mutability
+  | ArrayVT of array_type * maybe_label * mutability
 [@@deriving show]
 and variable_type = variable_type' pos_ast [@@deriving show]
 

@@ -21,6 +21,11 @@ let mconv = pfunction
   | Ast.Const -> Tast.Const
   | Ast.Mut -> Tast.Mut
 
+let mlconv = pfunction
+  | Ast.Public -> Tast.(Fixed Public)
+  | Ast.Secret -> Tast.(Fixed Secret)
+  | Ast.Unknown -> Tast.(Guess (ref Public))
+
 
 (* Subtyping *)
 
@@ -34,17 +39,19 @@ let (<:) { data=b1 } { data=b2 } =
     | _ -> false
 
 
+(* Actual typechecking *)
+
 let basetype = pfunction
-  | Ast.RefVT(b, { data=Ast.Unknown; pos=p }, m) ->
-    Tast.RefVT(bconv b, mkpos ref Tast.Public, mconv m)
+  | Ast.RefVT(b, l, m) ->
+    Tast.RefVT(bconv b, mlconv l, mconv m)
 
 let tc_expr = pfunction
   | Ast.True ->
-    (Tast.True, Tast.BaseET(mkpos Tast.Bool, mkpos ref Tast.Public))
+    (Tast.True, Tast.(BaseET(mkpos Bool, mkpos Public)))
   | Ast.False ->
-    (Tast.False, Tast.BaseET(mkpos Tast.Bool, mkpos ref Tast.Public))
+    (Tast.False, Tast.(BaseET(mkpos Bool, mkpos Public)))
   | Ast.IntLiteral n ->
-    (Tast.IntLiteral n, Tast.BaseET(mkpos Tast.Num n, mkpos ref Tast.Public))
+    (Tast.IntLiteral n, Tast.(BaseET(mkpos Num n, mkpos Public)))
 
 let tc_stm = pfunction
   | Ast.BaseDec(x,b,e) ->
