@@ -897,7 +897,8 @@ let () =
                 Cmd (S[A "cppo"; A "-n"; A "-o"; A "src/parser.mly"; A"src/parser.cppo.mly"]))
          | _ -> ()
        );
-      dispatch_default hook;
+       Ocamlbuild_cppo.dispatcher hook;
+       dispatch_default hook;
     )
 ;;
 

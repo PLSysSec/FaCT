@@ -30,13 +30,13 @@ let set_log_level debug =
     | false -> Log.set_log_level Log.ERROR
 
 let error_exit s =
-  Log.error "%s" s;
+  Printf.eprintf "Error: %s\n" s;
   exit 1
 
 let runner prep ast_out core_ir_out llvm_out =
-  compile prep ast_out core_ir_out llvm_out
-  (*try compile prep ast_out core_ir_out llvm_out with
-    | (Command_util.SyntaxError s) -> error_exit s
+  try compile prep ast_out core_ir_out llvm_out with
+    | (Err.InternalCompilerError s) -> error_exit s
+    (*| (Command_util.SyntaxError s) -> error_exit s
     | (Codegen.Error s) -> error_exit s
     | (Command_util.SyntaxError s) -> error_exit s
     | (Codegen.Error s) -> error_exit s

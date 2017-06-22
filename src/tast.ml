@@ -1,6 +1,8 @@
 open Pos
+open Err
 
 type size = int [@@deriving show]
+
 type var_name = string [@@deriving show]
 type fun_name = string [@@deriving show]
 
@@ -13,14 +15,14 @@ and mutability = mutability' pos_ast [@@deriving show]
 and label' =
   | Public
   | Secret
-  | Unknown
 [@@deriving show]
-and label = label' pos_ast [@@deriving show]
+and label = label' ref pos_ast [@@deriving show]
 
 and base_type' =
   | UInt of size
   | Int of size
   | Bool
+  | Num of int
 [@@deriving show]
 and base_type = base_type' pos_ast [@@deriving show]
 
@@ -67,7 +69,7 @@ and expr' =
   | FnCall of fun_name * arg_exprs
   | Declassify of expr
 [@@deriving show]
-and expr = expr' pos_ast [@@deriving show]
+and expr = (expr' * expr_type') pos_ast [@@deriving show]
 
 and unop =
   | Neg
@@ -142,7 +144,7 @@ and body = statements [@@deriving show]
 and ret_type = expr_type option [@@deriving show]
 
 and function_dec' =
-  | FunDec of fun_name * ret_type * params * body
+  | FunDec of fun_name * Ast.ret_type * Ast.params * body
 [@@deriving show]
 and function_dec = function_dec' pos_ast [@@deriving show]
 
@@ -153,3 +155,5 @@ and fact_module =
   | Module of function_decs
 [@@deriving show]
 
+
+let equl_base_type' a b = false

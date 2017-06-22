@@ -1,0 +1,4 @@
+public int32 foo() {
+  bool x = true;
+  int32 x = 22;
+}

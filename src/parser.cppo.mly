@@ -1,19 +1,19 @@
 %{
 open Lexing
 open Pos
+open Err
 open Ast
 
-exception ParseError of string
-
-let to_type = function
-  | "bool" -> Bool
-  | "int8" -> Int 8
-  | "int16" -> Int 16
-  | "int32" -> Int 32
-  | "uint8" -> UInt 8
-  | "uint16" -> UInt 16
-  | "uint32" -> UInt 32
-  | _ as t -> raise (ParseError("Unknown type: " ^ t))
+let to_type { data=t; pos=p } =
+  match t with
+    | "bool" -> Bool
+    | "int8" -> Int 8
+    | "int16" -> Int 16
+    | "int32" -> Int 32
+    | "uint8" -> UInt 8
+    | "uint16" -> UInt 16
+    | "uint32" -> UInt 32
+    | _ as t -> raise (errParseType p t)
 %}
 
 %token <int> INT
@@ -87,7 +87,7 @@ main:
   | LBRACE xs=list(X) RBRACE { xs }
 
 base_type:
-  | t=TYPE { mkpos (to_type t) }
+  | t=TYPE { mkpos (to_type (mkpos t)) }
 
 array_type:
   | b=base_type l=brack(lexpr) { mkpos (ArrayAT(b, l)) }

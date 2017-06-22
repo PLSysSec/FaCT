@@ -1,16 +1,13 @@
 open Pos
-open Ast
+open Err
 open Lexing
+open Typecheck
 (*
 open Cast
 open Codegen
 open Env
-open Typecheck
 open Transform
 *)
-
-exception Exception of string
-exception SyntaxError of string
 
 let run_command c args =
   let a  = Unix.fork () in
@@ -29,28 +26,29 @@ let output_ast ast_out out_file ast =
     | false -> Log.debug "Not outputting AST"
     | true ->
       let ast_out_file = out_file ^ ".ast.ml" in
-      Log.debug "Outputting AST to %s" ast_out_file;
-      Core.Out_channel.write_all ast_out_file ((show_fact_module ast)^"\n")
+        Log.debug "Outputting AST to %s" ast_out_file;
+        Core.Out_channel.write_all ast_out_file
+          ~data:((Ast.show_fact_module ast)^"\n")
 
-(*let output_tast ast_out out_file tast =
+let output_tast ast_out out_file tast =
   match ast_out with
     | false -> Log.debug "Not outputting TAST"
     | true ->
       let tast_out_file = out_file ^ ".tast.ml" in
         Log.debug "Outputting TAST to %s" tast_out_file;
         Core.Out_channel.write_all tast_out_file
-          ~data:(Tast.show_tconstantc_module tast)
+          ~data:((Tast.show_fact_module tast)^"\n")
 
-let output_core_ir core_ir_out out_file core_ir =
+(*let output_core_ir core_ir_out out_file core_ir =
   match core_ir_out with
     | false -> Log.debug "Not outputting core IR"
     | true ->
       let core_ir_out_file = out_file ^ ".core.ml" in
       Log.debug "Outputting core IR to %s" core_ir_out_file;
       Core.Out_channel.write_all core_ir_out_file
-        ~data:(show_cmodule core_ir)*)
+        ~data:(show_cmodule core_ir)
 
-(*let output_llvm llvm_out out_file llvm_mod =
+let output_llvm llvm_out out_file llvm_mod =
   match llvm_out with
     | false -> Log.debug "Not outputting LLVM IR"
     | true ->
@@ -83,17 +81,17 @@ let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
   (*ignore(Llvm_X86.initialize());*)
   Lexer.file := Some in_file;
   let lexbuf = (try Lexing.from_channel (open_in in_file) with
-    | _ -> raise (Exception "Lexing failed")) in
+    | _ -> raise (InternalCompilerError "Lexing failed")) in
   ignore(lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = in_file });
   Log.debug "Lexing complete";
   let ast = try (Parser.main Lexer.token lexbuf) with
-    | _ -> let message = pos_string(to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p lexbuf.lex_curr_p) in
-        raise (SyntaxError ("Syntax error @ " ^ message)) in
+    | _ -> let p = to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p lexbuf.lex_curr_p in
+        raise (errSyntax p) in
   Log.debug "Parsing complete";
-  output_ast ast_out out_file' ast(*;
+  output_ast ast_out out_file' ast;
   let tast = tc_module ast in
   output_tast ast_out out_file' tast;
-  Log.debug "Typecheck complete";
+  Log.debug "Typecheck complete"(*;
   let core_ir = transform tast in
   Log.debug "Core IR transform complete";
   output_core_ir core_ir_out out_file' core_ir;

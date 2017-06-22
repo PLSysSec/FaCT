@@ -1,10 +1,12 @@
 open Lexing
 
 type pos = { file:string; line:int; lpos:int; rpos:int }
-[@@deriving show, eq]
+[@@deriving show]
 
 type 'a pos_ast = { pos:pos; data:'a }
-[@@deriving show, eq]
+[@@deriving show]
+
+exception Eek
 
 let pp_pos_ast pp_data fmt { data } = pp_data fmt data
 
@@ -22,8 +24,8 @@ let make_pos startpos endpos data = { pos=(to_pos startpos endpos); data=data }
 let make_ast pos data = { pos=pos; data=data }
 
 let pos_string { file=f; line=l; lpos=lp; rpos=rp } =
-  "file " ^ f ^ ", line " ^ string_of_int(l) ^
-  ", from " ^ string_of_int(lp) ^ "-" ^ string_of_int(rp)
+  f ^ ":" ^ string_of_int(l) ^
+  ":" ^ string_of_int(lp) ^ "-" ^ string_of_int(rp)
 
 let unpack fn = fun pa -> fn pa.data
 let posmap fn = fun pa -> { pa with data=(fn pa.data) }
