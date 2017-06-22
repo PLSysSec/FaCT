@@ -6,8 +6,6 @@ type pos = { file:string; line:int; lpos:int; rpos:int }
 type 'a pos_ast = { pos:pos; data:'a }
 [@@deriving show]
 
-exception Eek
-
 let pp_pos_ast pp_data fmt { data } = pp_data fmt data
 
 let to_pos ?buf:(b=None)

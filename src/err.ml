@@ -1,3 +1,5 @@
+open Pos
+
 exception NotImplemented
 
 exception ParseError of string
@@ -34,14 +36,16 @@ let errPassError p =
 let errPassErrorS p sty1 sty2 =
   TypeError("Cannot call function with these types: "^sty1^", "^sty2 << p)
 
-let errVarNotDefined p v =
+let errRedefVar {data=v;pos=p} =
+  UnclassifiedError("Redefinition of variable `"^v^"`" << p)
+let errVarNotDefined {data=v;pos=p} =
   VariableNotDefined("Variable `" ^ v ^ "` not defined" << p)
-let errFnNotDefined p v =
+let errFnNotDefined {data=v;pos=p} =
   FunctionNotDefined("Function `" ^ v ^ "` not defined" << p)
-let errFoundNotVar p v =
+let errFoundNotVar {data=v;pos=p} =
   TypeError("Cannot use `" ^ v ^ "` as variable" << p)
-let errFoundNotArr p v =
+let errFoundNotArr {data=v;pos=p} =
   TypeError("Cannot use `" ^ v ^ "` as array" << p)
-let errFoundNotFn p v =
+let errFoundNotFn {data=v;pos=p} =
   TypeError("Cannot use `" ^ v ^ "` as function" << p)
 

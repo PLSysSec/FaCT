@@ -26,9 +26,10 @@ val errFlowError : Pos.pos -> exn
 val errPassError : Pos.pos -> exn
 val errPassErrorS : Pos.pos -> string -> string -> exn
 
-val errVarNotDefined : Pos.pos -> string -> exn
-val errFnNotDefined : Pos.pos -> string -> exn
-val errFoundNotVar : Pos.pos -> string -> exn
-val errFoundNotArr : Pos.pos -> string -> exn
-val errFoundNotFn : Pos.pos -> string -> exn
+val errRedefVar : string Pos.pos_ast -> exn
+val errVarNotDefined : string Pos.pos_ast -> exn
+val errFnNotDefined : string Pos.pos_ast -> exn
+val errFoundNotVar : string Pos.pos_ast -> exn
+val errFoundNotArr : string Pos.pos_ast -> exn
+val errFoundNotFn : string Pos.pos_ast -> exn
 

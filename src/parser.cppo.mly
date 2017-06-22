@@ -86,6 +86,9 @@ main:
 %inline blist(X):
   | LBRACE xs=list(X) RBRACE { xs }
 
+var_name:
+  | x=IDENT { mkpos x }
+
 base_type:
   | t=TYPE { mkpos (to_type (mkpos t)) }
 
@@ -137,22 +140,22 @@ unop:
 
 arg:
   | e=expr { mkpos (ByValue e) }
-  | REF x=IDENT { mkpos (ByRef x) }
+  | REF x=var_name { mkpos (ByRef x) }
   (* ByArray will look like ByValue at parse time,
    * but will get properly converted to ByArray during typecheck *)
 
 lexpr:
   | n=INT { mkpos (LIntLiteral n) }
-  | x=IDENT { mkpos (LVariable x) }
-  | LEN a=IDENT { mkpos (LLength a) }
+  | x=var_name { mkpos (LVariable x) }
+  | LEN a=var_name { mkpos (LLength a) }
 
 expr:
   | e=paren(expr) { mkpos e.data }
   | b=BOOL { mkpos (if b then True else False) }
   | n=INT { mkpos (IntLiteral n) }
-  | x=IDENT { mkpos (Variable x) }
-  | a=IDENT e=brack(expr) { mkpos (ArrayGet(a, e)) }
-  | LEN a=IDENT { mkpos (ArrayLen a) }
+  | x=var_name { mkpos (Variable x) }
+  | a=var_name e=brack(expr) { mkpos (ArrayGet(a, e)) }
+  | LEN a=var_name { mkpos (ArrayLen a) }
   | b=paren(base_type) e=expr { mkpos (IntCast(b, e)) }
   | op=unop e=expr %prec UNARYOP { mkpos (UnOp(op, e)) }
   | e1=expr op=binop e2=expr { mkpos (BinOp(op, e1, e2)) }
@@ -162,8 +165,8 @@ expr:
 
 array_expr:
   | ARRZEROS l=paren(lexpr) { mkpos (ArrayZeros l) }
-  | ARRCOPY a=paren(IDENT) { mkpos (ArrayCopy a) }
-  | ARRVIEW LPAREN a=IDENT COMMA i=expr COMMA l=lexpr RPAREN { mkpos (ArrayView(a, i, l)) }
+  | ARRCOPY a=paren(var_name) { mkpos (ArrayCopy a) }
+  | ARRVIEW LPAREN a=var_name COMMA i=expr COMMA l=lexpr RPAREN { mkpos (ArrayView(a, i, l)) }
 
 base_variable_type:
   | b=base_type
@@ -196,22 +199,22 @@ else_clause:
     { elses }
 
 statement:
-  | b=base_variable_type x=IDENT ASSIGN e=expr SEMICOLON
+  | b=base_variable_type x=var_name ASSIGN e=expr SEMICOLON
     { mkpos (BaseDec(x, b, e)) }
-  | a=array_variable_type x=IDENT ASSIGN ae=array_expr SEMICOLON
+  | a=array_variable_type x=var_name ASSIGN ae=array_expr SEMICOLON
     { mkpos (ArrayDec(x, a, ae)) }
-  | a=array_variable_type x=IDENT ASSIGN n=IDENT RIGHTARROW e=expr SEMICOLON
+  | a=array_variable_type x=var_name ASSIGN n=var_name RIGHTARROW e=expr SEMICOLON
     { let { data=ArrayVT({ data=ArrayAT(b, l) }, _, _) } = a in
       mkpos (ArrayDec(x, a, mkposrange(n,e) (ArrayComp(b, l, n, e)))) }
-  | x=IDENT ASSIGN e=expr SEMICOLON
+  | x=var_name ASSIGN e=expr SEMICOLON
     { mkpos (BaseAssign(x, e)) }
-  | x=IDENT op=binopeq e=expr SEMICOLON
+  | x=var_name op=binopeq e=expr SEMICOLON
     { mkpos (BaseAssign(x, mkpos (BinOp(op, mkposof(x) (Variable x), e)))) }
-  | a=IDENT i=brack(expr) ASSIGN e=expr SEMICOLON
+  | a=var_name i=brack(expr) ASSIGN e=expr SEMICOLON
     { mkpos (ArrayAssign(a, i, e)) }
   | iff=if_clause (* takes care of else ifs and elses too! *)
     { iff }
-  | FOR LPAREN b=base_type i=IDENT ASSIGN e1=expr TO e2=expr RPAREN stms=block
+  | FOR LPAREN b=base_type i=var_name ASSIGN e1=expr TO e2=expr RPAREN stms=block
     { mkpos (For(i, b, e1, e2, stms)) }
   | fn=IDENT args=plist(arg) SEMICOLON
     { mkpos (VoidFnCall(fn, args)) }
@@ -235,7 +238,7 @@ param_type:
     { mkpos (ArrayVT(a, l, m)) }
 
 param:
-  | t=param_type x=IDENT
+  | t=param_type x=var_name
     { mkpos (Param(x, t)) }
 
 function_dec:

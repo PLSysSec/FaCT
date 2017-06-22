@@ -1,7 +1,10 @@
 open Pos
 
 type size = int [@@deriving show]
-type var_name = string [@@deriving show]
+
+type var_name' = string [@@deriving show]
+and var_name = var_name' pos_ast [@@deriving show]
+
 type fun_name = string [@@deriving show]
 
 type mutability' =
@@ -31,8 +34,8 @@ and ref_type = ref_type' pos_ast [@@deriving show]
 
 and lexpr' =
   | LIntLiteral of int
-  | LVariable of string
-  | LLength of string
+  | LVariable of var_name
+  | LLength of var_name
 [@@deriving show]
 and lexpr = lexpr' pos_ast [@@deriving show]
 

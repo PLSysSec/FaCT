@@ -1,10 +1,17 @@
 open Pos
 open Err
+open Env
 
 let wrap f pa = { pa with data=f pa.pos pa.data }
+let xwrap f pa = f pa.pos pa.data
 
-#define pfunction wrap @@ fun p -> function
 #define mkpos make_ast p @@
+(* p for 'uses Position' *)
+#define pfunction wrap @@ fun p -> function
+(* x for 'eXtract' *)
+#define xfunction xwrap @@ fun p -> function
+(* g for 'uses Gamma' *)
+#define gfunction fun venv -> pfunction
 
 
 (* Trivial conversions *)
@@ -53,16 +60,29 @@ let tc_expr = pfunction
   | Ast.IntLiteral n ->
     (Tast.IntLiteral n, Tast.(BaseET(mkpos Num n, mkpos Public)))
 
-let tc_stm = pfunction
+let expr_to_btype = xfunction
+  | (_,Tast.BaseET(ty,_)) -> ty
+
+let ref_to_btype = xfunction
+  | Tast.Ref(xty) -> xty
+
+let refvt_to_btype = xfunction
+  | Tast.RefVT(xty,_,_) -> ref_to_btype xty
+
+let tc_stm = gfunction
   | Ast.BaseDec(x,b,e) ->
-    let {data=(ex,Tast.BaseET(ty,_))} as e' = tc_expr e in
-    let {data=Tast.RefVT({data=Tast.Ref(xty)},_,_)} = basetype b in
+    let e' = tc_expr e in
+    let ty = expr_to_btype e' in
+    let b' = basetype b in
+    let xty = refvt_to_btype b' in
       if not (ty <: xty) then raise @@ err (e'.pos);
+      add_var venv x b;
       Tast.BaseDec(x,basetype b,e')
 
 let tc_fdec = pfunction
   | Ast.FunDec(fn,rt,params,stms) ->
-    Tast.FunDec(fn,rt,params,List.map tc_stm stms)
+    let venv = Env.new_env () in
+      Tast.FunDec(fn,rt,params,List.map (tc_stm venv) stms)
 
 let tc_module (Ast.Module fdecs) =
   (Tast.Module (List.map tc_fdec fdecs))
