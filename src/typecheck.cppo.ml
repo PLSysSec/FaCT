@@ -41,9 +41,21 @@ let (<:) { data=b1 } { data=b2 } =
     | Tast.UInt n, Tast.UInt m when n = m -> true
     | Tast.Int n, Tast.Int m when n = m -> true
     | Tast.Bool, Tast.Bool -> true
-    | Tast.Num n, Tast.Int k -> true
-    | Tast.Num n, Tast.UInt k when n >= 0 -> true
+    | Tast.Num k, Tast.Int n -> true
+    | Tast.Num k, Tast.UInt n when k >= 0 -> true
     | _ -> false
+
+
+(* Extraction *)
+
+let expr_to_btype = xfunction
+  | (_,Tast.BaseET(ty,_)) -> ty
+
+let ref_to_btype = xfunction
+  | Tast.Ref(xty) -> xty
+
+let refvt_to_btype = xfunction
+  | Tast.RefVT(xty,_,_) -> ref_to_btype xty
 
 
 (* Actual typechecking *)
@@ -59,15 +71,6 @@ let tc_expr = pfunction
     (Tast.False, Tast.(BaseET(mkpos Bool, mkpos Public)))
   | Ast.IntLiteral n ->
     (Tast.IntLiteral n, Tast.(BaseET(mkpos Num n, mkpos Public)))
-
-let expr_to_btype = xfunction
-  | (_,Tast.BaseET(ty,_)) -> ty
-
-let ref_to_btype = xfunction
-  | Tast.Ref(xty) -> xty
-
-let refvt_to_btype = xfunction
-  | Tast.RefVT(xty,_,_) -> ref_to_btype xty
 
 let tc_stm = gfunction
   | Ast.BaseDec(x,b,e) ->
