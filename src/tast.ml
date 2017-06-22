@@ -50,8 +50,8 @@ and array_type' =
 and array_type = array_type' pos_ast [@@deriving show]
 
 and expr_type' =
-  | BaseET of base_type * label
-  | ArrayET of array_type * label * mutability
+  | BaseET of base_type * maybe_label
+  | ArrayET of array_type * maybe_label * mutability
 [@@deriving show]
 and expr_type = expr_type' pos_ast [@@deriving show]
 

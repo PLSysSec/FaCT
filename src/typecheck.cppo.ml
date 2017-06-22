@@ -57,6 +57,9 @@ let ref_to_btype = xfunction
 let refvt_to_btype = xfunction
   | Tast.RefVT(xty,_,_) -> ref_to_btype xty
 
+let refvt_to_bxtype = xfunction
+  | Tast.RefVT(xty,ml,_) -> Tast.BaseET(ref_to_btype xty, ml)
+
 
 (* Actual typechecking *)
 
@@ -64,23 +67,26 @@ let basetype = pfunction
   | Ast.RefVT(b, l, m) ->
     Tast.RefVT(bconv b, mlconv l, mconv m)
 
-let tc_expr = pfunction
+let tc_expr = gfunction
   | Ast.True ->
-    (Tast.True, Tast.(BaseET(mkpos Bool, mkpos Public)))
+    (Tast.True, Tast.(BaseET(mkpos Bool, mkpos Fixed Public)))
   | Ast.False ->
-    (Tast.False, Tast.(BaseET(mkpos Bool, mkpos Public)))
+    (Tast.False, Tast.(BaseET(mkpos Bool, mkpos Fixed Public)))
   | Ast.IntLiteral n ->
-    (Tast.IntLiteral n, Tast.(BaseET(mkpos Num n, mkpos Public)))
+    (Tast.IntLiteral n, Tast.(BaseET(mkpos Num n, mkpos Fixed Public)))
+  | Ast.Variable x ->
+    let b = find_var venv x in
+      (Tast.Variable x, refvt_to_bxtype b)
 
 let tc_stm = gfunction
   | Ast.BaseDec(x,b,e) ->
-    let e' = tc_expr e in
+    let e' = tc_expr venv e in
     let ty = expr_to_btype e' in
     let b' = basetype b in
     let xty = refvt_to_btype b' in
       if not (ty <: xty) then raise @@ err (e'.pos);
-      add_var venv x b;
-      Tast.BaseDec(x,basetype b,e')
+      add_var venv x b';
+      Tast.BaseDec(x,b',e')
 
 let tc_fdec = pfunction
   | Ast.FunDec(fn,rt,params,stms) ->

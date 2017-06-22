@@ -2,4 +2,5 @@ public int32 foo() {
   bool x = true;
   public int32 y = 22;
   secret uint32 z = 23;
+  bool t = x;
 }
