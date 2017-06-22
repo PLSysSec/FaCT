@@ -3,4 +3,5 @@ public int32 foo() {
   public int32 y = 22;
   secret uint32 z = 23;
   bool t = x;
+  public int16 zz = (int16)z; // this shouldn't typecheck
 }

@@ -60,6 +60,9 @@ let refvt_to_btype = xfunction
 let refvt_to_bxtype = xfunction
   | Tast.RefVT(xty,ml,_) -> Tast.BaseET(ref_to_btype xty, ml)
 
+let expr_to_ml = xfunction
+  | (_,Tast.BaseET(_,ml)) -> ml
+
 
 (* Actual typechecking *)
 
@@ -67,7 +70,7 @@ let basetype = pfunction
   | Ast.RefVT(b, l, m) ->
     Tast.RefVT(bconv b, mlconv l, mconv m)
 
-let tc_expr = gfunction
+let rec tc_expr = gfunction
   | Ast.True ->
     (Tast.True, Tast.(BaseET(mkpos Bool, mkpos Fixed Public)))
   | Ast.False ->
@@ -77,6 +80,11 @@ let tc_expr = gfunction
   | Ast.Variable x ->
     let b = find_var venv x in
       (Tast.Variable x, refvt_to_bxtype b)
+  | Ast.IntCast(b,e) ->
+    let b' = xconv b in
+    let e' = tc_expr venv e in
+    let ml = expr_to_ml e' in
+      (Tast.IntCast(b',e'), Tast.(BaseET(b',ml)))
 
 let tc_stm = gfunction
   | Ast.BaseDec(x,b,e) ->
