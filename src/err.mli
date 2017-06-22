@@ -17,7 +17,7 @@ exception TransformError of string
 
 val ( << ) : string -> Pos.pos -> string
 
-val err : Pos.pos -> exn
+val err : 'a Pos.pos_ast -> exn
 
 val errParseType : Pos.pos -> string -> exn
 val errSyntax : Pos.pos -> exn

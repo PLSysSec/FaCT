@@ -84,7 +84,7 @@ let tc_stm = gfunction
     let ty = expr_to_btype e' in
     let b' = basetype b in
     let xty = refvt_to_btype b' in
-      if not (ty <: xty) then raise @@ err (e'.pos);
+      if not (ty <: xty) then raise @@ err e';
       add_var venv x b';
       Tast.BaseDec(x,b',e')
 

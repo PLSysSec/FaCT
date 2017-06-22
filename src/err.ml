@@ -19,7 +19,7 @@ exception TransformError of string
 
 let ( << ) s p = Pos.pos_string p ^ ": " ^ s
 
-let err p =
+let err {pos=p} =
   InternalCompilerError("from source "^__LOC__ << p)
 
 let errParseType p t =
