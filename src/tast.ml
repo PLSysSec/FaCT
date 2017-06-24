@@ -16,12 +16,13 @@ and mutability = mutability' pos_ast [@@deriving show]
 and label' =
   | Public
   | Secret
+  | Unknown
 [@@deriving show]
 and label = label' pos_ast [@@deriving show]
 
 and maybe_label' =
   | Fixed of label'
-  | Guess of label' ref
+  | Guess of string * label' ref
 and maybe_label = maybe_label' pos_ast [@@deriving show]
 
 and base_type' =

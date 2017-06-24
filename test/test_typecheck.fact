@@ -1,7 +1,7 @@
 public int32 foo() {
-  bool x = true;
+  public bool x = true;
   public int32 y = 22;
-  secret uint32 z = 23;
-  bool t = x;
-  public int16 zz = (int16)z; // this shouldn't typecheck
+  public uint32 z = 23;
+  secret bool t = x;
+  public int16 zz = (int16)z;
 }

@@ -19,9 +19,6 @@ exception TransformError of string
 
 let ( << ) s p = Pos.pos_string p ^ ": " ^ s
 
-let err {pos=p} =
-  InternalCompilerError("from source "^__LOC__ << p)
-
 let errParseType p t =
   TypeError("Unknown type: "^t << p)
 let errSyntax p =
