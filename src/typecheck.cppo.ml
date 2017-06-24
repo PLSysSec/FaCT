@@ -40,12 +40,9 @@ let mconv = pfunction
   | Ast.Const -> Tast.Const
   | Ast.Mut -> Tast.Mut
 
-let rconv = pfunction
-  | Ast.Ref x -> Tast.Ref (bconv x)
-
 let refvt_conv = pfunction
-  | Ast.RefVT(r,l,m) ->
-    Tast.RefVT(rconv r, mlconv l, mconv m)
+  | Ast.RefVT(b,l,m) ->
+    Tast.RefVT(bconv b, mlconv l, mconv m)
 
 
 (* Extraction *)
@@ -56,20 +53,14 @@ let type_of = xfunction
 let type_out' = xfunction
   | Tast.BaseET(b,ml) -> (b,ml)
 
-let expr_to_ml = xfunction
-  | (_,Tast.BaseET(_,ml)) -> ml
-
 let expr_to_btype = xfunction
   | (_,Tast.BaseET(b,_)) -> b
 
-let ref_to_btype = xfunction
-  | Tast.Ref(r) -> r
-
-let refvt_to_btype = xfunction
-  | Tast.RefVT(r,_,_) -> ref_to_btype r
+let expr_to_ml = xfunction
+  | (_,Tast.BaseET(_,ml)) -> ml
 
 let refvt_to_etype' = xfunction
-  | Tast.RefVT(r,ml,_) -> Tast.BaseET(ref_to_btype r, ml)
+  | Tast.RefVT(b,ml,_) -> Tast.BaseET(b, ml)
 let refvt_to_etype = rebind refvt_to_etype'
 
 

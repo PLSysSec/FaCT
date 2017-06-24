@@ -170,13 +170,13 @@ array_expr:
 
 base_variable_type:
   | b=base_type
-    { mkpos (RefVT(mkpos (Ref b), mkpos Unknown, mkpos Const)) }
+    { mkpos (RefVT(b, mkpos Unknown, mkpos Const)) }
   | l=label b=base_type
-    { mkpos (RefVT({b with data=Ref b}, l, mkpos Const)) }
+    { mkpos (RefVT(b, l, mkpos Const)) }
   | m=mutability b=base_type
-    { mkpos (RefVT({b with data=Ref b}, mkpos Unknown, m)) }
+    { mkpos (RefVT(b, mkpos Unknown, m)) }
   | l=label m=mutability b=base_type
-    { mkpos (RefVT({b with data=Ref b}, l, m)) }
+    { mkpos (RefVT(b, l, m)) }
 
 array_variable_type:
   | a=array_type
@@ -229,9 +229,9 @@ ret_type:
 
 param_type:
   | l=label b=base_type
-    { mkpos (RefVT({b with data=Ref b}, l, mkpos Const)) }
+    { mkpos (RefVT(b, l, mkpos Const)) }
   | l=label m=mutability b=base_type
-    { mkpos (RefVT({b with data=Ref b}, l, m)) }
+    { mkpos (RefVT(b, l, m)) }
   | l=label a=array_type
     { mkpos (ArrayVT(a, l, mkpos Const)) }
   | l=label m=mutability a=array_type

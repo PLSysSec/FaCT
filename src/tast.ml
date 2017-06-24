@@ -33,11 +33,6 @@ and base_type' =
 [@@deriving show]
 and base_type = base_type' pos_ast [@@deriving show]
 
-and ref_type' =
-  | Ref of base_type
-[@@deriving show]
-and ref_type = ref_type' pos_ast [@@deriving show]
-
 and lexpr' =
   | LIntLiteral of int
   | LVariable of var_name
@@ -57,7 +52,7 @@ and expr_type' =
 and expr_type = expr_type' pos_ast [@@deriving show]
 
 and variable_type' =
-  | RefVT of ref_type * maybe_label * mutability
+  | RefVT of base_type * maybe_label * mutability
   | ArrayVT of array_type * maybe_label * mutability
 [@@deriving show]
 and variable_type = variable_type' pos_ast [@@deriving show]
