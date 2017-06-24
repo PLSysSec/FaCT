@@ -7,6 +7,8 @@ open Env
 let wrap f pa = { pa with data=f pa.pos pa.data }
 let xwrap f pa = f pa.pos pa.data
 
+let rebind f pa = { pa with data=f pa }
+
 #define mkpos make_ast p @@
 (* p for 'uses Position' *)
 #define pfunction wrap @@ fun p -> function
@@ -24,26 +26,26 @@ let is_int = xfunction
 
 (* Trivial conversions *)
 
-let xconv = pfunction
+let bconv = pfunction
   | Ast.UInt n -> Tast.UInt n
   | Ast.Int n -> Tast.Int n
   | Ast.Bool -> Tast.Bool
-
-let bconv = pfunction
-  | Ast.Ref x -> Tast.Ref (xconv x)
-
-let mconv = pfunction
-  | Ast.Const -> Tast.Const
-  | Ast.Mut -> Tast.Mut
 
 let mlconv = pfunction
   | Ast.Public -> Tast.(Fixed Public)
   | Ast.Secret -> Tast.(Fixed Secret)
   | Ast.Unknown -> raise (LabelError("Label inference not yet implemented!" << p))
 
+let mconv = pfunction
+  | Ast.Const -> Tast.Const
+  | Ast.Mut -> Tast.Mut
+
+let rconv = pfunction
+  | Ast.Ref x -> Tast.Ref (bconv x)
+
 let refvt_conv = pfunction
-  | Ast.RefVT(b,l,m) ->
-    Tast.RefVT(bconv b, mlconv l, mconv m)
+  | Ast.RefVT(r,l,m) ->
+    Tast.RefVT(rconv r, mlconv l, mconv m)
 
 
 (* Extraction *)
@@ -51,23 +53,24 @@ let refvt_conv = pfunction
 let type_of = xfunction
   | (_,ty) -> mkpos ty
 
-let type_out = xfunction
-  | Tast.BaseET(bty,ml) -> (bty,ml)
+let type_out' = xfunction
+  | Tast.BaseET(b,ml) -> (b,ml)
 
 let expr_to_ml = xfunction
   | (_,Tast.BaseET(_,ml)) -> ml
 
 let expr_to_btype = xfunction
-  | (_,Tast.BaseET(bty,_)) -> bty
+  | (_,Tast.BaseET(b,_)) -> b
 
 let ref_to_btype = xfunction
-  | Tast.Ref(xty) -> xty
+  | Tast.Ref(r) -> r
 
 let refvt_to_btype = xfunction
-  | Tast.RefVT(xty,_,_) -> ref_to_btype xty
+  | Tast.RefVT(r,_,_) -> ref_to_btype r
 
-let refvt_to_bxtype = xfunction
-  | Tast.RefVT(xty,ml,_) -> Tast.BaseET(ref_to_btype xty, ml)
+let refvt_to_etype' = xfunction
+  | Tast.RefVT(r,ml,_) -> Tast.BaseET(ref_to_btype r, ml)
+let refvt_to_etype = rebind refvt_to_etype'
 
 
 (* Subtyping *)
@@ -88,8 +91,8 @@ let (<$) { data=ml1 } { data=ml2 } =
     | _ -> false
 
 let (<:$) ty1 ty2 =
-  let b1,ml1 = type_out ty1 in
-  let b2,ml2 = type_out ty2 in
+  let b1,ml1 = type_out' ty1 in
+  let b2,ml2 = type_out' ty2 in
     (b1 <: b2) && (ml1 <$ ml2)
 
 
@@ -103,10 +106,10 @@ let rec tc_expr venv = pfunction
   | Ast.IntLiteral n ->
     (Tast.IntLiteral n, Tast.(BaseET(mkpos Num n, mkpos Fixed Public)))
   | Ast.Variable x ->
-    let b = find_var venv x in
-      (Tast.Variable x, refvt_to_bxtype b)
+    let xref = find_var venv x in
+      (Tast.Variable x, refvt_to_etype' xref)
   | Ast.IntCast(b,e) ->
-    let b' = xconv b in
+    let b' = bconv b in
       if not (is_int b') then raise @@ err(b'.pos);
     let e' = tc_expr venv e in
       if not (is_int (expr_to_btype e')) then raise @@ err(e'.pos);
@@ -121,7 +124,7 @@ let tc_stm venv = pfunction
     let e' = tc_expr venv e in
     let ety = type_of e' in
     let vt' = refvt_conv vt in
-    let xty = mkpos refvt_to_bxtype vt' in
+    let xty = refvt_to_etype vt' in
       if not (ety <:$ xty) then raise @@ err(e'.pos);
       add_var venv x vt';
       Tast.BaseDec(x,vt',e')
