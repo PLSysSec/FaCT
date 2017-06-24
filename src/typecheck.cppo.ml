@@ -112,6 +112,9 @@ let rec tc_expr venv = pfunction
       if not (is_int (expr_to_btype e')) then raise @@ err(e'.pos);
     let ml = expr_to_ml e' in
       (Tast.IntCast(b',e'), Tast.(BaseET(b',ml)))
+  | Ast.Declassify e ->
+    let e' = tc_expr venv e in
+      (Tast.Declassify e', Tast.(BaseET(expr_to_btype e', mkpos Fixed Public)))
 
 let tc_stm venv = pfunction
   | Ast.BaseDec(x,vt,e) ->
