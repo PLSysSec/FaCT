@@ -1,6 +1,7 @@
 open Pos
 open Err
 open Env
+open Tast
 
 #define err(p) InternalCompilerError("from source" ^ __LOC__ << p)
 
@@ -19,35 +20,35 @@ let rebind f pa = { pa with data=f pa }
 (* Predicates *)
 
 let is_int = xfunction
-  | Tast.UInt _ -> true
-  | Tast.Int _ -> true
-  | Tast.Num _ -> true
+  | UInt _ -> true
+  | Int _ -> true
+  | Num _ -> true
   | _ -> false
 
 let is_bool = xfunction
-  | Tast.Bool -> true
+  | Bool -> true
   | _ -> false
 
 
 (* Trivial conversions *)
 
 let bconv = pfunction
-  | Ast.UInt n -> Tast.UInt n
-  | Ast.Int n -> Tast.Int n
-  | Ast.Bool -> Tast.Bool
+  | Ast.UInt n -> UInt n
+  | Ast.Int n -> Int n
+  | Ast.Bool -> Bool
 
 let mlconv = pfunction
-  | Ast.Public -> Tast.(Fixed Public)
-  | Ast.Secret -> Tast.(Fixed Secret)
+  | Ast.Public -> Fixed Public
+  | Ast.Secret -> Fixed Secret
   | Ast.Unknown -> raise (LabelError("Label inference not yet implemented!" << p))
 
 let mconv = pfunction
-  | Ast.Const -> Tast.Const
-  | Ast.Mut -> Tast.Mut
+  | Ast.Const -> Const
+  | Ast.Mut -> Mut
 
 let refvt_conv = pfunction
   | Ast.RefVT(b,l,m) ->
-    Tast.RefVT(bconv b, mlconv l, mconv m)
+    RefVT(bconv b, mlconv l, mconv m)
 
 
 (* Extraction *)
@@ -55,20 +56,20 @@ let refvt_conv = pfunction
 let type_of = xfunction
   | (_,ty) -> mkpos ty
 
-let type_out' = xfunction
-  | Tast.BaseET(b,ml) -> (b,ml)
+let type_out = xfunction
+  | BaseET(b,ml) -> (b,ml)
 
 let expr_to_btype = xfunction
-  | (_,Tast.BaseET(b,_)) -> b
+  | (_,BaseET(b,_)) -> b
 
 let expr_to_ml = xfunction
-  | (_,Tast.BaseET(_,ml)) -> ml
+  | (_,BaseET(_,ml)) -> ml
 
 let expr_to_types = xfunction
-  | (_,Tast.BaseET(b,ml)) -> b,ml
+  | (_,BaseET(b,ml)) -> b,ml
 
 let refvt_to_etype' = xfunction
-  | Tast.RefVT(b,ml,_) -> Tast.BaseET(b, ml)
+  | RefVT(b,ml,_) -> BaseET(b, ml)
 let refvt_to_etype = rebind refvt_to_etype'
 
 
@@ -76,62 +77,128 @@ let refvt_to_etype = rebind refvt_to_etype'
 
 let (<:) { data=b1 } { data=b2 } =
   match b1,b2 with
-    | Tast.UInt n, Tast.UInt m when n = m -> true
-    | Tast.Int n, Tast.Int m when n = m -> true
-    | Tast.Bool, Tast.Bool -> true
-    | Tast.Num k, Tast.Int n -> true
-    | Tast.Num k, Tast.UInt n when k >= 0 -> true
+    | UInt n, UInt m when n = m -> true
+    | Int n, Int m when n = m -> true
+    | Bool, Bool -> true
+    | Num k, Int n -> true
+    | Int n, Num k -> true
+    | Num k, UInt n when k >= 0 -> true
+    | UInt n, Num k when k >= 0 -> true
     | _ -> false
+
+let join_bt p { data=b1 } { data=b2 } =
+  let b' =
+    match b1,b2 with
+      | UInt n, UInt m when n = m -> b1
+      | Int n, Int m when n = m -> b1
+      | Bool, Bool -> b1
+      | Num k, Int n -> b2
+      | Int n, Num k -> b1
+      | Num k, UInt n when k >= 0 -> b2
+      | UInt n, Num k when k >= 0 -> b1
+      | _ -> raise @@ err(p)
+  in mkpos b'
 
 let (<$) { data=ml1 } { data=ml2 } =
   match ml1,ml2 with
-    | Tast.Fixed x, Tast.Fixed y when x = y -> true
-    | Tast.Fixed Public, Tast.Fixed Secret -> true
+    | Fixed x, Fixed y when x = y -> true
+    | Fixed Public, Fixed Secret -> true
     | _ -> false
 
+let join_ml p { data=ml1 } { data=ml2 } =
+  let ml' =
+    match ml1,ml2 with
+      | Fixed x, Fixed y when x = y -> ml1
+      | Fixed Public, Fixed Secret
+      | Fixed Secret, Fixed Public -> (Fixed Secret)
+      | _ -> raise @@ err(p)
+  in mkpos ml'
+
 let (<:$) ty1 ty2 =
-  let b1,ml1 = type_out' ty1 in
-  let b2,ml2 = type_out' ty2 in
+  let b1,ml1 = type_out ty1 in
+  let b2,ml2 = type_out ty2 in
     (b1 <: b2) && (ml1 <$ ml2)
+
+let join_ty p ty1 ty2 =
+  let b1,ml1 = type_out ty1 in
+  let b2,ml2 = type_out ty2 in
+  let b' = join_bt p b1 b2 in
+  let ml' = join_ml p ml1 ml2 in
+    mkpos BaseET(b', ml')
 
 
 (* Actual typechecking *)
 
-let tc_unop' op e =
+let tc_unop' p op e =
   let b,ml = expr_to_types e in
     begin
       match op with
         | Ast.Neg
         | Ast.BitwiseNot ->
-          if not (is_int b) then raise @@ err(e.pos);
+          if not (is_int b) then raise @@ err(p);
         | Ast.LogicalNot ->
-          if not (is_bool b) then raise @@ err(e.pos);
+          if not (is_bool b) then raise @@ err(p);
     end;
-    (Tast.UnOp(op, e), Tast.BaseET(b, ml))
+    (UnOp(op, e), BaseET(b, ml))
+
+let tc_binop' p op e1 e2 =
+  let b1,ml1 = expr_to_types e1 in
+  let b2,ml2 = expr_to_types e2 in
+  let b',ml' =
+    match op with
+      | Ast.Plus
+      | Ast.Minus ->
+        if not (is_int b1) then raise @@ err(p);
+        if not (is_int b2) then raise @@ err(p);
+        (join_bt p b1 b2, join_ml p ml1 ml2)
+      | Ast.Multiply ->
+        if not (is_int b1) then raise @@ err(p);
+        if not (is_int b2) then raise @@ err(p);
+        (join_bt p b1 b2, join_ml p ml1 ml2)
+      | Ast.Equal
+      | Ast.NEqual
+      | Ast.GT
+      | Ast.GTE
+      | Ast.LT
+      | Ast.LTE
+      | Ast.LogicalAnd
+      | Ast.LogicalOr
+      | Ast.BitwiseAnd
+      | Ast.BitwiseOr
+      | Ast.BitwiseXor
+      | Ast.LeftShift
+      | Ast.RightShift ->
+        raise @@ err(p)
+  in
+    (BinOp(op, e1, e2), BaseET(b', ml'))
 
 let rec tc_expr venv = pfunction
   | Ast.True ->
-    (Tast.True, Tast.(BaseET(mkpos Bool, mkpos Fixed Public)))
+    (True, BaseET(mkpos Bool, mkpos Fixed Public))
   | Ast.False ->
-    (Tast.False, Tast.(BaseET(mkpos Bool, mkpos Fixed Public)))
+    (False, BaseET(mkpos Bool, mkpos Fixed Public))
   | Ast.IntLiteral n ->
-    (Tast.IntLiteral n, Tast.(BaseET(mkpos Num n, mkpos Fixed Public)))
+    (IntLiteral n, BaseET(mkpos Num n, mkpos Fixed Public))
   | Ast.Variable x ->
     let xref = find_var venv x in
-      (Tast.Variable x, refvt_to_etype' xref)
+      (Variable x, refvt_to_etype' xref)
   | Ast.IntCast(b,e) ->
     let b' = bconv b in
       if not (is_int b') then raise @@ err(b'.pos);
     let e' = tc_expr venv e in
       if not (is_int (expr_to_btype e')) then raise @@ err(e'.pos);
     let ml = expr_to_ml e' in
-      (Tast.IntCast(b',e'), Tast.(BaseET(b',ml)))
+      (IntCast(b',e'), BaseET(b',ml))
   | Ast.Declassify e ->
     let e' = tc_expr venv e in
-      (Tast.Declassify e', Tast.(BaseET(expr_to_btype e', mkpos Fixed Public)))
+      (Declassify e', BaseET(expr_to_btype e', mkpos Fixed Public))
   | Ast.UnOp(op,e) ->
     let e' = tc_expr venv e in
-    tc_unop' op e'
+      tc_unop' p op e'
+  | Ast.BinOp(op,e1,e2) ->
+    let e1' = tc_expr venv e1 in
+    let e2' = tc_expr venv e2 in
+      tc_binop' p op e1' e2'
 
 let tc_stm venv = pfunction
   | Ast.BaseDec(x,vt,e) ->
@@ -141,12 +208,12 @@ let tc_stm venv = pfunction
     let xty = refvt_to_etype vt' in
       if not (ety <:$ xty) then raise @@ err(e'.pos);
       add_var venv x vt';
-      Tast.BaseDec(x,vt',e')
+      BaseDec(x,vt',e')
 
 let tc_fdec = pfunction
   | Ast.FunDec(fn,rt,params,stms) ->
     let venv = Env.new_env () in
-      Tast.FunDec(fn,rt,params,List.map (tc_stm venv) stms)
+      FunDec(fn,rt,params,List.map (tc_stm venv) stms)
 
 let tc_module (Ast.Module fdecs) =
-  (Tast.Module (List.map tc_fdec fdecs))
+  (Module (List.map tc_fdec fdecs))

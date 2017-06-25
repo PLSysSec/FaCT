@@ -7,8 +7,10 @@ public int32 foo() {
 
   public bool t_pub = declassify(t);
 
-  public int32 y_ = -22;
+  secret int32 y_ = -22;
   public int32 yy = -y;
   public int32 yy_ = ~y;
   public bool xx = !x;
+
+  secret int32 tt = y + y_ - yy * yy_;
 }
