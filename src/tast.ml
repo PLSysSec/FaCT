@@ -65,38 +65,13 @@ and expr' =
   | ArrayGet of var_name * expr
   | ArrayLen of var_name
   | IntCast of base_type * expr
-  | UnOp of unop * expr
-  | BinOp of binop * expr * expr
+  | UnOp of Ast.unop * expr
+  | BinOp of Ast.binop * expr * expr
   | TernOp of expr * expr * expr
   | FnCall of fun_name * arg_exprs
   | Declassify of expr
 [@@deriving show]
 and expr = (expr' * expr_type') pos_ast [@@deriving show]
-
-and unop =
-  | Neg
-  | LogicalNot
-  | BitwiseNot
-[@@deriving show]
-
-and binop =
-  | Plus
-  | Minus
-  | Multiply
-  | Equal
-  | NEqual
-  | GT
-  | GTE
-  | LT
-  | LTE
-  | LogicalAnd
-  | LogicalOr
-  | BitwiseAnd
-  | BitwiseOr
-  | BitwiseXor
-  | LeftShift
-  | RightShift
-[@@deriving show]
 
 and array_expr' =
   | ArrayZeros of lexpr

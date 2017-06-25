@@ -21,6 +21,11 @@ let rebind f pa = { pa with data=f pa }
 let is_int = xfunction
   | Tast.UInt _ -> true
   | Tast.Int _ -> true
+  | Tast.Num _ -> true
+  | _ -> false
+
+let is_bool = xfunction
+  | Tast.Bool -> true
   | _ -> false
 
 
@@ -59,6 +64,9 @@ let expr_to_btype = xfunction
 let expr_to_ml = xfunction
   | (_,Tast.BaseET(_,ml)) -> ml
 
+let expr_to_types = xfunction
+  | (_,Tast.BaseET(b,ml)) -> b,ml
+
 let refvt_to_etype' = xfunction
   | Tast.RefVT(b,ml,_) -> Tast.BaseET(b, ml)
 let refvt_to_etype = rebind refvt_to_etype'
@@ -89,6 +97,18 @@ let (<:$) ty1 ty2 =
 
 (* Actual typechecking *)
 
+let tc_unop' op e =
+  let b,ml = expr_to_types e in
+    begin
+      match op with
+        | Ast.Neg
+        | Ast.BitwiseNot ->
+          if not (is_int b) then raise @@ err(e.pos);
+        | Ast.LogicalNot ->
+          if not (is_bool b) then raise @@ err(e.pos);
+    end;
+    (Tast.UnOp(op, e), Tast.BaseET(b, ml))
+
 let rec tc_expr venv = pfunction
   | Ast.True ->
     (Tast.True, Tast.(BaseET(mkpos Bool, mkpos Fixed Public)))
@@ -109,6 +129,9 @@ let rec tc_expr venv = pfunction
   | Ast.Declassify e ->
     let e' = tc_expr venv e in
       (Tast.Declassify e', Tast.(BaseET(expr_to_btype e', mkpos Fixed Public)))
+  | Ast.UnOp(op,e) ->
+    let e' = tc_expr venv e in
+    tc_unop' op e'
 
 let tc_stm venv = pfunction
   | Ast.BaseDec(x,vt,e) ->

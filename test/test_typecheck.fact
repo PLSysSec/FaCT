@@ -6,4 +6,9 @@ public int32 foo() {
   public int16 zz = (int16)z;
 
   public bool t_pub = declassify(t);
+
+  public int32 y_ = -22;
+  public int32 yy = -y;
+  public int32 yy_ = ~y;
+  public bool xx = !x;
 }
