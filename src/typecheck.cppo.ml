@@ -99,6 +99,19 @@ let join_bt p { data=b1 } { data=b2 } =
       | _ -> raise @@ err(p)
   in mkpos b'
 
+let meet_bt p { data=b1 } { data=b2 } =
+  let b' =
+    match b1,b2 with
+      | UInt n, UInt m when n = m -> b1
+      | Int n, Int m when n = m -> b1
+      | Bool, Bool -> b1
+      | Num k, Int n -> b2
+      | Int n, Num k -> b1
+      | Num k, UInt n when k >= 0 -> b2
+      | UInt n, Num k when k >= 0 -> b1
+      | _ -> raise @@ err(p)
+  in mkpos b'
+
 let (<$) { data=ml1 } { data=ml2 } =
   match ml1,ml2 with
     | Fixed x, Fixed y when x = y -> true
@@ -144,32 +157,39 @@ let tc_unop' p op e =
 let tc_binop' p op e1 e2 =
   let b1,ml1 = expr_to_types e1 in
   let b2,ml2 = expr_to_types e2 in
-  let b',ml' =
+  let b' =
     match op with
       | Ast.Plus
-      | Ast.Minus ->
-        if not (is_int b1) then raise @@ err(p);
-        if not (is_int b2) then raise @@ err(p);
-        (join_bt p b1 b2, join_ml p ml1 ml2)
-      | Ast.Multiply ->
-        if not (is_int b1) then raise @@ err(p);
-        if not (is_int b2) then raise @@ err(p);
-        (join_bt p b1 b2, join_ml p ml1 ml2)
-      | Ast.Equal
-      | Ast.NEqual
+      | Ast.Minus
+      | Ast.Multiply
       | Ast.GT
       | Ast.GTE
       | Ast.LT
       | Ast.LTE
-      | Ast.LogicalAnd
-      | Ast.LogicalOr
-      | Ast.BitwiseAnd
       | Ast.BitwiseOr
-      | Ast.BitwiseXor
+      | Ast.BitwiseXor ->
+        if not (is_int b1) then raise @@ err(p);
+        if not (is_int b2) then raise @@ err(p);
+        join_bt p b1 b2
+      | Ast.BitwiseAnd ->
+        if not (is_int b1) then raise @@ err(p);
+        if not (is_int b2) then raise @@ err(p);
+        meet_bt p b1 b2
+      | Ast.LogicalAnd
+      | Ast.LogicalOr ->
+        if not (is_bool b1) then raise @@ err(p);
+        if not (is_bool b2) then raise @@ err(p);
+        join_bt p b1 b2
+      | Ast.Equal
+      | Ast.NEqual ->
+        join_bt p b1 b2
       | Ast.LeftShift
       | Ast.RightShift ->
-        raise @@ err(p)
+        if not (is_int b1) then raise @@ err(p);
+        if not (is_int b2) then raise @@ err(p);
+        { b1 with pos=p }
   in
+  let ml' = join_ml p ml1 ml2 in
     (BinOp(op, e1, e2), BaseET(b', ml'))
 
 let rec tc_expr venv = pfunction
