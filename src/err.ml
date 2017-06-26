@@ -1,6 +1,6 @@
 open Pos
 
-exception NotImplemented
+exception NotImplemented of string
 
 exception ParseError of string
 exception SyntaxError of string

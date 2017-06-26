@@ -35,14 +35,8 @@ let z3_ty = xfunction
 
 let z3_unop = function
   | Ast.Neg -> Z.neg
-  | Ast.BitwiseNot -> Z.bnot
+  | Ast.BitwiseNot -> Z.(!.)
   | Ast.LogicalNot -> Z.(!)
-
-let z3_binop = function
-  | Ast.Plus -> Z.(+)
-  | Ast.Minus -> Z.(-)
-  | Ast.Multiply -> Z.( * )
-  | _ -> Z.(+)
 
 
 (* Predicates *)
@@ -51,13 +45,13 @@ let is_int = xfunction
   | UInt _ -> true
   | Int _ -> true
   | Num _ -> true
-  | _ -> false
+  | Bool -> false
 
 let is_signed = xfunction
   | Int _ -> true
   | UInt _ -> false
   | Num k -> k < 0
-  | _ -> raise @@ err(p)
+  | Bool -> false
 
 let is_bool = xfunction
   | Bool -> true
@@ -196,71 +190,100 @@ let tc_unop' p op e =
     end;
     (UnOp(op, e), BaseET(b, ml))
 
-let tc_binop' p op e1 e2 =
-  let b1,ml1 = expr_to_types e1 in
-  let b2,ml2 = expr_to_types e2 in
-  let b' =
+let tc_binop_check p op b1 b2 =
+  let yes _ = true in
+  let pred1,pred2 =
     match op with
-      | Ast.Plus ->
-        if not (is_int b1) then raise @@ err(p);
-        if not (is_int b2) then raise @@ err(p);
-        let signed = (is_signed b1 || is_signed b2) in
-        let z3expr = z3_top in
-          begin
-            if Z.is_bv z3expr then
-              let [a;b] = Z.get_args z3expr in
-                Z.add_add_overflow_check a b signed;
-          end;
-          join_bt p b1 b2
-      | Ast.Minus ->
-        if not (is_int b1) then raise @@ err(p);
-        if not (is_int b2) then raise @@ err(p);
-        let signed = (is_signed b1 || is_signed b2) in
-        let z3expr = z3_top in
-          begin
-            if Z.is_bv z3expr then
-              let [a;b] = Z.get_args z3expr in
-                Z.add_sub_overflow_check a b signed;
-          end;
-          join_bt p b1 b2
-      | Ast.Multiply ->
-        if not (is_int b1) then raise @@ err(p);
-        if not (is_int b2) then raise @@ err(p);
-        let signed = (is_signed b1 || is_signed b2) in
-        let z3expr = z3_top in
-          begin
-            if Z.is_bv z3expr then
-              let [a;b] = Z.get_args z3expr in
-                Z.add_mul_overflow_check a b signed;
-          end;
-          join_bt p b1 b2
+      | Ast.Equal
+      | Ast.NEqual -> yes,yes
+      | Ast.Plus
+      | Ast.Minus
+      | Ast.Multiply
       | Ast.GT
       | Ast.GTE
       | Ast.LT
       | Ast.LTE
+      | Ast.BitwiseAnd
       | Ast.BitwiseOr
-      | Ast.BitwiseXor ->
-        if not (is_int b1) then raise @@ err(p);
-        if not (is_int b2) then raise @@ err(p);
-        join_bt p b1 b2
-      | Ast.BitwiseAnd ->
-        if not (is_int b1) then raise @@ err(p);
-        if not (is_int b2) then raise @@ err(p);
-        meet_bt p b1 b2
-      | Ast.LogicalAnd
-      | Ast.LogicalOr ->
-        if not (is_bool b1) then raise @@ err(p);
-        if not (is_bool b2) then raise @@ err(p);
-        join_bt p b1 b2
-      | Ast.Equal
-      | Ast.NEqual ->
-        join_bt p b1 b2
+      | Ast.BitwiseXor
       | Ast.LeftShift
-      | Ast.RightShift ->
-        if not (is_int b1) then raise @@ err(p);
-        if not (is_int b2) then raise @@ err(p);
-        { b1 with pos=p }
+      | Ast.RightShift -> is_int,is_int
+      | Ast.LogicalAnd
+      | Ast.LogicalOr -> is_bool,is_bool
   in
+    if not (pred1 b1) then raise @@ err(p);
+    if not (pred2 b2) then raise @@ err(p);
+    ()
+
+let tc_binop' p op e1 e2 =
+  let b1,ml1 = expr_to_types e1 in
+  let b2,ml2 = expr_to_types e2 in
+    tc_binop_check p op b1 b2;
+  let b = z3_pop in
+  let a = z3_pop in
+  let is_bv = Z.is_bv a || Z.is_bv b in
+  let signed = (is_signed b1 || is_signed b2) in
+  let b',z3_op =
+    match op with
+      | Ast.Plus ->
+        if is_bv then
+          Z.add_add_overflow_check a b signed;
+        join_bt p b1 b2, Z.(+)
+      | Ast.Minus ->
+        if is_bv then
+          Z.add_sub_overflow_check a b signed;
+        join_bt p b1 b2, Z.(-)
+      | Ast.Multiply ->
+        if is_bv then
+          Z.add_mul_overflow_check a b signed;
+        join_bt p b1 b2, Z.( * )
+      | Ast.GT ->
+        let zop =
+          if is_bv then
+            if signed then Z.sgt else Z.ugt
+          else Z.(>) in
+        join_bt p b1 b2, zop
+      | Ast.GTE ->
+        let zop =
+          if is_bv then
+            if signed then Z.sge else Z.uge
+          else Z.(>=) in
+        join_bt p b1 b2, zop
+      | Ast.LT ->
+        let zop =
+          if is_bv then
+            if signed then Z.slt else Z.ult
+          else Z.(<) in
+        join_bt p b1 b2, zop
+      | Ast.LTE ->
+        let zop =
+          if is_bv then
+            if signed then Z.sle else Z.ule
+          else Z.(<=) in
+        join_bt p b1 b2, zop
+      | Ast.BitwiseOr ->
+        join_bt p b1 b2, Z.(|.)
+      | Ast.BitwiseXor ->
+        join_bt p b1 b2, Z.(^.)
+      | Ast.BitwiseAnd ->
+        meet_bt p b1 b2, Z.(&.)
+      | Ast.LogicalAnd ->
+        join_bt p b1 b2, Z.(&&)
+      | Ast.LogicalOr ->
+        join_bt p b1 b2, Z.(||)
+      | Ast.Equal ->
+        join_bt p b1 b2, Z.(=)
+      | Ast.NEqual ->
+        join_bt p b1 b2, Z.(!=)
+      | Ast.LeftShift ->
+        { b1 with pos=p }, Z.(<<)
+      | Ast.RightShift ->
+        let zop =
+          if signed then Z.(>>) else Z.(>>.)
+        in
+          { b1 with pos=p }, zop
+  in
+    z3_push @@ z3_op a b;
   let ml' = join_ml p ml1 ml2 in
     (BinOp(op, e1, e2), BaseET(b', ml'))
 
@@ -295,10 +318,7 @@ let rec tc_expr venv = pfunction
       tc_unop' p op e'
   | Ast.BinOp(op,e1,e2) ->
     let e1' = tc_expr venv e1 in
-    let a = z3_pop in
     let e2' = tc_expr venv e2 in
-    let b = z3_pop in
-      z3_push @@ (z3_binop op) a b;
       tc_binop' p op e1' e2'
 
 let tc_stm venv = pfunction

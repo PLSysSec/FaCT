@@ -18,4 +18,6 @@ public int32 foo() {
   //public uint8 o1 = 120;
   //public uint8 o2 = 142;
   //public uint8 o3 = o1 + o2;
+
+  secret int32 ttt = y | y_;
 }

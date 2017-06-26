@@ -2,6 +2,8 @@
 
 open Z3
 
+#define err (Err.NotImplemented(__LOC__))
+
 let vars = Hashtbl.create 10
 
 let ctx = Z3.mk_context []
@@ -83,12 +85,30 @@ let intcast a (nsort,nsigned) (msort,_) =
         BitVector.mk_extract ctx high low a'
     else a'
 
+let (!) a = Boolean.mk_not ctx a
+
 let (=) a b =
   match to_bv a b with
     | Some (a',b') ->
       Boolean.mk_eq ctx a' b'
     | None ->
       Boolean.mk_eq ctx a b
+
+let (!=) a b = !(a = b)
+
+let (>) a b = Arithmetic.mk_gt ctx a b
+let (>=) a b = Arithmetic.mk_ge ctx a b
+let (<) a b = Arithmetic.mk_lt ctx a b
+let (<=) a b = Arithmetic.mk_le ctx a b
+
+let ugt a b = BitVector.mk_ugt ctx a b
+let uge a b = BitVector.mk_uge ctx a b
+let ult a b = BitVector.mk_ult ctx a b
+let ule a b = BitVector.mk_ule ctx a b
+let sgt a b = BitVector.mk_sgt ctx a b
+let sge a b = BitVector.mk_sge ctx a b
+let slt a b = BitVector.mk_slt ctx a b
+let sle a b = BitVector.mk_sle ctx a b
 
 let neg a =
   if is_bv a then
@@ -141,10 +161,59 @@ let ( * ) a b =
     | None ->
       Arithmetic.mk_mul ctx [a;b]
 
-let bnot a =
+let (!.) a =
   if is_bv a then
     BitVector.mk_not ctx a
   else
     (neg a) - (num 1)
 
-let (!) a = Boolean.mk_not ctx a
+let (|.) a b =
+  match to_bv a b with
+    | Some (a',b') ->
+      BitVector.mk_or ctx a' b'
+    | None ->
+      raise err
+let (&.) a b =
+  match to_bv a b with
+    | Some (a',b') ->
+      BitVector.mk_and ctx a' b'
+    | None ->
+      raise err
+let (^.) a b =
+  match to_bv a b with
+    | Some (a',b') ->
+      BitVector.mk_xor ctx a' b'
+    | None ->
+      raise err
+
+let (||) a b =
+  match to_bv a b with
+    | Some (a',b') ->
+      Boolean.mk_or ctx [a';b']
+    | None ->
+      raise err
+let (&&) a b =
+  match to_bv a b with
+    | Some (a',b') ->
+      Boolean.mk_and ctx [a';b]
+    | None ->
+      raise err
+
+let (>>) a b =
+  match to_bv a b with
+    | Some (a',b') ->
+      BitVector.mk_ashr ctx a' b'
+    | None ->
+      raise err
+let (>>.) a b =
+  match to_bv a b with
+    | Some (a',b') ->
+      BitVector.mk_lshr ctx a' b'
+    | None ->
+      raise err
+let (<<) a b =
+  match to_bv a b with
+    | Some (a',b') ->
+      BitVector.mk_shl ctx a' b'
+    | None ->
+      raise err
