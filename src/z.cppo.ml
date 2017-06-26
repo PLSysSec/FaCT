@@ -217,3 +217,5 @@ let (<<) a b =
       BitVector.mk_shl ctx a' b'
     | None ->
       raise err
+
+let ite a b c = Boolean.mk_ite ctx a b c

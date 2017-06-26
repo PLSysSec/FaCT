@@ -26,7 +26,7 @@ let z3_push e = Stack.push e z3e
 let z3_bty = xfunction
   | Int n -> (Z.bitvec n,true)
   | UInt n -> (Z.bitvec n,false)
-  | Num k -> (Z.int,k < 0)
+  | Num(_,s) -> (Z.int,s)
   | Bool -> (Z.bool,false)
 
 let z3_ty = xfunction
@@ -50,7 +50,7 @@ let is_int = xfunction
 let is_signed = xfunction
   | Int _ -> true
   | UInt _ -> false
-  | Num k -> k < 0
+  | Num(_,s) -> s
   | Bool -> false
 
 let is_bool = xfunction
@@ -108,10 +108,11 @@ let (<:) { data=b1 } { data=b2 } =
     | UInt n, UInt m when n = m -> true
     | Int n, Int m when n = m -> true
     | Bool, Bool -> true
-    | Num k, Int n -> true
-    | Int n, Num k -> true
-    | Num k, UInt n when k >= 0 -> true
-    | UInt n, Num k when k >= 0 -> true
+    | Num(k,s), Int n -> true
+    | Int n, Num(k,s) -> true
+    | Num(k,s), UInt n when not s -> true
+    | UInt n, Num(k,s) when not s -> true
+    | Num _, Num _ -> true
     | _ -> false
 
 let join_bt p { data=b1 } { data=b2 } =
@@ -120,10 +121,11 @@ let join_bt p { data=b1 } { data=b2 } =
       | UInt n, UInt m when n = m -> b1
       | Int n, Int m when n = m -> b1
       | Bool, Bool -> b1
-      | Num k, Int n -> b2
-      | Int n, Num k -> b1
-      | Num k, UInt n when k >= 0 -> b2
-      | UInt n, Num k when k >= 0 -> b1
+      | Num(k,s), Int n -> b2
+      | Int n, Num(k,s) -> b1
+      | Num(k,s), UInt n when not s -> b2
+      | UInt n, Num(k,s) when not s -> b1
+      | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2)
       | _ -> raise @@ err(p)
   in mkpos b'
 
@@ -133,10 +135,11 @@ let meet_bt p { data=b1 } { data=b2 } =
       | UInt n, UInt m when n = m -> b1
       | Int n, Int m when n = m -> b1
       | Bool, Bool -> b1
-      | Num k, Int n -> b2
-      | Int n, Num k -> b1
-      | Num k, UInt n when k >= 0 -> b2
-      | UInt n, Num k when k >= 0 -> b1
+      | Num(k,s), Int n -> b2
+      | Int n, Num(k,s) -> b1
+      | Num(k,s), UInt n when k >= 0 -> b2
+      | UInt n, Num(k,s) when k >= 0 -> b1
+      | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2)
       | _ -> raise @@ err(p)
   in mkpos b'
 
@@ -160,12 +163,12 @@ let (<:$) ty1 ty2 =
   let b2,ml2 = type_out ty2 in
     (b1 <: b2) && (ml1 <$ ml2)
 
-let join_ty p ty1 ty2 =
+let join_ty' p ty1 ty2 =
   let b1,ml1 = type_out ty1 in
   let b2,ml2 = type_out ty2 in
   let b' = join_bt p b1 b2 in
   let ml' = join_ml p ml1 ml2 in
-    mkpos BaseET(b', ml')
+    BaseET(b', ml')
 
 
 (* Actual typechecking *)
@@ -296,7 +299,7 @@ let rec tc_expr venv = pfunction
     (False, BaseET(mkpos Bool, mkpos Fixed Public))
   | Ast.IntLiteral n ->
     z3_push @@ Z.num n;
-    (IntLiteral n, BaseET(mkpos Num n, mkpos Fixed Public))
+    (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public))
   | Ast.Variable x ->
     z3_push @@ Z.var x.data;
     let xref = find_var venv x in
@@ -320,6 +323,16 @@ let rec tc_expr venv = pfunction
     let e1' = tc_expr venv e1 in
     let e2' = tc_expr venv e2 in
       tc_binop' p op e1' e2'
+  | Ast.TernOp(e1,e2,e3) ->
+    let e1' = tc_expr venv e1 in
+      if not (is_bool (expr_to_btype e1')) then raise @@ err(e1'.pos);
+    let e2' = tc_expr venv e2 in
+    let e3' = tc_expr venv e3 in
+    let c = z3_pop in
+    let b = z3_pop in
+    let a = z3_pop in
+      z3_push @@ Z.ite a b c;
+      (TernOp(e1',e2',e3'), join_ty' p (type_of e2') (type_of e3'))
 
 let tc_stm venv = pfunction
   | Ast.BaseDec(x,vt,e) ->

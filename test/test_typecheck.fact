@@ -20,4 +20,5 @@ public int32 foo() {
   //public uint8 o3 = o1 + o2;
 
   secret int32 ttt = y | y_;
+  secret int32 xxy = x ? yy : yy_;
 }

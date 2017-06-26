@@ -29,7 +29,7 @@ and base_type' =
   | UInt of size
   | Int of size
   | Bool
-  | Num of int
+  | Num of int * bool
 [@@deriving show]
 and base_type = base_type' pos_ast [@@deriving show]
 
