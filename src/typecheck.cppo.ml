@@ -180,7 +180,15 @@ let tc_unop' p op e =
   let b,ml = expr_to_types e in
     begin
       match op with
-        | Ast.Neg
+        | Ast.Neg ->
+          if not (is_int b) then raise @@ err(p);
+          begin
+            let z3expr = z3_top in
+            if is_signed b &&
+               Z.is_bv z3expr then
+              let [a] = Z.get_args z3expr in
+                Z.add_neg_overflow_check a;
+          end
         | Ast.BitwiseNot ->
           if not (is_int b) then raise @@ err(p);
         | Ast.LogicalNot ->
@@ -201,7 +209,7 @@ let tc_binop' p op e1 e2 =
           begin
             if Z.is_bv z3expr then
               let [a;b] = Z.get_args z3expr in
-                Z.(add_add_overflow_checks a b signed);
+                Z.add_add_overflow_check a b signed;
           end;
           join_bt p b1 b2
       | Ast.Minus ->
@@ -212,7 +220,7 @@ let tc_binop' p op e1 e2 =
           begin
             if Z.is_bv z3expr then
               let [a;b] = Z.get_args z3expr in
-                Z.(add_sub_overflow_checks a b signed);
+                Z.add_sub_overflow_check a b signed;
           end;
           join_bt p b1 b2
       | Ast.Multiply ->
@@ -223,7 +231,7 @@ let tc_binop' p op e1 e2 =
           begin
             if Z.is_bv z3expr then
               let [a;b] = Z.get_args z3expr in
-                Z.(add_mul_overflow_checks a b signed);
+                Z.add_mul_overflow_check a b signed;
           end;
           join_bt p b1 b2
       | Ast.GT
