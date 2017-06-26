@@ -324,4 +324,6 @@ let tc_module (Ast.Module fdecs) =
   in
     Core.Out_channel.write_all "overflow_model.z3"
       ~data:model_output;
-    r
+    match status with
+      | Z.SATISFIABLE -> r
+      | _ -> raise @@ SMTSolverError "possible overflow somewhere"

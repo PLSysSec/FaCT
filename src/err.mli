@@ -13,6 +13,8 @@ exception VariableNotDefined of string
 exception FunctionNotDefined of string
 exception UnclassifiedError of string
 
+exception SMTSolverError of string
+
 exception TransformError of string
 
 val ( << ) : string -> Pos.pos -> string
