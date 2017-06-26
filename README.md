@@ -34,6 +34,17 @@ Then we need the actual dependencies for Ocaml.
 
 ```opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir oasis```
 
+The easiest way to install Z3 is the following:
+
+```
+opam remote add termite https://github.com/termite-analyser/opam-termite.git
+opam install z3
+export LD_LIBRARY_PATH="$HOME/.opam/system/lib/stublibs"
+```
+
+You may also need to symlink the ```libz3.so``` binary from ```$HOME/.opam/system/lib``` into
+the ```stublibs``` directory.
+
 If you have not setup oasis, then you must do that first.
 
 ```oasis setup```
