@@ -45,6 +45,7 @@ final
 *.ast.ml
 *.tast.ml
 *.core.ml
+*.z3
 test/testbin*
 *.runner.c
 *_runner.c

@@ -17,6 +17,34 @@ let rebind f pa = { pa with data=f pa }
 #define xfunction xwrap @@ fun p -> function
 
 
+
+let z3e = Stack.create ()
+let z3_push e = Stack.push e z3e
+#define z3_pop (Stack.pop z3e)
+#define z3_top (Stack.top z3e)
+
+let z3_bty = xfunction
+  | Int n -> (Z.bitvec n,true)
+  | UInt n -> (Z.bitvec n,false)
+  | Num k -> (Z.int,k < 0)
+  | Bool -> (Z.bool,false)
+
+let z3_ty = xfunction
+  | BaseET(b,_) ->
+    z3_bty b
+
+let z3_unop = function
+  | Ast.Neg -> Z.neg
+  | Ast.BitwiseNot -> Z.bnot
+  | Ast.LogicalNot -> Z.(!)
+
+let z3_binop = function
+  | Ast.Plus -> Z.(+)
+  | Ast.Minus -> Z.(-)
+  | Ast.Multiply -> Z.( * )
+  | _ -> Z.(+)
+
+
 (* Predicates *)
 
 let is_int = xfunction
@@ -24,6 +52,12 @@ let is_int = xfunction
   | Int _ -> true
   | Num _ -> true
   | _ -> false
+
+let is_signed = xfunction
+  | Int _ -> true
+  | UInt _ -> false
+  | Num k -> k < 0
+  | _ -> raise @@ err(p)
 
 let is_bool = xfunction
   | Bool -> true
@@ -159,9 +193,39 @@ let tc_binop' p op e1 e2 =
   let b2,ml2 = expr_to_types e2 in
   let b' =
     match op with
-      | Ast.Plus
-      | Ast.Minus
-      | Ast.Multiply
+      | Ast.Plus ->
+        if not (is_int b1) then raise @@ err(p);
+        if not (is_int b2) then raise @@ err(p);
+        let signed = (is_signed b1 || is_signed b2) in
+        let z3expr = z3_top in
+          begin
+            if Z.is_bv z3expr then
+              let [a;b] = Z.get_args z3expr in
+                Z.(add_add_overflow_checks a b signed);
+          end;
+          join_bt p b1 b2
+      | Ast.Minus ->
+        if not (is_int b1) then raise @@ err(p);
+        if not (is_int b2) then raise @@ err(p);
+        let signed = (is_signed b1 || is_signed b2) in
+        let z3expr = z3_top in
+          begin
+            if Z.is_bv z3expr then
+              let [a;b] = Z.get_args z3expr in
+                Z.(add_sub_overflow_checks a b signed);
+          end;
+          join_bt p b1 b2
+      | Ast.Multiply ->
+        if not (is_int b1) then raise @@ err(p);
+        if not (is_int b2) then raise @@ err(p);
+        let signed = (is_signed b1 || is_signed b2) in
+        let z3expr = z3_top in
+          begin
+            if Z.is_bv z3expr then
+              let [a;b] = Z.get_args z3expr in
+                Z.(add_mul_overflow_checks a b signed);
+          end;
+          join_bt p b1 b2
       | Ast.GT
       | Ast.GTE
       | Ast.LT
@@ -194,12 +258,16 @@ let tc_binop' p op e1 e2 =
 
 let rec tc_expr venv = pfunction
   | Ast.True ->
+    z3_push Z.true_;
     (True, BaseET(mkpos Bool, mkpos Fixed Public))
   | Ast.False ->
+    z3_push Z.false_;
     (False, BaseET(mkpos Bool, mkpos Fixed Public))
   | Ast.IntLiteral n ->
+    z3_push @@ Z.num n;
     (IntLiteral n, BaseET(mkpos Num n, mkpos Fixed Public))
   | Ast.Variable x ->
+    z3_push @@ Z.var x.data;
     let xref = find_var venv x in
       (Variable x, refvt_to_etype' xref)
   | Ast.IntCast(b,e) ->
@@ -208,16 +276,21 @@ let rec tc_expr venv = pfunction
     let e' = tc_expr venv e in
       if not (is_int (expr_to_btype e')) then raise @@ err(e'.pos);
     let ml = expr_to_ml e' in
+      z3_push @@ Z.intcast z3_pop (z3_ty (type_of e')) (z3_bty b');
       (IntCast(b',e'), BaseET(b',ml))
   | Ast.Declassify e ->
     let e' = tc_expr venv e in
       (Declassify e', BaseET(expr_to_btype e', mkpos Fixed Public))
   | Ast.UnOp(op,e) ->
     let e' = tc_expr venv e in
+      z3_push @@ z3_unop op @@ z3_pop;
       tc_unop' p op e'
   | Ast.BinOp(op,e1,e2) ->
     let e1' = tc_expr venv e1 in
+    let a = z3_pop in
     let e2' = tc_expr venv e2 in
+    let b = z3_pop in
+      z3_push @@ (z3_binop op) a b;
       tc_binop' p op e1' e2'
 
 let tc_stm venv = pfunction
@@ -228,6 +301,8 @@ let tc_stm venv = pfunction
     let xty = refvt_to_etype vt' in
       if not (ety <:$ xty) then raise @@ err(e'.pos);
       add_var venv x vt';
+      let zvar = Z.new_var (z3_ty xty) x.data in
+        Z.(add (zvar = z3_pop));
       BaseDec(x,vt',e')
 
 let tc_fdec = pfunction
@@ -236,4 +311,17 @@ let tc_fdec = pfunction
       FunDec(fn,rt,params,List.map (tc_stm venv) stms)
 
 let tc_module (Ast.Module fdecs) =
-  (Module (List.map tc_fdec fdecs))
+  let r = (Module (List.map tc_fdec fdecs)) in
+    Core.Out_channel.write_all "overflow.z3"
+      ~data:((Z.string_of_solv ())^"\n");
+  let status = Z.check () in
+  let model = Z.get_model () in
+  let model_output =
+    (match model with
+      | Some m ->
+        (Z.string_of_model m)^"\n"
+      | None -> "Unsatisfiable\n")
+  in
+    Core.Out_channel.write_all "overflow_model.z3"
+      ~data:model_output;
+    r

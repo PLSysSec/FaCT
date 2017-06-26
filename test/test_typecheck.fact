@@ -7,10 +7,15 @@ public int32 foo() {
 
   public bool t_pub = declassify(t);
 
-  secret int32 y_ = -22;
+  secret int32 y_ = -25;
   public int32 yy = -y;
   public int32 yy_ = ~y;
   public bool xx = !x;
 
   secret int32 tt = y + y_ - yy * yy_;
+
+  /* overflow checking */
+  //public uint8 o1 = 120;
+  //public uint8 o2 = 142;
+  //public uint8 o3 = o1 + o2;
 }
