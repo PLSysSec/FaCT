@@ -93,8 +93,9 @@ and arg_expr = arg_expr' pos_ast [@@deriving show]
 
 and array_index = expr [@@deriving show]
 and cond = expr [@@deriving show]
-and thenstms = statements [@@deriving show]
-and elsestms = statements [@@deriving show]
+and thenblock = block [@@deriving show]
+and elseblock = block [@@deriving show]
+and block = variable_type Env.env * statements [@@deriving show]
 and statements = statement list [@@deriving show]
 and low_expr = expr [@@deriving show]
 and high_expr = expr [@@deriving show]
@@ -104,8 +105,8 @@ and statement' =
   | ArrayDec of var_name * variable_type * array_expr
   | BaseAssign of var_name * expr
   | ArrayAssign of var_name * array_index * expr
-  | If of cond * thenstms * elsestms
-  | For of var_name * base_type * low_expr * high_expr * statements
+  | If of cond * thenblock * elseblock
+  | For of var_name * base_type * low_expr * high_expr * block
   | VoidFnCall of fun_name * arg_exprs
   | Return of expr
 [@@deriving show]
@@ -117,12 +118,11 @@ and param' =
 and param = param' pos_ast [@@deriving show]
 
 and params = param list [@@deriving show]
-and body = statements [@@deriving show]
 
 and ret_type = expr_type option [@@deriving show]
 
 and function_dec' =
-  | FunDec of fun_name * ret_type * params * body
+  | FunDec of fun_name * ret_type * params * block
 [@@deriving show]
 and function_dec = function_dec' pos_ast [@@deriving show]
 

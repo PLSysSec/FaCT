@@ -139,8 +139,8 @@ let (+) a b =
     | None ->
       Arithmetic.mk_add ctx [a;b]
 
-let add_neg_overflow_check a =
-  add @@ BitVector.mk_neg_no_overflow ctx a
+let add_neg_overflow_check a = ()
+  (*add @@ BitVector.mk_neg_no_overflow ctx a*)
 
 let add_add_overflow_check a b signed =
   begin
@@ -159,24 +159,24 @@ let add_add_overflow_check a b signed =
               print_endline (string_of_model m);
               raise @@ err
           | _ -> ());
-        pop ();*)
+        pop ();
         add @@ BitVector.mk_add_no_overflow ctx a b signed;
         if signed then
-          add @@ BitVector.mk_add_no_underflow ctx a b;
+          add @@ BitVector.mk_add_no_underflow ctx a b;*)
   end
 
 let add_sub_overflow_check a b signed =
   begin
-    if signed then
+    (*if signed then
       add @@ BitVector.mk_sub_no_overflow ctx a b;
-    add @@ BitVector.mk_sub_no_underflow ctx a b signed;
+    add @@ BitVector.mk_sub_no_underflow ctx a b signed;*)
   end
 
 let add_mul_overflow_check a b signed =
   begin
-    add @@ BitVector.mk_mul_no_overflow ctx a b signed;
+    (*add @@ BitVector.mk_mul_no_overflow ctx a b signed;
     if signed then
-      add @@ BitVector.mk_mul_no_underflow ctx a b;
+      add @@ BitVector.mk_mul_no_underflow ctx a b;*)
   end
 
 let (-) a b =

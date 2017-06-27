@@ -21,13 +21,13 @@ type 'a env =
   | SubEnv of 'a envtbl * 'a env
 [@@deriving show]
 
-let pp_env fmt env =
+let pp_env pp_v fmt env =
   let pp = Format.pp_print_text fmt in
     begin
       pp "{ ";
       (match env with
-        | TopEnv vtbl -> pp_hashtbl fmt vtbl
-        | SubEnv(vtbl,_) -> pp_hashtbl fmt vtbl);
+        | TopEnv vtbl -> pp_envtbl pp_v fmt vtbl
+        | SubEnv(vtbl,_) -> pp_envtbl pp_v fmt vtbl);
       pp "}";
     end
 

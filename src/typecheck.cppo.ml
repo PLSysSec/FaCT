@@ -1,6 +1,5 @@
 open Pos
 open Err
-open Env
 open Tast
 
 #define err(p) InternalCompilerError("from source" ^ __LOC__ << p)
@@ -296,7 +295,8 @@ let tc_binop' p op e1 e2 =
 
 let rec tc_arg fenv venv = pfunction
   | Ast.ByValue e ->
-    ByValue (tc_expr fenv venv e)
+    let arg' = ByValue (tc_expr fenv venv e) in
+      z3_pop; arg'
   | Ast.ByRef x ->
     ByRef x
 
@@ -312,7 +312,7 @@ and tc_expr fenv venv = pfunction
     (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public))
   | Ast.Variable x ->
     z3_push @@ Z.var x.data;
-    let xref = find_var venv x in
+    let xref = Env.find_var venv x in
       (Variable x, refvt_to_etype' xref)
   | Ast.IntCast(b,e) ->
     let b' = bconv b in
@@ -344,22 +344,53 @@ and tc_expr fenv venv = pfunction
       z3_push @@ Z.ite a b c;
       (TernOp(e1',e2',e3'), join_ty' p (type_of e2') (type_of e3'))
   | Ast.FnCall(f,args) ->
-    let args' = (List.map (tc_arg fenv venv) args) in
-    let (FunDec(_,Some rty,_,_)) = (find_var fenv f).data in
+    let args' = List.map (tc_arg fenv venv) args in
+    let (FunDec(_,Some rty,_,_)) = (Env.find_var fenv f).data in
       z3_push @@ Z.thing (z3_ty rty);
       (FnCall(f,args'), rty.data)
 
-let tc_stm fenv venv = pfunction
+let rec tc_stm fenv venv = pfunction
   | Ast.BaseDec(x,vt,e) ->
     let e' = tc_expr fenv venv e in
     let ety = type_of e' in
     let vt' = refvt_conv vt in
     let xty = refvt_to_etype vt' in
       if not (ety <:$ xty) then raise @@ err(e'.pos);
-      add_var venv x vt';
+      Env.add_var venv x vt';
       let zvar = Z.new_var (z3_ty xty) x.data in
         Z.(add (zvar = z3_pop));
       BaseDec(x,vt',e')
+  | Ast.BaseAssign(x,e) ->
+    let e' = tc_expr fenv venv e in
+      z3_pop;
+      BaseAssign(x,e')
+  | Ast.If(cond,thenstms,elsestms) ->
+    let cond' = tc_expr fenv venv cond in
+    let thenstms' = tc_block fenv (Env.sub_env venv) thenstms in
+    let elsestms' = tc_block fenv (Env.sub_env venv) elsestms in
+      z3_pop;
+    If(cond',thenstms',elsestms')
+  | Ast.For(i,ity,lo,hi,stms) ->
+    let ity' = bconv ity in
+    let lo' = tc_expr fenv venv lo in
+    let hi' = tc_expr fenv venv hi in
+      z3_pop; z3_pop;
+    let venv' = Env.sub_env venv in
+      Env.add_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const));
+      let stms' = tc_block fenv venv' stms in
+        For(i,ity',lo',hi',stms')
+  | Ast.VoidFnCall(f,args) ->
+    let args' = List.map (tc_arg fenv venv) args in
+    let (FunDec(_,Some rty,_,_)) = (Env.find_var fenv f).data in
+      VoidFnCall(f,args')
+  | Ast.Return e ->
+    let e' = tc_expr fenv venv e in
+      z3_pop;
+      Return e'
+
+and tc_block fenv venv stms =
+  let stms' = List.map (tc_stm fenv venv) stms in
+    (venv, stms')
 
 let tc_param = pfunction
   | Ast.Param(x,vty) ->
@@ -370,16 +401,16 @@ let tc_fdec' fenv = function
     let rt' = etype_conv rt in
     let params' = List.map tc_param params in
     let venv = Env.new_env () in
-      FunDec(f,Some rt',params',List.map (tc_stm fenv venv) stms)
+      FunDec(f,Some rt',params',tc_block fenv venv stms)
 
 let tc_fdec fenv = xfunction
   | Ast.FunDec(f,_,_,_) as fdec ->
     let fdec' = mkpos tc_fdec' fenv fdec in
-      add_var fenv f fdec';
+      Env.add_var fenv f fdec';
       fdec'
 
 let tc_module (Ast.Module fdecs) =
   let fenv = Env.new_env () in
   let ret = Module (List.map (tc_fdec fenv) fdecs) in
-    print_endline (show_env pp_function_dec fenv);
+    print_endline (Env.show_env pp_function_dec fenv);
     ret

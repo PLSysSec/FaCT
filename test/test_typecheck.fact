@@ -27,6 +27,21 @@ public bool baz() {
 }
 
 public int32 bar() {
-  public int32 x = foo();
+  secret int32 x = foo();
   public bool y = baz(4);
+  y = x;
+  if (x + 4) {
+    y = x;
+  } else if (x + 3) {
+    x = y;
+  } else {
+    x = x + x;
+  }
+
+  for (int32 x = 0 to 6) {
+    x = y;
+  }
+
+  baz(x, ref y);
+  return 7;
 }
