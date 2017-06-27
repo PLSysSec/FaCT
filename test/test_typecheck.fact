@@ -12,12 +12,12 @@ public int32 foo() {
   public int32 yy_ = ~y;
   public bool xx = !x;
 
-  secret int32 tt = y + y_ - yy * yy_;
+  //secret int32 tt = y + y_ - yy * yy_;
 
   /* overflow checking */
-  //public uint8 o1 = 120;
-  //public uint8 o2 = 142;
-  //public uint8 o3 = o1 + o2;
+  //public int8 o1 = 120;
+  //public int8 o2 = 112;
+  //public int8 o3 = o1 + o2;
 
   secret int32 ttt = y | y_;
   secret int32 xxy = x ? yy : yy_;

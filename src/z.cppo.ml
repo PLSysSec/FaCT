@@ -10,6 +10,9 @@ let ctx = Z3.mk_context []
 let solv = Solver.mk_simple_solver ctx
 
 let string_of_solv () = Solver.to_string solv
+let push () = Solver.push solv
+let pop () = Solver.pop solv 1
+let popn n = Solver.pop solv n
 let check () = Solver.check solv []
 let get_model () =
   try
@@ -37,6 +40,8 @@ let true_ = Boolean.mk_true ctx
 let false_ = Boolean.mk_false ctx
 let num n = Arithmetic.Integer.mk_numeral_i ctx n
 let var x = Hashtbl.find vars x
+
+let bv0 n = Expr.mk_numeral_int ctx 0 (bitvec n)
 
 let new_var (sort,_) x =
   let var = Expr.mk_const_s ctx x sort in
@@ -101,6 +106,10 @@ let (>=) a b = Arithmetic.mk_ge ctx a b
 let (<) a b = Arithmetic.mk_lt ctx a b
 let (<=) a b = Arithmetic.mk_le ctx a b
 
+let (||) a b = Boolean.mk_or ctx [a;b]
+let (&&) a b = Boolean.mk_and ctx [a;b]
+let (=>) a b = Boolean.mk_implies ctx a b
+
 let ugt a b = BitVector.mk_ugt ctx a b
 let uge a b = BitVector.mk_uge ctx a b
 let ult a b = BitVector.mk_ult ctx a b
@@ -128,9 +137,26 @@ let add_neg_overflow_check a =
 
 let add_add_overflow_check a b signed =
   begin
-    add @@ BitVector.mk_add_no_overflow ctx a b signed;
-    if signed then
-      add @@ BitVector.mk_add_no_underflow ctx a b;
+    push ();
+    (* XXX ugly and also incomplete *)
+    let sz = BitVector.get_size @@ Expr.get_sort a in
+    let zero = bv0 sz in
+      add ((sge a zero) && (sge b zero));
+      add (slt (a + b) zero);
+      let bad_val = new_var (bitvec sz,signed) "bad" in
+      let bad = (bad_val = a + b) in
+        add bad;
+        (match check () with
+          | SATISFIABLE ->
+            let Some m = get_model () in
+              print_endline (string_of_solv ());
+              print_endline (string_of_model m);
+              raise @@ err
+          | _ -> ());
+        pop ();
+        add @@ BitVector.mk_add_no_overflow ctx a b signed;
+        if signed then
+          add @@ BitVector.mk_add_no_underflow ctx a b;
   end
 
 let add_sub_overflow_check a b signed =
@@ -183,19 +209,6 @@ let (^.) a b =
   match to_bv a b with
     | Some (a',b') ->
       BitVector.mk_xor ctx a' b'
-    | None ->
-      raise err
-
-let (||) a b =
-  match to_bv a b with
-    | Some (a',b') ->
-      Boolean.mk_or ctx [a';b']
-    | None ->
-      raise err
-let (&&) a b =
-  match to_bv a b with
-    | Some (a',b') ->
-      Boolean.mk_and ctx [a';b]
     | None ->
       raise err
 
