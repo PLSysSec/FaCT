@@ -387,6 +387,7 @@ let rec tc_stm fenv venv = pfunction
     let e' = tc_expr fenv venv e in
       z3_pop;
       Return e'
+  | Ast.VoidReturn -> VoidReturn
 
 and tc_block fenv venv stms =
   let stms' = List.map (tc_stm fenv venv) stms in

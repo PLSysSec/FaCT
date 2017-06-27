@@ -223,6 +223,8 @@ statement:
     { mkpos (VoidFnCall(fn, args)) }
   | RETURN e=expr SEMICOLON
     { mkpos (Return e) }
+  | RETURN SEMICOLON
+    { mkpos VoidReturn }
 
 %inline block: xs=blist(statement) { xs }
 

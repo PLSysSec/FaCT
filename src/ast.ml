@@ -127,6 +127,7 @@ and statement' =
   | For of var_name * base_type * low_expr * high_expr * statements
   | VoidFnCall of fun_name * arg_exprs
   | Return of expr
+  | VoidReturn
 [@@deriving show]
 and statement = statement' pos_ast [@@deriving show]
 

@@ -44,4 +44,5 @@ public int32 bar() {
 
   baz(x, ref y);
   return 7;
+  return;
 }
