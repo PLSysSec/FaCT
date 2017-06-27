@@ -1,21 +1,25 @@
 open Pos
 open Err
 
-let pp_hashtbl fmt vtbl =
+let pp_hashtbl fmt vtbl = ()
+
+type 'a envtbl = (string,'a) Hashtbl.t [@printer pp_hashtbl]
+[@@deriving show]
+
+let pp_envtbl pp_v fmt vtbl =
   let pp = Format.pp_print_text fmt in
     begin
       pp "{ ";
       Hashtbl.iter
-        (fun k v -> pp (k ^ "; "))
+        (fun k v -> pp k; pp "; ")
         vtbl;
       pp "}";
     end
 
-type 'a envtbl = (string,'a) Hashtbl.t [@printer pp_hashtbl]
-
 type 'a env =
   | TopEnv of 'a envtbl
   | SubEnv of 'a envtbl * 'a env
+[@@deriving show]
 
 let pp_env fmt env =
   let pp = Format.pp_print_text fmt in

@@ -41,6 +41,13 @@ let false_ = Boolean.mk_false ctx
 let num n = Arithmetic.Integer.mk_numeral_i ctx n
 let var x = Hashtbl.find vars x
 
+(* for when you just need a thing *)
+let thing (sort,_) =
+  if Z3.Sort.equal sort bool then
+    true_
+  else
+    Z3.Expr.mk_numeral_int ctx 4 sort
+
 let bv0 n = Expr.mk_numeral_int ctx 0 (bitvec n)
 
 let new_var (sort,_) x =

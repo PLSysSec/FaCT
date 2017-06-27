@@ -5,7 +5,8 @@ type size = int [@@deriving show]
 type var_name' = string [@@deriving show]
 and var_name = var_name' pos_ast [@@deriving show]
 
-type fun_name = string [@@deriving show]
+type fun_name' = string [@@deriving show]
+and fun_name = fun_name' pos_ast [@@deriving show]
 
 type mutability' =
   | Const

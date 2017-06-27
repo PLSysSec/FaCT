@@ -5,7 +5,8 @@ type size = int [@@deriving show]
 type var_name' = string [@@deriving show]
 and var_name = var_name' pos_ast [@@deriving show]
 
-type fun_name = string [@@deriving show]
+type fun_name' = string [@@deriving show]
+and fun_name = fun_name' pos_ast [@@deriving show]
 
 type mutability' =
   | Const
@@ -121,7 +122,7 @@ and body = statements [@@deriving show]
 and ret_type = expr_type option [@@deriving show]
 
 and function_dec' =
-  | FunDec of fun_name * Ast.ret_type * Ast.params * body
+  | FunDec of fun_name * ret_type * params * body
 [@@deriving show]
 and function_dec = function_dec' pos_ast [@@deriving show]
 

@@ -22,3 +22,11 @@ public int32 foo() {
   secret int32 ttt = y | y_;
   secret int32 xxy = x ? yy : yy_;
 }
+
+public bool baz() {
+}
+
+public int32 bar() {
+  public int32 x = foo();
+  public bool y = baz(4);
+}

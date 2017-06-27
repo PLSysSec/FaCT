@@ -74,6 +74,10 @@ let mconv = pfunction
   | Ast.Const -> Const
   | Ast.Mut -> Mut
 
+let etype_conv = pfunction
+  | Ast.BaseET(b,l) ->
+    BaseET(bconv b, mlconv l)
+
 let refvt_conv = pfunction
   | Ast.RefVT(b,l,m) ->
     RefVT(bconv b, mlconv l, mconv m)
@@ -290,7 +294,13 @@ let tc_binop' p op e1 e2 =
   let ml' = join_ml p ml1 ml2 in
     (BinOp(op, e1, e2), BaseET(b', ml'))
 
-let rec tc_expr venv = pfunction
+let rec tc_arg fenv venv = pfunction
+  | Ast.ByValue e ->
+    ByValue (tc_expr fenv venv e)
+  | Ast.ByRef x ->
+    ByRef x
+
+and tc_expr fenv venv = pfunction
   | Ast.True ->
     z3_push Z.true_;
     (True, BaseET(mkpos Bool, mkpos Fixed Public))
@@ -307,36 +317,41 @@ let rec tc_expr venv = pfunction
   | Ast.IntCast(b,e) ->
     let b' = bconv b in
       if not (is_int b') then raise @@ err(b'.pos);
-    let e' = tc_expr venv e in
+    let e' = tc_expr fenv venv e in
       if not (is_int (expr_to_btype e')) then raise @@ err(e'.pos);
     let ml = expr_to_ml e' in
       z3_push @@ Z.intcast z3_pop (z3_ty (type_of e')) (z3_bty b');
       (IntCast(b',e'), BaseET(b',ml))
   | Ast.Declassify e ->
-    let e' = tc_expr venv e in
+    let e' = tc_expr fenv venv e in
       (Declassify e', BaseET(expr_to_btype e', mkpos Fixed Public))
   | Ast.UnOp(op,e) ->
-    let e' = tc_expr venv e in
+    let e' = tc_expr fenv venv e in
       z3_push @@ z3_unop op @@ z3_pop;
       tc_unop' p op e'
   | Ast.BinOp(op,e1,e2) ->
-    let e1' = tc_expr venv e1 in
-    let e2' = tc_expr venv e2 in
+    let e1' = tc_expr fenv venv e1 in
+    let e2' = tc_expr fenv venv e2 in
       tc_binop' p op e1' e2'
   | Ast.TernOp(e1,e2,e3) ->
-    let e1' = tc_expr venv e1 in
+    let e1' = tc_expr fenv venv e1 in
       if not (is_bool (expr_to_btype e1')) then raise @@ err(e1'.pos);
-    let e2' = tc_expr venv e2 in
-    let e3' = tc_expr venv e3 in
+    let e2' = tc_expr fenv venv e2 in
+    let e3' = tc_expr fenv venv e3 in
     let c = z3_pop in
     let b = z3_pop in
     let a = z3_pop in
       z3_push @@ Z.ite a b c;
       (TernOp(e1',e2',e3'), join_ty' p (type_of e2') (type_of e3'))
+  | Ast.FnCall(f,args) ->
+    let args' = (List.map (tc_arg fenv venv) args) in
+    let (FunDec(_,Some rty,_,_)) = (find_var fenv f).data in
+      z3_push @@ Z.thing (z3_ty rty);
+      (FnCall(f,args'), rty.data)
 
-let tc_stm venv = pfunction
+let tc_stm fenv venv = pfunction
   | Ast.BaseDec(x,vt,e) ->
-    let e' = tc_expr venv e in
+    let e' = tc_expr fenv venv e in
     let ety = type_of e' in
     let vt' = refvt_conv vt in
     let xty = refvt_to_etype vt' in
@@ -346,10 +361,25 @@ let tc_stm venv = pfunction
         Z.(add (zvar = z3_pop));
       BaseDec(x,vt',e')
 
-let tc_fdec = pfunction
-  | Ast.FunDec(fn,rt,params,stms) ->
+let tc_param = pfunction
+  | Ast.Param(x,vty) ->
+    Param(x,refvt_conv vty)
+
+let tc_fdec' fenv = function
+  | Ast.FunDec(f,Some rt,params,stms) ->
+    let rt' = etype_conv rt in
+    let params' = List.map tc_param params in
     let venv = Env.new_env () in
-      FunDec(fn,rt,params,List.map (tc_stm venv) stms)
+      FunDec(f,Some rt',params',List.map (tc_stm fenv venv) stms)
+
+let tc_fdec fenv = xfunction
+  | Ast.FunDec(f,_,_,_) as fdec ->
+    let fdec' = mkpos tc_fdec' fenv fdec in
+      add_var fenv f fdec';
+      fdec'
 
 let tc_module (Ast.Module fdecs) =
-  Module (List.map tc_fdec fdecs)
+  let fenv = Env.new_env () in
+  let ret = Module (List.map (tc_fdec fenv) fdecs) in
+    print_endline (show_env pp_function_dec fenv);
+    ret

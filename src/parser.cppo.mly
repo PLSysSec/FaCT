@@ -89,6 +89,9 @@ main:
 var_name:
   | x=IDENT { mkpos x }
 
+fun_name:
+  | f=IDENT { mkpos f }
+
 base_type:
   | t=TYPE { mkpos (to_type (mkpos t)) }
 
@@ -160,7 +163,7 @@ expr:
   | op=unop e=expr %prec UNARYOP { mkpos (UnOp(op, e)) }
   | e1=expr op=binop e2=expr { mkpos (BinOp(op, e1, e2)) }
   | e1=expr QUESTION e2=expr COLON e3=expr { mkpos (TernOp(e1, e2, e3)) }
-  | fn=IDENT args=plist(arg) { mkpos (FnCall(fn, args)) }
+  | fn=fun_name args=plist(arg) { mkpos (FnCall(fn, args)) }
   | DECLASSIFY e=paren(expr) { mkpos (Declassify e) }
 
 array_expr:
@@ -216,7 +219,7 @@ statement:
     { iff }
   | FOR LPAREN b=base_type i=var_name ASSIGN e1=expr TO e2=expr RPAREN stms=block
     { mkpos (For(i, b, e1, e2, stms)) }
-  | fn=IDENT args=plist(arg) SEMICOLON
+  | fn=fun_name args=plist(arg) SEMICOLON
     { mkpos (VoidFnCall(fn, args)) }
   | RETURN e=expr SEMICOLON
     { mkpos (Return e) }
@@ -242,7 +245,7 @@ param:
     { mkpos (Param(x, t)) }
 
 function_dec:
-  | r=ret_type fn=IDENT params=plist(param) body=block
+  | r=ret_type fn=fun_name params=plist(param) body=block
     { mkpos (FunDec(fn, r, params, body)) }
 
 fact_module:
