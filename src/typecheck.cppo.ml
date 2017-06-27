@@ -352,19 +352,4 @@ let tc_fdec = pfunction
       FunDec(fn,rt,params,List.map (tc_stm venv) stms)
 
 let tc_module (Ast.Module fdecs) =
-  let r = (Module (List.map tc_fdec fdecs)) in
-    Core.Out_channel.write_all "overflow.z3"
-      ~data:((Z.string_of_solv ())^"\n");
-  let status = Z.check () in
-  let model = Z.get_model () in
-  let model_output =
-    (match model with
-      | Some m ->
-        (Z.string_of_model m)^"\n"
-      | None -> "Unsatisfiable\n")
-  in
-    Core.Out_channel.write_all "overflow_model.z3"
-      ~data:model_output;
-    match status with
-      | Z.SATISFIABLE -> r
-      | _ -> raise @@ SMTSolverError "possible overflow somewhere"
+  Module (List.map tc_fdec fdecs)

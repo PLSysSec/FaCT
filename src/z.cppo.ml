@@ -137,9 +137,8 @@ let add_neg_overflow_check a =
 
 let add_add_overflow_check a b signed =
   begin
-    push ();
-    (* XXX ugly and also incomplete *)
-    let sz = BitVector.get_size @@ Expr.get_sort a in
+    (* XXX incorrect and incomplete *)
+    (*let sz = BitVector.get_size @@ Expr.get_sort a in
     let zero = bv0 sz in
       add ((sge a zero) && (sge b zero));
       add (slt (a + b) zero);
@@ -153,7 +152,7 @@ let add_add_overflow_check a b signed =
               print_endline (string_of_model m);
               raise @@ err
           | _ -> ());
-        pop ();
+        pop ();*)
         add @@ BitVector.mk_add_no_overflow ctx a b signed;
         if signed then
           add @@ BitVector.mk_add_no_underflow ctx a b;
