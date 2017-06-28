@@ -25,7 +25,7 @@ let bt_to_llvm_ty ctx = function
   | Int  size when size <= 16 -> i16_type ctx
   | Int  size when size <= 32 -> i32_type ctx
   | Bool                      -> i32_type ctx (* TODO: Double check this*)
-  | Num(i,b)                  -> raise CodegenError
+  | Num(i,b)                  -> i32_type ctx (* TODO: Double check semantics for `Num` *)
 
 let vt_to_llvm_ty ctx = function
   | RefVT({data=base_type},maybe_label,_) ->
@@ -85,24 +85,49 @@ let rec allocate_stack ctx builder venv stms =
          probably want to be able to reuse this?? *)
       add_var venv var_name alloca;
       allocate_stack ctx builder venv stms
+    | _ -> ()
   in
   ignore(List.map allocate_stack' stms)
 
-let codegen_expr llcontext llmodule builder = function
+let codegen_binop op e1 e2 ty b =
+  match op with
+    | Ast.Plus -> build_add e1 e2 "addtmp" b
+    | _ -> raise CodegenError
+
+let rec codegen_expr llcontext llmodule builder venv = function
   | True, ty -> raise CodegenError
   | False, ty -> raise CodegenError
-  | IntLiteral i, ty -> raise CodegenError
+  | IntLiteral i, ty ->
+    const_int (expr_ty_to_llvm_ty llcontext ty) i
   | Variable var_name, ty -> raise CodegenError
   | ArrayGet(var_name,expr), ty -> raise CodegenError
   | ArrayLen(var_name), ty -> raise CodegenError
   | IntCast(base_ty,expr), ty -> raise CodegenError
   | UnOp(op,expr), ty -> raise CodegenError
-  | BinOp(op,expr1,expr2), ty -> raise CodegenError
+  | BinOp(op,expr1,expr2), ty ->
+    let e1 = codegen_expr llcontext llmodule builder venv expr1.data in
+    let e2 = codegen_expr llcontext llmodule builder venv expr2.data in
+    codegen_binop op e1 e2 ty builder
   | TernOp(expr1,expr2,expr3), ty -> raise CodegenError
   | FnCall(fun_name,args), ty -> raise CodegenError
   | Declassify(expr), ty -> raise CodegenError
 
-let rec codegen_stms llcontext llmodule builder stms =
+let extend_to ctx builder signed ty v =
+  let llvm_ty = expr_ty_to_llvm_ty ctx ty in
+  let lb,rb = integer_bitwidth llvm_ty, integer_bitwidth (type_of v) in
+  match lb,rb with
+    | lb,rb when lb < rb -> build_trunc v llvm_ty "trunctmp" builder
+    | lb,rb when lb > rb && signed -> build_sext v llvm_ty "extendtmp" builder
+    | lb,rb when lb > rb -> build_zext v llvm_ty "extendtmp" builder
+    | _ -> v
+
+let codegen_ext llcontext llmodule builder venv ty (expr : expr) =
+  match expr.data with
+    | expr',ty' ->
+      let expr' = codegen_expr llcontext llmodule builder venv expr.data in
+      extend_to llcontext builder (is_signed ty) ty' expr'
+
+let rec codegen_stms llcontext llmodule builder ret_ty venv stms =
   let rec codegen_stm = function
     | {data=BaseDec(var_name,var_type,expr)} -> raise CodegenError
     | {data=ArrayDec(var_name,var_type,arr_expr)} -> raise CodegenError
@@ -111,27 +136,19 @@ let rec codegen_stms llcontext llmodule builder stms =
     | {data=If(cond,thenstms,elsestms)} -> raise CodegenError
     | {data=For(var_name,base_type,low_expr,high_expr,statements)} -> raise CodegenError
     | {data=VoidFnCall(fun_name,arg_exprs)} -> raise CodegenError
-    | {data=Return(expr)} -> raise CodegenError
+    | {data=Return(expr)} ->
+      match ret_ty with
+        | BaseET(bt,label) ->
+          let ret' = codegen_ext llcontext llmodule builder venv bt.data expr in
+          ignore(build_ret ret' builder)
+          (* TODO: assert valid function here *)
+        | ArrayET _ -> raise CodegenError (* TODO: Cannot retur an array yet *)
   in
   ignore(List.map codegen_stm stms)
 
-let extend_to ctx builder signed ty v =
-  let llvm_ty = vt_to_llvm_ty ctx ty in
-  let lb,rb = integer_bitwidth llvm_ty, integer_bitwidth (type_of v) in
-  match lb,rb with
-    | lb,rb when lb < rb -> build_trunc v llvm_ty "trunctmp" builder
-    | lb,rb when lb > rb && signed -> build_sext v llvm_ty "extendtmp" builder
-    | lb,rb when lb > rb -> build_zext v llvm_ty "extendtmp" builder
-    | _ -> v
-
-let codegen_ext llcontext llmodule builder venv ty expr =
-  match expr.data with
-    | expr,ty' ->
-      let expr' = codegen_expr llcontext llmodule builder venv expr in
-      extend_to llcontext builder (is_signed ty') ty expr'
-
 let codegen_fun llcontext llmodule builder = function
   | { data=FunDec(name,ret,params,body) } ->
+    Log.error "Generating function, %s" name.data;
     let param_types = List.map (param_to_type llcontext) params in
     let param_types' = Array.of_list param_types in
     let ret_ty = get_ret_ty llcontext ret in
@@ -146,7 +163,9 @@ let codegen_fun llcontext llmodule builder = function
     allocate_args llcontext builder var_env params;
     allocate_stack llcontext builder var_env body;
     (* TODO: store_args?? *)
-    codegen_stms llcontext llmodule builder body;
+    match ret with
+      | None -> raise CodegenError (* TODO: Void is not implemented yet *)
+      | Some ret' -> codegen_stms llcontext llmodule builder ret'.data var_env body;
     (*let ret' = codegen_ext llcontext llmodule builder var_env ret in
     build_ret ret' builder;*)
     Llvm_analysis.assert_valid_function ft';
@@ -154,8 +173,11 @@ let codegen_fun llcontext llmodule builder = function
 
 let rec codegen_fdecs llcontext llmodule builder = function
   | [] -> ()
-  | fd::rest -> codegen_fdecs llcontext llmodule builder rest
+  | fd::rest ->
+    codegen_fun llcontext llmodule builder fd;
+    codegen_fdecs llcontext llmodule builder rest
 
 let rec codegen llcontext llmodule builder = function
   | Module(fdecs) ->
+    Log.error "Codegening module";
     codegen_fdecs llcontext llmodule builder fdecs

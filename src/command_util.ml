@@ -28,7 +28,7 @@ let output_ast ast_out out_file ast =
     | true ->
       let ast_out_file = out_file ^ ".ast.ml" in
         Log.debug "Outputting AST to %s" ast_out_file;
-        Core.Out_channel.write_all ast_out_file
+        Core.Std.Out_channel.write_all ast_out_file
           ~data:((Ast.show_fact_module ast)^"\n")
 
 let output_tast ast_out out_file tast =
@@ -37,7 +37,7 @@ let output_tast ast_out out_file tast =
     | true ->
       let tast_out_file = out_file ^ ".tast.ml" in
         Log.debug "Outputting TAST to %s" tast_out_file;
-        Core.Out_channel.write_all tast_out_file
+        Core.Std.Out_channel.write_all tast_out_file
           ~data:((Tast.show_fact_module tast)^"\n")
 
 (*let output_core_ir core_ir_out out_file core_ir =

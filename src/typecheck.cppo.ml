@@ -360,6 +360,9 @@ let tc_stm fenv venv = pfunction
       let zvar = Z.new_var (z3_ty xty) x.data in
         Z.(add (zvar = z3_pop));
       BaseDec(x,vt',e')
+  | Ast.Return(e) ->
+    let e' = tc_expr fenv venv e in
+    Return(e')
 
 let tc_param = pfunction
   | Ast.Param(x,vty) ->
