@@ -97,6 +97,7 @@ base_type:
 
 array_type:
   | b=base_type l=brack(lexpr) { mkpos (ArrayAT(b, l)) }
+  | b=base_type LBRACK RBRACK { mkpos (ArrayAT(b, mkpos LUnspecified)) }
 
 label:
   | PUBLIC { mkpos Public }
@@ -149,8 +150,6 @@ arg:
 
 lexpr:
   | n=INT { mkpos (LIntLiteral n) }
-  | x=var_name { mkpos (LVariable x) }
-  | LEN a=var_name { mkpos (LLength a) }
 
 expr:
   | e=paren(expr) { mkpos e.data }

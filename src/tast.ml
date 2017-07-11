@@ -36,8 +36,7 @@ and base_type = base_type' pos_ast [@@deriving show]
 
 and lexpr' =
   | LIntLiteral of int
-  | LVariable of var_name
-  | LLength of var_name
+  | LUnspecified
 [@@deriving show]
 and lexpr = lexpr' pos_ast [@@deriving show]
 
@@ -68,7 +67,7 @@ and expr' =
   | IntCast of base_type * expr
   | UnOp of Ast.unop * expr
   | BinOp of Ast.binop * expr * expr
-  | TernOp of expr * expr * expr
+  | TernOp of expr * expr * expr (* translates directly to cmov *)
   | FnCall of fun_name * arg_exprs
   | Declassify of expr
 [@@deriving show]
