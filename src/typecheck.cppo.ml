@@ -412,6 +412,6 @@ let tc_fdec fenv = xfunction
 
 let tc_module (Ast.Module fdecs) =
   let fenv = Env.new_env () in
-  let ret = Module (List.map (tc_fdec fenv) fdecs) in
+  let ret = Module (fenv, List.map (tc_fdec fenv) fdecs) in
     print_endline (Env.show_env pp_function_dec fenv);
     ret

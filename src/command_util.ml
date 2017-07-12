@@ -1,11 +1,11 @@
 open Pos
 open Err
 open Lexing
-open Typecheck
 (*
 open Cast
 open Codegen
 open Env
+open Typecheck
 open Transform
 *)
 
@@ -89,11 +89,11 @@ let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
         raise (errSyntax p) in
   Log.debug "Parsing complete";
   output_ast ast_out out_file' ast;
-  let tast = tc_module ast in
+  let tast = Typecheck.tc_module ast in
   output_tast ast_out out_file' tast;
-  Log.debug "Typecheck complete"(*;
-  let core_ir = transform tast in
-  Log.debug "Core IR transform complete";
+  Log.debug "Typecheck complete";
+  let xftast = Transform.xf_module tast in
+  Log.debug "Tast transform complete"(*;
   output_core_ir core_ir_out out_file' core_ir;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in

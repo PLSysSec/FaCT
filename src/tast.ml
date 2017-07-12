@@ -67,7 +67,8 @@ and expr' =
   | IntCast of base_type * expr
   | UnOp of Ast.unop * expr
   | BinOp of Ast.binop * expr * expr
-  | TernOp of expr * expr * expr (* translates directly to cmov *)
+  | TernOp of expr * expr * expr
+  | Select of expr * expr * expr (* ct version of TernOp *)
   | FnCall of fun_name * arg_exprs
   | Declassify of expr
 [@@deriving show]
@@ -130,5 +131,5 @@ and function_decs = function_dec list
 [@@deriving show]
 
 and fact_module =
-  | Module of function_decs
+  | Module of function_dec Env.env * function_decs
 [@@deriving show]
