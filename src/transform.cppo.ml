@@ -17,6 +17,14 @@ let rebind f pa = { pa with data=f pa }
 
 
 
+let new_temp_var =
+  let ctr = ref 0 in
+  let new_temp_var' () =
+    ctr := !ctr + 1;
+    "__m" ^ (string_of_int !ctr)
+  in
+  new_temp_var'
+
 let is_secret e =
   let { data=(_,BaseET(_,{data=Fixed l})) } = e in
     l = Secret
@@ -80,7 +88,7 @@ and xf_expr' venv { data; pos=p } =
           Declassify e'
 and xf_expr venv ({ data=(e,ety) } as pa) = { pa with data=(xf_expr' venv pa, ety) }
 
-let rec xf_stm' venv = fun p -> function
+let rec xf_stm' venv p = function
   | BaseDec(x,vt,e) ->
     let e' = xf_expr venv e in
       [BaseDec(x,vt,e')]
@@ -89,12 +97,19 @@ let rec xf_stm' venv = fun p -> function
       [BaseAssign(x,e')]
   | If(cond,thenstms,elsestms) ->
     let cond' = xf_expr venv cond in
-    let thenstms' = xf_block thenstms in
-    let elsestms' = xf_block elsestms in
       if is_secret cond' then
+        let vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
+        let tname = mkpos new_temp_var () in
+        let mdec = () (* BaseDec a secret bool *) in
+          Env.add_var venv tname (* blah *);
+        let mnot = mkpos () (* BaseAssign not tname && ~ctx~ *) in
         (* XXX *)
+        let thenstms' = xf_block thenstms in
+        let elsestms' = xf_block elsestms in
         [If(cond',thenstms',elsestms')]
       else
+        let thenstms' = xf_block thenstms in
+        let elsestms' = xf_block elsestms in
         [If(cond',thenstms',elsestms')]
   | For(i,ity,lo,hi,stms) ->
     let lo' = xf_expr venv lo in
