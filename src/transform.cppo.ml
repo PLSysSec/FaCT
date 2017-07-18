@@ -58,7 +58,7 @@ and xf_expr' venv { data; pos=p } =
         let e1' = xf_expr venv e1 in
         let e2' = xf_expr venv e2 in
           if is_secret e1' then
-            (* XXX e2 should be xf_expr'd with a secret ctx *)
+            (* XXX e2 should be xf_expr'd with a secret ctx (matters for fn calls) *)
             match op with
               | Ast.LogicalAnd ->
                 Select(e1',e2',mkpos (False, BaseET(mkpos Bool, mkpos Fixed Public)))
@@ -72,14 +72,14 @@ and xf_expr' venv { data; pos=p } =
         let e2' = xf_expr venv e2 in
         let e3' = xf_expr venv e3 in
         if is_secret e1 then
-          (* XXX e2 and e3 should be xf_expr'd with a secret ctx *)
+          (* XXX e2 and e3 should be xf_expr'd with a secret ctx (matters for fn calls) *)
           Select(e1',e2',e3')
         else
           TernOp(e1',e2',e3')
       | Select _ -> raise @@ err(p)
       | FnCall(f,args) ->
         let args' = List.map (xf_arg venv) args in
-          (* XXX if there are any out params, need to pass fctx as well *)
+          (* XXX if there are any out params, need to pass down an fctx *)
           FnCall(f,args')
       | Declassify e ->
         let e' = xf_expr venv e in
@@ -96,6 +96,14 @@ and xf_expr venv ({ data=(e,ety) } as pa) = { pa with data=(xf_expr' venv pa, et
 #define rctx sebool(Variable (mkpos "__rnset"))
 #define bctx (List.fold_left (fun x y -> band(x,y)) sebool(True) \
                 (List.map (fun x -> bvar(x)) ms))
+
+let venv_merge_up = function
+  | Env.SubEnv(vtbl,venv) -> (* XXX need to check collisions *)
+    let vtbl' = Env.get_vtbl venv in
+      Hashtbl.iter (fun k v ->
+                     Hashtbl.replace vtbl' k v)
+        vtbl
+  | _ -> raise @@ InternalCompilerError("Can't merge up topvenv")
 
 let bty { data=(_,b) } = b
 let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
@@ -123,9 +131,10 @@ let rec xf_stm' venv ms p = function
         let mdec = BaseDec(tname, vt, cond') in
           Env.add_var venv tname vt;
         let mnot = BaseAssign(tname, bnot(bvar(tname))) in
-        (* XXX *)
-        let (_,tstms) = thenstms in
-        let (_,estms) = elsestms in
+        let (tvenv,tstms) = thenstms in
+        let (evenv,estms) = elsestms in
+          venv_merge_up tvenv;
+          venv_merge_up evenv;
         let thenstms' = List.flatten @@ List.map (xwrap @@ xf_stm' venv (tname::ms)) tstms in
         let elsestms' = List.flatten @@ List.map (xwrap @@ xf_stm' venv (tname::ms)) estms in
           [mdec] @ thenstms' @ [mnot] @ elsestms'
