@@ -91,9 +91,11 @@ and xf_expr venv ({ data=(e,ety) } as pa) = { pa with data=(xf_expr' venv pa, et
 #define band(e1,e2) sebool(BinOp(Ast.LogicalAnd,e1,e2))
 #define bor(e1,e2) sebool(BinOp(Ast.LogicalOr,e1,e2))
 #define bnot(e1) sebool(UnOp(Ast.LogicalNot,e1))
+#define bvar(x) sebool(Variable x)
 
 #define rctx sebool(Variable (mkpos "__rnset"))
-#define bctx (List.fold_left (fun x y -> band(x,y)) sebool(True) ms)
+#define bctx (List.fold_left (fun x y -> band(x,y)) sebool(True) \
+                (List.map (fun x -> bvar(x)) ms))
 
 let bty { data=(_,b) } = b
 let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
@@ -105,7 +107,7 @@ let rec xf_stm' venv ms p = function
       [BaseDec(x,vt,e')]
   | BaseAssign(x,e) ->
     let e' = xf_expr venv e in
-    (* XXX also transform with fctx if x is an out param *)
+    (* XXX also transform with fctx if we have one *)
     let should_transform = true in
       if should_transform then
         let x' = mkpos (Variable x, r2bty (Env.find_var venv x)) in
@@ -118,13 +120,15 @@ let rec xf_stm' venv ms p = function
       if is_secret cond' then
         let vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
         let tname = mkpos new_temp_var () in
-        let mdec = mkpos BaseDec(tname, vt, (*XXX*)sebool(True)) in
+        let mdec = BaseDec(tname, vt, cond') in
           Env.add_var venv tname vt;
-        let mnot = mkpos () (* BaseAssign not tname && ~ctx~ *) in
+        let mnot = BaseAssign(tname, bnot(bvar(tname))) in
         (* XXX *)
-        let thenstms' = xf_block ms thenstms in
-        let elsestms' = xf_block ms elsestms in
-        [If(cond',thenstms',elsestms')]
+        let (_,tstms) = thenstms in
+        let (_,estms) = elsestms in
+        let thenstms' = List.flatten @@ List.map (xwrap @@ xf_stm' venv (tname::ms)) tstms in
+        let elsestms' = List.flatten @@ List.map (xwrap @@ xf_stm' venv (tname::ms)) estms in
+          [mdec] @ thenstms' @ [mnot] @ elsestms'
       else
         let thenstms' = xf_block ms thenstms in
         let elsestms' = xf_block ms elsestms in
