@@ -164,7 +164,12 @@ and xf_block ms (venv,stms) =
 
 let xf_fdec fenv = pfunction
   | FunDec(f,rt,params,stms) ->
-    FunDec(f,rt,params,xf_block [] stms)
+    let venv,stms' = xf_block [] stms in
+    let rname = mkpos "__rnset" in
+    let vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
+    let rdec = mkpos BaseDec(rname, vt, sebool(True)) in
+      Env.add_var venv rname vt;
+      FunDec(f,rt,params,(venv,rdec::stms'))
 
 let xf_module (Module(fenv,fdecs)) =
   let fenv = Env.new_env () in
