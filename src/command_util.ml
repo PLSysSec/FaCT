@@ -39,16 +39,16 @@ let output_tast ast_out out_file tast =
         Core.Out_channel.write_all tast_out_file
           ~data:((Tast.show_fact_module tast)^"\n")
 
-(*let output_core_ir core_ir_out out_file core_ir =
-  match core_ir_out with
-    | false -> Log.debug "Not outputting core IR"
+let output_xftast xftast_out out_file tast =
+  match xftast_out with
+    | false -> Log.debug "Not outputting transformed TAST"
     | true ->
-      let core_ir_out_file = out_file ^ ".core.ml" in
-      Log.debug "Outputting core IR to %s" core_ir_out_file;
-      Core.Out_channel.write_all core_ir_out_file
-        ~data:(show_cmodule core_ir)
+      let tast_out_file = out_file ^ ".xftast.ml" in
+        Log.debug "Outputting transformed TAST to %s" tast_out_file;
+        Core.Out_channel.write_all tast_out_file
+          ~data:((Tast.show_fact_module tast)^"\n")
 
-let output_llvm llvm_out out_file llvm_mod =
+(*let output_llvm llvm_out out_file llvm_mod =
   match llvm_out with
     | false -> Log.debug "Not outputting LLVM IR"
     | true ->
@@ -93,8 +93,8 @@ let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
   output_tast ast_out out_file' tast;
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast in
-  Log.debug "Tast transform complete"(*;
-  output_core_ir core_ir_out out_file' core_ir;
+  Log.debug "Tast transform complete";
+  output_xftast core_ir_out out_file' xftast(*;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let _ = codegen llvm_ctx llvm_mod core_ir in
