@@ -63,6 +63,7 @@ let base_type = "bool" | int_type
 
 rule token = parse
   | [' ' '\t']     { token lexbuf }
+  | ";;"           { REPL_DELIMITER }
   | '\n'
   { Lexing.new_line lexbuf;
     token lexbuf }

@@ -3,6 +3,7 @@ S test/
 B _build/src/
 B _build/test/
 PKG llvm
+PKG Llvm_executionengine
 PKG ounit
 PKG core
 PKG dolog
