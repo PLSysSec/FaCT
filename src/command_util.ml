@@ -1,9 +1,10 @@
 open Pos
 open Err
 open Lexing
+open Typecheck
+open Codegen
 (*
 open Cast
-open Codegen
 open Env
 open Typecheck
 open Transform
@@ -27,7 +28,7 @@ let output_ast ast_out out_file ast =
     | true ->
       let ast_out_file = out_file ^ ".ast.ml" in
         Log.debug "Outputting AST to %s" ast_out_file;
-        Core.Out_channel.write_all ast_out_file
+        Core.Std.Out_channel.write_all ast_out_file
           ~data:((Ast.show_fact_module ast)^"\n")
 
 let output_tast ast_out out_file tast =
@@ -36,7 +37,7 @@ let output_tast ast_out out_file tast =
     | true ->
       let tast_out_file = out_file ^ ".tast.ml" in
         Log.debug "Outputting TAST to %s" tast_out_file;
-        Core.Out_channel.write_all tast_out_file
+        Core.Std.Out_channel.write_all tast_out_file
           ~data:((Tast.show_fact_module tast)^"\n")
 
 (*let output_core_ir core_ir_out out_file core_ir =
@@ -46,7 +47,7 @@ let output_tast ast_out out_file tast =
       let core_ir_out_file = out_file ^ ".core.ml" in
       Log.debug "Outputting core IR to %s" core_ir_out_file;
       Core.Out_channel.write_all core_ir_out_file
-        ~data:(show_cmodule core_ir)
+        ~data:(show_cmodule core_ir)*)
 
 let output_llvm llvm_out out_file llvm_mod =
   match llvm_out with
@@ -73,7 +74,7 @@ let output_object out_file =
   let out_file_s = out_file ^ ".s" in
   let out_file_o = out_file ^ ".o" in
   Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang" [|"clang"; "-c"; out_file_s|]*)
+  run_command "clang" [|"clang"; "-c"; out_file_s|]
 
 let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
   let out_file' = generate_out_file out_dir out_file in
@@ -93,22 +94,33 @@ let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
   output_tast ast_out out_file' tast;
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast in
-  Log.debug "Tast transform complete"(*;
+  Log.debug "Tast transform complete"
+  (*;
   output_core_ir core_ir_out out_file' core_ir;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
-  let _ = codegen llvm_ctx llvm_mod core_ir in
+  let llvm_builder = Llvm.builder llvm_ctx in
+  let _ = codegen llvm_ctx llvm_mod llvm_builder tast in
+  
+  (*
   let triple = Llvm_target.Target.default_triple () in
   let lltarget = Llvm_target.Target.by_triple triple in
   let llmachine = Llvm_target.TargetMachine.create ~triple:triple lltarget in
   let lldly = Llvm_target.TargetMachine.data_layout llmachine in
   Llvm.set_target_triple (Llvm_target.TargetMachine.triple llmachine) llvm_mod;
   Llvm.set_data_layout (Llvm_target.DataLayout.as_string lldly) llvm_mod;
+  *)
+
   Llvm_analysis.assert_valid_module llvm_mod |> ignore;
   output_llvm llvm_out out_file' llvm_mod;
   output_bitcode out_file' llvm_mod;
   output_shared out_file';
-  output_object out_file'*)
+  output_object out_file'
+  (*let core_ir = transform tast in
+  Log.debug "Core IR transform complete";
+  output_core_ir core_ir_out out_file' core_ir;
+  
+  *)
 
 let run = (fun () -> run_command "lli" [|"lli"; "out.ll"|])
 let link = (fun () -> run_command "llvm-as" [|"llvm-as"; "out.ll"|])
@@ -121,3 +133,4 @@ let compile_c cf =
 let clean = (fun () ->
     run_command "rm"
       [|"rm"; "out.ll"; "out.bc"; "out.o"; "out.s"; "final"; "harness.o"|])
+*)

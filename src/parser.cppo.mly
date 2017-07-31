@@ -47,6 +47,8 @@ let to_type { data=t; pos=p } =
 %token COMMA
 %token LEN RIGHTARROW
 
+%token REPL_DELIMITER
+
 %token EOF
 
 (* precedence based on C operator precedence

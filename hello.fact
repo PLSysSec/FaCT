@@ -1,0 +1,11 @@
+public int32 get5() {
+    return 5;
+}
+
+public int32 get10() {
+    return 10;
+}
+
+public int32 add10(public int32 a) {
+    return a + 10;
+}
