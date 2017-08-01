@@ -72,9 +72,14 @@ let to_type { data=t; pos=p } =
 #define mkposrange(x,y) make_pos $startpos(x) $endpos(y)
 
 %start <Ast.fact_module> main
+%start <Ast.expr> expr_top
+
 %%
 main:
   | fact_module EOF { $1 }
+
+expr_top:
+  | expr REPL_DELIMITER { $1 }
 
 %inline paren(X):
   | LPAREN x=X RPAREN { x }

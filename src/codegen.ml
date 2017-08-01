@@ -470,7 +470,7 @@ and codegen_stms llcontext llmodule builder ret_ty venv fenv tenv (stms : Tast.b
 
 let codegen_fun llcontext llmodule builder = function
   | { data=FunDec(name,ret,params,body) } ->
-    Log.error "Generating function, %s" name.data;
+    Log.info "Generating function, %s" name.data;
     let param_types = List.map (param_to_type llcontext) params in
     let param_types' = Array.of_list param_types in
     let ret_ty = get_ret_ty llcontext ret in
@@ -505,5 +505,5 @@ let rec codegen_fdecs llcontext llmodule builder = function
 
 let rec codegen llcontext llmodule builder = function
   | Module(_,fdecs) ->
-    Log.error "Codegening module";
+    Log.info "Codegening module";
     codegen_fdecs llcontext llmodule builder fdecs

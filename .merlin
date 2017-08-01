@@ -8,3 +8,5 @@ PKG ounit
 PKG core
 PKG dolog
 PKG ppx_deriving.std
+PKG ctypes
+PKG ctype.foreign
