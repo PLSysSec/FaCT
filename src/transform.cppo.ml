@@ -107,16 +107,17 @@ let venv_merge_up = function
 
 let bty { data=(_,b) } = b
 let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
+let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
 #define ctx(e1,e2) (mkpos (Select(band(bctx,rctx),e1,e2), bty e2))
 
-let rec xf_stm' venv ms p = function
+let rec xf_stm' rt venv ms p = function
   | BaseDec(x,vt,e) ->
     let e' = xf_expr venv e in
       [BaseDec(x,vt,e')]
   | BaseAssign(x,e) ->
     let e' = xf_expr venv e in
     (* XXX also transform with fctx if we have one *)
-    let should_transform = true in
+    let should_transform = true in (* XXX *)
       if should_transform then
         let x' = mkpos (Variable x, r2bty (Env.find_var venv x)) in
         let xfe' = ctx(e',x') in
@@ -135,41 +136,62 @@ let rec xf_stm' venv ms p = function
         let (evenv,estms) = elsestms in
           venv_merge_up tvenv;
           venv_merge_up evenv;
-        let thenstms' = List.flatten @@ List.map (xwrap @@ xf_stm' venv (tname::ms)) tstms in
-        let elsestms' = List.flatten @@ List.map (xwrap @@ xf_stm' venv (tname::ms)) estms in
+        let thenstms' = List.flatten @@ List.map (xwrap @@ xf_stm' rt venv (tname::ms)) tstms in
+        let elsestms' = List.flatten @@ List.map (xwrap @@ xf_stm' rt venv (tname::ms)) estms in
           [mdec] @ thenstms' @ [mnot] @ elsestms'
       else
-        let thenstms' = xf_block ms thenstms in
-        let elsestms' = xf_block ms elsestms in
+        let thenstms' = xf_block rt ms thenstms in
+        let elsestms' = xf_block rt ms elsestms in
         [If(cond',thenstms',elsestms')]
   | For(i,ity,lo,hi,stms) ->
     let lo' = xf_expr venv lo in
     let hi' = xf_expr venv hi in
-    let stms' = xf_block ms stms in
+    let stms' = xf_block rt ms stms in
       [For(i,ity,lo',hi',stms')]
   | VoidFnCall(f,args) ->
     let args' = List.map (xf_arg venv) args in
       (* XXX if there are any out params, need to pass fctx as well *)
       [VoidFnCall(f,args')]
   | Return e ->
+    let Some rt = rt in
     let e' = xf_expr venv e in
-      (* XXX *)
-      [Return e']
-  | VoidReturn -> [VoidReturn]
-and xf_stm venv ms pa = List.map (make_ast pa.pos) (xf_stm' venv ms pa.pos pa.data)
+    let should_transform = true in (* XXX *)
+      if should_transform then
+        let rval = mkpos "__rval" in
+        let rnset = mkpos "__rnset" in
+        let rnset' = bvar(rnset) in
+        let assigned = bor(rnset',band(bctx,rctx)) in
+        let rval' = mkpos (Variable rval, rt.data) in
+        let xfe' = ctx(e',rval') in
+          [BaseAssign(rval,xfe'); BaseAssign(rnset,assigned)]
+      else
+        [Return e']
+  | VoidReturn -> [VoidReturn] (* XXX set rnset *)
+and xf_stm rt venv ms pa = List.map (make_ast pa.pos) (xf_stm' rt venv ms pa.pos pa.data)
 
-and xf_block ms (venv,stms) =
-  let stms' = List.flatten @@ List.map (xf_stm venv ms) stms in
+and xf_block rt ms (venv,stms) =
+  let stms' = List.flatten @@ List.map (xf_stm rt venv ms) stms in
     (venv, stms')
 
 let xf_fdec fenv = pfunction
   | FunDec(f,rt,params,stms) ->
-    let venv,stms' = xf_block [] stms in
-    let rname = mkpos "__rnset" in
-    let vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
-    let rdec = mkpos BaseDec(rname, vt, sebool(True)) in
-      Env.add_var venv rname vt;
-      FunDec(f,rt,params,(venv,rdec::stms'))
+    let venv,stms' = xf_block rt [] stms in
+    let rnset = mkpos "__rnset" in
+    let rnset_vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
+    let rnset_dec = mkpos BaseDec(rnset, rnset_vt, sebool(True)) in
+      Env.add_var venv rnset rnset_vt;
+      let stms' = rnset_dec::stms' in
+        begin
+          match rt with
+            | Some et ->
+              let rval = mkpos "__rval" in
+              let rval_vt = mkpos (b2rty (mkpos Mut) et) in
+              let rval_dec = mkpos BaseDec(rval, rval_vt, mkpos (IntLiteral 0,et.data)) in
+                Env.add_var venv rval rval_vt;
+                FunDec(f,rt,params,(venv,rval_dec::stms'))
+            | None ->
+              FunDec(f,rt,params,(venv,stms'))
+        end
 
 let xf_module (Module(fenv,fdecs)) =
   let fenv = Env.new_env () in
