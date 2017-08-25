@@ -29,15 +29,15 @@ let is_secret e =
   let { data=(_,BaseET(_,{data=Fixed l})) } = e in
     l = Secret
 
-let rec xf_arg' venv { data; pos=p } =
+let rec xf_arg' fenv venv { data; pos=p } =
   match data with
     | ByValue e ->
-      let e' = xf_expr venv e in
+      let e' = xf_expr fenv venv e in
         ByValue e'
     | ByRef _ -> data
-and xf_arg venv pa = { pa with data=xf_arg' venv pa }
+and xf_arg fenv venv pa = { pa with data=xf_arg' fenv venv pa }
 
-and xf_expr' venv { data; pos=p } =
+and xf_expr' fenv venv { data; pos=p } =
   let (e, ety) = data in
     match e with
       | True
@@ -46,17 +46,17 @@ and xf_expr' venv { data; pos=p } =
       | Variable _
       | ArrayLen _ -> e
       | ArrayGet(x,e) ->
-        let e' = xf_expr venv e in
+        let e' = xf_expr fenv venv e in
           ArrayGet(x,e')
       | IntCast(bt,e) ->
-        let e' = xf_expr venv e in
+        let e' = xf_expr fenv venv e in
           IntCast(bt,e')
       | UnOp(op,e) ->
-        let e' = xf_expr venv e in
+        let e' = xf_expr fenv venv e in
           UnOp(op,e')
       | BinOp(op,e1,e2) ->
-        let e1' = xf_expr venv e1 in
-        let e2' = xf_expr venv e2 in
+        let e1' = xf_expr fenv venv e1 in
+        let e2' = xf_expr fenv venv e2 in
           if is_secret e1' then
             (* XXX e2 should be xf_expr'd with a secret ctx (matters for fn calls) *)
             match op with
@@ -68,9 +68,9 @@ and xf_expr' venv { data; pos=p } =
           else
             BinOp(op,e1',e2')
       | TernOp(e1,e2,e3) ->
-        let e1' = xf_expr venv e1 in
-        let e2' = xf_expr venv e2 in
-        let e3' = xf_expr venv e3 in
+        let e1' = xf_expr fenv venv e1 in
+        let e2' = xf_expr fenv venv e2 in
+        let e3' = xf_expr fenv venv e3 in
         if is_secret e1 then
           (* XXX e2 and e3 should be xf_expr'd with a secret ctx (matters for fn calls) *)
           Select(e1',e2',e3')
@@ -78,13 +78,13 @@ and xf_expr' venv { data; pos=p } =
           TernOp(e1',e2',e3')
       | Select _ -> raise @@ err(p)
       | FnCall(f,args) ->
-        let args' = List.map (xf_arg venv) args in
+        let args' = List.map (xf_arg fenv venv) args in
           (* XXX if there are any out params, need to pass down an fctx *)
           FnCall(f,args')
       | Declassify e ->
-        let e' = xf_expr venv e in
+        let e' = xf_expr fenv venv e in
           Declassify e'
-and xf_expr venv ({ data=(e,ety) } as pa) = { pa with data=(xf_expr' venv pa, ety) }
+and xf_expr fenv venv ({ data=(e,ety) } as pa) = { pa with data=(xf_expr' fenv venv pa, ety) }
 
 #define sbool (BaseET(mkpos Bool, mkpos Fixed Secret))
 #define sebool(e) (mkpos (e, sbool))
@@ -110,12 +110,12 @@ let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
 let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
 #define ctx(e1,e2) (mkpos (Select(band(bctx,rctx),e1,e2), bty e2))
 
-let rec xf_stm' rt venv ms p = function
+let rec xf_stm' rt fenv venv ms p = function
   | BaseDec(x,vt,e) ->
-    let e' = xf_expr venv e in
+    let e' = xf_expr fenv venv e in
       [BaseDec(x,vt,e')]
   | BaseAssign(x,e) ->
-    let e' = xf_expr venv e in
+    let e' = xf_expr fenv venv e in
     (* XXX also transform with fctx if we have one *)
     let should_transform = true in (* XXX *)
       if should_transform then
@@ -125,7 +125,7 @@ let rec xf_stm' rt venv ms p = function
       else
         [BaseAssign(x,e')]
   | If(cond,thenstms,elsestms) ->
-    let cond' = xf_expr venv cond in
+    let cond' = xf_expr fenv venv cond in
       if is_secret cond' then
         let vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
         let tname = mkpos new_temp_var () in
@@ -136,25 +136,25 @@ let rec xf_stm' rt venv ms p = function
         let (evenv,estms) = elsestms in
           venv_merge_up tvenv;
           venv_merge_up evenv;
-        let thenstms' = List.flatten @@ List.map (xwrap @@ xf_stm' rt venv (tname::ms)) tstms in
-        let elsestms' = List.flatten @@ List.map (xwrap @@ xf_stm' rt venv (tname::ms)) estms in
+        let thenstms' = List.flatten @@ List.map (xwrap @@ xf_stm' rt fenv venv (tname::ms)) tstms in
+        let elsestms' = List.flatten @@ List.map (xwrap @@ xf_stm' rt fenv venv (tname::ms)) estms in
           [mdec] @ thenstms' @ [mnot] @ elsestms'
       else
-        let thenstms' = xf_block rt ms thenstms in
-        let elsestms' = xf_block rt ms elsestms in
+        let thenstms' = xf_block rt fenv ms thenstms in
+        let elsestms' = xf_block rt fenv ms elsestms in
         [If(cond',thenstms',elsestms')]
   | For(i,ity,lo,hi,stms) ->
-    let lo' = xf_expr venv lo in
-    let hi' = xf_expr venv hi in
-    let stms' = xf_block rt ms stms in
+    let lo' = xf_expr fenv venv lo in
+    let hi' = xf_expr fenv venv hi in
+    let stms' = xf_block rt fenv ms stms in
       [For(i,ity,lo',hi',stms')]
   | VoidFnCall(f,args) ->
-    let args' = List.map (xf_arg venv) args in
+    let args' = List.map (xf_arg fenv venv) args in
       (* XXX if there are any out params, need to pass fctx as well *)
       [VoidFnCall(f,args')]
   | Return e ->
     let Some rt = rt in
-    let e' = xf_expr venv e in
+    let e' = xf_expr fenv venv e in
     let should_transform = true in (* XXX *)
       if should_transform then
         let rval = mkpos "__rval" in
@@ -166,16 +166,38 @@ let rec xf_stm' rt venv ms p = function
           [BaseAssign(rval,xfe'); BaseAssign(rnset,assigned)]
       else
         [Return e']
-  | VoidReturn -> [VoidReturn] (* XXX set rnset *)
-and xf_stm rt venv ms pa = List.map (make_ast pa.pos) (xf_stm' rt venv ms pa.pos pa.data)
+  | VoidReturn ->
+    let should_transform = true in (* XXX *)
+      if should_transform then
+        let rnset = mkpos "__rnset" in
+        let rnset' = bvar(rnset) in
+        let assigned = bor(rnset',band(bctx,rctx)) in
+          [BaseAssign(rnset,assigned)]
+      else
+        [VoidReturn]
+and xf_stm rt fenv venv ms pa = List.map (make_ast pa.pos) (xf_stm' rt fenv venv ms pa.pos pa.data)
 
-and xf_block rt ms (venv,stms) =
-  let stms' = List.flatten @@ List.map (xf_stm rt venv ms) stms in
+and xf_block rt fenv ms (venv,stms) =
+  let stms' = List.flatten @@ List.map (xf_stm rt fenv venv ms) stms in
     (venv, stms')
+
+let rec params_has_refs = function
+  | [] -> false
+  | ({data=Param(_,{data=vty'})}::params) ->
+    begin
+      match vty' with
+        | RefVT(_,_,{data=mut}) ->
+          (mut = Mut) || params_has_refs params
+        | ArrayVT(_,_,{data=mut}) ->
+          (mut = Mut) || params_has_refs params
+    end
+
+let fdec_has_refs {data=FunDec(_,_,params,_)} = params_has_refs params
 
 let xf_fdec fenv = pfunction
   | FunDec(f,rt,params,stms) ->
-    let venv,stms' = xf_block rt [] stms in
+    let params' = params in
+    let venv,stms' = xf_block rt fenv [] stms in
     let rnset = mkpos "__rnset" in
     let rnset_vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
     let rnset_dec = mkpos BaseDec(rnset, rnset_vt, sebool(True)) in
@@ -188,14 +210,21 @@ let xf_fdec fenv = pfunction
               let rval_vt = mkpos (b2rty (mkpos Mut) et) in
               let rval_dec = mkpos BaseDec(rval, rval_vt, mkpos (IntLiteral 0,et.data)) in
                 Env.add_var venv rval rval_vt;
-                FunDec(f,rt,params,(venv,rval_dec::stms'))
+                FunDec(f,rt,params',(venv,rval_dec::stms'))
             | None ->
-              FunDec(f,rt,params,(venv,stms'))
+              FunDec(f,rt,params',(venv,stms'))
         end
 
-let xf_module (Module(fenv,fdecs)) =
+let rec xf_fdecs fenv = function
+  | [] -> []
+  | (fdec::fdecs) ->
+    let fdec' = xf_fdec fenv fdec in
+    let {data=FunDec(fname,_,_,_)} = fdec' in
+      Env.add_var fenv fname fdec';
+      fdec'::(xf_fdecs fenv fdecs)
+
+let xf_module (Module(_,fdecs)) =
   let fenv = Env.new_env () in
-  let ret = Module(fenv, List.map (xf_fdec fenv) fdecs) in
-    ret
+    Module(fenv, xf_fdecs fenv fdecs)
 
 

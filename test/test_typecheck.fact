@@ -23,7 +23,7 @@ public int32 foo() {
   secret int32 xxy = x ? yy : yy_;
 }
 
-public bool baz() {
+public bool baz(secret int32 x, public mut bool y) {
 }
 
 public int32 bar() {
