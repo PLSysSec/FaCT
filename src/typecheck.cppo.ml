@@ -402,6 +402,9 @@ let tc_fdec' fenv = function
     let rt' = etype_conv rt in
     let params' = List.map tc_param params in
     let venv = Env.new_env () in
+      List.iter (fun {data=Param(name,vty)} ->
+                  Env.add_var venv name vty)
+        params';
       FunDec(f,Some rt',params',tc_block fenv venv stms)
 
 let tc_fdec fenv = xfunction
