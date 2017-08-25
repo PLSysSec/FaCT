@@ -32,10 +32,10 @@ let add_fn = Hashtbl.add
 (* End env functionality *)
 
 let is_signed = function
-  | UInt _ -> false
-  | Int _  -> true
-  | Bool   -> raise CodegenError
-  | Num _  -> raise CodegenError
+  | UInt _   -> false
+  | Int _    -> true
+  | Bool     -> false
+  | Num(i,s) -> s
 
 let get_size = function
   | LIntLiteral s -> s
@@ -85,7 +85,7 @@ let allocate_args ctx llbuilder var_env args =
     let alloca = build_alloca llvm_ty var_name.data llbuilder in
     add_var var_env var_name alloca
   in
-  ignore(List.map allocate_arg args)
+  List.iter allocate_arg args
 
 (* Allocate space for each variable declared inside a function. This is
    done at the beginning of the function. *)
@@ -157,10 +157,10 @@ let rec expr_to_ty = function
   | FnCall(fun_name, arg_exprs) -> raise CodegenError
   | Declassify(expr) -> raise CodegenError
 
-let build_cast ctx value = (* from, to *) function
-  | Bool -> const_intcast value (bt_to_llvm_ty ctx Bool) ~is_signed:false
-  | UInt(n) -> const_intcast value (bt_to_llvm_ty ctx (UInt n)) ~is_signed:false
-  | Int(n) -> const_intcast value (bt_to_llvm_ty ctx (Int n)) ~is_signed:true
+let build_cast ctx b value = (* from, to *) function
+  | Bool -> build_intcast value (bt_to_llvm_ty ctx Bool) "cast" b
+  | UInt(n) -> build_intcast value (bt_to_llvm_ty ctx (UInt n)) "cast" b
+  | Int(n) -> build_intcast value (bt_to_llvm_ty ctx (Int n)) "cast" b
   | _ -> raise CodegenError (* TODO: How do we cast the Num type?? *)
 
 (*
@@ -306,7 +306,8 @@ and codegen_expr llcontext llmodule builder venv fenv tenv = function
              result? This would be a sanity check. Or maybe even better, we should cast
              the result to ty. This should pass the typechecker so it should be safe no matter
              what.*)
-    find_var venv var_name
+    let store = find_var venv var_name in
+      build_load store var_name.data builder
   | ArrayGet(var_name,expr), ty ->
     let arr = find_var venv var_name in
     let expr',expr_ty' = expr.data in
@@ -324,7 +325,7 @@ and codegen_expr llcontext llmodule builder venv fenv tenv = function
     codegen_expr llcontext llmodule builder venv fenv tenv ((IntLiteral arr_len), ty)
   | IntCast(base_ty,expr), ty ->
     let v = codegen_expr llcontext llmodule builder venv fenv tenv expr.data in
-    build_cast llcontext v base_ty.data
+    build_cast llcontext builder v base_ty.data
   | UnOp(op,expr), ty ->
     let expr' = codegen_expr llcontext llmodule builder venv fenv tenv expr.data in
     codegen_unop builder expr' op
@@ -335,7 +336,12 @@ and codegen_expr llcontext llmodule builder venv fenv tenv = function
     let e1 = codegen_expr llcontext llmodule builder venv fenv tenv expr1.data in
     let e2 = codegen_expr llcontext llmodule builder venv fenv tenv expr2.data in
     codegen_binop op e1 e2 ty'.data builder
-  | TernOp(expr1,expr2,expr3), ty -> raise CodegenError
+  | TernOp(expr1,expr2,expr3), ty -> (* XXX actually do a selection operation *)
+    let e1 = codegen_expr llcontext llmodule builder venv fenv tenv expr1.data in
+    let e1' = build_is_not_null e1 "condtmp" builder in
+    let e2 = codegen_expr llcontext llmodule builder venv fenv tenv expr2.data in
+    let e3 = codegen_expr llcontext llmodule builder venv fenv tenv expr3.data in
+      build_select e1' e2 e3 "terntmp" builder
   | FnCall(fun_name,args), ty ->
     let fun_dec = get_fn fenv fun_name in
     let callee = match lookup_function fun_name.data llmodule with
@@ -344,8 +350,7 @@ and codegen_expr llcontext llmodule builder venv fenv tenv = function
     let codegen_arg' = codegen_arg llcontext llmodule builder venv fenv tenv in
     let args' = List.map2 codegen_arg' args fun_dec.args in
     build_call callee (Array.of_list args') "calltmp" builder
-  | Declassify(expr), ty -> raise CodegenError
-    (* TODO: We should never do anything with declassify. That is simply for the typechecker? *)
+  | Declassify(expr), ty -> codegen_expr llcontext llmodule builder venv fenv tenv expr.data
 
 and extend_to ctx builder signed ty v =
   let llvm_ty = expr_ty_to_llvm_ty ctx ty in
@@ -466,12 +471,12 @@ and codegen_stm llcontext llmodule builder ret_ty venv fenv tenv = function
 
 and codegen_stms llcontext llmodule builder ret_ty venv fenv tenv (stms : Tast.block) =
   let _,stms' = stms in
-  let venv' = Env.new_env () in
-  ignore(List.map (codegen_stm llcontext llmodule builder ret_ty venv' fenv tenv) stms')
+  (*let venv' = Env.new_env () in*)
+  ignore(List.map (codegen_stm llcontext llmodule builder ret_ty venv fenv tenv) stms')
 
 let codegen_fun llcontext llmodule builder = function
   | { data=FunDec(name,ret,params,body) } ->
-    Log.error "Generating function, %s" name.data;
+    Log.debug "Generating function, %s" name.data;
     let param_types = List.map (param_to_type llcontext) params in
     let param_types' = Array.of_list param_types in
     let ret_ty = get_ret_ty llcontext ret in
@@ -506,5 +511,5 @@ let rec codegen_fdecs llcontext llmodule builder = function
 
 let rec codegen llcontext llmodule builder = function
   | Module(fenv,fdecs) ->
-    Log.error "Codegening module";
+    Log.debug "Codegening module";
     codegen_fdecs llcontext llmodule builder fdecs

@@ -1,0 +1,28 @@
+public int32 foo() {
+  public bool x = true;
+  public int32 y = 22;
+  public uint32 z = 23;
+  secret bool t = x;
+  public int16 zz = (int16)z;
+
+  public bool t_pub = declassify(t);
+
+  secret int32 y_ = -25;
+  public int32 yy = -y;
+  public int32 yy_ = ~y;
+  public bool xx = !x;
+
+  secret int32 ttt = y | y_;
+  secret int32 xxy = x ? yy : yy_;
+
+  return y;
+}
+
+public bool baz(secret int32 x, public mut bool y) {
+  return false;
+}
+
+public bool qux(secret int32 x, public mut bool y) {
+  foo();
+  return baz(x, ref y);
+}

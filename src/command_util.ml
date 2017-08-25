@@ -67,7 +67,7 @@ let output_bitcode out_file llvm_mod =
 let output_shared out_file =
   let out_file' = out_file ^ ".bc" in
   let out_file_s = out_file ^ ".s" in
-  Log.debug "Createing .s file at %s" out_file_s;
+  Log.debug "Creating .s file at %s" out_file_s;
   run_command "llc" [|"llc"; out_file'|]
 
 let output_object out_file =

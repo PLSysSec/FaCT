@@ -18,6 +18,8 @@ true: annot, bin_annot
 ".git": not_hygienic
 "_darcs": -traverse
 "_darcs": not_hygienic
+"test": -traverse
+"test": not_hygienic
 # Executable fact
 "src/fact.byte": package(Z3)
 "src/fact.byte": package(core)
