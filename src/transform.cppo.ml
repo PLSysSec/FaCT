@@ -113,10 +113,12 @@ and xf_expr' xf_ctx { data; pos=p } =
       | Select _ -> raise @@ err(p)
       | FnCall(f,args) ->
         let args' = List.map (xf_arg xf_ctx) args in
-          (* XXX if there are any out params, need to pass down an fctx *)
-          (* check if f has out params
-             if so, pass down fctx = ctx *)
-          FnCall(f,args')
+        let fdec = Env.find_var xf_ctx.fenv f in
+          if fdec_has_refs fdec then
+            let fctx = ctx in
+              FnCall(f,args'@[mkpos ByValue fctx])
+          else
+            FnCall(f,args')
       | Declassify e ->
         let e' = xf_expr xf_ctx e in
           Declassify e'
@@ -171,8 +173,12 @@ let rec xf_stm' xf_ctx p = function
       [For(i,ity,lo',hi',stms')]
   | VoidFnCall(f,args) ->
     let args' = List.map (xf_arg xf_ctx) args in
-      (* XXX if there are any out params, need to pass fctx as well *)
-      [VoidFnCall(f,args')]
+    let fdec = Env.find_var xf_ctx.fenv f in
+      if fdec_has_refs fdec then
+        let fctx = ctx in
+          [VoidFnCall(f,args'@[mkpos ByValue fctx])]
+      else
+        [VoidFnCall(f,args')]
   | Return e ->
     let Some rt = xf_ctx.rt in
     let e' = xf_expr xf_ctx e in

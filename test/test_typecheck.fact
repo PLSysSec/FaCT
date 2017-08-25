@@ -26,6 +26,11 @@ public int32 foo() {
 public bool baz(secret int32 x, public mut bool y) {
 }
 
+public bool qux(secret int32 x, public mut bool y) {
+  foo();
+  baz(x, ref y);
+}
+
 public int32 bar() {
   secret int32 x = foo();
   public bool y = baz(4);
