@@ -29,6 +29,38 @@ let is_secret e =
   let { data=(_,BaseET(_,{data=Fixed l})) } = e in
     l = Secret
 
+let rec params_has_refs = function
+  | [] -> false
+  | ({data=Param(_,{data=vty'})}::params) ->
+    begin
+      match vty' with
+        | RefVT(_,_,{data=mut}) ->
+          (mut = Mut) || params_has_refs params
+        | ArrayVT(_,_,{data=mut}) ->
+          (mut = Mut) || params_has_refs params
+    end
+
+let fdec_has_refs {data=FunDec(_,_,params,_)} = params_has_refs params
+
+let bty { data=(_,b) } = b
+let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
+let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
+
+#define sbool (BaseET(mkpos Bool, mkpos Fixed Secret))
+#define sebool(e) (mkpos (e, sbool))
+#define band(e1,e2) sebool(BinOp(Ast.LogicalAnd,e1,e2))
+#define bor(e1,e2) sebool(BinOp(Ast.LogicalOr,e1,e2))
+#define bnot(e1) sebool(UnOp(Ast.LogicalNot,e1))
+#define bvar(x) sebool(Variable x)
+
+#define rctx bvar((mkpos "__rnset"))
+#define bctx (List.fold_left (fun x y -> band(x,y)) sebool(True) \
+                (List.map (fun x -> bvar(x)) ms))
+#define ctx (band(band(bctx,rctx), \
+                  if Env.has_var venv (mkpos "__fctx") then bvar((mkpos "__fctx")) else sebool(True)))
+
+#define ctx_select(e1,e2) (mkpos (Select(ctx,e1,e2), bty e2))
+
 let rec xf_arg' fenv venv { data; pos=p } =
   match data with
     | ByValue e ->
@@ -80,22 +112,13 @@ and xf_expr' fenv venv { data; pos=p } =
       | FnCall(f,args) ->
         let args' = List.map (xf_arg fenv venv) args in
           (* XXX if there are any out params, need to pass down an fctx *)
+          (* check if f has out params
+             if so, pass down fctx = ctx *)
           FnCall(f,args')
       | Declassify e ->
         let e' = xf_expr fenv venv e in
           Declassify e'
 and xf_expr fenv venv ({ data=(e,ety) } as pa) = { pa with data=(xf_expr' fenv venv pa, ety) }
-
-#define sbool (BaseET(mkpos Bool, mkpos Fixed Secret))
-#define sebool(e) (mkpos (e, sbool))
-#define band(e1,e2) sebool(BinOp(Ast.LogicalAnd,e1,e2))
-#define bor(e1,e2) sebool(BinOp(Ast.LogicalOr,e1,e2))
-#define bnot(e1) sebool(UnOp(Ast.LogicalNot,e1))
-#define bvar(x) sebool(Variable x)
-
-#define rctx sebool(Variable (mkpos "__rnset"))
-#define bctx (List.fold_left (fun x y -> band(x,y)) sebool(True) \
-                (List.map (fun x -> bvar(x)) ms))
 
 let venv_merge_up = function
   | Env.SubEnv(vtbl,venv) -> (* XXX need to check collisions *)
@@ -104,11 +127,6 @@ let venv_merge_up = function
                      Hashtbl.replace vtbl' k v)
         vtbl
   | _ -> raise @@ InternalCompilerError("Can't merge up topvenv")
-
-let bty { data=(_,b) } = b
-let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
-let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
-#define ctx(e1,e2) (mkpos (Select(band(bctx,rctx),e1,e2), bty e2))
 
 let rec xf_stm' rt fenv venv ms p = function
   | BaseDec(x,vt,e) ->
@@ -120,7 +138,7 @@ let rec xf_stm' rt fenv venv ms p = function
     let should_transform = true in (* XXX *)
       if should_transform then
         let x' = mkpos (Variable x, r2bty (Env.find_var venv x)) in
-        let xfe' = ctx(e',x') in
+        let xfe' = ctx_select(e',x') in
           [BaseAssign(x,xfe')]
       else
         [BaseAssign(x,e')]
@@ -162,7 +180,7 @@ let rec xf_stm' rt fenv venv ms p = function
         let rnset' = bvar(rnset) in
         let assigned = bor(rnset',band(bctx,rctx)) in
         let rval' = mkpos (Variable rval, rt.data) in
-        let xfe' = ctx(e',rval') in
+        let xfe' = ctx_select(e',rval') in
           [BaseAssign(rval,xfe'); BaseAssign(rnset,assigned)]
       else
         [Return e']
@@ -181,23 +199,18 @@ and xf_block rt fenv ms (venv,stms) =
   let stms' = List.flatten @@ List.map (xf_stm rt fenv venv ms) stms in
     (venv, stms')
 
-let rec params_has_refs = function
-  | [] -> false
-  | ({data=Param(_,{data=vty'})}::params) ->
-    begin
-      match vty' with
-        | RefVT(_,_,{data=mut}) ->
-          (mut = Mut) || params_has_refs params
-        | ArrayVT(_,_,{data=mut}) ->
-          (mut = Mut) || params_has_refs params
-    end
-
-let fdec_has_refs {data=FunDec(_,_,params,_)} = params_has_refs params
-
 let xf_fdec fenv = pfunction
-  | FunDec(f,rt,params,stms) ->
-    let params' = params in
-    let venv,stms' = xf_block rt fenv [] stms in
+  | FunDec(f,rt,params,block) ->
+    let (venv,stms) = block in
+    let params' = if params_has_refs params
+      then
+        let fctx = mkpos "__fctx" in
+        let fctx_vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
+        let fctx_param = mkpos Param(fctx, fctx_vt) in
+          Env.add_var venv fctx fctx_vt;
+          params @ [fctx_param]
+      else params in
+    let venv,stms' = xf_block rt fenv [] (venv,stms) in
     let rnset = mkpos "__rnset" in
     let rnset_vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
     let rnset_dec = mkpos BaseDec(rnset, rnset_vt, sebool(True)) in

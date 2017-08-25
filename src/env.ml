@@ -44,15 +44,20 @@ let add_var env v lt =
     if Hashtbl.mem vtbl v.data then raise (errRedefVar v);
     Hashtbl.add vtbl v.data lt
 
-let rec find_var env =
-  let find_var' fn vtbl v =
+let rec find_var' fnyes fnno env =
+  let find_var_helper fnno vtbl v =
     try
-      Hashtbl.find vtbl v.data
+      fnyes @@ Hashtbl.find vtbl v.data
     with
-        Not_found -> fn v
+        Not_found -> fnno v
   in
     match env with
       | TopEnv vtbl ->
-        find_var' (fun v -> raise @@ errVarNotDefined v) vtbl
+        find_var_helper fnno vtbl
       | SubEnv(vtbl,env') ->
-        find_var' (find_var env') vtbl
+        find_var_helper (find_var' fnyes fnno env') vtbl
+
+let find_var name = find_var' (fun v -> v) (fun v -> raise @@ errVarNotDefined v) name
+
+let has_var name =
+  find_var' (fun _ -> true) (fun _ -> false) name
