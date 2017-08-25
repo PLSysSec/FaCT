@@ -26,3 +26,25 @@ public bool qux(secret int32 x, public mut bool y) {
   foo();
   return baz(x, ref y);
 }
+
+public int32 bar() {
+  secret int32 x = foo();
+  public bool yyy = false;
+  public bool y = baz(4, ref yyy);
+
+  y = x;
+  if (x + 4) {
+    y = x;
+  } else if (x + 3) {
+    x = y;
+  } else {
+    x = x + x;
+  }
+
+  for (int32 xx = 0 to 6) {
+    x = y;
+  }
+
+  baz(x, ref y);
+  return 7;
+}

@@ -22,5 +22,6 @@ val codegen_expr : llcontext
 val codegen_fun : llcontext
                -> llmodule
                -> llbuilder
+               -> fenv
                -> Tast.function_dec
                -> Llvm.llvalue

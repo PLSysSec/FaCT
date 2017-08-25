@@ -232,10 +232,11 @@ let xf_fdec fenv = pfunction
               let rval = mkpos "__rval" in
               let rval_vt = mkpos (b2rty (mkpos Mut) et) in
               let rval_dec = mkpos BaseDec(rval, rval_vt, mkpos (IntLiteral 0,et.data)) in
+              let ret = mkpos Return (mkpos (Variable(rval), r2bty rval_vt)) in
                 Env.add_var venv rval rval_vt;
-                FunDec(f,rt,params',(venv,rval_dec::stms'))
+                FunDec(f,rt,params',(venv,rval_dec::stms'@[ret]))
             | None ->
-              FunDec(f,rt,params',(venv,stms'))
+              FunDec(f,rt,params',(venv,stms'@[mkpos VoidReturn]))
         end
 
 let rec xf_fdecs fenv = function

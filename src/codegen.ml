@@ -14,7 +14,7 @@ let fake_pos = { file=""; line=0; lpos=0; rpos=0 }
 type fentry = { ret_ty:Tast.ret_type; args:Tast.params }
 [@@deriving show]
 
-type fenv = (Tast.fun_name,fentry) Hashtbl.t [@printer pp_hashtbl]
+type fenv = (string,fentry) Hashtbl.t [@printer pp_hashtbl]
 [@@deriving show]
 
 let new_fenv () = Hashtbl.create 10
@@ -23,7 +23,7 @@ let has_fn = Hashtbl.mem
 
 let get_fn fenv f =
   try
-    Hashtbl.find fenv f
+    Hashtbl.find fenv f.data
   with
     Not_found -> raise @@ Err.errFnNotDefined f
 
@@ -129,8 +129,8 @@ let codegen_binop op e1 e2 ty b =
     | Ast.GTE -> build_icmp Icmp.Uge e1 e2 "gtetmp" b
     | Ast.LT -> build_icmp Icmp.Ult e1 e2 "lttmp" b
     | Ast.LTE -> build_icmp Icmp.Ule e1 e2 "ltetmp" b
-    | Ast.LogicalAnd -> raise CodegenError
-    | Ast.LogicalOr -> raise CodegenError
+    | Ast.LogicalAnd -> build_and e1 e2 "landtmp" b
+    | Ast.LogicalOr -> build_or e1 e2 "lortmp" b
     | Ast.BitwiseAnd -> build_and e1 e2 "andtmp" b
     | Ast.BitwiseOr -> build_or e1 e2 "ortmp" b
     | Ast.BitwiseXor -> build_xor e1 e2 "xortmp" b
@@ -336,7 +336,7 @@ and codegen_expr llcontext llmodule builder venv fenv tenv = function
     let e1 = codegen_expr llcontext llmodule builder venv fenv tenv expr1.data in
     let e2 = codegen_expr llcontext llmodule builder venv fenv tenv expr2.data in
     codegen_binop op e1 e2 ty'.data builder
-  | TernOp(expr1,expr2,expr3), ty -> (* XXX actually do a selection operation *)
+  | TernOp(expr1,expr2,expr3), ty ->
     let e1 = codegen_expr llcontext llmodule builder venv fenv tenv expr1.data in
     let e1' = build_is_not_null e1 "condtmp" builder in
     let e2 = codegen_expr llcontext llmodule builder venv fenv tenv expr2.data in
@@ -351,6 +351,13 @@ and codegen_expr llcontext llmodule builder venv fenv tenv = function
     let args' = List.map2 codegen_arg' args fun_dec.args in
     build_call callee (Array.of_list args') "calltmp" builder
   | Declassify(expr), ty -> codegen_expr llcontext llmodule builder venv fenv tenv expr.data
+  | Select(expr1,expr2,expr3), ty ->
+    (* XXX this needs to be a constant time select *)
+    let e1 = codegen_expr llcontext llmodule builder venv fenv tenv expr1.data in
+    let e1' = build_is_not_null e1 "condtmp" builder in
+    let e2 = codegen_expr llcontext llmodule builder venv fenv tenv expr2.data in
+    let e3 = codegen_expr llcontext llmodule builder venv fenv tenv expr3.data in
+      build_select e1' e2 e3 "terntmp" builder
 
 and extend_to ctx builder signed ty v =
   let llvm_ty = expr_ty_to_llvm_ty ctx ty in
@@ -384,8 +391,7 @@ and codegen_stm llcontext llmodule builder ret_ty venv fenv tenv = function
     let _,ty = expr.data in
     let ty' = (expr_ty_to_base_ty ty).data in
     let expr' = codegen_ext llcontext llmodule builder venv fenv tenv ty' expr in
-    let var = build_load v var_name.data builder in
-    ignore(build_store expr' var builder)
+    ignore(build_store expr' v builder)
   | {data=ArrayAssign(var_name,array_index,expr)} ->
     let v = find_var venv var_name in
     let index = codegen_expr llcontext llmodule builder venv fenv tenv array_index.data in
@@ -474,7 +480,7 @@ and codegen_stms llcontext llmodule builder ret_ty venv fenv tenv (stms : Tast.b
   (*let venv' = Env.new_env () in*)
   ignore(List.map (codegen_stm llcontext llmodule builder ret_ty venv fenv tenv) stms')
 
-let codegen_fun llcontext llmodule builder = function
+let codegen_fun llcontext llmodule builder fenv = function
   | { data=FunDec(name,ret,params,body) } ->
     Log.debug "Generating function, %s" name.data;
     let param_types = List.map (param_to_type llcontext) params in
@@ -489,8 +495,6 @@ let codegen_fun llcontext llmodule builder = function
     position_at_end bb builder;
     let lvar_env = Env.new_env () in
     let tenv = Env.new_env () in
-    let fenv = new_fenv () in
-    (*Env.add_var fenv name ft';*)
     allocate_args llcontext builder lvar_env params;
     allocate_stack llcontext builder lvar_env body;
     (* TODO: store_args?? *)
@@ -501,15 +505,18 @@ let codegen_fun llcontext llmodule builder = function
     (*let ret' = codegen_ext llcontext llmodule builder var_env ret in
     build_ret ret' builder;*)
     Llvm_analysis.assert_valid_function ft';
-    ft'
+        let fentry = { ret_ty=ret; args=params } in
+          Hashtbl.add fenv name.data fentry;
+          ft'
 
-let rec codegen_fdecs llcontext llmodule builder = function
+let rec codegen_fdecs llcontext llmodule builder fenv = function
   | [] -> ()
   | fd::rest ->
-    ignore(codegen_fun llcontext llmodule builder fd);
-    codegen_fdecs llcontext llmodule builder rest
+    ignore(codegen_fun llcontext llmodule builder fenv fd);
+    codegen_fdecs llcontext llmodule builder fenv rest
 
 let rec codegen llcontext llmodule builder = function
   | Module(fenv,fdecs) ->
     Log.debug "Codegening module";
-    codegen_fdecs llcontext llmodule builder fdecs
+    let fenv = new_fenv () in
+      codegen_fdecs llcontext llmodule builder fenv fdecs

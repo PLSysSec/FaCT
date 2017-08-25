@@ -99,7 +99,7 @@ let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let llvm_builder = Llvm.builder llvm_ctx in
-  let _ = codegen llvm_ctx llvm_mod llvm_builder tast in
+  let _ = codegen llvm_ctx llvm_mod llvm_builder xftast in
   
   (*
   let triple = Llvm_target.Target.default_triple () in
