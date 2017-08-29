@@ -78,7 +78,8 @@ and xf_expr' xf_ctx { data; pos=p } =
       | False
       | IntLiteral _
       | Variable _
-      | ArrayLen _ -> e
+      | ArrayLen _
+      | Select _ -> e
       | ArrayGet(x,e) ->
         let e' = xf_expr xf_ctx e in
           ArrayGet(x,e')
@@ -89,28 +90,36 @@ and xf_expr' xf_ctx { data; pos=p } =
         let e' = xf_expr xf_ctx e in
           UnOp(op,e')
       | BinOp(op,e1,e2) ->
-        let e1' = xf_expr xf_ctx e1 in
-        let e2' = xf_expr xf_ctx e2 in
-          if is_secret e1' then
-            (* XXX e2 should be xf_expr'd with a secret ctx (matters for fn calls) *)
-            match op with
-              | Ast.LogicalAnd ->
-                Select(e1',e2',mkpos (False, BaseET(mkpos Bool, mkpos Fixed Public)))
-              | Ast.LogicalOr ->
-                Select(e1',mkpos (True, BaseET(mkpos Bool, mkpos Fixed Public)),e2')
-              | _ -> BinOp(op,e1',e2')
-          else
+        if is_secret e1 then
+          match op with
+            | Ast.LogicalAnd ->
+              let { data=(expr,ety) } = xf_expr xf_ctx (mkpos (TernOp(e1,e2,sebool(False)), sbool)) in
+                expr
+            | Ast.LogicalOr ->
+              let { data=(expr,ety) } = xf_expr xf_ctx (mkpos (TernOp(e1,sebool(True),e2), sbool)) in
+                expr
+            | _ ->
+              let e1' = xf_expr xf_ctx e1 in
+              let e2' = xf_expr xf_ctx e2 in
+                BinOp(op,e1',e2')
+        else
+          let e1' = xf_expr xf_ctx e1 in
+          let e2' = xf_expr xf_ctx e2 in
             BinOp(op,e1',e2')
       | TernOp(e1,e2,e3) ->
         let e1' = xf_expr xf_ctx e1 in
-        let e2' = xf_expr xf_ctx e2 in
-        let e3' = xf_expr xf_ctx e3 in
-        if is_secret e1 then
-          (* XXX e2 and e3 should be xf_expr'd with a secret ctx (matters for fn calls) *)
-          Select(e1',e2',e3')
-        else
-          TernOp(e1',e2',e3')
-      | Select _ -> raise @@ err(p)
+          if is_secret e1' then
+            let res = new_temp_var () in
+            let stm =
+              mkpos If(e1,
+                       (xf_ctx.venv,[mkpos RegAssign(res, e2)]),
+                       (xf_ctx.venv,[mkpos RegAssign(res, e3)])) in
+            let stm' = xf_stm xf_ctx stm in
+              Inject(res, stm')
+          else
+            let e2' = xf_expr xf_ctx e2 in
+            let e3' = xf_expr xf_ctx e3 in
+              TernOp(e1',e2',e3')
       | FnCall(f,args) ->
         let args' = List.map (xf_arg xf_ctx) args in
         let fdec = Env.find_var xf_ctx.fenv f in
@@ -124,7 +133,7 @@ and xf_expr' xf_ctx { data; pos=p } =
           Declassify e'
 and xf_expr xf_ctx ({ data=(e,ety) } as pa) = { pa with data=(xf_expr' xf_ctx pa, ety) }
 
-let rec xf_stm' xf_ctx p = function
+and xf_stm' xf_ctx p = function
   | BaseDec(x,vt,e) ->
     let e' = xf_expr xf_ctx e in
       [BaseDec(x,vt,e')]
