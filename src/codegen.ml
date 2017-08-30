@@ -102,6 +102,8 @@ let rec allocate_stack ctx builder venv stms =
          So yea, fix dis *)
       let alloca = build_alloca llvm_ty var_name.data builder in
       add_var venv var_name alloca
+    | {data=Block(stms)} ->
+      allocate_stack ctx builder venv stms
     | {data=If(cond,thenstms,elsestms)} ->
       allocate_stack ctx builder venv thenstms;
       allocate_stack ctx builder venv elsestms
@@ -398,6 +400,8 @@ and codegen_stm llcontext llmodule builder ret_ty venv fenv tenv = function
     let expr' = codegen_expr llcontext llmodule builder venv fenv tenv expr.data in
     let p = build_gep v [| const_int (i32_type llcontext) 0; index|] "ptr" builder in
     ignore(build_store expr' p builder)
+  | {data=Block(stms)} ->
+    codegen_stms llcontext llmodule builder ret_ty venv fenv tenv stms
   | {data=If(cond,thenstms,elsestms)} ->
     
     let cond' = codegen_expr llcontext llmodule builder venv fenv tenv cond.data in
@@ -477,7 +481,6 @@ and codegen_stm llcontext llmodule builder ret_ty venv fenv tenv = function
 
 and codegen_stms llcontext llmodule builder ret_ty venv fenv tenv (stms : Tast.block) =
   let _,stms' = stms in
-  (*let venv' = Env.new_env () in*)
   ignore(List.map (codegen_stm llcontext llmodule builder ret_ty venv fenv tenv) stms')
 
 let codegen_fun llcontext llmodule builder fenv = function

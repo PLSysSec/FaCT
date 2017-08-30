@@ -124,14 +124,6 @@ and xf_expr' xf_ctx { data; pos=p } =
           Declassify e'
 and xf_expr xf_ctx ({ data=(e,ety) } as pa) = { pa with data=(xf_expr' xf_ctx pa, ety) }
 
-let venv_merge_up = function
-  | Env.SubEnv(vtbl,venv) -> (* XXX need to check collisions *)
-    let vtbl' = Env.get_vtbl venv in
-      Hashtbl.iter (fun k v ->
-                     Hashtbl.replace vtbl' k v)
-        vtbl
-  | _ -> raise @@ InternalCompilerError("Can't merge up topvenv")
-
 let rec xf_stm' xf_ctx p = function
   | BaseDec(x,vt,e) ->
     let e' = xf_expr xf_ctx e in
@@ -154,14 +146,10 @@ let rec xf_stm' xf_ctx p = function
         let mdec = BaseDec(tname, vt, cond') in
           Env.add_var xf_ctx.venv tname vt;
         let mnot = BaseAssign(tname, bnot(bvar(tname))) in
-        let (tvenv,tstms) = thenstms in
-        let (evenv,estms) = elsestms in
-          venv_merge_up tvenv;
-          venv_merge_up evenv;
         let xf_ctx' = { xf_ctx with ms=(tname::xf_ctx.ms) } in
-        let thenstms' = List.flatten @@ List.map (xwrap @@ xf_stm' xf_ctx') tstms in
-        let elsestms' = List.flatten @@ List.map (xwrap @@ xf_stm' xf_ctx') estms in
-          [mdec] @ thenstms' @ [mnot] @ elsestms'
+        let thenstms' = xf_block xf_ctx'.rt xf_ctx'.fenv xf_ctx'.ms thenstms in
+        let elsestms' = xf_block xf_ctx'.rt xf_ctx'.fenv xf_ctx'.ms elsestms in
+          [mdec; Block(thenstms'); mnot; Block(elsestms')]
       else
         let thenstms' = xf_block xf_ctx.rt xf_ctx.fenv xf_ctx.ms thenstms in
         let elsestms' = xf_block xf_ctx.rt xf_ctx.fenv xf_ctx.ms elsestms in
