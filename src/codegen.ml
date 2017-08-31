@@ -218,7 +218,8 @@ let rec codegen_arg cg_ctx arg ty =
     | ByValue expr -> codegen_expr cg_ctx expr.data
     | ByArray arr ->
       begin
-        match arr.data with
+        let (arrdata,_) = arr.data in
+        match arrdata with
           | ArrayZeros lexpr ->
             begin
               match lexpr.data with
@@ -238,9 +239,10 @@ let rec codegen_arg cg_ctx arg ty =
             let arr_load = build_load arr "arrcopyload" cg_ctx.builder in
             build_array_alloca arr_ty arr_load "arrcopy" cg_ctx.builder (* Probs gonna segfault *)
           | ArrayView(var_name, expr, lexpr) ->
+            raise CodegenError
             (* TODO: I think the transformations should do the heavy lifting here and the
                      TAST should get rid of ArrayView *)
-            let arr = find_var cg_ctx.venv var_name in
+            (*let arr = find_var cg_ctx.venv var_name in
             let arr_load = build_load arr "arrviewload" cg_ctx.builder in
             let _ = match lookup_function "memset" cg_ctx.llmodule with
               | Some fn -> fn
@@ -278,9 +280,9 @@ let rec codegen_arg cg_ctx arg ty =
               let arr_et = ArrayET(at,l,m) in
               let fn_call =
                 (FnCall(fun_name, [dest;src;lsize';alignment';volatile']), arr_et) in
-              codegen_expr cg_ctx fn_call
+              codegen_expr cg_ctx fn_call*)
           | ArrayComp(bt,lexpr,var_name,expr) ->
-            let var_name' = make_ast fake_pos ("arrcomp" ^ (string_of_int !counter)) in
+            (*let var_name' = make_ast fake_pos ("arrcomp" ^ (string_of_int !counter)) in
             let maybe_label = make_ast fake_pos (Fixed Unknown) in
             let mut = make_ast fake_pos Mut in
             let var_type = make_ast fake_pos (RefVT(bt,maybe_label,mut)) in
@@ -304,7 +306,7 @@ let rec codegen_arg cg_ctx arg ty =
             let assignment = make_ast fake_pos (ArrayAssign(var_name', index, expr)) in
             let block = Env.new_env (), [assignment] in
             let body = make_ast fake_pos (For(var_name, iter_type, low, high, block)) in
-            ignore(codegen_stm cg_ctx None body);
+            ignore(codegen_stm cg_ctx None body);*)
             (* Step 3, 4, and 5 done. These are all accomplished with the loop*)
             raise CodegenError
             (* TODO: What is the return value of a loop comprehension?

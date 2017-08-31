@@ -133,10 +133,18 @@ and xf_expr' xf_ctx { data; pos=p } =
           Declassify e'
 and xf_expr xf_ctx ({ data=(e,ety) } as pa) = { pa with data=(xf_expr' xf_ctx pa, ety) }
 
+and xf_arrayexpr' xf_ctx { data; pos=p } =
+  let (ae, ety) = data in
+    match ae with
+      | ArrayLit exprs -> ArrayLit (List.map (xf_expr xf_ctx) exprs)
+and xf_arrayexpr xf_ctx ({ data=(ae,ety) } as pa) = { pa with data=(xf_arrayexpr' xf_ctx pa, ety) }
+
 and xf_stm' xf_ctx p = function
+
   | BaseDec(x,vt,e) ->
     let e' = xf_expr xf_ctx e in
       [BaseDec(x,vt,e')]
+
   | BaseAssign(x,e) ->
     let e' = xf_expr xf_ctx e in
     let should_transform = true in (* XXX *)
@@ -146,12 +154,18 @@ and xf_stm' xf_ctx p = function
           [BaseAssign(x,xfe')]
       else
         [BaseAssign(x,e')]
+
   | RegAssign(r,e) ->
     let e' = xf_expr xf_ctx e in
     (* always transform *)
     let r' = mkpos (Register r, sbool) in (* the sbool is just a placeholder; r is not actually (necessarily) a bool *)
     let rfe' = ctx_select(e',r') in
       [RegAssign(r,rfe')]
+
+  | ArrayDec(x,vt,ae) ->
+    let ae' = xf_arrayexpr xf_ctx ae in
+      [ArrayDec(x,vt,ae')]
+
   | If(cond,thenstms,elsestms) ->
     let cond' = xf_expr xf_ctx cond in
       if is_secret cond' then

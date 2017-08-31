@@ -64,6 +64,13 @@ let bconv = pfunction
   | Ast.Int n -> Int n
   | Ast.Bool -> Bool
 
+let lexprconv = pfunction
+  | Ast.LIntLiteral n -> LIntLiteral n
+  | Ast.LUnspecified -> LUnspecified
+
+let aconv = pfunction
+  | Ast.ArrayAT(b,lexpr) -> ArrayAT(bconv b, lexprconv lexpr)
+
 let mlconv = pfunction
   | Ast.Public -> Fixed Public
   | Ast.Secret -> Fixed Secret
@@ -80,11 +87,16 @@ let etype_conv = pfunction
 let refvt_conv = pfunction
   | Ast.RefVT(b,l,m) ->
     RefVT(bconv b, mlconv l, mconv m)
+  | Ast.ArrayVT(a,l,m) ->
+    ArrayVT(aconv a, mlconv l, mconv m)
 
 
 (* Extraction *)
 
 let type_of = xfunction
+  | (_,ty) -> mkpos ty
+
+let atype_of = xfunction
   | (_,ty) -> mkpos ty
 
 let type_out = xfunction
@@ -101,6 +113,7 @@ let expr_to_types = xfunction
 
 let refvt_to_etype' = xfunction
   | RefVT(b,ml,_) -> BaseET(b, ml)
+  | ArrayVT(a,ml,m) -> ArrayET(a, ml, m)
 let refvt_to_etype = rebind refvt_to_etype'
 
 
@@ -349,7 +362,23 @@ and tc_expr fenv venv = pfunction
       z3_push @@ Z.thing (z3_ty rty);
       (FnCall(f,args'), rty.data)
 
+let tc_arrayexpr fenv venv = pfunction
+  | Ast.ArrayLit exprs ->
+    (* XXX check that all expr types are compatible *)
+    let exprs' = List.map (tc_expr fenv venv) exprs in
+    let b = expr_to_btype @@ List.hd exprs' in
+      (ArrayLit exprs', ArrayET(mkpos ArrayAT(b, mkpos LIntLiteral(List.length exprs')), mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Const))
+  | Ast.ArrayZeros lexpr ->
+    raise @@ err(p)
+  | Ast.ArrayCopy x ->
+    raise @@ err(p)
+  | Ast.ArrayView(x,e,lexpr) ->
+    raise @@ err(p)
+  | Ast.ArrayComp(b,lexpr,x,e) ->
+    raise @@ err(p)
+
 let rec tc_stm fenv venv = pfunction
+
   | Ast.BaseDec(x,vt,e) ->
     let e' = tc_expr fenv venv e in
     let ety = type_of e' in
@@ -360,10 +389,23 @@ let rec tc_stm fenv venv = pfunction
       let zvar = Z.new_var (z3_ty xty) x.data in
         Z.(add (zvar = z3_pop));
       BaseDec(x,vt',e')
+
   | Ast.BaseAssign(x,e) ->
     let e' = tc_expr fenv venv e in
       z3_pop;
       BaseAssign(x,e')
+
+  | Ast.ArrayDec(x,vt,ae) ->
+    let ae' = tc_arrayexpr fenv venv ae in
+    let aty = atype_of ae' in
+    (* if vt is LUnspecified then take it from ae' *)
+    let vt' = refvt_conv vt in
+    let xty = refvt_to_etype vt' in
+      (* XXX check that types match *)
+      Env.add_var venv x vt';
+      (* XXX do z3 stuff *)
+      ArrayDec(x,vt',ae')
+
   | Ast.If(cond,thenstms,elsestms) ->
     let cond' = tc_expr fenv venv cond in
     let thenstms' = tc_block fenv (Env.sub_env venv) thenstms in

@@ -5,6 +5,8 @@ public int32 foo() {
   secret bool t = x;
   public int16 zz = (int16)z;
 
+  public int32[] arr = { 2, 5, 3 };
+
   public bool t_pub = declassify(t);
 
   secret int32 y_ = -25;
