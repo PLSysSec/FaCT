@@ -75,6 +75,7 @@ and expr' =
 and expr = (expr' * expr_type') pos_ast [@@deriving show]
 
 and array_expr' =
+  | ArrayLit of expr list
   | ArrayZeros of lexpr
   | ArrayCopy of var_name
   | ArrayView of var_name * expr * lexpr
