@@ -63,6 +63,7 @@ and expr' =
   | True
   | False
   | IntLiteral of int
+  | Register of reg_name
   | Variable of var_name
   | ArrayGet of var_name * expr
   | ArrayLen of var_name

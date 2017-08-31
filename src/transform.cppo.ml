@@ -139,7 +139,6 @@ and xf_stm' xf_ctx p = function
       [BaseDec(x,vt,e')]
   | BaseAssign(x,e) ->
     let e' = xf_expr xf_ctx e in
-    (* XXX also transform with fctx if we have one *)
     let should_transform = true in (* XXX *)
       if should_transform then
         let x' = mkpos (Variable x, r2bty (Env.find_var xf_ctx.venv x)) in
@@ -147,6 +146,12 @@ and xf_stm' xf_ctx p = function
           [BaseAssign(x,xfe')]
       else
         [BaseAssign(x,e')]
+  | RegAssign(r,e) ->
+    let e' = xf_expr xf_ctx e in
+    (* always transform *)
+    let r' = mkpos (Register r, sbool) in (* the sbool is just a placeholder; r is not actually (necessarily) a bool *)
+    let rfe' = ctx_select(e',r') in
+      [RegAssign(r,rfe')]
   | If(cond,thenstms,elsestms) ->
     let cond' = xf_expr xf_ctx cond in
       if is_secret cond' then
@@ -199,6 +204,7 @@ and xf_stm' xf_ctx p = function
           [BaseAssign(rnset,assigned)]
       else
         [VoidReturn]
+  | s -> print_endline @@ show_statement' s; raise @@ err(p)
 and xf_stm xf_ctx pa = List.map (make_ast pa.pos) (xf_stm' xf_ctx pa.pos pa.data)
 
 and xf_block rt fenv ms (venv,stms) =

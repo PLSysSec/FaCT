@@ -34,14 +34,15 @@ let error_exit s =
   exit 1
 
 let runner prep ast_out core_ir_out llvm_out =
-  try compile prep ast_out core_ir_out llvm_out with
+  compile prep ast_out core_ir_out llvm_out
+  (*try compile prep ast_out core_ir_out llvm_out with
     | (Err.InternalCompilerError s) -> error_exit s
     | (Err.VariableNotDefined s) -> error_exit s
     | (Err.LabelError s) -> error_exit s
     | (Err.UnclassifiedError s) -> error_exit s
     | (Err.TypeError s) -> error_exit s
     | (Err.SMTSolverError s) -> error_exit ("error: "^s)
-    | (Err.NotImplemented s) -> error_exit ("error: "^s)
+    | (Err.NotImplemented s) -> error_exit ("error: "^s)*)
     (*| (Command_util.SyntaxError s) -> error_exit s
     | (Codegen.Error s) -> error_exit s
     | (Command_util.SyntaxError s) -> error_exit s

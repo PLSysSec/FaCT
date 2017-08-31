@@ -89,12 +89,18 @@ let allocate_args ctx llbuilder var_env args =
 
 (* Allocate space for each variable declared inside a function. This is
    done at the beginning of the function. *)
+(* NOTE(src): we really should find a way to get this directly from the tast venvs
+   instead of descending through the AST again *)
 let rec allocate_stack ctx builder venv stms =
-  let allocate_stack' = function
+  let rec allocate_inject = function
+    | {data=(Inject(_,stms),_)} -> List.iter allocate_stack' stms
+    | _ -> ()
+  and allocate_stack' = function
     | {data=BaseDec(var_name,var_type,expr)} ->
-       let llvm_ty = vt_to_llvm_ty ctx var_type.data in
-       let alloca = build_alloca llvm_ty var_name.data builder in
-       add_var venv var_name alloca
+      allocate_inject expr;
+      let llvm_ty = vt_to_llvm_ty ctx var_type.data in
+      let alloca = build_alloca llvm_ty var_name.data builder in
+        add_var venv var_name alloca
     | {data=ArrayDec(var_name,var_type,expr)} ->
       let llvm_ty = vt_to_llvm_ty ctx var_type.data in
       (* TODO: I think this will fail. I think this will just allocate a
@@ -102,12 +108,17 @@ let rec allocate_stack ctx builder venv stms =
          So yea, fix dis *)
       let alloca = build_alloca llvm_ty var_name.data builder in
       add_var venv var_name alloca
+    | {data=BaseAssign(var_name,expr)} -> allocate_inject expr
+    | {data=RegAssign(reg_name,expr)} -> allocate_inject expr
     | {data=Block(stms)} ->
       allocate_stack ctx builder venv stms
     | {data=If(cond,thenstms,elsestms)} ->
+      allocate_inject cond;
       allocate_stack ctx builder venv thenstms;
       allocate_stack ctx builder venv elsestms
     | {data=For(var_name,base_type,low,high,stms)} ->
+      allocate_inject low;
+      allocate_inject high;
       let llvm_ty = bt_to_llvm_ty ctx base_type.data in
       let alloca = build_alloca llvm_ty var_name.data builder in
       (* TODO: Fix the scoping here. This will force us to use a different
@@ -115,7 +126,9 @@ let rec allocate_stack ctx builder venv stms =
          probably want to be able to reuse this?? *)
       add_var venv var_name alloca;
       allocate_stack ctx builder venv stms
-    | _ -> ()
+    | {data=Return(expr)} -> allocate_inject expr
+    | {data=VoidFnCall _} -> ()
+    | {data=s} -> print_endline @@ show_statement' s; raise CodegenError
   in
   let env,stms' = stms in
   ignore(List.map allocate_stack' stms')
@@ -360,6 +373,11 @@ and codegen_expr llcontext llmodule builder venv fenv tenv = function
     let e2 = codegen_expr llcontext llmodule builder venv fenv tenv expr2.data in
     let e3 = codegen_expr llcontext llmodule builder venv fenv tenv expr3.data in
       build_select e1' e2 e3 "terntmp" builder
+  | Inject(reg,stms), ty ->
+    let ret_ty = None in
+      ignore(List.map (codegen_stm llcontext llmodule builder ret_ty venv fenv tenv) stms);
+      raise CodegenError
+  | e, ty -> print_endline @@ show_expr' e; raise CodegenError
 
 and extend_to ctx builder signed ty v =
   let llvm_ty = expr_ty_to_llvm_ty ctx ty in
@@ -394,6 +412,8 @@ and codegen_stm llcontext llmodule builder ret_ty venv fenv tenv = function
     let ty' = (expr_ty_to_base_ty ty).data in
     let expr' = codegen_ext llcontext llmodule builder venv fenv tenv ty' expr in
     ignore(build_store expr' v builder)
+  | {data=RegAssign(reg_name,expr)} ->
+    raise CodegenError (* XXX how to expose the reg?? *)
   | {data=ArrayAssign(var_name,array_index,expr)} ->
     let v = find_var venv var_name in
     let index = codegen_expr llcontext llmodule builder venv fenv tenv array_index.data in
@@ -471,13 +491,16 @@ and codegen_stm llcontext llmodule builder ret_ty venv fenv tenv = function
   | {data=VoidReturn} ->
     ignore (build_ret_void builder)
   | {data=Return(expr)} ->
-    match ret_ty with
-      | Some BaseET(bt,label) ->
-        let ret' = codegen_ext llcontext llmodule builder venv fenv tenv bt.data expr in
-        ignore(build_ret ret' builder)
+    begin
+      match ret_ty with
+        | Some BaseET(bt,label) ->
+          let ret' = codegen_ext llcontext llmodule builder venv fenv tenv bt.data expr in
+            ignore(build_ret ret' builder)
         (* TODO: assert valid function here *)
-      | Some ArrayET _ -> raise CodegenError (* TODO: Cannot retur an array yet *)
-      | None -> raise CodegenError
+        | Some ArrayET _ -> raise CodegenError (* TODO: Cannot retur an array yet *)
+        | None -> raise CodegenError
+    end
+  | {data=s} -> print_endline @@ show_statement' s; raise CodegenError
 
 and codegen_stms llcontext llmodule builder ret_ty venv fenv tenv (stms : Tast.block) =
   let _,stms' = stms in
