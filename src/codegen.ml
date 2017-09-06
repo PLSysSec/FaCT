@@ -32,7 +32,7 @@ let add_fn = Hashtbl.add
 (* End env functionality *)
 
 (* TODO make this better *)
-type renv = (string,int) Hashtbl.t [@printer pp_hashtbl]
+type renv = (string,llvalue) Hashtbl.t [@printer pp_hashtbl]
 [@@deriving show]
 let new_renv () = Hashtbl.create 10
 let add_reg = Hashtbl.add
@@ -50,6 +50,7 @@ type codegen_ctx_record = {
   venv      : llvalue env;
   fenv      : fenv;
   tenv      : variable_type env;
+  renv      : renv;
 }
 
 let is_signed = function
@@ -337,6 +338,8 @@ and codegen_expr cg_ctx = function
   | False, ty -> const_null (expr_ty_to_llvm_ty cg_ctx.llcontext ty)
   | IntLiteral i, ty ->
     const_int (expr_ty_to_llvm_ty cg_ctx.llcontext ty) i
+  | Register reg_name, ty ->
+    get_reg cg_ctx.renv reg_name
   | Variable var_name, ty ->
     (* TODO: We should probably check the lltype of ty and compare it to the type_of of the
              result? This would be a sanity check. Or maybe even better, we should cast
@@ -397,7 +400,7 @@ and codegen_expr cg_ctx = function
   | Inject(reg,stms), ty ->
     let ret_ty = None in
       ignore(List.map (codegen_stm cg_ctx ret_ty) stms);
-      raise CodegenError
+      get_reg cg_ctx.renv reg
   | e, ty -> print_endline @@ show_expr' e; raise CodegenError
 
 and extend_to ctx builder signed ty v =
@@ -434,7 +437,8 @@ and codegen_stm cg_ctx ret_ty = function
     let expr' = codegen_ext cg_ctx ty' expr in
     ignore(build_store expr' v cg_ctx.builder)
   | {data=RegAssign(reg_name,expr)} ->
-    raise CodegenError (* XXX how to expose the reg?? *)
+    let expr' = codegen_expr cg_ctx expr.data in
+      add_reg cg_ctx.renv reg_name expr';
   | {data=ArrayAssign(var_name,array_index,expr)} ->
     let v = find_var cg_ctx.venv var_name in
     let index = codegen_expr cg_ctx array_index.data in
@@ -542,7 +546,8 @@ let codegen_fun llcontext llmodule builder fenv = function
     position_at_end bb builder;
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
-    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv } in
+    let renv = new_renv () in
+    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; renv } in
     allocate_args cg_ctx params;
     allocate_stack cg_ctx body;
     (* TODO: store_args?? *)

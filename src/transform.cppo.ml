@@ -115,7 +115,7 @@ and xf_expr' xf_ctx { data; pos=p } =
                        (xf_ctx.venv,[mkpos RegAssign(res, e2)]),
                        (xf_ctx.venv,[mkpos RegAssign(res, e3)])) in
             let stm' = xf_stm xf_ctx stm in
-              Inject(res, stm')
+              Inject(res, [mkpos RegAssign(res, sebool(False))]@stm')
           else
             let e2' = xf_expr xf_ctx e2 in
             let e3' = xf_expr xf_ctx e3 in
