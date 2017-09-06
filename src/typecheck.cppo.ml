@@ -398,8 +398,15 @@ let rec tc_stm fenv venv = pfunction
   | Ast.ArrayDec(x,vt,ae) ->
     let ae' = tc_arrayexpr fenv venv ae in
     let aty = atype_of ae' in
-    (* if vt is LUnspecified then take it from ae' *)
     let vt' = refvt_conv vt in
+    (* if vt is LUnspecified then take it from aty *)
+    let {data=ArrayVT({data=ArrayAT(bt,lexpr)} as at,ml,mut)} = vt' in
+    let vt' =
+      if lexpr.data = LUnspecified then
+        let {data=ArrayET({data=ArrayAT(_,{data=ae_lexpr'})},_,_)} = aty in
+          {vt' with data=ArrayVT({at with data=ArrayAT(bt,{lexpr with data=ae_lexpr'})},ml,mut)}
+      else
+        vt' in
     let xty = refvt_to_etype vt' in
       (* XXX check that types match *)
       Env.add_var venv x vt';

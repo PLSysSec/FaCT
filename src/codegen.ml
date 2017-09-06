@@ -325,6 +325,8 @@ let rec codegen_arg cg_ctx arg ty =
       build_load var "argref" cg_ctx.builder
 
 and codegen_array_expr cg_ctx = function
+  (* XXX gary here too pls *)
+  | ArrayLit exprs -> raise CodegenError
   | ArrayZeros lexpr ->
     begin
       match lexpr.data with
@@ -430,7 +432,7 @@ and codegen_stm cg_ctx ret_ty = function
     let expr' = codegen_ext cg_ctx (vt_to_bt var_type.data) expr in
     ignore(build_store expr' v cg_ctx.builder)
   | {data=ArrayDec(var_name,var_type,arr_expr)} ->
-    (* TODO: Gotta do some rearranging here *)
+    (* XXX gary help me here please *)
     raise CodegenError
   | {data=BaseAssign(var_name,expr)} ->
     let v = find_var cg_ctx.venv var_name in
