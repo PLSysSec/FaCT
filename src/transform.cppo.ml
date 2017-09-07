@@ -136,7 +136,11 @@ and xf_expr xf_ctx ({ data=(e,ety) } as pa) = { pa with data=(xf_expr' xf_ctx pa
 and xf_arrayexpr' xf_ctx { data; pos=p } =
   let (ae, ety) = data in
     match ae with
-      | ArrayLit exprs -> ArrayLit (List.map (xf_expr xf_ctx) exprs)
+      | ArrayLit exprs -> ArrayLit(List.map (xf_expr xf_ctx) exprs)
+      | ArrayZeros _
+      | ArrayCopy _ -> ae
+      | ArrayView(x,e,lexpr) -> ArrayView(x,xf_expr xf_ctx e,lexpr)
+      | ArrayComp(b,lexpr,x,e) -> ArrayComp(b,lexpr,x,xf_expr xf_ctx e)
 and xf_arrayexpr xf_ctx ({ data=(ae,ety) } as pa) = { pa with data=(xf_arrayexpr' xf_ctx pa, ety) }
 
 and xf_stm' xf_ctx p = function

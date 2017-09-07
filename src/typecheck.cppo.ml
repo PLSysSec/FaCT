@@ -111,10 +111,32 @@ let expr_to_ml = xfunction
 let expr_to_types = xfunction
   | (_,BaseET(b,ml)) -> b,ml
 
+let atype_to_lexpr' = xfunction
+  | ArrayET(a,ml,m) ->
+    let ArrayAT(bt,lexpr) = a.data in
+      lexpr.data
+
+let refvt_to_lexpr = xfunction
+  | ArrayVT(a,ml,m) ->
+    let ArrayAT(bt,lexpr) = a.data in
+      lexpr
+
 let refvt_to_etype' = xfunction
   | RefVT(b,ml,_) -> BaseET(b, ml)
   | ArrayVT(a,ml,m) -> ArrayET(a, ml, m)
 let refvt_to_etype = rebind refvt_to_etype'
+
+let atype_update_lexpr lexpr' = pfunction
+  | ArrayAT(bt,_) ->
+    ArrayAT(bt, mkpos lexpr')
+
+let aetype_update_lexpr' lexpr' = xfunction
+  | ArrayET(a,ml,m) ->
+    ArrayET(atype_update_lexpr lexpr' a, ml, m)
+
+let refvt_update_lexpr lexpr' = pfunction
+  | ArrayVT(a,ml,m) ->
+    ArrayVT(atype_update_lexpr lexpr' a, ml, m)
 
 
 (* Subtyping *)
@@ -366,16 +388,31 @@ let tc_arrayexpr fenv venv = pfunction
   | Ast.ArrayLit exprs ->
     (* XXX check that all expr types are compatible *)
     let exprs' = List.map (tc_expr fenv venv) exprs in
-    let b = expr_to_btype @@ List.hd exprs' in
-      (ArrayLit exprs', ArrayET(mkpos ArrayAT(b, mkpos LIntLiteral(List.length exprs')), mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Const))
+    let b = expr_to_btype @@ List.hd exprs' in (* XXX should be join of all exprs' *)
+    let at' = mkpos ArrayAT(b, mkpos LIntLiteral(List.length exprs')) in
+      (ArrayLit exprs', ArrayET(at', mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Const))
   | Ast.ArrayZeros lexpr ->
-    raise @@ err(p)
+    (* XXX check that type is compatible *)
+    let b = mkpos Num(0, false) in
+    let lexpr' = lexprconv lexpr in
+    let at' = mkpos ArrayAT(b, lexpr') in
+    (ArrayZeros lexpr', ArrayET(at', mkpos Fixed Public, mkpos Const))
   | Ast.ArrayCopy x ->
-    raise @@ err(p)
+    let ae' = refvt_to_etype' (Env.find_var venv x) in
+      (ArrayCopy x, ae')
   | Ast.ArrayView(x,e,lexpr) ->
-    raise @@ err(p)
+    (* XXX Z3 check inbounds *)
+    let e' = tc_expr fenv venv e in
+    let lexpr' = lexprconv lexpr in
+    let ae = refvt_to_etype (Env.find_var venv x) in
+    let ae' = aetype_update_lexpr' lexpr'.data ae in
+      (ArrayView(x,e',lexpr'), ae')
   | Ast.ArrayComp(b,lexpr,x,e) ->
-    raise @@ err(p)
+    let b' = bconv b in
+    let lexpr' = lexprconv lexpr in
+    let e' = tc_expr fenv venv e in
+    let ae = ArrayET(mkpos ArrayAT(b', lexpr'), expr_to_ml e', mkpos Const) in
+      (ArrayComp(b',lexpr',x,e'), ae)
 
 let rec tc_stm fenv venv = pfunction
 
@@ -400,11 +437,12 @@ let rec tc_stm fenv venv = pfunction
     let aty = atype_of ae' in
     let vt' = refvt_conv vt in
     (* if vt is LUnspecified then take it from aty *)
-    let {data=ArrayVT({data=ArrayAT(bt,lexpr)} as at,ml,mut)} = vt' in
+    let lexpr = refvt_to_lexpr vt' in
+    let {data=ArrayVT({data=ArrayAT(bt,_)} as at,ml,mut)} = vt' in
     let vt' =
       if lexpr.data = LUnspecified then
-        let {data=ArrayET({data=ArrayAT(_,{data=ae_lexpr'})},_,_)} = aty in
-          {vt' with data=ArrayVT({at with data=ArrayAT(bt,{lexpr with data=ae_lexpr'})},ml,mut)}
+        let ae_lexpr' = atype_to_lexpr' aty in
+          refvt_update_lexpr ae_lexpr' vt'
       else
         vt' in
     let xty = refvt_to_etype vt' in
