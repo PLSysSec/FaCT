@@ -3,10 +3,10 @@ open Err
 open Lexing
 open Typecheck
 open Codegen
+
 (*
 open Cast
 open Env
-open Typecheck
 open Transform
 *)
 
@@ -40,14 +40,14 @@ let output_tast ast_out out_file tast =
         Core.Std.Out_channel.write_all tast_out_file
           ~data:((Tast.show_fact_module tast)^"\n")
 
-(*let output_core_ir core_ir_out out_file core_ir =
-  match core_ir_out with
-    | false -> Log.debug "Not outputting core IR"
+let output_xftast xftast_out out_file tast =
+  match xftast_out with
+    | false -> Log.debug "Not outputting transformed TAST"
     | true ->
-      let core_ir_out_file = out_file ^ ".core.ml" in
-      Log.debug "Outputting core IR to %s" core_ir_out_file;
-      Core.Out_channel.write_all core_ir_out_file
-        ~data:(show_cmodule core_ir)*)
+      let tast_out_file = out_file ^ ".xftast.ml" in
+        Log.debug "Outputting transformed TAST to %s" tast_out_file;
+        Core_kernel.Out_channel.write_all tast_out_file
+          ~data:((Tast.show_fact_module tast)^"\n")
 
 let output_llvm llvm_out out_file llvm_mod =
   match llvm_out with
@@ -67,7 +67,7 @@ let output_bitcode out_file llvm_mod =
 let output_shared out_file =
   let out_file' = out_file ^ ".bc" in
   let out_file_s = out_file ^ ".s" in
-  Log.debug "Createing .s file at %s" out_file_s;
+  Log.debug "Creating .s file at %s" out_file_s;
   run_command "llc" [|"llc"; out_file'|]
 
 let output_object out_file =
@@ -97,10 +97,11 @@ let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
   Log.debug "Tast transform complete"
   (*;
   output_core_ir core_ir_out out_file' core_ir;
+  output_xftast core_ir_out out_file' xftast;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let llvm_builder = Llvm.builder llvm_ctx in
-  let _ = codegen llvm_ctx llvm_mod llvm_builder tast in
+  let _ = codegen llvm_ctx llvm_mod llvm_builder xftast in
   
   (*
   let triple = Llvm_target.Target.default_triple () in

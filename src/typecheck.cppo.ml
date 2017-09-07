@@ -64,6 +64,13 @@ let bconv = pfunction
   | Ast.Int n -> Int n
   | Ast.Bool -> Bool
 
+let lexprconv = pfunction
+  | Ast.LIntLiteral n -> LIntLiteral n
+  | Ast.LUnspecified -> LUnspecified
+
+let aconv = pfunction
+  | Ast.ArrayAT(b,lexpr) -> ArrayAT(bconv b, lexprconv lexpr)
+
 let mlconv = pfunction
   | Ast.Public -> Fixed Public
   | Ast.Secret -> Fixed Secret
@@ -80,11 +87,16 @@ let etype_conv = pfunction
 let refvt_conv = pfunction
   | Ast.RefVT(b,l,m) ->
     RefVT(bconv b, mlconv l, mconv m)
+  | Ast.ArrayVT(a,l,m) ->
+    ArrayVT(aconv a, mlconv l, mconv m)
 
 
 (* Extraction *)
 
 let type_of = xfunction
+  | (_,ty) -> mkpos ty
+
+let atype_of = xfunction
   | (_,ty) -> mkpos ty
 
 let type_out = xfunction
@@ -99,9 +111,32 @@ let expr_to_ml = xfunction
 let expr_to_types = xfunction
   | (_,BaseET(b,ml)) -> b,ml
 
+let atype_to_lexpr' = xfunction
+  | ArrayET(a,ml,m) ->
+    let ArrayAT(bt,lexpr) = a.data in
+      lexpr.data
+
+let refvt_to_lexpr = xfunction
+  | ArrayVT(a,ml,m) ->
+    let ArrayAT(bt,lexpr) = a.data in
+      lexpr
+
 let refvt_to_etype' = xfunction
   | RefVT(b,ml,_) -> BaseET(b, ml)
+  | ArrayVT(a,ml,m) -> ArrayET(a, ml, m)
 let refvt_to_etype = rebind refvt_to_etype'
+
+let atype_update_lexpr lexpr' = pfunction
+  | ArrayAT(bt,_) ->
+    ArrayAT(bt, mkpos lexpr')
+
+let aetype_update_lexpr' lexpr' = xfunction
+  | ArrayET(a,ml,m) ->
+    ArrayET(atype_update_lexpr lexpr' a, ml, m)
+
+let refvt_update_lexpr lexpr' = pfunction
+  | ArrayVT(a,ml,m) ->
+    ArrayVT(atype_update_lexpr lexpr' a, ml, m)
 
 
 (* Subtyping *)
@@ -349,7 +384,38 @@ and tc_expr fenv venv = pfunction
       z3_push @@ Z.thing (z3_ty rty);
       (FnCall(f,args'), rty.data)
 
+let tc_arrayexpr fenv venv = pfunction
+  | Ast.ArrayLit exprs ->
+    (* XXX check that all expr types are compatible *)
+    let exprs' = List.map (tc_expr fenv venv) exprs in
+    let b = expr_to_btype @@ List.hd exprs' in (* XXX should be join of all exprs' *)
+    let at' = mkpos ArrayAT(b, mkpos LIntLiteral(List.length exprs')) in
+      (ArrayLit exprs', ArrayET(at', mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Const))
+  | Ast.ArrayZeros lexpr ->
+    (* XXX check that type is compatible *)
+    let b = mkpos Num(0, false) in
+    let lexpr' = lexprconv lexpr in
+    let at' = mkpos ArrayAT(b, lexpr') in
+    (ArrayZeros lexpr', ArrayET(at', mkpos Fixed Public, mkpos Const))
+  | Ast.ArrayCopy x ->
+    let ae' = refvt_to_etype' (Env.find_var venv x) in
+      (ArrayCopy x, ae')
+  | Ast.ArrayView(x,e,lexpr) ->
+    (* XXX Z3 check inbounds *)
+    let e' = tc_expr fenv venv e in
+    let lexpr' = lexprconv lexpr in
+    let ae = refvt_to_etype (Env.find_var venv x) in
+    let ae' = aetype_update_lexpr' lexpr'.data ae in
+      (ArrayView(x,e',lexpr'), ae')
+  | Ast.ArrayComp(b,lexpr,x,e) ->
+    let b' = bconv b in
+    let lexpr' = lexprconv lexpr in
+    let e' = tc_expr fenv venv e in
+    let ae = ArrayET(mkpos ArrayAT(b', lexpr'), expr_to_ml e', mkpos Const) in
+      (ArrayComp(b',lexpr',x,e'), ae)
+
 let rec tc_stm fenv venv = pfunction
+
   | Ast.BaseDec(x,vt,e) ->
     let e' = tc_expr fenv venv e in
     let ety = type_of e' in
@@ -364,6 +430,25 @@ let rec tc_stm fenv venv = pfunction
     let e' = tc_expr fenv venv e in
       z3_pop;
       BaseAssign(x,e')
+  | Ast.ArrayDec(x,vt,ae) ->
+    let ae' = tc_arrayexpr fenv venv ae in
+    let aty = atype_of ae' in
+    let vt' = refvt_conv vt in
+    (* if vt is LUnspecified then take it from aty *)
+    let lexpr = refvt_to_lexpr vt' in
+    let {data=ArrayVT({data=ArrayAT(bt,_)} as at,ml,mut)} = vt' in
+    let vt' =
+      if lexpr.data = LUnspecified then
+        let ae_lexpr' = atype_to_lexpr' aty in
+          refvt_update_lexpr ae_lexpr' vt'
+      else
+        vt' in
+    let xty = refvt_to_etype vt' in
+      (* XXX check that types match *)
+      Env.add_var venv x vt';
+      (* XXX do z3 stuff *)
+      ArrayDec(x,vt',ae')
+
   | Ast.If(cond,thenstms,elsestms) ->
     let cond' = tc_expr fenv venv cond in
     let thenstms' = tc_block fenv (Env.sub_env venv) thenstms in
@@ -402,6 +487,9 @@ let tc_fdec' fenv = function
     let rt' = etype_conv rt in
     let params' = List.map tc_param params in
     let venv = Env.new_env () in
+      List.iter (fun {data=Param(name,vty)} ->
+                  Env.add_var venv name vty)
+        params';
       FunDec(f,Some rt',params',tc_block fenv venv stms)
 
 let tc_fdec fenv = xfunction
@@ -413,5 +501,5 @@ let tc_fdec fenv = xfunction
 let tc_module (Ast.Module fdecs) =
   let fenv = Env.new_env () in
   let ret = Module (fenv, List.map (tc_fdec fenv) fdecs) in
-    print_endline (Env.show_env pp_function_dec fenv);
+    (*print_endline (Env.show_env pp_function_dec fenv);*)
     ret

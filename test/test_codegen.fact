@@ -5,6 +5,8 @@ public int32 foo() {
   secret bool t = x;
   public int16 zz = (int16)z;
 
+  public int32[] arr = { 2, 5, 3 };
+
   public bool t_pub = declassify(t);
 
   secret int32 y_ = -25;
@@ -12,28 +14,26 @@ public int32 foo() {
   public int32 yy_ = ~y;
   public bool xx = !x;
 
-  //secret int32 tt = y + y_ - yy * yy_;
-
-  /* overflow checking */
-  //public int8 o1 = 120;
-  //public int8 o2 = 112;
-  //public int8 o3 = o1 + o2;
-
   secret int32 ttt = y | y_;
   secret int32 xxy = x ? yy : yy_;
+
+  return y;
 }
 
 public bool baz(secret int32 x, public mut bool y) {
+  return false;
 }
 
 public bool qux(secret int32 x, public mut bool y) {
   foo();
-  baz(x, ref y);
+  return baz(x, ref y);
 }
 
 public int32 bar() {
   secret int32 x = foo();
-  public bool y = baz(4);
+  public bool yyy = false;
+  public bool y = baz(4, ref yyy);
+
   y = x;
   if (x + 4) {
     y = x;
@@ -43,11 +43,20 @@ public int32 bar() {
     x = x + x;
   }
 
-  for (int32 x = 0 to 6) {
+  for (int32 xx = 0 to 6) {
     x = y;
   }
 
   baz(x, ref y);
   return 7;
-  return;
+}
+
+secret int32 inject() {
+  secret bool x = true;
+  secret int32 y = 4;
+  secret int32 z = 5;
+
+  secret int32 t = x ? y : z;
+
+  return 7;
 }

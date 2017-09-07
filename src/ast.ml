@@ -93,6 +93,7 @@ and binop =
 [@@deriving show]
 
 and array_expr' =
+  | ArrayLit of expr list
   | ArrayZeros of lexpr
   | ArrayCopy of var_name
   | ArrayView of var_name * expr * lexpr

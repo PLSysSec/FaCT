@@ -93,6 +93,9 @@ expr_top:
 %inline blist(X):
   | LBRACE xs=list(X) RBRACE { xs }
 
+%inline alist(X):
+  | LBRACE xs=separated_list(COMMA, X) RBRACE { xs }
+
 var_name:
   | x=IDENT { mkpos x }
 
@@ -173,6 +176,7 @@ expr:
   | DECLASSIFY e=paren(expr) { mkpos (Declassify e) }
 
 array_expr:
+  | es=alist(expr) { mkpos (ArrayLit es) }
   | ARRZEROS l=paren(lexpr) { mkpos (ArrayZeros l) }
   | ARRCOPY a=paren(var_name) { mkpos (ArrayCopy a) }
   | ARRVIEW LPAREN a=var_name COMMA i=expr COMMA l=lexpr RPAREN { mkpos (ArrayView(a, i, l)) }
