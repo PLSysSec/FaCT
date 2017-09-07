@@ -116,6 +116,11 @@ let atype_to_lexpr' = xfunction
     let ArrayAT(bt,lexpr) = a.data in
       lexpr.data
 
+let refvt_to_betype' = xfunction
+  | ArrayVT(a,ml,m) ->
+    let ArrayAT(bt,lexpr) = a.data in
+      BaseET(bt,ml)
+
 let refvt_to_lexpr = xfunction
   | ArrayVT(a,ml,m) ->
     let ArrayAT(bt,lexpr) = a.data in
@@ -334,6 +339,9 @@ let rec tc_arg fenv venv = pfunction
       z3_pop; arg'
   | Ast.ByRef x ->
     ByRef x
+  | Ast.ByArray aexpr ->
+    let arg' = ByArray (tc_arrayexpr fenv venv aexpr) in
+      arg'
 
 and tc_expr fenv venv = pfunction
   | Ast.True ->
@@ -349,6 +357,13 @@ and tc_expr fenv venv = pfunction
     z3_push @@ Z.var x.data;
     let xref = Env.find_var venv x in
       (Variable x, refvt_to_etype' xref)
+  | Ast.ArrayGet(x,e) ->
+    let xref = Env.find_var venv x in
+    let e' = tc_expr fenv venv e in
+      (ArrayGet(x,e'), refvt_to_betype' xref)
+  | Ast.ArrayLen x ->
+    (* XXX type should be size_t not uint32 *)
+    (ArrayLen x, BaseET(mkpos UInt 32, mkpos Fixed Public))
   | Ast.IntCast(b,e) ->
     let b' = bconv b in
       if not (is_int b') then raise @@ err(b'.pos);
@@ -384,7 +399,7 @@ and tc_expr fenv venv = pfunction
       z3_push @@ Z.thing (z3_ty rty);
       (FnCall(f,args'), rty.data)
 
-let tc_arrayexpr fenv venv = pfunction
+and tc_arrayexpr fenv venv = pfunction
   | Ast.ArrayLit exprs ->
     (* XXX check that all expr types are compatible *)
     let exprs' = List.map (tc_expr fenv venv) exprs in
@@ -426,10 +441,12 @@ let rec tc_stm fenv venv = pfunction
       let zvar = Z.new_var (z3_ty xty) x.data in
         Z.(add (zvar = z3_pop));
       BaseDec(x,vt',e')
+
   | Ast.BaseAssign(x,e) ->
     let e' = tc_expr fenv venv e in
       z3_pop;
       BaseAssign(x,e')
+
   | Ast.ArrayDec(x,vt,ae) ->
     let ae' = tc_arrayexpr fenv venv ae in
     let aty = atype_of ae' in
@@ -449,12 +466,18 @@ let rec tc_stm fenv venv = pfunction
       (* XXX do z3 stuff *)
       ArrayDec(x,vt',ae')
 
+  | Ast.ArrayAssign(x,n,e) ->
+    let n' = tc_expr fenv venv n in
+    let e' = tc_expr fenv venv e in
+      ArrayAssign(x,n',e')
+
   | Ast.If(cond,thenstms,elsestms) ->
     let cond' = tc_expr fenv venv cond in
     let thenstms' = tc_block fenv (Env.sub_env venv) thenstms in
     let elsestms' = tc_block fenv (Env.sub_env venv) elsestms in
       z3_pop;
     If(cond',thenstms',elsestms')
+
   | Ast.For(i,ity,lo,hi,stms) ->
     let ity' = bconv ity in
     let lo' = tc_expr fenv venv lo in
@@ -464,14 +487,17 @@ let rec tc_stm fenv venv = pfunction
       Env.add_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const));
       let stms' = tc_block fenv venv' stms in
         For(i,ity',lo',hi',stms')
+
   | Ast.VoidFnCall(f,args) ->
     let args' = List.map (tc_arg fenv venv) args in
     let (FunDec(_,Some rty,_,_)) = (Env.find_var fenv f).data in
       VoidFnCall(f,args')
+
   | Ast.Return e ->
     let e' = tc_expr fenv venv e in
       z3_pop;
       Return e'
+
   | Ast.VoidReturn -> VoidReturn
 
 and tc_block fenv venv stms =
