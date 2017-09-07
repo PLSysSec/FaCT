@@ -5,6 +5,8 @@ type fentry
 type fenv
 type codegen_ctx_record
 
+val new_fenv : unit -> fenv
+
 val codegen : llcontext
            -> llmodule
            -> llbuilder

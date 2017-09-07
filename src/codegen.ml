@@ -229,9 +229,8 @@ let rec codegen_arg cg_ctx arg ty =
                   let zeros = Array.make n zero in
                   let arr_ty = array_type llty n in
                   let arr = const_array arr_ty zeros in
-                  build_array_alloca arr_ty arr "zerodarray" builder
-                | LUnspecified -> raise CodegenError
                   build_array_alloca arr_ty arr "zerodarray" cg_ctx.builder
+                | LUnspecified -> raise CodegenError
 
             end
           | ArrayCopy var_name ->
@@ -576,4 +575,5 @@ let rec codegen_fdecs llcontext llmodule builder fenv = function
 let rec codegen llcontext llmodule builder = function
   | Module(_,fdecs) ->
     Log.info "Codegening module";
-    codegen_fdecs llcontext llmodule builder fdecs
+    let fenv = new_fenv () in
+      codegen_fdecs llcontext llmodule builder fenv fdecs

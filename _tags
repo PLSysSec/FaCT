@@ -18,8 +18,6 @@ true: annot, bin_annot
 ".git": not_hygienic
 "_darcs": -traverse
 "_darcs": not_hygienic
-"test": -traverse
-"test": not_hygienic
 # Executable fact
 "src/fact.byte": package(Z3)
 "src/fact.byte": package(core)
@@ -62,3 +60,5 @@ true: annot, bin_annot
 <src/*.ml{,i,y}>: package(ppx_deriving.std)
 <src/*.ml{,i,y}>: package(threads)
 # OASIS_STOP
+"test": -traverse
+"test": not_hygienic

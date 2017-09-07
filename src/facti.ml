@@ -19,7 +19,7 @@ let expr_to_fun e =
   let body = make_ast fake_pos (Ast.Return e) in
   name, make_ast fake_pos (Ast.FunDec(fun_name, (Some ret_type), [], [body]))
 
-let rec repl ctx mod' builder execution_engine fenv venv =
+let rec repl ctx mod' builder execution_engine fenv venv cg_fenv =
   print_string "fact>"; flush stdout;
   let lexbuf = Lexing.from_channel stdin in
   let ast = Parser.expr_top Lexer.token lexbuf in
@@ -27,7 +27,7 @@ let rec repl ctx mod' builder execution_engine fenv venv =
   let name,ast' = expr_to_fun ast in
   let tast = tc_fdec fenv ast' in
   print_string ((Tast.show_function_dec tast) ^ "\n");
-  let f = Codegen.codegen_fun ctx mod' builder tast in
+  let f = Codegen.codegen_fun ctx mod' builder cg_fenv tast in
   (* JIT the function, returning a function pointer. *)
   run_static_ctors execution_engine;
   let ty = Foreign.funptr (void @->returning int32_t) in
@@ -42,7 +42,7 @@ let rec repl ctx mod' builder execution_engine fenv venv =
   dispose_module mod';
   run_static_dtors execution_engine;
   let execution_engine' = create mod'' in
-  repl ctx mod'' builder execution_engine' fenv venv
+  repl ctx mod'' builder execution_engine' fenv venv cg_fenv
 
 let _ =
   ignore(initialize ());
@@ -53,4 +53,5 @@ let _ =
   add_module mod' execution_engine;
   let fenv = Env.new_env () in
   let venv = Env.new_env () in
-  repl ctx mod' builder execution_engine fenv venv
+  let cg_fenv = Codegen.new_fenv () in
+  repl ctx mod' builder execution_engine fenv venv cg_fenv
