@@ -44,6 +44,7 @@ let fdec_has_refs {data=FunDec(_,_,params,_)} = params_has_refs params
 
 let bty { data=(_,b) } = b
 let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
+let a2bty { data=ArrayVT({data=ArrayAT(b,_)},ml,_) } = BaseET(b,ml)
 let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
 
 #define sbool (BaseET(mkpos Bool, mkpos Fixed Secret))
@@ -170,6 +171,17 @@ and xf_stm' xf_ctx p = function
     let ae' = xf_arrayexpr xf_ctx ae in
       [ArrayDec(x,vt,ae')]
 
+  | ArrayAssign(x,n,e) ->
+    let n' = xf_expr xf_ctx n in
+    let e' = xf_expr xf_ctx e in
+    let should_transform = true in (* XXX *)
+      if should_transform then
+        let x' = mkpos (ArrayGet(x,n'), a2bty (Env.find_var xf_ctx.venv x)) in
+        let xfe' = ctx_select(e',x') in
+          [ArrayAssign(x,n',xfe')]
+      else
+        [ArrayAssign(x,n',e')]
+
   | If(cond,thenstms,elsestms) ->
     let cond' = xf_expr xf_ctx cond in
       if is_secret cond' then
@@ -185,12 +197,14 @@ and xf_stm' xf_ctx p = function
       else
         let thenstms' = xf_block xf_ctx.rt xf_ctx.fenv xf_ctx.ms thenstms in
         let elsestms' = xf_block xf_ctx.rt xf_ctx.fenv xf_ctx.ms elsestms in
-        [If(cond',thenstms',elsestms')]
+          [If(cond',thenstms',elsestms')]
+
   | For(i,ity,lo,hi,stms) ->
     let lo' = xf_expr xf_ctx lo in
     let hi' = xf_expr xf_ctx hi in
     let stms' = xf_block xf_ctx.rt xf_ctx.fenv xf_ctx.ms stms in
       [For(i,ity,lo',hi',stms')]
+
   | VoidFnCall(f,args) ->
     let args' = List.map (xf_arg xf_ctx) args in
     let fdec = Env.find_var xf_ctx.fenv f in
@@ -199,6 +213,7 @@ and xf_stm' xf_ctx p = function
           [VoidFnCall(f,args'@[mkpos ByValue fctx])]
       else
         [VoidFnCall(f,args')]
+
   | Return e ->
     let Some rt = xf_ctx.rt in
     let e' = xf_expr xf_ctx e in
@@ -213,6 +228,7 @@ and xf_stm' xf_ctx p = function
           [BaseAssign(rval,xfe'); BaseAssign(rnset,assigned)]
       else
         [Return e']
+
   | VoidReturn ->
     let should_transform = true in (* XXX *)
       if should_transform then
@@ -222,6 +238,7 @@ and xf_stm' xf_ctx p = function
           [BaseAssign(rnset,assigned)]
       else
         [VoidReturn]
+
   | s -> print_endline @@ show_statement' s; raise @@ err(p)
 and xf_stm xf_ctx pa = List.map (make_ast pa.pos) (xf_stm' xf_ctx pa.pos pa.data)
 
