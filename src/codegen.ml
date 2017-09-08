@@ -132,6 +132,9 @@ let rec allocate_stack cg_ctx stms =
       add_var cg_ctx.venv var_name alloca
     | {data=BaseAssign(var_name,expr)} -> allocate_inject expr
     | {data=RegAssign(reg_name,expr)} -> allocate_inject expr
+    | {data=ArrayAssign(var_name,index,expr)} ->
+      allocate_inject index;
+      allocate_inject expr
     | {data=Block(stms)} ->
       allocate_stack cg_ctx stms
     | {data=If(cond,thenstms,elsestms)} ->

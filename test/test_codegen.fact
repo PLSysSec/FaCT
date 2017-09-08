@@ -6,6 +6,7 @@ public int32 foo() {
   public int16 zz = (int16)z;
 
   public int32[] arr = { 2, 5, 3 };
+  arr[2] = 7;
 
   public bool t_pub = declassify(t);
 
