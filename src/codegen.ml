@@ -331,17 +331,17 @@ let rec codegen_arg cg_ctx arg ty =
 and codegen_expr cg_ctx = function
   | True, ty -> const_all_ones (expr_ty_to_llvm_ty cg_ctx.llcontext ty)
   | False, ty -> const_null (expr_ty_to_llvm_ty cg_ctx.llcontext ty)
-  | IntLiteral i, ty ->
-    const_int (expr_ty_to_llvm_ty cg_ctx.llcontext ty) i
+  | IntLiteral i, ty -> const_int (expr_ty_to_llvm_ty cg_ctx.llcontext ty) i
   | Register reg_name, ty ->
     get_reg cg_ctx.renv reg_name
   | Variable var_name, ty ->
+    Log.error "codegen var %s" var_name.data;
     (* TODO: We should probably check the lltype of ty and compare it to the type_of of the
              result? This would be a sanity check. Or maybe even better, we should cast
              the result to ty. This should pass the typechecker so it should be safe no matter
              what.*)
     let store = find_var cg_ctx.venv var_name in
-      build_load store var_name.data cg_ctx.builder
+    build_load store var_name.data cg_ctx.builder
   | ArrayGet(var_name,expr), ty ->
     let arr = find_var cg_ctx.venv var_name in
     let expr',expr_ty' = expr.data in
@@ -419,7 +419,24 @@ and vt_to_bt = function
 
 and codegen_array_expr cg_ctx = function
   (* XXX gary here too pls *)
-  | ArrayLit exprs,ty -> raise CodegenError
+  | ArrayLit exprs,ty ->
+    (* TODO: This needs optimization. We want this array to be global if
+             all exprs are known at compile time. Side note -- this is
+             what clang does.*)
+    let exprs' = List.map (fun expr -> expr.data) exprs in
+    let ll_exprs = List.map (codegen_expr cg_ctx) exprs' in
+    let ty' = expr_ty_to_base_ty ty in
+    let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
+    let arr_ty = array_type ll_ty (List.length ll_exprs) in
+    let zero = const_int ll_ty 0 in
+    let alloca = build_array_alloca arr_ty zero "arraylit" cg_ctx.builder in
+    let gep i el =
+      let i' = const_int (i32_type cg_ctx.llcontext) i in
+      let ptr = build_in_bounds_gep alloca [| i'; i' |]  "index" cg_ctx.builder in
+      build_store el ptr cg_ctx.builder |> ignore
+      in
+    List.iteri gep ll_exprs;
+    alloca
   | ArrayZeros lexpr,ty ->
     begin
       match lexpr.data with
