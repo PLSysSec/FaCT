@@ -94,9 +94,7 @@ let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
   output_tast ast_out out_file' tast;
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast in
-  Log.debug "Tast transform complete"
-  (*;
-  output_core_ir core_ir_out out_file' core_ir;
+  Log.debug "Tast transform complete";
   output_xftast core_ir_out out_file' xftast;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
@@ -120,8 +118,6 @@ let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
   (*let core_ir = transform tast in
   Log.debug "Core IR transform complete";
   output_core_ir core_ir_out out_file' core_ir;
-  
-  *)
 
 let run = (fun () -> run_command "lli" [|"lli"; "out.ll"|])
 let link = (fun () -> run_command "llvm-as" [|"llvm-as"; "out.ll"|])
