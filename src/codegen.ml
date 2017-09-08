@@ -84,6 +84,11 @@ let vt_to_llvm_ty ctx = function
 let param_to_type ctx = function
   | { data=Param(var_name,var_type) } -> vt_to_llvm_ty ctx var_type.data
 
+(* Used to get the base type for arrays *)
+let expr_ty_to_base_ty = function
+  | BaseET({data=base_type},_) -> base_type
+  | ArrayET({data=ArrayAT(bt,size)},_,_) -> bt.data
+
 let expr_ty_to_llvm_ty ctx = function
   | BaseET({data=base_type},_) ->
     bt_to_llvm_ty ctx base_type
@@ -91,10 +96,6 @@ let expr_ty_to_llvm_ty ctx = function
     let arr_ty = bt_to_llvm_ty ctx at.data in
     let size = get_size size.data in
     array_type arr_ty size (* TODO: Double check that this is not a pointer*)
-
-let expr_ty_to_base_ty = function
-  | BaseET(bt,_) -> bt
-  | ArrayET _ -> raise CodegenError
 
 let get_ret_ty ctx = function
   | None -> raise CodegenError
@@ -123,13 +124,13 @@ let rec allocate_stack cg_ctx stms =
       let llvm_ty = vt_to_llvm_ty cg_ctx.llcontext var_type.data in
       let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
         add_var cg_ctx.venv var_name alloca
-    | {data=ArrayDec(var_name,var_type,expr)} ->
-      let llvm_ty = vt_to_llvm_ty cg_ctx.llcontext var_type.data in
+    | {data=ArrayDec(var_name,var_type,expr)} -> ()
+      (*let llvm_ty = vt_to_llvm_ty cg_ctx.llcontext var_type.data in*)
       (* TODO: I think this will fail. I think this will just allocate a
          pointer. But we want it to allocate the space for the array.
          So yea, fix dis *)
-      let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
-      add_var cg_ctx.venv var_name alloca
+      (*let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
+      add_var cg_ctx.venv var_name alloca*)
     | {data=BaseAssign(var_name,expr)} -> allocate_inject expr
     | {data=RegAssign(reg_name,expr)} -> allocate_inject expr
     | {data=ArrayAssign(var_name,index,expr)} ->
@@ -327,19 +328,6 @@ let rec codegen_arg cg_ctx arg ty =
       let var = find_var cg_ctx.venv r in
       build_load var "argref" cg_ctx.builder
 
-and codegen_array_expr cg_ctx = function
-  (* XXX gary here too pls *)
-  | ArrayLit exprs -> raise CodegenError
-  | ArrayZeros lexpr ->
-    begin
-      match lexpr.data with
-        | LIntLiteral n -> raise CodegenError
-        | LUnspecified  -> raise CodegenError
-    end
-  | ArrayCopy var_name -> raise CodegenError
-  | ArrayView(var_name, lexpr, expr) -> raise CodegenError
-  | ArrayComp(bt,lexpr, var_name, expr) -> raise CodegenError
-
 and codegen_expr cg_ctx = function
   | True, ty -> const_all_ones (expr_ty_to_llvm_ty cg_ctx.llcontext ty)
   | False, ty -> const_null (expr_ty_to_llvm_ty cg_ctx.llcontext ty)
@@ -429,18 +417,40 @@ and vt_to_bt = function
   | RefVT(bt,_,_) -> bt.data
   | ArrayVT _ -> raise CodegenError
 
+and codegen_array_expr cg_ctx = function
+  (* XXX gary here too pls *)
+  | ArrayLit exprs,ty -> raise CodegenError
+  | ArrayZeros lexpr,ty ->
+    begin
+      match lexpr.data with
+        | LIntLiteral n ->
+          let ty' = expr_ty_to_base_ty ty in
+          let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
+          let zero = const_int ll_ty 0 in
+          let zeros = Array.make n zero in
+          let arr_ty = array_type ll_ty n in
+          let arr = const_array ll_ty zeros in
+          let alloca = build_array_alloca arr_ty zero "zerodarray" cg_ctx.builder in
+          build_store arr alloca cg_ctx.builder |> ignore;
+          alloca
+        | LUnspecified  -> raise CodegenError
+    end
+  | ArrayCopy var_name,ty -> raise CodegenError
+  | ArrayView(var_name, lexpr, expr),ty -> raise CodegenError
+  | ArrayComp(bt,lexpr, var_name, expr),ty -> raise CodegenError
+
 and codegen_stm cg_ctx ret_ty = function
   | {data=BaseDec(var_name,var_type,expr)} ->
     let v = find_var cg_ctx.venv var_name in
     let expr' = codegen_ext cg_ctx (vt_to_bt var_type.data) expr in
     ignore(build_store expr' v cg_ctx.builder)
   | {data=ArrayDec(var_name,var_type,arr_expr)} ->
-    (* XXX gary help me here please *)
-    raise CodegenError
+    let alloca = codegen_array_expr cg_ctx arr_expr.data in
+    add_var cg_ctx.venv var_name alloca
   | {data=BaseAssign(var_name,expr)} ->
     let v = find_var cg_ctx.venv var_name in
     let _,ty = expr.data in
-    let ty' = (expr_ty_to_base_ty ty).data in
+    let ty' = expr_ty_to_base_ty ty in
     let expr' = codegen_ext cg_ctx ty' expr in
     ignore(build_store expr' v cg_ctx.builder)
   | {data=RegAssign(reg_name,expr)} ->
