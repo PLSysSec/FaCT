@@ -184,20 +184,6 @@ let codegen_unop builder value = function
   | Ast.LogicalNot -> build_not value "lnottmp" builder
   | Ast.BitwiseNot -> build_not value "bnottmp" builder
 
-let rec expr_to_ty = function
-  | True -> raise CodegenError
-  | False -> raise CodegenError
-  | IntLiteral(i) -> raise CodegenError
-  | Variable(var_name) -> raise CodegenError
-  | ArrayGet(var_name,expr) -> raise CodegenError
-  | ArrayLen(var_name) -> raise CodegenError
-  | IntCast(base_ty,expr) -> raise CodegenError
-  | UnOp(op,expr) -> raise CodegenError
-  | BinOp(op,expr1,expr2) -> raise CodegenError
-  | TernOp(expr1,expr2,expr3) -> raise CodegenError
-  | FnCall(fun_name, arg_exprs) -> raise CodegenError
-  | Declassify(expr) -> raise CodegenError
-
 let build_cast ctx b value = (* from, to *) function
   | Bool -> build_intcast value (bt_to_llvm_ty ctx Bool) "cast" b
   | UInt(n) -> build_intcast value (bt_to_llvm_ty ctx (UInt n)) "cast" b
@@ -344,15 +330,9 @@ and codegen_expr cg_ctx = function
     build_load store var_name.data cg_ctx.builder
   | ArrayGet(var_name,expr), ty ->
     let arr = find_var cg_ctx.venv var_name in
-    let expr',expr_ty' = expr.data in
-    begin
-    match expr_to_ty expr' with
-      | BaseET({data=(UInt 32)},l) as ty' -> (* TODO: Check that this is the type of an index *)
-        let index = codegen_expr cg_ctx (expr', ty') in
-        let p = build_gep arr [| const_int (i32_type cg_ctx.llcontext) 0; index |] "ptr" cg_ctx.builder in
-        build_load p (var_name.data ^ "_arrget") cg_ctx.builder
-      | _ -> raise CodegenError
-    end
+    let index = codegen_expr cg_ctx expr.data in
+    let p = build_gep arr [| index; index |] "ptr" cg_ctx.builder in
+    build_load p (var_name.data ^ "_arrget") cg_ctx.builder
   | ArrayLen(var_name), ty ->
     let ty' = type_of (find_var cg_ctx.venv var_name) in
     let arr_len = array_length ty' in
