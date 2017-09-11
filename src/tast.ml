@@ -66,7 +66,6 @@ and expr' =
   | Register of reg_name
   | Variable of var_name
   | ArrayGet of var_name * expr
-  | ArrayLen of var_name
   | IntCast of base_type * expr
   | UnOp of Ast.unop * expr
   | BinOp of Ast.binop * expr * expr

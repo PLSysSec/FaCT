@@ -370,7 +370,15 @@ and tc_expr fenv venv = pfunction
       (ArrayGet(x,e'), refvt_to_betype' xref)
   | Ast.ArrayLen x ->
     (* XXX type should be size_t not uint32 *)
-    (ArrayLen x, BaseET(mkpos UInt 32, mkpos Fixed Public))
+    let xref = Env.find_var venv x in
+    let lexpr = refvt_to_lexpr xref in
+      begin
+        match lexpr.data with
+          | LIntLiteral n ->
+            (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public))
+          | LDynamic len ->
+            (Variable len, BaseET(mkpos UInt 32, mkpos Fixed Public))
+      end
   | Ast.IntCast(b,e) ->
     let b' = bconv b in
       if not (is_int b') then raise @@ err(b'.pos);

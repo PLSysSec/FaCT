@@ -333,10 +333,6 @@ and codegen_expr cg_ctx = function
     let index = codegen_expr cg_ctx expr.data in
     let p = build_gep arr [| index; index |] "ptr" cg_ctx.builder in
     build_load p (var_name.data ^ "_arrget") cg_ctx.builder
-  | ArrayLen(var_name), ty ->
-    let ty' = type_of (find_var cg_ctx.venv var_name) in
-    let arr_len = array_length ty' in
-    codegen_expr cg_ctx ((IntLiteral arr_len), ty)
   | IntCast(base_ty,expr), ty ->
     let v = codegen_expr cg_ctx expr.data in
     build_cast cg_ctx.llcontext cg_ctx.builder v base_ty.data

@@ -79,7 +79,6 @@ and xf_expr' xf_ctx { data; pos=p } =
       | False
       | IntLiteral _
       | Variable _
-      | ArrayLen _
       | Select _ -> e
       | ArrayGet(x,e) ->
         let e' = xf_expr xf_ctx e in
