@@ -61,7 +61,7 @@ let is_signed = function
 
 let get_size = function
   | LIntLiteral s -> s
-  | LDynamic x  -> raise CodegenError
+  | LDynamic x    -> raise CodegenError
 
 let bt_to_llvm_ty ctx = function
   | UInt size when size <= 8  -> i8_type ctx

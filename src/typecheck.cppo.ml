@@ -128,6 +128,14 @@ let refvt_to_etype' = xfunction
   | ArrayVT(a,ml,m) -> ArrayET(a, ml, m)
 let refvt_to_etype = rebind refvt_to_etype'
 
+let param_is_ldynamic = xfunction
+  | Param(_,{data=vty'}) ->
+    begin
+      match vty' with
+        | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true
+        | _ -> false
+    end
+
 
 (* Simple Manipulation *)
 
@@ -278,12 +286,45 @@ let tc_binop' p op e1 e2 =
     (BinOp(op, e1, e2), BaseET(b', ml'))
 
 let rec tc_arg fenv venv = pfunction
+  (* XXX should convert arrays to ByArray of ArrayVar *)
   | Ast.ByValue e ->
     ByValue (tc_expr fenv venv e)
   | Ast.ByRef x ->
     ByRef x
   | Ast.ByArray aexpr ->
     ByArray (tc_arrayexpr fenv venv aexpr)
+
+and tc_args fenv venv p params args =
+  match params,args with
+    | [], [] -> []
+    | (param::params), (arg::args) ->
+      (* XXX check that types match *)
+      let arg' = tc_arg fenv venv arg in
+      if param_is_ldynamic param then
+        let _::params = params in
+        let lexpr' =
+          begin
+            match arg'.data with
+              | ByValue {data=(Variable _,atype')} ->
+                atype_to_lexpr' (mkpos atype')
+              | ByRef x ->
+                let refvt = Env.find_var venv x in
+                  (refvt_to_lexpr refvt).data
+              | ByArray {data=(_,atype')} ->
+                atype_to_lexpr' (mkpos atype')
+          end in
+        let len =
+          begin
+            match lexpr' with
+              | LIntLiteral n ->
+                ByValue (mkpos (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public)))
+              | LDynamic lx ->
+                ByValue (mkpos (Variable lx, BaseET(mkpos UInt 32, mkpos Fixed Public)))
+          end in
+          arg' :: (mkpos len) :: tc_args fenv venv p params args
+      else
+        arg' :: tc_args fenv venv p params args
+    | _ -> raise @@ err(p)
 
 and tc_expr fenv venv = pfunction
   | Ast.True ->
@@ -334,8 +375,8 @@ and tc_expr fenv venv = pfunction
     let e3' = tc_expr fenv venv e3 in
       (TernOp(e1',e2',e3'), join_ty' p (type_of e2') (type_of e3'))
   | Ast.FnCall(f,args) ->
-    let args' = List.map (tc_arg fenv venv) args in
-    let (FunDec(_,Some rty,_,_)) = (Env.find_var fenv f).data in
+    let (FunDec(_,Some rty,params,_)) = (Env.find_var fenv f).data in
+    let args' = tc_args fenv venv p params args in
       (FnCall(f,args'), rty.data)
 
 and tc_arrayexpr fenv venv = pfunction
@@ -414,8 +455,8 @@ let rec tc_stm fenv venv = pfunction
         For(i,ity',lo',hi',stms')
 
   | Ast.VoidFnCall(f,args) ->
-    let args' = List.map (tc_arg fenv venv) args in
-    let (FunDec(_,Some rty,_,_)) = (Env.find_var fenv f).data in
+    let (FunDec(_,Some rty,params,_)) = (Env.find_var fenv f).data in
+    let args' = tc_args fenv venv p params args in
       VoidFnCall(f,args')
 
   | Ast.Return e ->
