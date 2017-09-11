@@ -69,14 +69,17 @@ let refvt_conv = pfunction
   | Ast.ArrayVT(a,l,m) ->
     ArrayVT(aconv a, mlconv l, mconv m)
 
-let atype_conv_lexpr lexpr' = pfunction
-  | Ast.ArrayAT(bt,_) -> ArrayAT(bconv bt, mkpos lexpr')
+let atype_conv_fill lexpr' = pfunction
+  | Ast.ArrayAT(bt,({data=LIntLiteral _} as le)) ->
+    ArrayAT(bconv bt, lexprconv le)
+  | Ast.ArrayAT(bt,{data=LUnspecified}) ->
+    ArrayAT(bconv bt, mkpos lexpr')
 
-let refvt_conv_lexpr lexpr' = pfunction
+let refvt_conv_fill lexpr' = pfunction
   | Ast.RefVT(b,l,m) ->
     RefVT(bconv b, mlconv l, mconv m)
   | Ast.ArrayVT(a,ml,m) ->
-    ArrayVT(atype_conv_lexpr lexpr' a, mlconv ml, mconv m)
+    ArrayVT(atype_conv_fill lexpr' a, mlconv ml, mconv m)
 
 
 (* Extraction *)
@@ -113,6 +116,12 @@ let refvt_to_lexpr = xfunction
   | ArrayVT(a,ml,m) ->
     let ArrayAT(bt,lexpr) = a.data in
       lexpr
+
+let refvt_to_lexpr_option = xfunction
+  | RefVT _ -> None
+  | ArrayVT(a,ml,m) ->
+    let ArrayAT(bt,lexpr) = a.data in
+      Some lexpr.data
 
 let refvt_to_etype' = xfunction
   | RefVT(b,ml,_) -> BaseET(b, ml)
@@ -377,14 +386,8 @@ let rec tc_stm fenv venv = pfunction
     let ae' = tc_arrayexpr fenv venv ae in
     let aty = atype_of ae' in
     (* if vt is LUnspecified then take it from aty *)
-    let Ast.ArrayVT({data=Ast.ArrayAT(_,lexpr)},_,_) = vt.data in
-    let vt' =
-      if lexpr.data = Ast.LUnspecified then
-        let ae_lexpr' = atype_to_lexpr' aty in
-          refvt_conv_lexpr ae_lexpr' vt
-      else
-        refvt_conv vt
-    in
+    let ae_lexpr' = atype_to_lexpr' aty in
+    let vt' = refvt_conv_fill ae_lexpr' vt in
     let xty = refvt_to_etype vt' in
       (* XXX check that types match *)
       Env.add_var venv x vt';
@@ -425,17 +428,26 @@ and tc_block fenv venv stms =
   let stms' = List.map (tc_stm fenv venv) stms in
     (venv, stms')
 
-let tc_param = pfunction
+let tc_param' = xfunction
   | Ast.Param(x,vty) ->
     let len = "__" ^ x.data ^ "_len" in
     let lexpr' = LDynamic(mkpos len) in
-    (* the lexpr will only get used if vty is an array *)
-      Param(x,refvt_conv_lexpr lexpr' vty)
+    (* the lexpr will only get used if vty is LUnspecified *)
+    let refvt = refvt_conv_fill lexpr' vty in
+    let param = Param(x,refvt) in
+    let lexpr = refvt_to_lexpr_option refvt in
+      param :: (match lexpr with
+                 | None
+                 | Some LIntLiteral _ -> []
+                 | Some LDynamic len ->
+                   let lenvt = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
+                     [Param(len, lenvt)])
+let tc_param pa = List.map (make_ast pa.pos) (tc_param' pa)
 
 let tc_fdec' fenv = function
   | Ast.FunDec(f,Some rt,params,stms) ->
     let rt' = etype_conv rt in
-    let params' = List.map tc_param params in
+    let params' = List.flatten @@ List.map tc_param params in
     let venv = Env.new_env () in
       List.iter (fun {data=Param(name,vty)} ->
                   Env.add_var venv name vty)
