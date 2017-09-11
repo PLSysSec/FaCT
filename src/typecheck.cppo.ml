@@ -66,7 +66,7 @@ let bconv = pfunction
 
 let lexprconv = pfunction
   | Ast.LIntLiteral n -> LIntLiteral n
-  | Ast.LUnspecified -> LUnspecified
+  | Ast.LUnspecified -> raise @@ err(p)
 
 let aconv = pfunction
   | Ast.ArrayAT(b,lexpr) -> ArrayAT(bconv b, lexprconv lexpr)
@@ -89,6 +89,15 @@ let refvt_conv = pfunction
     RefVT(bconv b, mlconv l, mconv m)
   | Ast.ArrayVT(a,l,m) ->
     ArrayVT(aconv a, mlconv l, mconv m)
+
+let atype_conv_lexpr lexpr' = pfunction
+  | Ast.ArrayAT(bt,_) -> ArrayAT(bconv bt, mkpos lexpr')
+
+let refvt_conv_lexpr lexpr' = pfunction
+  | Ast.RefVT(b,l,m) ->
+    RefVT(bconv b, mlconv l, mconv m)
+  | Ast.ArrayVT(a,ml,m) ->
+    ArrayVT(atype_conv_lexpr lexpr' a, mlconv ml, mconv m)
 
 
 (* Extraction *)
@@ -131,17 +140,15 @@ let refvt_to_etype' = xfunction
   | ArrayVT(a,ml,m) -> ArrayET(a, ml, m)
 let refvt_to_etype = rebind refvt_to_etype'
 
+
+(* Simple Manipulation *)
+
 let atype_update_lexpr lexpr' = pfunction
-  | ArrayAT(bt,_) ->
-    ArrayAT(bt, mkpos lexpr')
+  | ArrayAT(bt,_) -> ArrayAT(bt, mkpos lexpr')
 
 let aetype_update_lexpr' lexpr' = xfunction
   | ArrayET(a,ml,m) ->
     ArrayET(atype_update_lexpr lexpr' a, ml, m)
-
-let refvt_update_lexpr lexpr' = pfunction
-  | ArrayVT(a,ml,m) ->
-    ArrayVT(atype_update_lexpr lexpr' a, ml, m)
 
 
 (* Subtyping *)
@@ -450,16 +457,15 @@ let rec tc_stm fenv venv = pfunction
   | Ast.ArrayDec(x,vt,ae) ->
     let ae' = tc_arrayexpr fenv venv ae in
     let aty = atype_of ae' in
-    let vt' = refvt_conv vt in
     (* if vt is LUnspecified then take it from aty *)
-    let lexpr = refvt_to_lexpr vt' in
-    let {data=ArrayVT({data=ArrayAT(bt,_)} as at,ml,mut)} = vt' in
+    let Ast.ArrayVT({data=Ast.ArrayAT(_,lexpr)},_,_) = vt.data in
     let vt' =
-      if lexpr.data = LUnspecified then
+      if lexpr.data = Ast.LUnspecified then
         let ae_lexpr' = atype_to_lexpr' aty in
-          refvt_update_lexpr ae_lexpr' vt'
+          refvt_conv_lexpr ae_lexpr' vt
       else
-        vt' in
+        refvt_conv vt
+    in
     let xty = refvt_to_etype vt' in
       (* XXX check that types match *)
       Env.add_var venv x vt';
@@ -506,7 +512,10 @@ and tc_block fenv venv stms =
 
 let tc_param = pfunction
   | Ast.Param(x,vty) ->
-    Param(x,refvt_conv vty)
+    let len = "__" ^ x.data ^ "_len" in
+    let lexpr' = LDynamic(mkpos len) in
+    (* the lexpr will only get used if vty is an array *)
+      Param(x,refvt_conv_lexpr lexpr' vty)
 
 let tc_fdec' fenv = function
   | Ast.FunDec(f,Some rt,params,stms) ->

@@ -38,7 +38,7 @@ and base_type = base_type' pos_ast [@@deriving show]
 
 and lexpr' =
   | LIntLiteral of int
-  | LUnspecified
+  | LDynamic of var_name
 [@@deriving show]
 and lexpr = lexpr' pos_ast [@@deriving show]
 

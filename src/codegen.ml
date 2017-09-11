@@ -61,7 +61,7 @@ let is_signed = function
 
 let get_size = function
   | LIntLiteral s -> s
-  | LUnspecified  -> raise CodegenError
+  | LDynamic x  -> raise CodegenError
 
 let bt_to_llvm_ty ctx = function
   | UInt size when size <= 8  -> i8_type ctx
@@ -201,7 +201,7 @@ let param_ty_to_llvm_ty = function
 
 let size_of_lexpr = function
   | LIntLiteral n -> n
-  | LUnspecified  -> raise CodegenError
+  | LDynamic x -> raise CodegenError
 
 let rec codegen_arg cg_ctx arg ty =
   match arg.data with
@@ -220,7 +220,7 @@ let rec codegen_arg cg_ctx arg ty =
                   let arr_ty = array_type llty n in
                   let arr = const_array arr_ty zeros in
                   build_array_alloca arr_ty arr "zerodarray" cg_ctx.builder
-                | LUnspecified -> raise CodegenError
+                | LDynamic x -> raise CodegenError
 
             end
           | ArrayCopy var_name ->
@@ -430,7 +430,7 @@ and codegen_array_expr cg_ctx = function
           let alloca = build_array_alloca arr_ty zero "zerodarray" cg_ctx.builder in
           build_store arr alloca cg_ctx.builder |> ignore;
           alloca
-        | LUnspecified  -> raise CodegenError
+        | LDynamic x -> raise CodegenError
     end
   | ArrayCopy var_name,ty -> raise CodegenError
   | ArrayView(var_name, lexpr, expr),ty -> raise CodegenError
