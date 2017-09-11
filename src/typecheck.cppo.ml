@@ -17,27 +17,6 @@ let rebind f pa = { pa with data=f pa }
 
 
 
-let z3e = Stack.create ()
-let z3_push e = Stack.push e z3e
-#define z3_pop (Stack.pop z3e)
-#define z3_top (Stack.top z3e)
-
-let z3_bty = xfunction
-  | Int n -> (Z.bitvec n,true)
-  | UInt n -> (Z.bitvec n,false)
-  | Num(_,s) -> (Z.int,s)
-  | Bool -> (Z.bool,false)
-
-let z3_ty = xfunction
-  | BaseET(b,_) ->
-    z3_bty b
-
-let z3_unop = function
-  | Ast.Neg -> Z.neg
-  | Ast.BitwiseNot -> Z.(!.)
-  | Ast.LogicalNot -> Z.(!)
-
-
 (* Predicates *)
 
 let is_int = xfunction
@@ -229,13 +208,6 @@ let tc_unop' p op e =
       match op with
         | Ast.Neg ->
           if not (is_int b) then raise @@ err(p);
-          begin
-            let z3expr = z3_top in
-            if is_signed b &&
-               Z.is_bv z3expr then
-              let [a] = Z.get_args z3expr in
-                Z.add_neg_overflow_check a;
-          end
         | Ast.BitwiseNot ->
           if not (is_int b) then raise @@ err(p);
         | Ast.LogicalNot ->
@@ -272,96 +244,46 @@ let tc_binop' p op e1 e2 =
   let b1,ml1 = expr_to_types e1 in
   let b2,ml2 = expr_to_types e2 in
     tc_binop_check p op b1 b2;
-  let b = z3_pop in
-  let a = z3_pop in
-  let is_bv = Z.is_bv a || Z.is_bv b in
-  let signed = (is_signed b1 || is_signed b2) in
-  let b',z3_op =
+  let b' =
     match op with
-      | Ast.Plus ->
-        if is_bv then
-          Z.add_add_overflow_check a b signed;
-        join_bt p b1 b2, Z.(+)
-      | Ast.Minus ->
-        if is_bv then
-          Z.add_sub_overflow_check a b signed;
-        join_bt p b1 b2, Z.(-)
-      | Ast.Multiply ->
-        if is_bv then
-          Z.add_mul_overflow_check a b signed;
-        join_bt p b1 b2, Z.( * )
-      | Ast.GT ->
-        let zop =
-          if is_bv then
-            if signed then Z.sgt else Z.ugt
-          else Z.(>) in
-        join_bt p b1 b2, zop
-      | Ast.GTE ->
-        let zop =
-          if is_bv then
-            if signed then Z.sge else Z.uge
-          else Z.(>=) in
-        join_bt p b1 b2, zop
-      | Ast.LT ->
-        let zop =
-          if is_bv then
-            if signed then Z.slt else Z.ult
-          else Z.(<) in
-        join_bt p b1 b2, zop
-      | Ast.LTE ->
-        let zop =
-          if is_bv then
-            if signed then Z.sle else Z.ule
-          else Z.(<=) in
-        join_bt p b1 b2, zop
-      | Ast.BitwiseOr ->
-        join_bt p b1 b2, Z.(|.)
-      | Ast.BitwiseXor ->
-        join_bt p b1 b2, Z.(^.)
-      | Ast.BitwiseAnd ->
-        meet_bt p b1 b2, Z.(&.)
-      | Ast.LogicalAnd ->
-        join_bt p b1 b2, Z.(&&)
-      | Ast.LogicalOr ->
-        join_bt p b1 b2, Z.(||)
-      | Ast.Equal ->
-        join_bt p b1 b2, Z.(=)
+      | Ast.Plus
+      | Ast.Minus
+      | Ast.Multiply
+      | Ast.GT
+      | Ast.GTE
+      | Ast.LT
+      | Ast.LTE
+      | Ast.BitwiseOr
+      | Ast.BitwiseXor
+      | Ast.BitwiseAnd
+      | Ast.LogicalAnd
+      | Ast.LogicalOr
+      | Ast.Equal
       | Ast.NEqual ->
-        join_bt p b1 b2, Z.(!=)
-      | Ast.LeftShift ->
-        { b1 with pos=p }, Z.(<<)
+        join_bt p b1 b2
+      | Ast.LeftShift
       | Ast.RightShift ->
-        let zop =
-          if signed then Z.(>>) else Z.(>>.)
-        in
-          { b1 with pos=p }, zop
+        { b1 with pos=p }
   in
-    z3_push @@ z3_op a b;
   let ml' = join_ml p ml1 ml2 in
     (BinOp(op, e1, e2), BaseET(b', ml'))
 
 let rec tc_arg fenv venv = pfunction
   | Ast.ByValue e ->
-    let arg' = ByValue (tc_expr fenv venv e) in
-      z3_pop; arg'
+    ByValue (tc_expr fenv venv e)
   | Ast.ByRef x ->
     ByRef x
   | Ast.ByArray aexpr ->
-    let arg' = ByArray (tc_arrayexpr fenv venv aexpr) in
-      arg'
+    ByArray (tc_arrayexpr fenv venv aexpr)
 
 and tc_expr fenv venv = pfunction
   | Ast.True ->
-    z3_push Z.true_;
     (True, BaseET(mkpos Bool, mkpos Fixed Public))
   | Ast.False ->
-    z3_push Z.false_;
     (False, BaseET(mkpos Bool, mkpos Fixed Public))
   | Ast.IntLiteral n ->
-    z3_push @@ Z.num n;
     (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public))
   | Ast.Variable x ->
-    z3_push @@ Z.var x.data;
     let xref = Env.find_var venv x in
       (Variable x, refvt_to_etype' xref)
   | Ast.ArrayGet(x,e) ->
@@ -385,14 +307,12 @@ and tc_expr fenv venv = pfunction
     let e' = tc_expr fenv venv e in
       if not (is_int (expr_to_btype e')) then raise @@ err(e'.pos);
     let ml = expr_to_ml e' in
-      z3_push @@ Z.intcast z3_pop (z3_ty (type_of e')) (z3_bty b');
       (IntCast(b',e'), BaseET(b',ml))
   | Ast.Declassify e ->
     let e' = tc_expr fenv venv e in
       (Declassify e', BaseET(expr_to_btype e', mkpos Fixed Public))
   | Ast.UnOp(op,e) ->
     let e' = tc_expr fenv venv e in
-      z3_push @@ z3_unop op @@ z3_pop;
       tc_unop' p op e'
   | Ast.BinOp(op,e1,e2) ->
     let e1' = tc_expr fenv venv e1 in
@@ -403,15 +323,10 @@ and tc_expr fenv venv = pfunction
       if not (is_bool (expr_to_btype e1')) then raise @@ err(e1'.pos);
     let e2' = tc_expr fenv venv e2 in
     let e3' = tc_expr fenv venv e3 in
-    let c = z3_pop in
-    let b = z3_pop in
-    let a = z3_pop in
-      z3_push @@ Z.ite a b c;
       (TernOp(e1',e2',e3'), join_ty' p (type_of e2') (type_of e3'))
   | Ast.FnCall(f,args) ->
     let args' = List.map (tc_arg fenv venv) args in
     let (FunDec(_,Some rty,_,_)) = (Env.find_var fenv f).data in
-      z3_push @@ Z.thing (z3_ty rty);
       (FnCall(f,args'), rty.data)
 
 and tc_arrayexpr fenv venv = pfunction
@@ -431,7 +346,6 @@ and tc_arrayexpr fenv venv = pfunction
     let ae' = refvt_to_etype' (Env.find_var venv x) in
       (ArrayCopy x, ae')
   | Ast.ArrayView(x,e,lexpr) ->
-    (* XXX Z3 check inbounds *)
     let e' = tc_expr fenv venv e in
     let lexpr' = lexprconv lexpr in
     let ae = refvt_to_etype (Env.find_var venv x) in
@@ -453,13 +367,10 @@ let rec tc_stm fenv venv = pfunction
     let xty = refvt_to_etype vt' in
       if not (ety <:$ xty) then raise @@ err(e'.pos);
       Env.add_var venv x vt';
-      let zvar = Z.new_var (z3_ty xty) x.data in
-        Z.(add (zvar = z3_pop));
       BaseDec(x,vt',e')
 
   | Ast.BaseAssign(x,e) ->
     let e' = tc_expr fenv venv e in
-      z3_pop;
       BaseAssign(x,e')
 
   | Ast.ArrayDec(x,vt,ae) ->
@@ -477,7 +388,6 @@ let rec tc_stm fenv venv = pfunction
     let xty = refvt_to_etype vt' in
       (* XXX check that types match *)
       Env.add_var venv x vt';
-      (* XXX do z3 stuff *)
       ArrayDec(x,vt',ae')
 
   | Ast.ArrayAssign(x,n,e) ->
@@ -489,14 +399,12 @@ let rec tc_stm fenv venv = pfunction
     let cond' = tc_expr fenv venv cond in
     let thenstms' = tc_block fenv (Env.sub_env venv) thenstms in
     let elsestms' = tc_block fenv (Env.sub_env venv) elsestms in
-      z3_pop;
-    If(cond',thenstms',elsestms')
+      If(cond',thenstms',elsestms')
 
   | Ast.For(i,ity,lo,hi,stms) ->
     let ity' = bconv ity in
     let lo' = tc_expr fenv venv lo in
     let hi' = tc_expr fenv venv hi in
-      z3_pop; z3_pop;
     let venv' = Env.sub_env venv in
       Env.add_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const));
       let stms' = tc_block fenv venv' stms in
@@ -509,7 +417,6 @@ let rec tc_stm fenv venv = pfunction
 
   | Ast.Return e ->
     let e' = tc_expr fenv venv e in
-      z3_pop;
       Return e'
 
   | Ast.VoidReturn -> VoidReturn
