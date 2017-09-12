@@ -33,8 +33,8 @@ let error_exit s =
   Printf.eprintf "%s\n" s;
   exit 1
 
-let runner prep ast_out core_ir_out llvm_out =
-  compile prep ast_out core_ir_out llvm_out
+let runner prep args =
+  compile prep args
   (*try compile prep ast_out core_ir_out llvm_out with
     | (Err.InternalCompilerError s) -> error_exit s
     | (Err.VariableNotDefined s) -> error_exit s
@@ -68,10 +68,17 @@ let compile_command =
       flag "-llvm-out" no_arg ~doc:llvm_doc +>
       flag "-debug" no_arg ~doc:debug_doc +>
       anon ("filename" %: string))
-    (fun out_file ast_out core_ir_out llvm_out debug in_file () ->
-      set_log_level debug;
-      let prep = prepare_compile out_file in_file () in
-      runner prep ast_out core_ir_out llvm_out)
+    (fun
+      out_file
+      ast_out
+      core_ir_out
+      llvm_out
+      debug
+      in_file () ->
+      let args = { out_file; ast_out; core_ir_out; llvm_out; debug; in_file } in
+        set_log_level debug;
+        let prep = prepare_compile out_file in_file () in
+          runner prep args)
 
 let () =
   Command.run ~version:"0.1" ~build_info:"FaCT Compiler" compile_command
