@@ -38,7 +38,7 @@ and base_type = base_type' pos_ast [@@deriving show]
 
 and lexpr' =
   | LIntLiteral of int
-  | LUnspecified
+  | LDynamic of var_name
 [@@deriving show]
 and lexpr = lexpr' pos_ast [@@deriving show]
 
@@ -66,7 +66,6 @@ and expr' =
   | Register of reg_name
   | Variable of var_name
   | ArrayGet of var_name * expr
-  | ArrayLen of var_name
   | IntCast of base_type * expr
   | UnOp of Ast.unop * expr
   | BinOp of Ast.binop * expr * expr
@@ -80,6 +79,7 @@ and expr = (expr' * expr_type') pos_ast [@@deriving show]
 
 and array_expr' =
   | ArrayLit of expr list
+  | ArrayVar of var_name
   | ArrayZeros of lexpr
   | ArrayCopy of var_name
   | ArrayView of var_name * expr * lexpr

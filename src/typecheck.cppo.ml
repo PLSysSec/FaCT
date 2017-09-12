@@ -17,27 +17,6 @@ let rebind f pa = { pa with data=f pa }
 
 
 
-let z3e = Stack.create ()
-let z3_push e = Stack.push e z3e
-#define z3_pop (Stack.pop z3e)
-#define z3_top (Stack.top z3e)
-
-let z3_bty = xfunction
-  | Int n -> (Z.bitvec n,true)
-  | UInt n -> (Z.bitvec n,false)
-  | Num(_,s) -> (Z.int,s)
-  | Bool -> (Z.bool,false)
-
-let z3_ty = xfunction
-  | BaseET(b,_) ->
-    z3_bty b
-
-let z3_unop = function
-  | Ast.Neg -> Z.neg
-  | Ast.BitwiseNot -> Z.(!.)
-  | Ast.LogicalNot -> Z.(!)
-
-
 (* Predicates *)
 
 let is_int = xfunction
@@ -66,7 +45,7 @@ let bconv = pfunction
 
 let lexprconv = pfunction
   | Ast.LIntLiteral n -> LIntLiteral n
-  | Ast.LUnspecified -> LUnspecified
+  | Ast.LUnspecified -> raise @@ err(p)
 
 let aconv = pfunction
   | Ast.ArrayAT(b,lexpr) -> ArrayAT(bconv b, lexprconv lexpr)
@@ -89,6 +68,18 @@ let refvt_conv = pfunction
     RefVT(bconv b, mlconv l, mconv m)
   | Ast.ArrayVT(a,l,m) ->
     ArrayVT(aconv a, mlconv l, mconv m)
+
+let atype_conv_fill lexpr' = pfunction
+  | Ast.ArrayAT(bt,({data=LIntLiteral _} as le)) ->
+    ArrayAT(bconv bt, lexprconv le)
+  | Ast.ArrayAT(bt,{data=LUnspecified}) ->
+    ArrayAT(bconv bt, mkpos lexpr')
+
+let refvt_conv_fill lexpr' = pfunction
+  | Ast.RefVT(b,l,m) ->
+    RefVT(bconv b, mlconv l, mconv m)
+  | Ast.ArrayVT(a,ml,m) ->
+    ArrayVT(atype_conv_fill lexpr' a, mlconv ml, mconv m)
 
 
 (* Extraction *)
@@ -126,22 +117,34 @@ let refvt_to_lexpr = xfunction
     let ArrayAT(bt,lexpr) = a.data in
       lexpr
 
+let refvt_to_lexpr_option = xfunction
+  | RefVT _ -> None
+  | ArrayVT(a,ml,m) ->
+    let ArrayAT(bt,lexpr) = a.data in
+      Some lexpr.data
+
 let refvt_to_etype' = xfunction
   | RefVT(b,ml,_) -> BaseET(b, ml)
   | ArrayVT(a,ml,m) -> ArrayET(a, ml, m)
 let refvt_to_etype = rebind refvt_to_etype'
 
+let param_is_ldynamic = xfunction
+  | Param(_,{data=vty'}) ->
+    begin
+      match vty' with
+        | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true
+        | _ -> false
+    end
+
+
+(* Simple Manipulation *)
+
 let atype_update_lexpr lexpr' = pfunction
-  | ArrayAT(bt,_) ->
-    ArrayAT(bt, mkpos lexpr')
+  | ArrayAT(bt,_) -> ArrayAT(bt, mkpos lexpr')
 
 let aetype_update_lexpr' lexpr' = xfunction
   | ArrayET(a,ml,m) ->
     ArrayET(atype_update_lexpr lexpr' a, ml, m)
-
-let refvt_update_lexpr lexpr' = pfunction
-  | ArrayVT(a,ml,m) ->
-    ArrayVT(atype_update_lexpr lexpr' a, ml, m)
 
 
 (* Subtyping *)
@@ -222,13 +225,6 @@ let tc_unop' p op e =
       match op with
         | Ast.Neg ->
           if not (is_int b) then raise @@ err(p);
-          begin
-            let z3expr = z3_top in
-            if is_signed b &&
-               Z.is_bv z3expr then
-              let [a] = Z.get_args z3expr in
-                Z.add_neg_overflow_check a;
-          end
         | Ast.BitwiseNot ->
           if not (is_int b) then raise @@ err(p);
         | Ast.LogicalNot ->
@@ -265,96 +261,83 @@ let tc_binop' p op e1 e2 =
   let b1,ml1 = expr_to_types e1 in
   let b2,ml2 = expr_to_types e2 in
     tc_binop_check p op b1 b2;
-  let b = z3_pop in
-  let a = z3_pop in
-  let is_bv = Z.is_bv a || Z.is_bv b in
-  let signed = (is_signed b1 || is_signed b2) in
-  let b',z3_op =
+  let b' =
     match op with
-      | Ast.Plus ->
-        if is_bv then
-          Z.add_add_overflow_check a b signed;
-        join_bt p b1 b2, Z.(+)
-      | Ast.Minus ->
-        if is_bv then
-          Z.add_sub_overflow_check a b signed;
-        join_bt p b1 b2, Z.(-)
-      | Ast.Multiply ->
-        if is_bv then
-          Z.add_mul_overflow_check a b signed;
-        join_bt p b1 b2, Z.( * )
-      | Ast.GT ->
-        let zop =
-          if is_bv then
-            if signed then Z.sgt else Z.ugt
-          else Z.(>) in
-        join_bt p b1 b2, zop
-      | Ast.GTE ->
-        let zop =
-          if is_bv then
-            if signed then Z.sge else Z.uge
-          else Z.(>=) in
-        join_bt p b1 b2, zop
-      | Ast.LT ->
-        let zop =
-          if is_bv then
-            if signed then Z.slt else Z.ult
-          else Z.(<) in
-        join_bt p b1 b2, zop
-      | Ast.LTE ->
-        let zop =
-          if is_bv then
-            if signed then Z.sle else Z.ule
-          else Z.(<=) in
-        join_bt p b1 b2, zop
-      | Ast.BitwiseOr ->
-        join_bt p b1 b2, Z.(|.)
-      | Ast.BitwiseXor ->
-        join_bt p b1 b2, Z.(^.)
-      | Ast.BitwiseAnd ->
-        meet_bt p b1 b2, Z.(&.)
-      | Ast.LogicalAnd ->
-        join_bt p b1 b2, Z.(&&)
-      | Ast.LogicalOr ->
-        join_bt p b1 b2, Z.(||)
-      | Ast.Equal ->
-        join_bt p b1 b2, Z.(=)
+      | Ast.Plus
+      | Ast.Minus
+      | Ast.Multiply
+      | Ast.GT
+      | Ast.GTE
+      | Ast.LT
+      | Ast.LTE
+      | Ast.BitwiseOr
+      | Ast.BitwiseXor
+      | Ast.BitwiseAnd
+      | Ast.LogicalAnd
+      | Ast.LogicalOr
+      | Ast.Equal
       | Ast.NEqual ->
-        join_bt p b1 b2, Z.(!=)
-      | Ast.LeftShift ->
-        { b1 with pos=p }, Z.(<<)
+        join_bt p b1 b2
+      | Ast.LeftShift
       | Ast.RightShift ->
-        let zop =
-          if signed then Z.(>>) else Z.(>>.)
-        in
-          { b1 with pos=p }, zop
+        { b1 with pos=p }
   in
-    z3_push @@ z3_op a b;
   let ml' = join_ml p ml1 ml2 in
     (BinOp(op, e1, e2), BaseET(b', ml'))
 
 let rec tc_arg fenv venv = pfunction
+  (* XXX should convert arrays to ByArray of ArrayVar *)
   | Ast.ByValue e ->
-    let arg' = ByValue (tc_expr fenv venv e) in
-      z3_pop; arg'
+    let e' = tc_expr fenv venv e in
+      begin
+        match e'.data with
+          | Variable x, aty ->
+            ByArray { data=(ArrayVar x, aty); pos=e'.pos }
+          | _ -> ByValue (tc_expr fenv venv e)
+      end
   | Ast.ByRef x ->
     ByRef x
   | Ast.ByArray aexpr ->
-    let arg' = ByArray (tc_arrayexpr fenv venv aexpr) in
-      arg'
+    ByArray (tc_arrayexpr fenv venv aexpr)
+
+and tc_args fenv venv p params args =
+  match params,args with
+    | [], [] -> []
+    | (param::params), (arg::args) ->
+      (* XXX check that types match *)
+      let arg' = tc_arg fenv venv arg in
+      if param_is_ldynamic param then
+        let _::params = params in
+        let lexpr' =
+          begin
+            match arg'.data with
+              | ByRef x ->
+                let refvt = Env.find_var venv x in
+                  (refvt_to_lexpr refvt).data
+              | ByArray {data=(_,atype')} ->
+                atype_to_lexpr' (mkpos atype')
+          end in
+        let len =
+          begin
+            match lexpr' with
+              | LIntLiteral n ->
+                ByValue (mkpos (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public)))
+              | LDynamic lx ->
+                ByValue (mkpos (Variable lx, BaseET(mkpos UInt 32, mkpos Fixed Public)))
+          end in
+          arg' :: (mkpos len) :: tc_args fenv venv p params args
+      else
+        arg' :: tc_args fenv venv p params args
+    | _ -> raise @@ err(p)
 
 and tc_expr fenv venv = pfunction
   | Ast.True ->
-    z3_push Z.true_;
     (True, BaseET(mkpos Bool, mkpos Fixed Public))
   | Ast.False ->
-    z3_push Z.false_;
     (False, BaseET(mkpos Bool, mkpos Fixed Public))
   | Ast.IntLiteral n ->
-    z3_push @@ Z.num n;
     (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public))
   | Ast.Variable x ->
-    z3_push @@ Z.var x.data;
     let xref = Env.find_var venv x in
       (Variable x, refvt_to_etype' xref)
   | Ast.ArrayGet(x,e) ->
@@ -363,21 +346,27 @@ and tc_expr fenv venv = pfunction
       (ArrayGet(x,e'), refvt_to_betype' xref)
   | Ast.ArrayLen x ->
     (* XXX type should be size_t not uint32 *)
-    (ArrayLen x, BaseET(mkpos UInt 32, mkpos Fixed Public))
+    let xref = Env.find_var venv x in
+    let lexpr = refvt_to_lexpr xref in
+      begin
+        match lexpr.data with
+          | LIntLiteral n ->
+            (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public))
+          | LDynamic len ->
+            (Variable len, BaseET(mkpos UInt 32, mkpos Fixed Public))
+      end
   | Ast.IntCast(b,e) ->
     let b' = bconv b in
       if not (is_int b') then raise @@ err(b'.pos);
     let e' = tc_expr fenv venv e in
       if not (is_int (expr_to_btype e')) then raise @@ err(e'.pos);
     let ml = expr_to_ml e' in
-      z3_push @@ Z.intcast z3_pop (z3_ty (type_of e')) (z3_bty b');
       (IntCast(b',e'), BaseET(b',ml))
   | Ast.Declassify e ->
     let e' = tc_expr fenv venv e in
       (Declassify e', BaseET(expr_to_btype e', mkpos Fixed Public))
   | Ast.UnOp(op,e) ->
     let e' = tc_expr fenv venv e in
-      z3_push @@ z3_unop op @@ z3_pop;
       tc_unop' p op e'
   | Ast.BinOp(op,e1,e2) ->
     let e1' = tc_expr fenv venv e1 in
@@ -388,15 +377,10 @@ and tc_expr fenv venv = pfunction
       if not (is_bool (expr_to_btype e1')) then raise @@ err(e1'.pos);
     let e2' = tc_expr fenv venv e2 in
     let e3' = tc_expr fenv venv e3 in
-    let c = z3_pop in
-    let b = z3_pop in
-    let a = z3_pop in
-      z3_push @@ Z.ite a b c;
       (TernOp(e1',e2',e3'), join_ty' p (type_of e2') (type_of e3'))
   | Ast.FnCall(f,args) ->
-    let args' = List.map (tc_arg fenv venv) args in
-    let (FunDec(_,Some rty,_,_)) = (Env.find_var fenv f).data in
-      z3_push @@ Z.thing (z3_ty rty);
+    let (FunDec(_,Some rty,params,_)) = (Env.find_var fenv f).data in
+    let args' = tc_args fenv venv p params args in
       (FnCall(f,args'), rty.data)
 
 and tc_arrayexpr fenv venv = pfunction
@@ -406,6 +390,9 @@ and tc_arrayexpr fenv venv = pfunction
     let b = expr_to_btype @@ List.hd exprs' in (* XXX should be join of all exprs' *)
     let at' = mkpos ArrayAT(b, mkpos LIntLiteral(List.length exprs')) in
       (ArrayLit exprs', ArrayET(at', mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Const))
+  | Ast.ArrayVar x ->
+    let xref = Env.find_var venv x in
+      (ArrayVar x, refvt_to_etype' xref)
   | Ast.ArrayZeros lexpr ->
     (* XXX check that type is compatible *)
     let b = mkpos Num(0, false) in
@@ -416,7 +403,6 @@ and tc_arrayexpr fenv venv = pfunction
     let ae' = refvt_to_etype' (Env.find_var venv x) in
       (ArrayCopy x, ae')
   | Ast.ArrayView(x,e,lexpr) ->
-    (* XXX Z3 check inbounds *)
     let e' = tc_expr fenv venv e in
     let lexpr' = lexprconv lexpr in
     let ae = refvt_to_etype (Env.find_var venv x) in
@@ -438,32 +424,21 @@ let rec tc_stm fenv venv = pfunction
     let xty = refvt_to_etype vt' in
       if not (ety <:$ xty) then raise @@ err(e'.pos);
       Env.add_var venv x vt';
-      let zvar = Z.new_var (z3_ty xty) x.data in
-        Z.(add (zvar = z3_pop));
       BaseDec(x,vt',e')
 
   | Ast.BaseAssign(x,e) ->
     let e' = tc_expr fenv venv e in
-      z3_pop;
       BaseAssign(x,e')
 
   | Ast.ArrayDec(x,vt,ae) ->
     let ae' = tc_arrayexpr fenv venv ae in
     let aty = atype_of ae' in
-    let vt' = refvt_conv vt in
     (* if vt is LUnspecified then take it from aty *)
-    let lexpr = refvt_to_lexpr vt' in
-    let {data=ArrayVT({data=ArrayAT(bt,_)} as at,ml,mut)} = vt' in
-    let vt' =
-      if lexpr.data = LUnspecified then
-        let ae_lexpr' = atype_to_lexpr' aty in
-          refvt_update_lexpr ae_lexpr' vt'
-      else
-        vt' in
+    let ae_lexpr' = atype_to_lexpr' aty in
+    let vt' = refvt_conv_fill ae_lexpr' vt in
     let xty = refvt_to_etype vt' in
       (* XXX check that types match *)
       Env.add_var venv x vt';
-      (* XXX do z3 stuff *)
       ArrayDec(x,vt',ae')
 
   | Ast.ArrayAssign(x,n,e) ->
@@ -475,27 +450,24 @@ let rec tc_stm fenv venv = pfunction
     let cond' = tc_expr fenv venv cond in
     let thenstms' = tc_block fenv (Env.sub_env venv) thenstms in
     let elsestms' = tc_block fenv (Env.sub_env venv) elsestms in
-      z3_pop;
-    If(cond',thenstms',elsestms')
+      If(cond',thenstms',elsestms')
 
   | Ast.For(i,ity,lo,hi,stms) ->
     let ity' = bconv ity in
     let lo' = tc_expr fenv venv lo in
     let hi' = tc_expr fenv venv hi in
-      z3_pop; z3_pop;
     let venv' = Env.sub_env venv in
       Env.add_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const));
       let stms' = tc_block fenv venv' stms in
         For(i,ity',lo',hi',stms')
 
   | Ast.VoidFnCall(f,args) ->
-    let args' = List.map (tc_arg fenv venv) args in
-    let (FunDec(_,Some rty,_,_)) = (Env.find_var fenv f).data in
+    let (FunDec(_,Some rty,params,_)) = (Env.find_var fenv f).data in
+    let args' = tc_args fenv venv p params args in
       VoidFnCall(f,args')
 
   | Ast.Return e ->
     let e' = tc_expr fenv venv e in
-      z3_pop;
       Return e'
 
   | Ast.VoidReturn -> VoidReturn
@@ -504,14 +476,26 @@ and tc_block fenv venv stms =
   let stms' = List.map (tc_stm fenv venv) stms in
     (venv, stms')
 
-let tc_param = pfunction
+let tc_param' = xfunction
   | Ast.Param(x,vty) ->
-    Param(x,refvt_conv vty)
+    let len = "__" ^ x.data ^ "_len" in
+    let lexpr' = LDynamic(mkpos len) in
+    (* the lexpr will only get used if vty is LUnspecified *)
+    let refvt = refvt_conv_fill lexpr' vty in
+    let param = Param(x,refvt) in
+    let lexpr = refvt_to_lexpr_option refvt in
+      param :: (match lexpr with
+                 | None
+                 | Some LIntLiteral _ -> []
+                 | Some LDynamic len ->
+                   let lenvt = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
+                     [Param(len, lenvt)])
+let tc_param pa = List.map (make_ast pa.pos) (tc_param' pa)
 
 let tc_fdec' fenv = function
   | Ast.FunDec(f,Some rt,params,stms) ->
     let rt' = etype_conv rt in
-    let params' = List.map tc_param params in
+    let params' = List.flatten @@ List.map tc_param params in
     let venv = Env.new_env () in
       List.iter (fun {data=Param(name,vty)} ->
                   Env.add_var venv name vty)

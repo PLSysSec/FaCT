@@ -94,6 +94,7 @@ and binop =
 
 and array_expr' =
   | ArrayLit of expr list
+  | ArrayVar of var_name
   | ArrayZeros of lexpr
   | ArrayCopy of var_name
   | ArrayView of var_name * expr * lexpr

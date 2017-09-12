@@ -83,7 +83,7 @@ let is_signed = function
 
 let get_size = function
   | LIntLiteral s -> s
-  | LUnspecified  -> raise CodegenError
+  | LDynamic x    -> raise CodegenError
 
 let bt_to_llvm_ty ctx = function
   | UInt size when size <= 8  -> i8_type ctx
@@ -231,7 +231,7 @@ let param_ty_to_llvm_ty = function
 
 let size_of_lexpr = function
   | LIntLiteral n -> n
-  | LUnspecified  -> raise CodegenError
+  | LDynamic x -> raise CodegenError
 
 let rec codegen_arg cg_ctx arg ty =
   match arg.data with
@@ -250,7 +250,7 @@ let rec codegen_arg cg_ctx arg ty =
                   let arr_ty = array_type llty n in
                   let arr = const_array arr_ty zeros in
                   build_array_alloca arr_ty arr "zerodarray" cg_ctx.builder
-                | LUnspecified -> raise CodegenError
+                | LDynamic x -> raise CodegenError
 
             end
           | ArrayCopy var_name ->
@@ -363,10 +363,6 @@ and codegen_expr cg_ctx = function
     let index = codegen_expr cg_ctx expr.data in
     let p = build_gep arr [| index; index |] "ptr" cg_ctx.builder in
     build_load p (var_name.data ^ "_arrget") cg_ctx.builder
-  | ArrayLen(var_name), ty ->
-    let ty' = type_of (find_var cg_ctx.venv var_name) in
-    let arr_len = array_length ty' in
-    codegen_expr cg_ctx ((IntLiteral arr_len), ty)
   | IntCast(base_ty,expr), ty ->
     let v = codegen_expr cg_ctx expr.data in
     build_cast cg_ctx.llcontext cg_ctx.builder v base_ty.data
@@ -459,7 +455,7 @@ and codegen_array_expr cg_ctx = function
           let alloca = build_array_alloca arr_ty zero "zerodarray" cg_ctx.builder in
           build_store (const_array ll_ty zeros) alloca cg_ctx.builder |> ignore;
           alloca
-        | LUnspecified  -> raise CodegenError
+        | LDynamic x -> raise CodegenError
     end
   | ArrayCopy var_name,ty ->
     let ll_ty = expr_ty_to_llvm_ty cg_ctx.llcontext ty in

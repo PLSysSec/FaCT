@@ -70,6 +70,9 @@ let rec xf_arg' xf_ctx { data; pos=p } =
       let e' = xf_expr xf_ctx e in
         ByValue e'
     | ByRef _ -> data
+    | ByArray ae ->
+      let ae' = xf_arrayexpr xf_ctx ae in
+        ByArray ae'
 and xf_arg xf_ctx pa = { pa with data=xf_arg' xf_ctx pa }
 
 and xf_expr' xf_ctx { data; pos=p } =
@@ -79,7 +82,6 @@ and xf_expr' xf_ctx { data; pos=p } =
       | False
       | IntLiteral _
       | Variable _
-      | ArrayLen _
       | Select _ -> e
       | ArrayGet(x,e) ->
         let e' = xf_expr xf_ctx e in
@@ -138,6 +140,7 @@ and xf_arrayexpr' xf_ctx { data; pos=p } =
   let (ae, ety) = data in
     match ae with
       | ArrayLit exprs -> ArrayLit(List.map (xf_expr xf_ctx) exprs)
+      | ArrayVar _
       | ArrayZeros _
       | ArrayCopy _ -> ae
       | ArrayView(x,e,lexpr) -> ArrayView(x,xf_expr xf_ctx e,lexpr)

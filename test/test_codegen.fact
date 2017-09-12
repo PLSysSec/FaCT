@@ -61,3 +61,11 @@ secret int32 inject() {
 
   return 7;
 }
+
+public uint32 zzz(public uint8[] buf) {
+  return len buf;
+}
+
+public uint32 yyy(public uint8[] buf) {
+  return zzz(buf);
+}
