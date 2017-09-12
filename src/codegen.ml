@@ -351,7 +351,6 @@ and codegen_expr cg_ctx = function
   | Register reg_name, ty ->
     get_reg cg_ctx.renv reg_name
   | Variable var_name, ty ->
-    Log.error "codegen var %s" var_name.data;
     (* TODO: We should probably check the lltype of ty and compare it to the type_of of the
              result? This would be a sanity check. Or maybe even better, we should cast
              the result to ty. This should pass the typechecker so it should be safe no matter
