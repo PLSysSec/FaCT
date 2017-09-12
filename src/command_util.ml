@@ -17,6 +17,7 @@ type args_record = {
   ast_out     : bool;
   core_ir_out : bool;
   llvm_out    : bool;
+  gen_header  : bool;
 }
 
 let run_command c args =
@@ -57,6 +58,13 @@ let output_xftast xftast_out out_file tast =
         Log.debug "Outputting transformed TAST to %s" tast_out_file;
         Core_kernel.Out_channel.write_all tast_out_file
           ~data:((Tast.show_fact_module tast)^"\n")
+
+let generate_header gen_header out_file xftast =
+  if gen_header then
+    let header_out_file = out_file ^ ".h" in
+      Log.debug "Outputting header file to %s" header_out_file;
+      Core_kernel.Out_channel.write_all header_out_file
+        ~data:(Header.generate_header out_file xftast)
 
 let output_llvm llvm_out out_file llvm_mod =
   match llvm_out with
@@ -105,6 +113,7 @@ let compile (in_file,out_file,out_dir) args =
   let xftast = Transform.xf_module tast in
   Log.debug "Tast transform complete";
   output_xftast args.core_ir_out out_file' xftast;
+  generate_header args.gen_header out_file' xftast;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let llvm_builder = Llvm.builder llvm_ctx in

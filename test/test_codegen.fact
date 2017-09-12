@@ -52,17 +52,15 @@ public int32 bar() {
   return 7;
 }
 
-secret int32 inject() {
+void inject() {
   secret bool x = true;
   secret int32 y = 4;
   secret int32 z = 5;
 
   secret int32 t = x ? y : z;
-
-  return 7;
 }
 
-public uint32 zzz(public uint8[] buf) {
+public uint32 zzz(public uint8[4] buf) {
   return len buf;
 }
 

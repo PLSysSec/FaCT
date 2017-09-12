@@ -492,15 +492,18 @@ let tc_param' = xfunction
                      [Param(len, lenvt)])
 let tc_param pa = List.map (make_ast pa.pos) (tc_param' pa)
 
-let tc_fdec' fenv = function
-  | Ast.FunDec(f,Some rt,params,stms) ->
-    let rt' = etype_conv rt in
-    let params' = List.flatten @@ List.map tc_param params in
-    let venv = Env.new_env () in
-      List.iter (fun {data=Param(name,vty)} ->
-                  Env.add_var venv name vty)
-        params';
-      FunDec(f,Some rt',params',tc_block fenv venv stms)
+let tc_fdec' fenv (Ast.FunDec(f,rt,params,stms)) =
+  let rt' =
+    match rt with
+      | Some rty -> Some(etype_conv rty)
+      | None -> None
+  in
+  let params' = List.flatten @@ List.map tc_param params in
+  let venv = Env.new_env () in
+    List.iter (fun {data=Param(name,vty)} ->
+                Env.add_var venv name vty)
+      params';
+    FunDec(f,rt',params',tc_block fenv venv stms)
 
 let tc_fdec fenv = xfunction
   | Ast.FunDec(f,_,_,_) as fdec ->
