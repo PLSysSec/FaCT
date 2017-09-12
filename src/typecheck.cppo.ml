@@ -288,7 +288,13 @@ let tc_binop' p op e1 e2 =
 let rec tc_arg fenv venv = pfunction
   (* XXX should convert arrays to ByArray of ArrayVar *)
   | Ast.ByValue e ->
-    ByValue (tc_expr fenv venv e)
+    let e' = tc_expr fenv venv e in
+      begin
+        match e'.data with
+          | Variable x, aty ->
+            ByArray { data=(ArrayVar x, aty); pos=e'.pos }
+          | _ -> ByValue (tc_expr fenv venv e)
+      end
   | Ast.ByRef x ->
     ByRef x
   | Ast.ByArray aexpr ->
@@ -305,8 +311,6 @@ and tc_args fenv venv p params args =
         let lexpr' =
           begin
             match arg'.data with
-              | ByValue {data=(Variable _,atype')} ->
-                atype_to_lexpr' (mkpos atype')
               | ByRef x ->
                 let refvt = Env.find_var venv x in
                   (refvt_to_lexpr refvt).data
@@ -386,6 +390,9 @@ and tc_arrayexpr fenv venv = pfunction
     let b = expr_to_btype @@ List.hd exprs' in (* XXX should be join of all exprs' *)
     let at' = mkpos ArrayAT(b, mkpos LIntLiteral(List.length exprs')) in
       (ArrayLit exprs', ArrayET(at', mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Const))
+  | Ast.ArrayVar x ->
+    let xref = Env.find_var venv x in
+      (ArrayVar x, refvt_to_etype' xref)
   | Ast.ArrayZeros lexpr ->
     (* XXX check that type is compatible *)
     let b = mkpos Num(0, false) in

@@ -177,6 +177,7 @@ expr:
 
 array_expr:
   | es=alist(expr) { mkpos (ArrayLit es) }
+  | a=var_name { mkpos (ArrayVar a) }
   | ARRZEROS l=paren(lexpr) { mkpos (ArrayZeros l) }
   | ARRCOPY a=paren(var_name) { mkpos (ArrayCopy a) }
   | ARRVIEW LPAREN a=var_name COMMA i=expr COMMA l=lexpr RPAREN { mkpos (ArrayView(a, i, l)) }
