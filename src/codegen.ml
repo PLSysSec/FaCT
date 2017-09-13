@@ -111,6 +111,12 @@ let expr_ty_to_base_ty = function
   | BaseET({data=base_type},_) -> base_type
   | ArrayET({data=ArrayAT(bt,size)},_,_) -> bt.data
 
+let bitsize ctx = function
+  | BaseET({data=base_type},_) ->
+    bt_to_llvm_ty ctx base_type
+  | ArrayET({data=ArrayAT(at,size)},_,_) ->
+    bt_to_llvm_ty ctx at.data
+
 let expr_ty_to_llvm_ty ctx = function
   | BaseET({data=base_type},_) ->
     bt_to_llvm_ty ctx base_type
@@ -424,16 +430,16 @@ and vt_to_bt = function
 
 and codegen_array_expr cg_ctx = function
   (* XXX gary here too pls *)
+  | ArrayVar var_name,ty -> find_var cg_ctx.venv var_name
   | ArrayLit exprs,ty ->
     (* TODO: This needs optimization. We want this array to be global if
              all exprs are known at compile time. Side note -- this is
              what clang does.*)
     let exprs' = List.map (fun expr -> expr.data) exprs in
     let ll_exprs = List.map (codegen_expr cg_ctx) exprs' in
-    let ty' = expr_ty_to_base_ty ty in
-    let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
-    let arr_ty = array_type ll_ty (List.length ll_exprs) in
-    let zero = const_int ll_ty 0 in
+    let bitsize = bitsize cg_ctx.llcontext ty in
+    let arr_ty = array_type bitsize (List.length ll_exprs) in
+    let zero = const_int bitsize 0 in
     let alloca = build_array_alloca arr_ty zero "arraylit" cg_ctx.builder in
     let gep i el =
       let i' = const_int (i32_type cg_ctx.llcontext) i in
@@ -457,8 +463,10 @@ and codegen_array_expr cg_ctx = function
         | LDynamic x -> raise CodegenError
     end
   | ArrayCopy var_name,ty ->
+    (* This should be removed from TAST. ArrayCopy is logically an ArrayView from 0..len*)
     let ll_ty = expr_ty_to_llvm_ty cg_ctx.llcontext ty in
-    let zero' = const_int (i32_type cg_ctx.llcontext) 0 in
+    let bitsize = bitsize cg_ctx.llcontext ty in
+    let zero' = const_int bitsize 0 in
     let alloca = build_array_alloca ll_ty zero' "copiedarray" cg_ctx.builder in
     let from = find_var cg_ctx.venv var_name in
     let cpy_len = array_length ll_ty in
@@ -475,7 +483,29 @@ and codegen_array_expr cg_ctx = function
     let memcpy = get_intrinsic Memcpy cg_ctx in
     build_call memcpy args "" cg_ctx.builder |> ignore;
     alloca
-  | ArrayView(var_name, lexpr, expr),ty -> raise CodegenError
+  | ArrayView(var_name, expr, lexpr),ty ->
+    let index = codegen_expr cg_ctx expr.data in
+    let size = get_size lexpr.data in
+    let index' = const_add index (const_int (type_of index) size) in
+    let ll_ty = expr_ty_to_llvm_ty cg_ctx.llcontext ty in
+    let bitsize = bitsize cg_ctx.llcontext ty in
+    let zero' = const_int bitsize 0 in
+    let alloca = build_array_alloca ll_ty zero' "viewedarray" cg_ctx.builder in
+    let from = find_var cg_ctx.venv var_name in
+    let cpy_len = array_length ll_ty in
+    let num_bytes = (byte_size_of_expr_ty ty) * cpy_len in
+    let ll_cpy_len = (const_int (i64_type cg_ctx.llcontext) num_bytes) in
+    let alignment = (const_int (i32_type cg_ctx.llcontext) 16) in
+    let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
+    let source_gep = build_in_bounds_gep from [| index; index' |] "source_gep" cg_ctx.builder in
+    let dest_gep   = build_in_bounds_gep alloca [| zero'; zero' |] "dest_gep" cg_ctx.builder in
+    let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
+    let source_casted = build_bitcast source_gep source_cast_ty "source_casted" cg_ctx.builder in
+    let dest_casted = build_bitcast dest_gep source_cast_ty "dest_cast" cg_ctx.builder in
+    let args = [| source_casted; dest_casted; ll_cpy_len; alignment; volatility |] in
+    let memcpy = get_intrinsic Memcpy cg_ctx in
+    build_call memcpy args "" cg_ctx.builder |> ignore;
+    alloca
   | ArrayComp(bt,lexpr, var_name, expr),ty -> raise CodegenError
 
 and codegen_stm cg_ctx ret_ty = function
