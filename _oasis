@@ -6,7 +6,7 @@ Authors:     Gary Soeller, Sunjay Cauligi, Brian Johannesmeyer, Ariana Mirian
 License:     MIT
 Plugins:     META (0.4), DevFiles (0.4)
 BuildDepends: llvm, llvm.analysis, llvm.bitwriter, llvm.executionengine, llvm.target, core, oUnit, dolog, threads, ppx_deriving.std, Z3, ctypes, ctypes.foreign
-OCamlVersion: >= 4.01
+OCamlVersion: >= 4.03
 AlphaFeatures: ocamlbuild_more_args
 XOCamlbuildPluginTags: package(cppo_ocamlbuild)
 
