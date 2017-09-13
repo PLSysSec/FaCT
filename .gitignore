@@ -47,6 +47,7 @@ final
 *.xftast.ml
 *.core.ml
 *.z3
+test/test_*.h
 test/testbin*
 *.runner.c
 *_runner.c

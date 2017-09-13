@@ -5,10 +5,11 @@ let summary = "Compile the given const file."
 let readme = "Compile a const file. Pass the relative path to the file " ^
              "as the first argument."
 let o_doc = "Output Output object file name. Default is the input_file_name.o."
+let debug_doc = " Debug"
 let ast_doc = " Output AST to file"
 let core_ir_doc = " Output Core IR to file"
 let llvm_doc = " Output LLVM to file"
-let debug_doc = " Debug"
+let header_doc = " Output C header to file"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -33,8 +34,8 @@ let error_exit s =
   Printf.eprintf "%s\n" s;
   exit 1
 
-let runner prep ast_out core_ir_out llvm_out =
-  compile prep ast_out core_ir_out llvm_out
+let runner prep args =
+  compile prep args
   (*try compile prep ast_out core_ir_out llvm_out with
     | (Err.InternalCompilerError s) -> error_exit s
     | (Err.VariableNotDefined s) -> error_exit s
@@ -63,15 +64,26 @@ let compile_command =
     Command.Spec.(
       empty +>
       flag "-o" (optional string) ~doc:o_doc +>
+      flag "-debug" no_arg ~doc:debug_doc +>
       flag "-ast-out" no_arg ~doc:ast_doc +>
       flag "-core-ir-out" no_arg ~doc:core_ir_doc +>
       flag "-llvm-out" no_arg ~doc:llvm_doc +>
-      flag "-debug" no_arg ~doc:debug_doc +>
+      flag "-generate-header" no_arg ~doc:header_doc +>
       anon ("filename" %: string))
-    (fun out_file ast_out core_ir_out llvm_out debug in_file () ->
-      set_log_level debug;
-      let prep = prepare_compile out_file in_file () in
-      runner prep ast_out core_ir_out llvm_out)
+    (fun
+      out_file
+      debug
+      ast_out
+      core_ir_out
+      llvm_out
+      gen_header
+      in_file () ->
+      let args = { in_file; out_file; debug;
+                   ast_out; core_ir_out;
+                   llvm_out; gen_header } in
+        set_log_level debug;
+        let prep = prepare_compile out_file in_file () in
+          runner prep args)
 
 let () =
   Command.run ~version:"0.1" ~build_info:"FaCT Compiler" compile_command

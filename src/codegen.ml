@@ -53,6 +53,28 @@ type codegen_ctx_record = {
   renv      : renv;
 }
 
+type intrinsic = 
+  | Memcpy
+
+let string_of_intrinsic = function
+  | Memcpy -> "llvm.memcpy.p0i8.p0i8.i64"
+
+let declare_intrinsic cg_ctx = function
+  | Memcpy ->
+    let i32_ty = i32_type cg_ctx.llcontext in
+    let i64_ty = i64_type cg_ctx.llcontext in
+    let ptr_ty = pointer_type (i8_type cg_ctx.llcontext) in
+    let bool_ty = i1_type cg_ctx.llcontext in
+    let arg_types = [| ptr_ty; ptr_ty; i64_ty; i32_ty; bool_ty |] in
+    let vt = void_type cg_ctx.llcontext in
+    let ft = function_type vt arg_types in
+    declare_function (string_of_intrinsic Memcpy) ft cg_ctx.llmodule
+
+let get_intrinsic intrinsic cg_ctx =
+  match lookup_function (string_of_intrinsic intrinsic) cg_ctx.llmodule with
+    | Some fn -> fn
+    | None -> declare_intrinsic cg_ctx intrinsic
+
 let is_signed = function
   | UInt _   -> false
   | Int _    -> true
@@ -96,6 +118,14 @@ let expr_ty_to_llvm_ty ctx = function
     let arr_ty = bt_to_llvm_ty ctx at.data in
     let size = get_size size.data in
     array_type arr_ty size (* TODO: Double check that this is not a pointer*)
+
+let rec byte_size_of_expr_ty = function
+  | BaseET({data=UInt(n)},_)  -> n / 8
+  | BaseET({data=Int(n)},_)   -> n / 8
+  | BaseET({data=Bool},_)     -> raise CodegenError
+  | BaseET({data=Num(n,_)},_) -> raise CodegenError
+  | ArrayET({data=ArrayAT(bt,_)},_,_) ->
+    byte_size_of_expr_ty (BaseET(bt, (make_ast fake_pos (Fixed Unknown))))
 
 let get_ret_ty ctx = function
   | None -> raise CodegenError
@@ -321,7 +351,6 @@ and codegen_expr cg_ctx = function
   | Register reg_name, ty ->
     get_reg cg_ctx.renv reg_name
   | Variable var_name, ty ->
-    Log.error "codegen var %s" var_name.data;
     (* TODO: We should probably check the lltype of ty and compare it to the type_of of the
              result? This would be a sanity check. Or maybe even better, we should cast
              the result to ty. This should pass the typechecker so it should be safe no matter
@@ -422,13 +451,30 @@ and codegen_array_expr cg_ctx = function
           let zero = const_int ll_ty 0 in
           let zeros = Array.make n zero in
           let arr_ty = array_type ll_ty n in
-          let arr = const_array ll_ty zeros in
           let alloca = build_array_alloca arr_ty zero "zerodarray" cg_ctx.builder in
-          build_store arr alloca cg_ctx.builder |> ignore;
+          build_store (const_array ll_ty zeros) alloca cg_ctx.builder |> ignore;
           alloca
         | LDynamic x -> raise CodegenError
     end
-  | ArrayCopy var_name,ty -> raise CodegenError
+  | ArrayCopy var_name,ty ->
+    let ll_ty = expr_ty_to_llvm_ty cg_ctx.llcontext ty in
+    let zero' = const_int (i32_type cg_ctx.llcontext) 0 in
+    let alloca = build_array_alloca ll_ty zero' "copiedarray" cg_ctx.builder in
+    let from = find_var cg_ctx.venv var_name in
+    let cpy_len = array_length ll_ty in
+    let num_bytes = (byte_size_of_expr_ty ty) * cpy_len in
+    let ll_cpy_len = (const_int (i64_type cg_ctx.llcontext) num_bytes) in
+    let alignment = (const_int (i32_type cg_ctx.llcontext) 16) in
+    let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
+    let source_gep = build_in_bounds_gep from [| zero'; zero' |] "source_gep" cg_ctx.builder in
+    let dest_gep   = build_in_bounds_gep alloca [| zero'; zero' |] "dest_gep" cg_ctx.builder in
+    let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
+    let source_casted = build_bitcast source_gep source_cast_ty "source_casted" cg_ctx.builder in
+    let dest_casted = build_bitcast dest_gep source_cast_ty "dest_cast" cg_ctx.builder in
+    let args = [| source_casted; dest_casted; ll_cpy_len; alignment; volatility |] in
+    let memcpy = get_intrinsic Memcpy cg_ctx in
+    build_call memcpy args "" cg_ctx.builder |> ignore;
+    alloca
   | ArrayView(var_name, lexpr, expr),ty -> raise CodegenError
   | ArrayComp(bt,lexpr, var_name, expr),ty -> raise CodegenError
 

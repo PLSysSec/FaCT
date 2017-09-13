@@ -1,5 +1,15 @@
+type args_record = {
+  in_file     : string;
+  out_file    : string option;
+  debug       : bool;
+  ast_out     : bool;
+  core_ir_out : bool;
+  llvm_out    : bool;
+  gen_header  : bool;
+}
+
 (** Compile a constantc program. *)
-val compile : (string * string * string) -> bool -> bool -> bool -> unit
+val compile : (string * string * string) -> args_record -> unit
 
 (*
 val run : unit -> unit

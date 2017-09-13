@@ -10,6 +10,16 @@ open Env
 open Transform
 *)
 
+type args_record = {
+  in_file     : string;
+  out_file    : string option;
+  debug       : bool;
+  ast_out     : bool;
+  core_ir_out : bool;
+  llvm_out    : bool;
+  gen_header  : bool;
+}
+
 let run_command c args =
   let a  = Unix.fork () in
   match a with
@@ -49,6 +59,13 @@ let output_xftast xftast_out out_file tast =
         Core_kernel.Out_channel.write_all tast_out_file
           ~data:((Tast.show_fact_module tast)^"\n")
 
+let generate_header gen_header out_file xftast =
+  if gen_header then
+    let header_out_file = out_file ^ ".h" in
+      Log.debug "Outputting header file to %s" header_out_file;
+      Core_kernel.Out_channel.write_all header_out_file
+        ~data:(Header.generate_header out_file xftast)
+
 let output_llvm llvm_out out_file llvm_mod =
   match llvm_out with
     | false -> Log.debug "Not outputting LLVM IR"
@@ -76,7 +93,7 @@ let output_object out_file =
   Log.debug "Creating object file at %s" out_file_o;
   run_command "clang" [|"clang"; "-c"; out_file_s|]
 
-let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
+let compile (in_file,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in
   Log.debug "Compiling %s" in_file; 
   (*ignore(Llvm_X86.initialize());*)
@@ -89,13 +106,14 @@ let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
     | _ -> let p = to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p lexbuf.lex_curr_p in
         raise (errSyntax p) in
   Log.debug "Parsing complete";
-  output_ast ast_out out_file' ast;
+  output_ast args.ast_out out_file' ast;
   let tast = Typecheck.tc_module ast in
-  output_tast ast_out out_file' tast;
+  output_tast args.ast_out out_file' tast;
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast in
   Log.debug "Tast transform complete";
-  output_xftast core_ir_out out_file' xftast;
+  output_xftast args.core_ir_out out_file' xftast;
+  generate_header args.gen_header out_file' xftast;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let llvm_builder = Llvm.builder llvm_ctx in
@@ -111,7 +129,7 @@ let compile (in_file,out_file,out_dir) ast_out core_ir_out llvm_out =
   *)
 
   Llvm_analysis.assert_valid_module llvm_mod |> ignore;
-  output_llvm llvm_out out_file' llvm_mod;
+  output_llvm args.llvm_out out_file' llvm_mod;
   output_bitcode out_file' llvm_mod;
   output_shared out_file';
   output_object out_file'
