@@ -233,29 +233,28 @@ let tc_unop' p op e =
     (UnOp(op, e), BaseET(b, ml))
 
 let tc_binop_check p op b1 b2 =
-  let yes _ = true in
-  let pred1,pred2 =
-    match op with
-      | Ast.Equal
-      | Ast.NEqual -> yes,yes
-      | Ast.Plus
-      | Ast.Minus
-      | Ast.Multiply
-      | Ast.GT
-      | Ast.GTE
-      | Ast.LT
-      | Ast.LTE
-      | Ast.BitwiseAnd
-      | Ast.BitwiseOr
-      | Ast.BitwiseXor
-      | Ast.LeftShift
-      | Ast.RightShift -> is_int,is_int
-      | Ast.LogicalAnd
-      | Ast.LogicalOr -> is_bool,is_bool
-  in
-    if not (pred1 b1) then raise @@ err(p);
-    if not (pred2 b2) then raise @@ err(p);
-    ()
+  match op with
+    | Ast.Equal
+    | Ast.NEqual ->
+      if (is_bool b1 && not (is_bool b2))
+      || (is_bool b2 && not (is_bool b1))
+      then raise @@ err(p)
+    | Ast.Plus
+    | Ast.Minus
+    | Ast.Multiply
+    | Ast.GT
+    | Ast.GTE
+    | Ast.LT
+    | Ast.LTE
+    | Ast.BitwiseAnd
+    | Ast.BitwiseOr
+    | Ast.BitwiseXor
+    | Ast.LeftShift
+    | Ast.RightShift ->
+      if not (is_int b1) || not (is_int b2) then raise @@ err(p)
+    | Ast.LogicalAnd
+    | Ast.LogicalOr ->
+      if not (is_bool b1) || not (is_bool b2) then raise @@ err(p)
 
 let tc_binop' p op e1 e2 =
   let b1,ml1 = expr_to_types e1 in
