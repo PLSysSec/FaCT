@@ -236,7 +236,7 @@ let size_of_lexpr = function
 let rec codegen_arg cg_ctx arg ty =
   match arg.data with
     | ByValue expr -> codegen_expr cg_ctx expr.data
-    | ByArray arr ->
+    | ByArray(arr,_) ->
       begin
         let (arrdata,_) = arr.data in
         match arrdata with
