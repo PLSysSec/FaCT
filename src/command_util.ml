@@ -26,8 +26,9 @@ let run_command c args =
   | 0 -> (try
             Unix.execvp c args
           with
-            _ -> Printf.printf "%s" "error while execv\n"; exit (-1))
-  | -1 -> Printf.printf "%s" "error accured on fork\n"
+            Unix.Unix_error(n,s1,s2) ->
+            Log.error "%s: %s %s" (Unix.error_message n) s1 s2; exit (-1))
+  | -1 -> Log.error "%s" "error accured on fork"
   | _ -> ignore (Unix.wait ())
 
 let generate_out_file out_dir out_file = out_dir ^ "/" ^ out_file

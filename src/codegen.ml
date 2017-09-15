@@ -637,7 +637,6 @@ let rec declare_prototypes llcontext llmodule builder fenv = function
   | FnCall(fun_name,args_exprs),_ ->
     let {ret_ty; args} = Hashtbl.find fenv fun_name.data in
     declare_prototype llcontext llmodule builder fenv args ret_ty fun_name |> ignore;
-
     ()
   | _ -> ()
 
@@ -655,7 +654,6 @@ and declare_prototype llcontext llmodule builder fenv params ret name =
   let ft' =
     match lookup_function name.data llmodule with
       | None -> 
-        print_string ("DECLARING " ^ name.data ^ "\n");
         declare_function name.data ft llmodule
       | Some f -> raise FunctionAlreadyDefined in
   let fentry = { ret_ty=ret; args=params } in
