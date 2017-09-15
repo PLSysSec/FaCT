@@ -141,13 +141,16 @@ let get_ret_ty ctx = function
   | Some ty -> expr_ty_to_llvm_ty ctx ty.data
 
 (* Allocate all of the args for a function *)
-let allocate_args cg_ctx args =
-  let allocate_arg ({data=Param(var_name,var_type)} as arg) =
+let allocate_args cg_ctx args f =
+  let allocate_arg ({data=Param(var_name,var_type)} as arg) ll_arg =
+    set_value_name var_name.data ll_arg;
     let llvm_ty = param_to_type cg_ctx.llcontext arg in
     let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
+    build_store ll_arg alloca cg_ctx.builder |> ignore;
     add_var cg_ctx.venv var_name alloca
   in
-  List.iter allocate_arg args
+  let ll_args = Array.to_list (params f) in
+  List.iter2 allocate_arg args ll_args
 
 (* Allocate space for each variable declared inside a function. This is
    done at the beginning of the function. *)
@@ -649,6 +652,9 @@ and declare_arg_prototypes llcontext llmodule builder fenv = function
 and declare_prototype llcontext llmodule builder fenv params ret name =
   let param_types = List.map (param_to_type llcontext) params in
   let param_types' = Array.of_list param_types in
+  let set_param_name = function
+    | Param(name,ty) -> ()
+    in
   let ret_ty = get_ret_ty llcontext ret in
   let ft = function_type ret_ty param_types' in
   let ft' =
@@ -670,9 +676,8 @@ let codegen_fun llcontext llmodule builder fenv = function
     let tenv = Env.new_env () in
     let renv = new_renv () in
     let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; renv } in
-    allocate_args cg_ctx params;
+    allocate_args cg_ctx params ft;
     allocate_stack cg_ctx body;
-    (* TODO: store_args?? *)
     match ret with
       | None -> raise CodegenError (* TODO: Void is not implemented yet *)
       | Some ret' ->
