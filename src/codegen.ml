@@ -652,9 +652,6 @@ and declare_arg_prototypes llcontext llmodule builder fenv = function
 and declare_prototype llcontext llmodule builder fenv params ret name =
   let param_types = List.map (param_to_type llcontext) params in
   let param_types' = Array.of_list param_types in
-  let set_param_name = function
-    | Param(name,ty) -> ()
-    in
   let ret_ty = get_ret_ty llcontext ret in
   let ft = function_type ret_ty param_types' in
   let ft' =
