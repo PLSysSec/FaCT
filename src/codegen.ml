@@ -53,6 +53,9 @@ type codegen_ctx_record = {
   renv      : renv;
 }
 
+let mk_ctx llcontext llmodule builder venv fenv tenv renv =
+  { llcontext; llmodule; builder; venv; fenv; tenv; renv }
+
 type intrinsic = 
   | Memcpy
 
@@ -587,18 +590,53 @@ and codegen_stms cg_ctx ret_ty (stms : Tast.block) =
   let _,stms' = stms in
   ignore(List.map (codegen_stm cg_ctx ret_ty) stms')
 
+let rec declare_prototypes llcontext llmodule builder fenv = function
+  | ArrayGet(_,expr),_ ->
+    declare_prototypes llcontext llmodule builder fenv expr.data
+  | IntCast(_,expr),_ ->
+    declare_prototypes llcontext llmodule builder fenv expr.data
+  | BinOp(_,expr1,expr2),_ ->
+    declare_prototypes llcontext llmodule builder fenv expr1.data;
+    declare_prototypes llcontext llmodule builder fenv expr2.data
+  | UnOp(_,expr),_ ->
+    declare_prototypes llcontext llmodule builder fenv expr.data
+  | TernOp(expr1,expr2,expr3),_ ->
+    declare_prototypes llcontext llmodule builder fenv expr1.data;
+    declare_prototypes llcontext llmodule builder fenv expr2.data;
+    declare_prototypes llcontext llmodule builder fenv expr3.data
+  | FnCall(fun_name,args_exprs),_ ->
+    let {ret_ty; args} = Hashtbl.find fenv fun_name.data in
+    declare_prototype llcontext llmodule builder fenv args ret_ty fun_name |> ignore;
+
+    ()
+  | _ -> ()
+
+and declare_arg_prototypes llcontext llmodule builder fenv = function
+    | ByValue expr ->
+      declare_prototypes llcontext llmodule builder fenv expr.data
+    | ByRef _ -> ()
+    | ByArray _ -> raise CodegenError
+
+and declare_prototype llcontext llmodule builder fenv params ret name =
+  let param_types = List.map (param_to_type llcontext) params in
+  let param_types' = Array.of_list param_types in
+  let ret_ty = get_ret_ty llcontext ret in
+  let ft = function_type ret_ty param_types' in
+  let ft' =
+    match lookup_function name.data llmodule with
+      | None -> 
+        print_string ("DECLARING " ^ name.data ^ "\n");
+        declare_function name.data ft llmodule
+      | Some f -> raise FunctionAlreadyDefined in
+  let fentry = { ret_ty=ret; args=params } in
+  Hashtbl.add fenv name.data fentry;
+  ft'
+
 let codegen_fun llcontext llmodule builder fenv = function
   | { data=FunDec(name,ret,params,body) } ->
     Log.info "Generating function, %s" name.data;
-    let param_types = List.map (param_to_type llcontext) params in
-    let param_types' = Array.of_list param_types in
-    let ret_ty = get_ret_ty llcontext ret in
-    let ft = function_type ret_ty param_types' in
-    let ft' =
-      match lookup_function name.data llmodule with
-        | None -> declare_function name.data ft llmodule
-        | Some f -> raise FunctionAlreadyDefined in
-    let bb = append_block llcontext "entry" ft' in
+    let ft = declare_prototype llcontext llmodule builder fenv params ret name in
+    let bb = append_block llcontext "entry" ft in
     position_at_end bb builder;
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
@@ -613,10 +651,8 @@ let codegen_fun llcontext llmodule builder fenv = function
         codegen_stms cg_ctx (Some ret'.data) body;
     (*let ret' = codegen_ext llcontext llmodule builder var_env ret in
     build_ret ret' builder;*)
-    Llvm_analysis.assert_valid_function ft';
-        let fentry = { ret_ty=ret; args=params } in
-          Hashtbl.add fenv name.data fentry;
-          ft'
+    Llvm_analysis.assert_valid_function ft;
+    ft
 
 let rec codegen_fdecs llcontext llmodule builder fenv = function
   | [] -> ()

@@ -140,3 +140,10 @@ and function_decs = function_dec list
 and fact_module =
   | Module of function_dec Env.env * function_decs
 [@@deriving show]
+
+(* Used to parse a top level value in the REPL *)
+and top_level =
+| FunctionDec of function_dec
+| Statement of statement
+| Expression of expr
+[@@deriving show]

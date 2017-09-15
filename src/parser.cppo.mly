@@ -47,7 +47,7 @@ let to_type { data=t; pos=p } =
 %token COMMA
 %token LEN RIGHTARROW
 
-%token REPL_DELIMITER
+%token FD_START ST_START EX_START EX_END
 
 %token EOF
 
@@ -72,14 +72,11 @@ let to_type { data=t; pos=p } =
 #define mkposrange(x,y) make_pos $startpos(x) $endpos(y)
 
 %start <Ast.fact_module> main
-%start <Ast.expr> expr_top
+%start <Ast.top_level> top_level
 
 %%
 main:
   | fact_module EOF { $1 }
-
-expr_top:
-  | expr REPL_DELIMITER { $1 }
 
 %inline paren(X):
   | LPAREN x=X RPAREN { x }
@@ -264,3 +261,8 @@ function_dec:
 fact_module:
   | fdecs=nonempty_list(function_dec)
     { Module fdecs }
+
+top_level:
+  | FD_START fd=function_dec       { FunctionDec fd }
+  | ST_START st=statement          { Statement st }
+  | EX_START ex=expr EX_END        { Expression ex }
