@@ -35,6 +35,18 @@ let is_bool = xfunction
   | Bool -> true
   | _ -> false
 
+let is_array = xfunction
+  | BaseET _ -> false
+  | ArrayET _ -> true
+
+let param_is_ldynamic = xfunction
+  | Param(_,{data=vty'}) ->
+    begin
+      match vty' with
+        | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true
+        | _ -> false
+    end
+
 
 (* Trivial conversions *)
 
@@ -82,6 +94,22 @@ let refvt_conv_fill lexpr' = pfunction
     ArrayVT(atype_conv_fill lexpr' a, mlconv ml, mconv m)
 
 
+(* Simple Manipulation *)
+
+let atype_update_lexpr lexpr' = pfunction
+  | ArrayAT(bt,_) -> ArrayAT(bt, mkpos lexpr')
+
+let aetype_update_lexpr' lexpr' = xfunction
+  | ArrayET(a,ml,m) ->
+    ArrayET(atype_update_lexpr lexpr' a, ml, m)
+
+let aetype_update_mut' mut = function
+  | ArrayET(a,ml,_) -> ArrayET(a, ml, mut)
+
+let refvt_update_mut' mut = xfunction
+  | RefVT(b,ml,_) -> RefVT(b, ml, mut)
+
+
 (* Extraction *)
 
 let type_of = xfunction
@@ -90,8 +118,12 @@ let type_of = xfunction
 let atype_of = xfunction
   | (_,ty) -> mkpos ty
 
+let atype_to_btype = xfunction
+  | ArrayAT(b,_) -> b
+
 let type_out = xfunction
   | BaseET(b,ml) -> (b,ml)
+  | ArrayET(a,ml,_) -> (atype_to_btype a,ml)
 
 let expr_to_btype = xfunction
   | (_,BaseET(b,_)) -> b
@@ -102,7 +134,10 @@ let expr_to_ml = xfunction
 let expr_to_types = xfunction
   | (_,BaseET(b,ml)) -> b,ml
 
-let atype_to_lexpr' = xfunction
+let atype_out = xfunction
+  | ArrayET(a,ml,_) -> a,ml
+
+let aetype_to_lexpr' = xfunction
   | ArrayET(a,ml,m) ->
     let ArrayAT(bt,lexpr) = a.data in
       lexpr.data
@@ -111,6 +146,10 @@ let refvt_to_betype' = xfunction
   | ArrayVT(a,ml,m) ->
     let ArrayAT(bt,lexpr) = a.data in
       BaseET(bt,ml)
+
+let refvt_type_out = xfunction
+  | RefVT(b,ml,m) -> b,ml,m
+  | ArrayVT(a,ml,m) -> (atype_to_btype a),ml,m
 
 let refvt_to_lexpr = xfunction
   | ArrayVT(a,ml,m) ->
@@ -128,23 +167,15 @@ let refvt_to_etype' = xfunction
   | ArrayVT(a,ml,m) -> ArrayET(a, ml, m)
 let refvt_to_etype = rebind refvt_to_etype'
 
-let param_is_ldynamic = xfunction
-  | Param(_,{data=vty'}) ->
-    begin
-      match vty' with
-        | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true
-        | _ -> false
-    end
-
-
-(* Simple Manipulation *)
-
-let atype_update_lexpr lexpr' = pfunction
-  | ArrayAT(bt,_) -> ArrayAT(bt, mkpos lexpr')
-
-let aetype_update_lexpr' lexpr' = xfunction
-  | ArrayET(a,ml,m) ->
-    ArrayET(atype_update_lexpr lexpr' a, ml, m)
+let argtype_of venv = xfunction
+  | ByValue e ->
+    let b,ml = expr_to_types e in
+      mkpos RefVT(b,ml,mkpos Const)
+  | ByRef x ->
+    Env.find_var venv x
+  | ByArray({data=(aexpr,aty)}, mut) ->
+    let b,ml = atype_out (mkpos aty) in
+    mkpos ArrayVT(b,ml,mut)
 
 
 (* Subtyping *)
@@ -160,6 +191,14 @@ let (<:) { data=b1 } { data=b2 } =
     | UInt n, Num(k,s) when not s -> true
     | Num _, Num _ -> true
     | _ -> false
+
+let (<::) { data=ArrayAT(b1,lx1) } { data=ArrayAT(b2,lx2) } =
+  let lxmatch =
+    match lx1.data,lx2.data with
+      | LIntLiteral n, LIntLiteral m when n = m -> true
+      | LDynamic x, LDynamic y when x.data = y.data -> true
+      | _ -> false in
+    lxmatch && (b1 = b2)
 
 let join_bt p { data=b1 } { data=b2 } =
   let b' =
@@ -205,9 +244,16 @@ let join_ml p { data=ml1 } { data=ml2 } =
   in mkpos ml'
 
 let (<:$) ty1 ty2 =
-  let b1,ml1 = type_out ty1 in
-  let b2,ml2 = type_out ty2 in
-    (b1 <: b2) && (ml1 <$ ml2)
+  match (is_array ty1),(is_array ty2) with
+    | true, true ->
+      let a1,ml1 = atype_out ty1 in
+      let a2,ml2 = atype_out ty2 in
+        (a1 <:: a2) && (ml1 <$ ml2)
+    | false, false ->
+      let b1,ml1 = type_out ty1 in
+      let b2,ml2 = type_out ty2 in
+        (b1 <: b2) && (ml1 <$ ml2)
+    | _ -> false
 
 let join_ty' p ty1 ty2 =
   let b1,ml1 = type_out ty1 in
@@ -215,6 +261,27 @@ let join_ty' p ty1 ty2 =
   let b' = join_bt p b1 b2 in
   let ml' = join_ml p ml1 ml2 in
     BaseET(b', ml')
+
+let (<*) m1 m2 =
+  match m1,m2 with
+    | Const, Mut -> false (* can't alias a const as a mut *)
+    | _ -> true
+
+let can_be_passed_to { pos=p; data=argty} {data=paramty} =
+  match argty, paramty with
+    | RefVT(_,_,m1), RefVT(_,_,m2) when m1.data <> m2.data -> false
+    | ArrayVT(_,_,m1), ArrayVT(_,_,m2) when m1.data <> m2.data -> false
+    | RefVT(b1,l1,_), RefVT(b2,l2,_) ->
+      (b1 <: b2) && (l1 <$ l2)
+    | ArrayVT(a1,l1,_), ArrayVT(a2,l2,_) ->
+      let ArrayAT(b1,lx1), ArrayAT(b2,lx2) = a1.data, a2.data in
+      let lxmatch =
+        match lx1.data, lx2.data with
+          | _, LDynamic _ -> true
+          | LIntLiteral n, LIntLiteral m when n = m -> true
+          | _ -> false
+      in
+        (b1.data <> b2.data) && lxmatch && (l1 <$ l2)
 
 
 (* Actual typechecking *)
@@ -233,29 +300,28 @@ let tc_unop' p op e =
     (UnOp(op, e), BaseET(b, ml))
 
 let tc_binop_check p op b1 b2 =
-  let yes _ = true in
-  let pred1,pred2 =
-    match op with
-      | Ast.Equal
-      | Ast.NEqual -> yes,yes
-      | Ast.Plus
-      | Ast.Minus
-      | Ast.Multiply
-      | Ast.GT
-      | Ast.GTE
-      | Ast.LT
-      | Ast.LTE
-      | Ast.BitwiseAnd
-      | Ast.BitwiseOr
-      | Ast.BitwiseXor
-      | Ast.LeftShift
-      | Ast.RightShift -> is_int,is_int
-      | Ast.LogicalAnd
-      | Ast.LogicalOr -> is_bool,is_bool
-  in
-    if not (pred1 b1) then raise @@ err(p);
-    if not (pred2 b2) then raise @@ err(p);
-    ()
+  match op with
+    | Ast.Equal
+    | Ast.NEqual ->
+      if (is_bool b1 && not (is_bool b2))
+      || (is_bool b2 && not (is_bool b1))
+      then raise @@ err(p)
+    | Ast.Plus
+    | Ast.Minus
+    | Ast.Multiply
+    | Ast.GT
+    | Ast.GTE
+    | Ast.LT
+    | Ast.LTE
+    | Ast.BitwiseAnd
+    | Ast.BitwiseOr
+    | Ast.BitwiseXor
+    | Ast.LeftShift
+    | Ast.RightShift ->
+      if not (is_int b1) || not (is_int b2) then raise @@ err(p)
+    | Ast.LogicalAnd
+    | Ast.LogicalOr ->
+      if not (is_bool b1) || not (is_bool b2) then raise @@ err(p)
 
 let tc_binop' p op e1 e2 =
   let b1,ml1 = expr_to_types e1 in
@@ -286,48 +352,50 @@ let tc_binop' p op e1 e2 =
     (BinOp(op, e1, e2), BaseET(b', ml'))
 
 let rec tc_arg fenv venv = pfunction
-  (* XXX should convert arrays to ByArray of ArrayVar *)
   | Ast.ByValue e ->
-    let e' = tc_expr fenv venv e in
-      begin
-        match e'.data with
-          | Variable x, aty ->
-            ByArray { data=(ArrayVar x, aty); pos=e'.pos }
-          | _ -> ByValue (tc_expr fenv venv e)
-      end
+    begin
+      match e.data with
+        | Ast.Variable x ->
+          let ae' = tc_arrayexpr fenv venv (mkpos Ast.ArrayVar x) in
+          let (_,ArrayET(_,_,mut)) = ae'.data in
+            if not (mut.data <* Const) then raise @@ err(p);
+            ByArray(ae', mkpos Const)
+        | _ -> ByValue (tc_expr fenv venv e)
+    end
   | Ast.ByRef x ->
-    ByRef x
-  | Ast.ByArray aexpr ->
-    ByArray (tc_arrayexpr fenv venv aexpr)
+    let xref = Env.find_var venv x in
+      begin
+        match xref.data with
+          | RefVT _ -> ByRef x
+          | ArrayVT _ ->
+            let ae' = tc_arrayexpr fenv venv (mkpos Ast.ArrayVar x) in
+            let (_,ArrayET(_,_,mut)) = ae'.data in
+              if not (mut.data <* Mut) then raise @@ err(p);
+              ByArray(ae', mkpos Mut)
+      end
 
 and tc_args fenv venv p params args =
   match params,args with
     | [], [] -> []
     | (param::params), (arg::args) ->
-      (* XXX check that types match *)
       let arg' = tc_arg fenv venv arg in
-      if param_is_ldynamic param then
-        let _::params = params in
-        let lexpr' =
-          begin
-            match arg'.data with
-              | ByRef x ->
-                let refvt = Env.find_var venv x in
-                  (refvt_to_lexpr refvt).data
-              | ByArray {data=(_,atype')} ->
-                atype_to_lexpr' (mkpos atype')
-          end in
-        let len =
-          begin
+      let argref = argtype_of venv arg' in
+      let Param(_,paramvt) = param.data in
+        if not @@ can_be_passed_to argref paramvt then raise @@ err(p);
+        if param_is_ldynamic param then
+          let _::params = params in
+          let ByArray({data=(_,atype')},_) = arg'.data in
+          let lexpr' = aetype_to_lexpr' (mkpos atype') in
+          let len =
             match lexpr' with
               | LIntLiteral n ->
                 ByValue (mkpos (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public)))
               | LDynamic lx ->
                 ByValue (mkpos (Variable lx, BaseET(mkpos UInt 32, mkpos Fixed Public)))
-          end in
-          arg' :: (mkpos len) :: tc_args fenv venv p params args
-      else
-        arg' :: tc_args fenv venv p params args
+          in
+            arg' :: (mkpos len) :: tc_args fenv venv p params args
+        else
+          arg' :: tc_args fenv venv p params args
     | _ -> raise @@ err(p)
 
 and tc_expr fenv venv = pfunction
@@ -389,16 +457,15 @@ and tc_arrayexpr fenv venv = pfunction
     let exprs' = List.map (tc_expr fenv venv) exprs in
     let b = expr_to_btype @@ List.hd exprs' in (* XXX should be join of all exprs' *)
     let at' = mkpos ArrayAT(b, mkpos LIntLiteral(List.length exprs')) in
-      (ArrayLit exprs', ArrayET(at', mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Const))
+      (ArrayLit exprs', ArrayET(at', mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Mut))
   | Ast.ArrayVar x ->
     let xref = Env.find_var venv x in
       (ArrayVar x, refvt_to_etype' xref)
   | Ast.ArrayZeros lexpr ->
-    (* XXX check that type is compatible *)
     let b = mkpos Num(0, false) in
     let lexpr' = lexprconv lexpr in
     let at' = mkpos ArrayAT(b, lexpr') in
-    (ArrayZeros lexpr', ArrayET(at', mkpos Fixed Public, mkpos Const))
+    (ArrayZeros lexpr', ArrayET(at', mkpos Fixed Public, mkpos Mut))
   | Ast.ArrayCopy x ->
     let ae' = refvt_to_etype' (Env.find_var venv x) in
       (ArrayCopy x, ae')
@@ -412,7 +479,7 @@ and tc_arrayexpr fenv venv = pfunction
     let b' = bconv b in
     let lexpr' = lexprconv lexpr in
     let e' = tc_expr fenv venv e in
-    let ae = ArrayET(mkpos ArrayAT(b', lexpr'), expr_to_ml e', mkpos Const) in
+    let ae = ArrayET(mkpos ArrayAT(b', lexpr'), expr_to_ml e', mkpos Mut) in
       (ArrayComp(b',lexpr',x,e'), ae)
 
 let rec tc_stm fenv venv = pfunction
@@ -434,7 +501,7 @@ let rec tc_stm fenv venv = pfunction
     let ae' = tc_arrayexpr fenv venv ae in
     let aty = atype_of ae' in
     (* if vt is LUnspecified then take it from aty *)
-    let ae_lexpr' = atype_to_lexpr' aty in
+    let ae_lexpr' = aetype_to_lexpr' aty in
     let vt' = refvt_conv_fill ae_lexpr' vt in
     let xty = refvt_to_etype vt' in
       (* XXX check that types match *)

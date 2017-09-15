@@ -70,9 +70,9 @@ let rec xf_arg' xf_ctx { data; pos=p } =
       let e' = xf_expr xf_ctx e in
         ByValue e'
     | ByRef _ -> data
-    | ByArray ae ->
+    | ByArray(ae,m) ->
       let ae' = xf_arrayexpr xf_ctx ae in
-        ByArray ae'
+        ByArray(ae',m)
 and xf_arg xf_ctx pa = { pa with data=xf_arg' xf_ctx pa }
 
 and xf_expr' xf_ctx { data; pos=p } =
