@@ -32,7 +32,7 @@ We also need dependency management for Ocaml.
 
 Then we need the actual dependencies for Ocaml.
 
-```opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir oasis```
+```opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir oasis ppx_deriving```
 
 The easiest way to install Z3 is the following:
 
