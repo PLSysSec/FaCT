@@ -225,6 +225,7 @@ and xf_stm' xf_ctx p = function
         let rval = mkpos "__rval" in
         let rnset = mkpos "__rnset" in
         let rnset' = bvar(rnset) in
+        (* XXX I think this is wrong *)
         let assigned = bor(rnset',band(bctx,rctx)) in
         let rval' = mkpos (Variable rval, rt.data) in
         let xfe' = ctx_select(e',rval') in

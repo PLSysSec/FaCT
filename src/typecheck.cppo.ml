@@ -281,7 +281,7 @@ let can_be_passed_to { pos=p; data=argty} {data=paramty} =
           | LIntLiteral n, LIntLiteral m when n = m -> true
           | _ -> false
       in
-        (b1.data <> b2.data) && lxmatch && (l1 <$ l2)
+        (b1.data = b2.data) && lxmatch && (l1 <$ l2)
 
 
 (* Actual typechecking *)
@@ -356,10 +356,16 @@ let rec tc_arg fenv venv = pfunction
     begin
       match e.data with
         | Ast.Variable x ->
-          let ae' = tc_arrayexpr fenv venv (mkpos Ast.ArrayVar x) in
-          let (_,ArrayET(_,_,mut)) = ae'.data in
-            if not (mut.data <* Const) then raise @@ err(p);
-            ByArray(ae', mkpos Const)
+          let vty = Env.find_var venv x in
+            begin
+              match vty.data with
+                | RefVT _ -> ByValue (tc_expr fenv venv e)
+                | ArrayVT _ ->
+                  let ae' = tc_arrayexpr fenv venv (mkpos Ast.ArrayVar x) in
+                  let (_,ArrayET(_,_,mut)) = ae'.data in
+                    if not (mut.data <* Const) then raise @@ err(p);
+                    ByArray(ae', mkpos Const)
+            end
         | _ -> ByValue (tc_expr fenv venv e)
     end
   | Ast.ByRef x ->
