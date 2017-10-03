@@ -54,7 +54,7 @@ let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
 #define bnot(e1) sebool(UnOp(Ast.LogicalNot,e1))
 #define bvar(x) sebool(Variable x)
 
-#define rctx bvar((mkpos "__rnset"))
+#define rctx sebool(Register "__rnset")
 #define bctx (List.fold_left (fun x y -> band(x,y)) sebool(True) \
                 (List.map (fun x -> bvar(x)) xf_ctx.ms))
 #define ctx (band(band(bctx,rctx), \
@@ -165,8 +165,9 @@ and xf_stm' xf_ctx p = function
 
   | RegAssign(r,e) ->
     let e' = xf_expr xf_ctx e in
+    let (_,ety) = e'.data in
     (* always transform *)
-    let r' = mkpos (Register r, sbool) in (* the sbool is just a placeholder; r is not actually (necessarily) a bool *)
+    let r' = mkpos (Register r, ety) in
     let rfe' = ctx_select(e',r') in
       [RegAssign(r,rfe')]
 
@@ -222,23 +223,24 @@ and xf_stm' xf_ctx p = function
     let e' = xf_expr xf_ctx e in
     let should_transform = true in (* XXX *)
       if should_transform then
-        let rval = mkpos "__rval" in
-        let rnset = mkpos "__rnset" in
-        let rnset' = bvar(rnset) in
-        let assigned = bor(rnset',band(bctx,rctx)) in
-        let rval' = mkpos (Variable rval, rt.data) in
+        (* XXX make these regs instead of vars *)
+        let rval = "__rval" in
+        let rnset = "__rnset" in
+        let rnset' = sebool(Register(rnset)) in
+        let assigned = ctx_select(sebool(False),rnset') in
+        let rval' = mkpos (Register rval, rt.data) in
         let xfe' = ctx_select(e',rval') in
-          [BaseAssign(rval,xfe'); BaseAssign(rnset,assigned)]
+          [RegAssign(rval,xfe'); RegAssign(rnset,assigned)]
       else
         [Return e']
 
   | VoidReturn ->
     let should_transform = true in (* XXX *)
       if should_transform then
-        let rnset = mkpos "__rnset" in
-        let rnset' = bvar(rnset) in
-        let assigned = bor(rnset',band(bctx,rctx)) in
-          [BaseAssign(rnset,assigned)]
+        let rnset = "__rnset" in
+        let rnset' = sebool(Register(rnset)) in
+        let assigned = ctx_select(sebool(False),rnset') in
+          [RegAssign(rnset,assigned)]
       else
         [VoidReturn]
 
@@ -262,19 +264,15 @@ let xf_fdec fenv = pfunction
           params @ [fctx_param]
       else params in
     let venv,stms' = xf_block rt fenv [] (venv,stms) in
-    let rnset = mkpos "__rnset" in
-    let rnset_vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
-    let rnset_dec = mkpos BaseDec(rnset, rnset_vt, sebool(True)) in
-      Env.add_var venv rnset rnset_vt;
+    let rnset = "__rnset" in
+    let rnset_dec = mkpos RegAssign(rnset, sebool(True)) in
       let stms' = rnset_dec::stms' in
         begin
           match rt with
             | Some et ->
-              let rval = mkpos "__rval" in
-              let rval_vt = mkpos (b2rty (mkpos Mut) et) in
-              let rval_dec = mkpos BaseDec(rval, rval_vt, mkpos (IntLiteral 0,et.data)) in
-              let ret = mkpos Return (mkpos (Variable(rval), r2bty rval_vt)) in
-                Env.add_var venv rval rval_vt;
+              let rval = "__rval" in
+              let rval_dec = mkpos RegAssign(rval,mkpos (IntLiteral 0,et.data)) in
+              let ret = mkpos Return (mkpos (Register(rval), et.data)) in
                 FunDec(f,rt,params',(venv,rval_dec::stms'@[ret]))
             | None ->
               FunDec(f,rt,params',(venv,stms'@[mkpos VoidReturn]))

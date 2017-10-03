@@ -32,8 +32,8 @@ public bool qux(secret int32 x, public mut bool y) {
 
 public int32 bar() {
   secret int32 x = foo();
-  public bool yyy = false;
-  public bool y = baz(4, ref yyy);
+  public mut bool yyy = false;
+  public mut bool y = baz(4, ref yyy);
 
   y = x;
   if (x + 4) {
@@ -64,6 +64,6 @@ public uint32 zzz(public uint8[4] buf) {
   return len buf;
 }
 
-public uint32 yyy(public uint8[] buf) {
+public uint32 yyy(public uint8[4] buf) {
   return zzz(buf);
 }
