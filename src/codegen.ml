@@ -104,7 +104,8 @@ let vt_to_llvm_ty ctx = function
   | ArrayVT({data=ArrayAT(at,size)},maybe_label,_) ->
     let arr_ty = bt_to_llvm_ty ctx at.data in
     let size = get_size size.data in
-    pointer_type(array_type arr_ty size)
+    (* TODO: Should we be passing arrays as a * or **? *)
+    array_type arr_ty size
 
 let param_to_type ctx = function
   | { data=Param(var_name,var_type) } -> vt_to_llvm_ty ctx var_type.data
@@ -137,7 +138,7 @@ let rec byte_size_of_expr_ty = function
     byte_size_of_expr_ty (BaseET(bt, (make_ast fake_pos (Fixed Unknown))))
 
 let get_ret_ty ctx = function
-  | None -> raise CodegenError
+  | None -> void_type ctx
   | Some ty -> expr_ty_to_llvm_ty ctx ty.data
 
 (* Allocate all of the args for a function *)
@@ -196,7 +197,7 @@ let rec allocate_stack cg_ctx stms =
       allocate_stack cg_ctx stms
     | {data=Return(expr)} -> allocate_inject expr
     | {data=VoidFnCall _} -> ()
-    | {data=s} -> print_endline @@ show_statement' s; raise CodegenError
+    | {data=VoidReturn} -> ()
   in
   let env,stms' = stms in
   ignore(List.map allocate_stack' stms')
@@ -248,110 +249,9 @@ let size_of_lexpr = function
 let rec codegen_arg cg_ctx arg ty =
   match arg.data with
     | ByValue expr -> codegen_expr cg_ctx expr.data
-    | ByArray(arr,_) ->
-      begin
-        let (arrdata,_) = arr.data in
-        match arrdata with
-          | ArrayZeros lexpr ->
-            begin
-              match lexpr.data with
-                | LIntLiteral n ->
-                  let llty = param_ty_to_llvm_ty ty in
-                  let zero = const_int llty 0 in
-                  let zeros = Array.make n zero in
-                  let arr_ty = array_type llty n in
-                  let arr = const_array arr_ty zeros in
-                  build_array_alloca arr_ty arr "zerodarray" cg_ctx.builder
-                | LDynamic x -> raise CodegenError
-
-            end
-          | ArrayCopy var_name ->
-            let arr = find_var cg_ctx.venv var_name in
-            let arr_ty = type_of arr in
-            let arr_load = build_load arr "arrcopyload" cg_ctx.builder in
-            build_array_alloca arr_ty arr_load "arrcopy" cg_ctx.builder (* Probs gonna segfault *)
-          | ArrayView(var_name, expr, lexpr) ->
-            raise CodegenError
-            (* TODO: I think the transformations should do the heavy lifting here and the
-                     TAST should get rid of ArrayView *)
-            (*let arr = find_var cg_ctx.venv var_name in
-            let arr_load = build_load arr "arrviewload" cg_ctx.builder in
-            let _ = match lookup_function "memset" cg_ctx.llmodule with
-              | Some fn -> fn
-              | None ->
-                let i32_ty = i32_type cg_ctx.llcontext in
-                let ptr_ty = pointer_type (i8_type cg_ctx.llcontext) in
-                let bool_ty = i1_type cg_ctx.llcontext in
-                let arg_types = [| ptr_ty; ptr_ty; i32_ty; i32_ty; bool_ty |] in
-                let memcpy = "llvm.memcpy.p0i8.i32" in
-                declare_function memcpy (function_type (void_type cg_ctx.llcontext) arg_types) cg_ctx.llmodule in
-              let dest_name = make_ast fake_pos ("dest" ^ (string_of_int !counter)) in
-              ignore(counter := !counter + 1);
-              let arr_ty = find_var cg_ctx.tenv var_name in
-              let size = make_ast fake_pos (LIntLiteral(array_length (type_of arr))) in
-              let zeros = make_ast fake_pos (ArrayZeros(size)) in
-              let dest_ast = make_ast fake_pos (ArrayDec(dest_name, arr_ty, zeros)) in
-              ignore(codegen_stm cg_ctx None dest_ast);
-              let fun_name = make_ast fake_pos "memset" in
-              let dest = make_ast fake_pos (ByRef dest_name) in
-              let src = make_ast fake_pos (ByRef var_name) in
-              let i32 = make_ast fake_pos (UInt(32)) in
-              let unknown_label = make_ast fake_pos (Fixed Unknown) in
-              let int_type = BaseET(i32, unknown_label) in
-              let lsize = make_ast fake_pos (IntLiteral(size_of_lexpr lexpr.data), int_type) in
-              let lsize' = make_ast fake_pos (ByValue lsize) in
-              let alignment = make_ast fake_pos (IntLiteral 0, int_type) in
-              let alignment' = make_ast fake_pos (ByValue alignment) in
-              let i1 = make_ast fake_pos (UInt(1)) in
-              let bool_type = BaseET(i1, unknown_label) in
-              let volatile = make_ast fake_pos (IntLiteral 0, bool_type) in
-              let volatile' = make_ast fake_pos (ByValue volatile) in
-              let at,l,m = match arr_ty.data with
-                | ArrayVT(at,l,m) -> at,l,m
-                | RefVT _ -> raise CodegenError in
-              let arr_et = ArrayET(at,l,m) in
-              let fn_call =
-                (FnCall(fun_name, [dest;src;lsize';alignment';volatile']), arr_et) in
-              codegen_expr cg_ctx fn_call*)
-          | ArrayComp(bt,lexpr,var_name,expr) ->
-            (*let var_name' = make_ast fake_pos ("arrcomp" ^ (string_of_int !counter)) in
-            let maybe_label = make_ast fake_pos (Fixed Unknown) in
-            let mut = make_ast fake_pos Mut in
-            let var_type = make_ast fake_pos (RefVT(bt,maybe_label,mut)) in
-            let zeros = make_ast fake_pos (ArrayZeros lexpr) in
-            let arr_dec = make_ast fake_pos (ArrayDec(var_name', var_type, zeros)) in
-            ignore(codegen_stm cg_ctx None arr_dec);
-            (* Step 1 done *)
-            let i32 = make_ast fake_pos (UInt 32) in
-            let var_type' = make_ast fake_pos (RefVT(i32, maybe_label, mut)) in
-            let base_type = BaseET(i32, maybe_label) in
-            let expr = make_ast fake_pos ((IntLiteral 0),base_type) in
-            let base_dec = make_ast fake_pos (BaseDec(var_name, var_type',expr)) in
-            ignore(codegen_stm cg_ctx None base_dec);
-            (* Step 2 done *)
-            (* Maybe try transforming into a for loop here? *)
-            let iter_type = make_ast fake_pos (UInt 32) in
-            let label = make_ast fake_pos (Fixed Unknown) in
-            let low = make_ast fake_pos ((IntLiteral 0), (BaseET(iter_type,label))) in
-            let high = make_ast fake_pos ((IntLiteral (size_of_lexpr lexpr.data)), (BaseET(iter_type,label))) in
-            let index = make_ast fake_pos (Variable(var_name), (BaseET(iter_type,label))) in
-            let assignment = make_ast fake_pos (ArrayAssign(var_name', index, expr)) in
-            let block = Env.new_env (), [assignment] in
-            let body = make_ast fake_pos (For(var_name, iter_type, low, high, block)) in
-            ignore(codegen_stm cg_ctx None body);*)
-            (* Step 3, 4, and 5 done. These are all accomplished with the loop*)
-            raise CodegenError
-            (* TODO: What is the return value of a loop comprehension?
-                     That should be returned here. Intuition says pointer to the list? *)
-            (*
-              1. Initialize array of type `bt to size `lexpr with zeros
-              2. Initialize `var_name to zero
-              3. Create a block containing expr
-              4. At end of block, set array[`var_name] to |block|
-              5. If |`var_name| >= |`lexpr| stop, otherwise, increment `var_name and jump to beginning of block
-
-            *)
-      end
+    | ByArray(arr,_) -> 
+      let arr' = codegen_array_expr cg_ctx arr.data in
+      build_load arr' "arr" cg_ctx.builder 
     | ByRef r ->
       let var = find_var cg_ctx.venv r in
       build_load var "argref" cg_ctx.builder
@@ -675,10 +575,12 @@ let codegen_fun llcontext llmodule builder fenv = function
     let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; renv } in
     allocate_args cg_ctx params ft;
     allocate_stack cg_ctx body;
-    match ret with
-      | None -> raise CodegenError (* TODO: Void is not implemented yet *)
-      | Some ret' ->
-        codegen_stms cg_ctx (Some ret'.data) body;
+    begin
+      match ret with
+        | None -> codegen_stms cg_ctx None body
+        | Some ret' ->
+          codegen_stms cg_ctx (Some ret'.data) body
+    end;
     (*let ret' = codegen_ext llcontext llmodule builder var_env ret in
     build_ret ret' builder;*)
     Llvm_analysis.assert_valid_function ft;
