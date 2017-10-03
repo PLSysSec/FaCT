@@ -54,6 +54,7 @@ test/testbin*
 test/testbin_sem
 !ct-verif/tests/openssl-bc/out-3.5.ll
 !ct-verif/tests/openssl-bc/out-3.5-final.ll
+!ct-verif/example/sort.ll
 setup.data
 setup.ml
 configure
