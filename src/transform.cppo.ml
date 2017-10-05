@@ -62,7 +62,25 @@ let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
 
 #define ctx_select(e1,e2) (mkpos (Select(ctx,e1,e2), bty e2))
 
-type xf_ctx_record = { rt:ret_type; fenv:function_dec Env.env; venv:variable_type Env.env; ms:var_name list }
+type xf_ctx_record = {
+  ms   : var_name list;
+  rt   : ret_type;
+  venv : variable_type Env.env;
+  fenv : function_dec Env.env;
+}
+
+let (<$) l1 l2 =
+  match l1,l2 with
+    | x, y when x = y -> true
+    | Public, Secret -> true
+    | _ -> false
+
+let join_ml l1 l2 =
+  match l1,l2 with
+    | Public, Public -> Public
+    | Public, Secret
+    | Secret, Public
+    | Secret, Secret -> Secret
 
 let rec xf_arg' xf_ctx { data; pos=p } =
   match data with
