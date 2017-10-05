@@ -581,7 +581,9 @@ let rec tc_stm tc_ctx = pfunction
       tc_ctx.rp := !(tc_ctx.rp) +$. tc_ctx.pc;
       Return e'
 
-  | Ast.VoidReturn -> VoidReturn
+  | Ast.VoidReturn ->
+    (* TODO check that fn is indeed void *)
+    VoidReturn
 
 and tc_block tc_ctx stms =
   let stms' = List.map (tc_stm tc_ctx) stms in
@@ -615,7 +617,18 @@ let tc_fdec' fenv (Ast.FunDec(f,rt,params,stms)) =
                 Env.add_var venv name vty)
       params';
     let tc_ctx = { rp=ref Public; pc=Public; venv; fenv } in
-      FunDec(f,rt',params',tc_block tc_ctx stms)
+    let stms' = List.rev @@
+      match List.rev stms with
+        | [] -> [make_ast f.pos Ast.VoidReturn]
+        | s::ss ->
+          begin
+            match s.data with
+              | Ast.Return _
+              | Ast.VoidReturn -> s::ss
+              | _ -> make_ast s.pos Ast.VoidReturn::s::ss
+          end
+    in
+      FunDec(f,rt',params',tc_block tc_ctx stms')
 
 let tc_fdec fenv = xfunction
   | Ast.FunDec(f,_,_,_) as fdec ->
