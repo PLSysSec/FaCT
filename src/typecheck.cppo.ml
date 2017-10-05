@@ -241,7 +241,7 @@ let (<$.) l1 l2 =
     | Public, Secret -> true
     | _ -> false
 
-let join_ml' l1 l2 =
+let (+$.) l1 l2 =
   match l1,l2 with
     | Public, Public -> Public
     | Public, Secret -> Secret
@@ -256,7 +256,7 @@ let (<$) { data=ml1 } { data=ml2 } =
 let join_ml p { data=ml1 } { data=ml2 } =
   let ml' =
     match ml1,ml2 with
-      | Fixed x, Fixed y -> Fixed (join_ml' x y)
+      | Fixed x, Fixed y -> Fixed (x +$. y)
       | _ -> raise @@ err(p)
   in mkpos ml'
 
@@ -518,8 +518,10 @@ let rec tc_stm tc_ctx = pfunction
 
   | Ast.BaseAssign(x,e) ->
     let e' = tc_expr tc_ctx e in
+    let b,{data=Fixed l},m = refvt_type_out (Env.find_var tc_ctx.venv x) in
+      if m.data <> Mut then raise @@ err(p);
       (* TODO check that types match *)
-      (* TODO check (join_ml' rp pc) <$. (label_of x) *)
+      if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then raise @@ err(p);
       BaseAssign(x,e')
 
   | Ast.ArrayDec(x,vt,ae) ->
@@ -536,36 +538,39 @@ let rec tc_stm tc_ctx = pfunction
   | Ast.ArrayAssign(x,n,e) ->
     let n' = tc_expr tc_ctx n in
     let e' = tc_expr tc_ctx e in
+    let b,{data=Fixed l},m = refvt_type_out (Env.find_var tc_ctx.venv x) in
+      if m.data <> Mut then raise @@ err(p);
       (* TODO check that types match *)
-      (* TODO check *rp U pc <$. l_x *)
+      (* TODO check that n' won't be out-of-bounds *)
+      if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then raise @@ err(p);
       ArrayAssign(x,n',e')
 
   | Ast.If(cond,thenstms,elsestms) ->
     let cond' = tc_expr tc_ctx cond in
+    let {data=Fixed l} = expr_to_ml cond' in
     (* TODO check that cond' is bool *)
-    (* TODO pc' = pc U l_cond' *)
-    (* TODO rp1 = copy of rp [same for rp2] *)
-    (* TODO pass rp[1,2] and pc' down to tc_blocks *)
-    (* TODO rp := *rp1 U *rp2 *)
-    let thenstms' = tc_block { tc_ctx with venv=(Env.sub_env tc_ctx.venv) } thenstms in
-    let elsestms' = tc_block { tc_ctx with venv=(Env.sub_env tc_ctx.venv) } elsestms in
+    let pc' = tc_ctx.pc +$. l in
+    let tc_ctx1 = { tc_ctx with pc=pc'; rp=ref !(tc_ctx.rp); venv=(Env.sub_env tc_ctx.venv) } in
+    let tc_ctx2 = { tc_ctx with pc=pc'; rp=ref !(tc_ctx.rp); venv=(Env.sub_env tc_ctx.venv) } in
+    let thenstms' = tc_block tc_ctx1 thenstms in
+    let elsestms' = tc_block tc_ctx2 elsestms in
+      tc_ctx.rp := !(tc_ctx1.rp) +$. !(tc_ctx2.rp);
       If(cond',thenstms',elsestms')
 
   | Ast.For(i,ity,lo,hi,stms) ->
     let ity' = bconv ity in
     let lo' = tc_expr tc_ctx lo in
     let hi' = tc_expr tc_ctx hi in
-    (* TODO check types *)
+    (* TODO check types and labels *)
     let venv' = Env.sub_env tc_ctx.venv in
       Env.add_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const));
       let tc_ctx' = { tc_ctx with venv=venv' } in
       let stms' = tc_block tc_ctx' stms in
-        (* TODO set rp *)
         For(i,ity',lo',hi',stms')
 
   | Ast.VoidFnCall(f,args) ->
     let (FunDec(_,Some rty,params,_)) = (Env.find_var tc_ctx.fenv f).data in
-    (* TODO ensure no mut args that are lower than *rp U pc *)
+    (* TODO ensure no mut args lower than *rp U pc *)
     (* e.g. fcall with public mut arg in a block where pc is Secret is disallowed *)
     let args' = tc_args tc_ctx p params args in
       VoidFnCall(f,args')
@@ -573,7 +578,7 @@ let rec tc_stm tc_ctx = pfunction
   | Ast.Return e ->
     let e' = tc_expr tc_ctx e in
       (* TODO check type *)
-      (* TODO rp := *rp U pc *)
+      tc_ctx.rp := !(tc_ctx.rp) +$. tc_ctx.pc;
       Return e'
 
   | Ast.VoidReturn -> VoidReturn
