@@ -1,0 +1,20 @@
+uint8 xor_buf(uint8[len] fin, uint8[len] fout, uint32 len) {
+    for (uint32 idx = 0 to len) {
+        fout[idx] = fout[idx] ^ fin[idx];
+    }
+    return 0;
+}
+
+uint8 fmemcpy(uint8[len] fout, uint8[len] fin, uint32 len) {
+    for (uint32 idx = 0 to len) {
+        fout[idx] = fin[idx];
+    }
+    return 0;
+}
+
+// return x mod y; y must be a power of 2
+uint32 modu32(uint32 x, uint32 y) {
+    return x & (y - 1);
+}
+
+
