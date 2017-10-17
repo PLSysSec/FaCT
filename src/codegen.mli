@@ -15,6 +15,7 @@ val mk_ctx : llcontext
           -> fenv
           -> Tast.variable_type env
           -> renv
+          -> bool
           -> codegen_ctx_record
 
 val new_fenv : unit -> fenv
@@ -22,6 +23,7 @@ val new_fenv : unit -> fenv
 val codegen : llcontext
            -> llmodule
            -> llbuilder
+           -> bool
            -> Tast.fact_module
            -> unit
 
@@ -33,6 +35,7 @@ val codegen_fun : llcontext
                -> llmodule
                -> llbuilder
                -> fenv
+               -> bool
                -> Tast.function_dec
                -> Llvm.llvalue
 

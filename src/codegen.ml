@@ -2,6 +2,7 @@ open Tast
 open Llvm
 open Pos
 open Env
+open Ctverif
 
 exception CodegenError
 exception FunctionAlreadyDefined
@@ -44,17 +45,18 @@ let get_reg renv r =
 (* End reg env functionality *)
 
 type codegen_ctx_record = {
-  llcontext : llcontext;
-  llmodule  : llmodule;
-  builder   : llbuilder;
-  venv      : llvalue env;
-  fenv      : fenv;
-  tenv      : variable_type env;
-  renv      : renv;
+  llcontext   : llcontext;
+  llmodule    : llmodule;
+  builder     : llbuilder;
+  venv        : llvalue env;
+  fenv        : fenv;
+  tenv        : variable_type env;
+  renv        : renv;
+  verify_llvm : bool;
 }
 
-let mk_ctx llcontext llmodule builder venv fenv tenv renv =
-  { llcontext; llmodule; builder; venv; fenv; tenv; renv }
+let mk_ctx llcontext llmodule builder venv fenv tenv renv verify_llvm =
+  { llcontext; llmodule; builder; venv; fenv; tenv; renv; verify_llvm }
 
 type intrinsic = 
   | Memcpy
@@ -418,9 +420,20 @@ and codegen_stm cg_ctx ret_ty = function
   | {data=BaseDec(var_name,var_type,expr)} ->
     let v = find_var cg_ctx.venv var_name in
     let expr' = codegen_ext cg_ctx (vt_to_bt var_type.data) expr in
-    ignore(build_store expr' v cg_ctx.builder)
+    let s = build_store expr' v cg_ctx.builder in
+    (*let load = build_load s "loaded" cg_ctx.builder in*)
+    codegen_dec var_type v cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;
+    ()
   | {data=ArrayDec(var_name,var_type,arr_expr)} ->
+    let bt_of_vt = function
+      | ArrayVT({data=ArrayAT(bt,_)},_,_) -> bt
+      | _ -> raise CodegenError
+    in
     let alloca = codegen_array_expr cg_ctx arr_expr.data in
+    let ct_verif_ty = bt_to_llvm_ty cg_ctx.llcontext (bt_of_vt var_type.data).data in
+    let ct_verif_ty' = pointer_type ct_verif_ty in
+    let alloca' = build_bitcast alloca ct_verif_ty' "" cg_ctx.builder in
+    codegen_dec var_type alloca' cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;
     add_var cg_ctx.venv var_name alloca
   | {data=BaseAssign(var_name,expr)} ->
     let v = find_var cg_ctx.venv var_name in
@@ -563,7 +576,7 @@ and declare_prototype llcontext llmodule builder fenv params ret name =
   Hashtbl.add fenv name.data fentry;
   ft'
 
-let codegen_fun llcontext llmodule builder fenv = function
+let codegen_fun llcontext llmodule builder fenv verify_llvm = function
   | { data=FunDec(name,ret,params,body) } ->
     Log.info "Generating function, %s" name.data;
     let ft = declare_prototype llcontext llmodule builder fenv params ret name in
@@ -572,7 +585,14 @@ let codegen_fun llcontext llmodule builder fenv = function
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
     let renv = new_renv () in
-    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; renv } in
+    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; renv; verify_llvm } in
+    declare_ct_verif llcontext llmodule ASSUME;
+    declare_ct_verif llcontext llmodule PUBLIC_IN;
+    declare_ct_verif llcontext llmodule PUBLIC_OUT;
+    declare_ct_verif llcontext llmodule DECLASSIFIED_OUT;
+    declare_ct_verif llcontext llmodule SMACK_VALUE;
+    declare_ct_verif llcontext llmodule SMACK_VALUES;
+    declare_ct_verif llcontext llmodule SMACK_RETURN_VALUE;
     allocate_args cg_ctx params ft;
     allocate_stack cg_ctx body;
     begin
@@ -586,14 +606,14 @@ let codegen_fun llcontext llmodule builder fenv = function
     Llvm_analysis.assert_valid_function ft;
     ft
 
-let rec codegen_fdecs llcontext llmodule builder fenv = function
+let rec codegen_fdecs llcontext llmodule builder fenv verify = function
   | [] -> ()
   | fd::rest ->
-    ignore(codegen_fun llcontext llmodule builder fenv fd);
-    codegen_fdecs llcontext llmodule builder fenv rest
+    ignore(codegen_fun llcontext llmodule builder fenv verify fd);
+    codegen_fdecs llcontext llmodule builder fenv verify rest
 
-let rec codegen llcontext llmodule builder = function
+let rec codegen llcontext llmodule builder verify = function
   | Module(_,fdecs) ->
     Log.info "Codegening module";
     let fenv = new_fenv () in
-      codegen_fdecs llcontext llmodule builder fenv fdecs
+      codegen_fdecs llcontext llmodule builder fenv verify fdecs

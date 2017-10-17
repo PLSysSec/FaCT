@@ -10,6 +10,7 @@ let ast_doc = " Output AST to file"
 let core_ir_doc = " Output Core IR to file"
 let llvm_doc = " Output LLVM to file"
 let header_doc = " Output C header to file"
+let verify_llvm_doc = "Verify LLVM IR with ct-verif"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -69,6 +70,7 @@ let compile_command =
       flag "-core-ir-out" no_arg ~doc:core_ir_doc +>
       flag "-llvm-out" no_arg ~doc:llvm_doc +>
       flag "-generate-header" no_arg ~doc:header_doc +>
+      flag "-verify-llvm" no_arg ~doc:verify_llvm_doc +>
       anon ("filename" %: string))
     (fun
       out_file
@@ -77,10 +79,11 @@ let compile_command =
       core_ir_out
       llvm_out
       gen_header
+      verify_llvm
       in_file () ->
       let args = { in_file; out_file; debug;
                    ast_out; core_ir_out;
-                   llvm_out; gen_header } in
+                   llvm_out; gen_header; verify_llvm } in
         set_log_level debug;
         let prep = prepare_compile out_file in_file () in
           runner prep args)

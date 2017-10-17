@@ -18,6 +18,7 @@ type args_record = {
   core_ir_out : bool;
   llvm_out    : bool;
   gen_header  : bool;
+  verify_llvm : bool;
 }
 
 let run_command c args =
@@ -108,17 +109,17 @@ let compile (in_file,out_file,out_dir) args =
         raise (errSyntax p) in
   Log.debug "Parsing complete";
   output_ast args.ast_out out_file' ast;
-  let tast = Typecheck.tc_module ast in
-  output_tast args.ast_out out_file' tast;
+  let xftast = Typecheck.tc_module ast in
+  output_tast args.ast_out out_file' xftast;
   Log.debug "Typecheck complete";
-  let xftast = Transform.xf_module tast in
-  Log.debug "Tast transform complete";
+  (*let xftast = Transform.xf_module tast in
+  Log.debug "Tast transform complete";*)
   output_xftast args.core_ir_out out_file' xftast;
   generate_header args.gen_header out_file' xftast;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let llvm_builder = Llvm.builder llvm_ctx in
-  let _ = codegen llvm_ctx llvm_mod llvm_builder xftast in
+  let _ = codegen llvm_ctx llvm_mod llvm_builder args.verify_llvm xftast in
   
   (*
   let triple = Llvm_target.Target.default_triple () in

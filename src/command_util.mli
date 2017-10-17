@@ -6,6 +6,7 @@ type args_record = {
   core_ir_out : bool;
   llvm_out    : bool;
   gen_header  : bool;
+  verify_llvm : bool;
 }
 
 (** Compile a constantc program. *)
