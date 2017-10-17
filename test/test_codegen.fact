@@ -68,3 +68,7 @@ public uint32 zzz(public uint8[4] buf) {
 public uint32 yyy(public uint8[4] buf) {
   return zzz(buf);
 }
+
+public bool bugfixes(public int32 x) {
+  return x >= 4;
+}
