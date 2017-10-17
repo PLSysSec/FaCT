@@ -570,7 +570,7 @@ let rec tc_stm tc_ctx = pfunction
         For(i,ity',lo',hi',stms')
 
   | Ast.VoidFnCall(f,args) ->
-    let (FunDec(_,Some rty,params,_)) = (Env.find_var tc_ctx.fenv f).data in
+    let (FunDec(_,_,params,_)) = (Env.find_var tc_ctx.fenv f).data in
     (* TODO ensure no mut args lower than *rp U pc *)
     (* e.g. fcall with public mut arg in a block where pc is Secret is disallowed *)
     let args' = tc_args tc_ctx p params args in
