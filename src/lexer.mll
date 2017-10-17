@@ -58,7 +58,7 @@ let whitespace = [' ' '\t' '\n']
 let all_ints = ['0'-'9' 'A'-'F']
 let ints = ['0'-'9']
 let chars_ints = ['_' 'a'-'z' 'A'-'Z']['_' 'a'-'z' 'A'-'Z' '0'-'9']*
-let int_type = ("int" | "uint") ("8" | "16" | "32")?
+let int_type = ("int" | "uint") ("8" | "16" | "32" | "64")?
 let base_type = "bool" | int_type
 
 rule token = parse

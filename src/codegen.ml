@@ -92,9 +92,11 @@ let bt_to_llvm_ty ctx = function
   | UInt size when size <= 8  -> i8_type ctx
   | UInt size when size <= 16 -> i16_type ctx
   | UInt size when size <= 32 -> i32_type ctx
+  | UInt size when size <= 64 -> i64_type ctx
   | Int  size when size <= 8  -> i8_type ctx
   | Int  size when size <= 16 -> i16_type ctx
   | Int  size when size <= 32 -> i32_type ctx
+  | Int  size when size <= 64 -> i64_type ctx
   | Bool                      -> i32_type ctx (* TODO: Double check this*)
   | Num(i,b)                  -> i32_type ctx (* TODO: Double check semantics for `Num` *)
 
