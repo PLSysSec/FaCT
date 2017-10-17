@@ -279,10 +279,16 @@ let xf_fdec fenv = pfunction
       let stms' = rnset_dec::stms' in
         begin
           match rt with
-            | Some et ->
+            | Some {data=et} ->
               let rval = "__rval" in
-              let rval_dec = mkpos RegAssign(rval,mkpos (IntLiteral 0,et.data)) in
-              let ret = mkpos Return (mkpos (Register(rval), et.data)) in
+              let BaseET({data=bty},_) = et in
+              let def_val =
+                  match bty with
+                    | Bool -> False
+                    | _ -> IntLiteral 0
+              in
+              let rval_dec = mkpos RegAssign(rval,mkpos (def_val,et)) in
+              let ret = mkpos Return (mkpos (Register(rval), et)) in
                 (*FunDec(f,rt,params',(venv,rval_dec::stms'@[ret]))*)
                 FunDec(f,rt,params',(venv,rval_dec::stms'))
             | None ->

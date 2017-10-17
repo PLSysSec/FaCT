@@ -349,10 +349,6 @@ let tc_binop' p op e1 e2 =
       | Ast.Plus
       | Ast.Minus
       | Ast.Multiply
-      | Ast.GT
-      | Ast.GTE
-      | Ast.LT
-      | Ast.LTE
       | Ast.BitwiseOr
       | Ast.BitwiseXor
       | Ast.BitwiseAnd
@@ -361,6 +357,11 @@ let tc_binop' p op e1 e2 =
       | Ast.Equal
       | Ast.NEqual ->
         join_bt p b1 b2
+      | Ast.GT
+      | Ast.GTE
+      | Ast.LT
+      | Ast.LTE ->
+        mkpos Bool
       | Ast.LeftShift
       | Ast.RightShift ->
         { b1 with pos=p }
