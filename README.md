@@ -57,6 +57,10 @@ Then we must configure oasis.
 
 ```make configure```
 
+If you're having trouble, try reconfiguring your opam env.
+
+```eval $(opam config env)```
+
 Finally we can build the compiler.
 
 ```make build```

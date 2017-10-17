@@ -5,7 +5,7 @@ public int32 foo() {
   secret bool t = x;
   public int16 zz = (int16)z;
 
-  public int32[] arr = { 2, 5, 3 };
+  public mut int32[] arr = { 2, 5, 3 };
   arr[2] = 7;
 
   public bool t_pub = declassify(t);
@@ -34,18 +34,19 @@ public int32 bar() {
   secret int32 x = foo();
   public mut bool yyy = false;
   public mut bool y = baz(4, ref yyy);
+  secret mut int32 z = x;
 
   y = x;
   if (x + 4) {
-    y = x;
+    //y = x; INVALID because y is public and control flow (x+4) is secret
   } else if (x + 3) {
-    x = y;
+    z = y;
   } else {
-    x = x + x;
+    z = x + x;
   }
 
   for (int32 xx = 0 to 6) {
-    x = y;
+    z = y;
   }
 
   baz(x, ref y);

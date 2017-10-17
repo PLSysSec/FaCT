@@ -62,7 +62,25 @@ let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
 
 #define ctx_select(e1,e2) (mkpos (Select(ctx,e1,e2), bty e2))
 
-type xf_ctx_record = { rt:ret_type; fenv:function_dec Env.env; venv:variable_type Env.env; ms:var_name list }
+type xf_ctx_record = {
+  ms   : var_name list;
+  rt   : ret_type;
+  venv : variable_type Env.env;
+  fenv : function_dec Env.env;
+}
+
+let (<$) l1 l2 =
+  match l1,l2 with
+    | x, y when x = y -> true
+    | Public, Secret -> true
+    | _ -> false
+
+let join_ml l1 l2 =
+  match l1,l2 with
+    | Public, Public -> Public
+    | Public, Secret
+    | Secret, Public
+    | Secret, Secret -> Secret
 
 let rec xf_arg' xf_ctx { data; pos=p } =
   match data with
@@ -155,18 +173,13 @@ and xf_stm' xf_ctx p = function
 
   | BaseAssign(x,e) ->
     let e' = xf_expr xf_ctx e in
-    let should_transform = true in (* XXX *)
-      if should_transform then
-        let x' = mkpos (Variable x, r2bty (Env.find_var xf_ctx.venv x)) in
-        let xfe' = ctx_select(e',x') in
-          [BaseAssign(x,xfe')]
-      else
-        [BaseAssign(x,e')]
+    let x' = mkpos (Variable x, r2bty (Env.find_var xf_ctx.venv x)) in
+    let xfe' = ctx_select(e',x') in
+      [BaseAssign(x,xfe')]
 
   | RegAssign(r,e) ->
     let e' = xf_expr xf_ctx e in
     let (_,ety) = e'.data in
-    (* always transform *)
     let r' = mkpos (Register r, ety) in
     let rfe' = ctx_select(e',r') in
       [RegAssign(r,rfe')]
@@ -178,13 +191,9 @@ and xf_stm' xf_ctx p = function
   | ArrayAssign(x,n,e) ->
     let n' = xf_expr xf_ctx n in
     let e' = xf_expr xf_ctx e in
-    let should_transform = true in (* XXX *)
-      if should_transform then
-        let x' = mkpos (ArrayGet(x,n'), a2bty (Env.find_var xf_ctx.venv x)) in
-        let xfe' = ctx_select(e',x') in
-          [ArrayAssign(x,n',xfe')]
-      else
-        [ArrayAssign(x,n',e')]
+    let x' = mkpos (ArrayGet(x,n'), a2bty (Env.find_var xf_ctx.venv x)) in
+    let xfe' = ctx_select(e',x') in
+      [ArrayAssign(x,n',xfe')]
 
   | If(cond,thenstms,elsestms) ->
     let cond' = xf_expr xf_ctx cond in
@@ -221,21 +230,22 @@ and xf_stm' xf_ctx p = function
   | Return e ->
     let Some rt = xf_ctx.rt in
     let e' = xf_expr xf_ctx e in
-    let should_transform = true in (* XXX *)
-      if should_transform then
-        (* XXX make these regs instead of vars *)
-        let rval = "__rval" in
-        let rnset = "__rnset" in
-        let rnset' = sebool(Register(rnset)) in
-        let assigned = ctx_select(sebool(False),rnset') in
-        let rval' = mkpos (Register rval, rt.data) in
-        let xfe' = ctx_select(e',rval') in
-          [RegAssign(rval,xfe'); RegAssign(rnset,assigned)]
-      else
-        [Return e']
+    let rval = "__rval" in
+    let rval' = mkpos (Register rval, rt.data) in
+    let xfe' = ctx_select(e',rval') in
+    let rassign = RegAssign(rval,xfe') in
+    let should_transform = (List.length xf_ctx.ms > 0) in
+      [ RegAssign(rval,xfe');
+        if should_transform then
+          let rnset = "__rnset" in
+          let rnset' = sebool(Register(rnset)) in
+          let assigned = ctx_select(sebool(False),rnset') in
+            RegAssign(rnset,assigned)
+        else
+          Return rval' ]
 
   | VoidReturn ->
-    let should_transform = true in (* XXX *)
+    let should_transform = (List.length xf_ctx.ms > 0) in
       if should_transform then
         let rnset = "__rnset" in
         let rnset' = sebool(Register(rnset)) in
@@ -273,9 +283,11 @@ let xf_fdec fenv = pfunction
               let rval = "__rval" in
               let rval_dec = mkpos RegAssign(rval,mkpos (IntLiteral 0,et.data)) in
               let ret = mkpos Return (mkpos (Register(rval), et.data)) in
-                FunDec(f,rt,params',(venv,rval_dec::stms'@[ret]))
+                (*FunDec(f,rt,params',(venv,rval_dec::stms'@[ret]))*)
+                FunDec(f,rt,params',(venv,rval_dec::stms'))
             | None ->
-              FunDec(f,rt,params',(venv,stms'@[mkpos VoidReturn]))
+              (*FunDec(f,rt,params',(venv,stms'@[mkpos VoidReturn]))*)
+              FunDec(f,rt,params',(venv,stms'))
         end
 
 let rec xf_fdecs fenv = function

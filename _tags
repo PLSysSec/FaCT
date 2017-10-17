@@ -57,5 +57,9 @@ true: annot, bin_annot
 <src/*.ml{,i,y}>: package(ppx_deriving.std)
 <src/*.ml{,i,y}>: package(threads)
 # OASIS_STOP
+"perf": -traverse
+"perf": not_hygienic
+"port": -traverse
+"port": not_hygienic
 "test": -traverse
 "test": not_hygienic
