@@ -4,7 +4,7 @@
 SETUP = ocaml setup.ml
 
 build: setup.data
-	$(SETUP) -build $(BUILDFLAGS) -X ct-verif/
+	$(SETUP) -build $(BUILDFLAGS)
 
 doc: setup.data build
 	$(SETUP) -doc $(DOCFLAGS)

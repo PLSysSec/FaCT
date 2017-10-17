@@ -3,7 +3,7 @@ true: use_menhir, bin_annot, debug
 <*.{byte,native}>: g++, use_llvm, use_llvm_analysis, use_llvm_bitwriter, use_llvm_target, use_llvm_X86, use_llvm_bitreader, use_llvm_executionengine
 
 # OASIS_START
-# DO NOT EDIT (digest: 49609e6d3cc1939862913b95e4d04e85)
+# DO NOT EDIT (digest: 69d3ee5e4bf907801a2fda7f1615092a)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -19,7 +19,6 @@ true: annot, bin_annot
 "_darcs": -traverse
 "_darcs": not_hygienic
 # Executable fact
-"src/fact.byte": package(Z3)
 "src/fact.byte": package(core)
 "src/fact.byte": package(ctypes)
 "src/fact.byte": package(ctypes.foreign)
@@ -33,7 +32,6 @@ true: annot, bin_annot
 "src/fact.byte": package(ppx_deriving.std)
 "src/fact.byte": package(threads)
 # Executable facti
-"src/facti.byte": package(Z3)
 "src/facti.byte": package(core)
 "src/facti.byte": package(ctypes)
 "src/facti.byte": package(ctypes.foreign)
@@ -46,7 +44,6 @@ true: annot, bin_annot
 "src/facti.byte": package(oUnit)
 "src/facti.byte": package(ppx_deriving.std)
 "src/facti.byte": package(threads)
-<src/*.ml{,i,y}>: package(Z3)
 <src/*.ml{,i,y}>: package(core)
 <src/*.ml{,i,y}>: package(ctypes)
 <src/*.ml{,i,y}>: package(ctypes.foreign)
@@ -60,5 +57,9 @@ true: annot, bin_annot
 <src/*.ml{,i,y}>: package(ppx_deriving.std)
 <src/*.ml{,i,y}>: package(threads)
 # OASIS_STOP
+"perf": -traverse
+"perf": not_hygienic
+"port": -traverse
+"port": not_hygienic
 "test": -traverse
 "test": not_hygienic
