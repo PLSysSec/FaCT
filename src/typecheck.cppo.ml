@@ -2,7 +2,8 @@ open Pos
 open Err
 open Tast
 
-#define err(p) InternalCompilerError("from source" ^ __LOC__ << p)
+#define err(p) InternalCompilerError("from source " ^ __LOC__ << p)
+#define cerr(msg, p) InternalCompilerError((msg) ^ " @ " ^ __FILE__ ^ ":" ^ string_of_int __LINE__ << p)
 
 let wrap f pa = { pa with data=f pa.pos pa.data }
 let xwrap f pa = f pa.pos pa.data
@@ -218,7 +219,7 @@ let join_bt p { data=b1 } { data=b2 } =
       | Num(k,s), UInt n when not s -> b2
       | UInt n, Num(k,s) when not s -> b1
       | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2)
-      | _ -> raise @@ err(p)
+      | _ -> raise @@ cerr("type mismatch: " ^ show_base_type' b1 ^ " <> " ^ show_base_type' b2, p);
   in mkpos b'
 
 let meet_bt p { data=b1 } { data=b2 } =
@@ -405,7 +406,7 @@ and tc_args tc_ctx p params args =
       let arg' = tc_arg tc_ctx arg in
       let argref = argtype_of tc_ctx.venv arg' in
       let Param(_,paramvt) = param.data in
-        if not @@ can_be_passed_to argref paramvt then raise @@ err(p);
+        if not @@ can_be_passed_to argref paramvt then raise @@ err(arg'.pos);
         if param_is_ldynamic param then
           let _::params = params in
           let ByArray({data=(_,atype')},_) = arg'.data in
@@ -520,7 +521,7 @@ let rec tc_stm tc_ctx = pfunction
   | Ast.BaseAssign(x,e) ->
     let e' = tc_expr tc_ctx e in
     let b,{data=Fixed l},m = refvt_type_out (Env.find_var tc_ctx.venv x) in
-      if m.data <> Mut then raise @@ err(p);
+      if m.data <> Mut then raise @@ cerr("variable `" ^ x.data ^ "` is not mut; ", p);
       (* TODO check that types match *)
       if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then raise @@ err(p);
       BaseAssign(x,e')
@@ -540,7 +541,7 @@ let rec tc_stm tc_ctx = pfunction
     let n' = tc_expr tc_ctx n in
     let e' = tc_expr tc_ctx e in
     let b,{data=Fixed l},m = refvt_type_out (Env.find_var tc_ctx.venv x) in
-      if m.data <> Mut then raise @@ err(p);
+      if m.data <> Mut then raise @@ cerr("variable `" ^ x.data ^ "` is not mut; ", p);
       (* TODO check that types match *)
       (* TODO check that n' won't be out-of-bounds *)
       if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then raise @@ err(p);
