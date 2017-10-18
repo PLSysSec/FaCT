@@ -10,9 +10,11 @@ let to_type { data=t; pos=p } =
     | "int8" -> Int 8
     | "int16" -> Int 16
     | "int32" -> Int 32
+    | "int64" -> Int 64
     | "uint8" -> UInt 8
     | "uint16" -> UInt 16
     | "uint32" -> UInt 32
+    | "uint64" -> UInt 64
     | _ as t -> raise (errParseType p t)
 %}
 

@@ -97,6 +97,7 @@ let bt_to_llvm_ty cg_ctx = function
   | Int  size when size <= 8  -> i8_type cg_ctx.llcontext
   | Int  size when size <= 16 -> i16_type cg_ctx.llcontext
   | Int  size when size <= 32 -> i32_type cg_ctx.llcontext
+  | Int  size when size <= 64 -> i64_type cg_ctx.llcontext
   | Bool                      -> i1_type cg_ctx.llcontext (* TODO: Double check this*)
   | Num(i,b)                  -> i32_type cg_ctx.llcontext (* TODO: Double check semantics for `Num` *)
 
