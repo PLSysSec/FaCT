@@ -42,6 +42,8 @@ and lexpr' =
 [@@deriving show]
 and lexpr = lexpr' pos_ast [@@deriving show]
 
+and is_pointer = bool
+
 and array_type' =
   | ArrayAT of base_type * lexpr
 [@@deriving show]

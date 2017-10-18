@@ -65,6 +65,7 @@ let texpr_to_fun (expr :Tast.top_level) (venv : Tast.variable_type Env.env) = ma
 type type_envs = {
   type_venv: Tast.variable_type Env.env;
   type_fenv: Tast.function_dec Env.env;
+  type_arrenv: Tast.array_type Env.env;
 }
 
 (*
@@ -88,7 +89,7 @@ let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
     print_string ((Tast.show_function_dec tast_fun) ^ "\n");
     Codegen.declare_prototypes ctx mod' builder cg_fenv expr.data;
     (* Generate LLVM *)
-    Codegen.codegen_fun ctx mod' builder cg_fenv false tast_fun |> ignore;
+    Codegen.codegen_fun ctx.llcontext mod' builder cg_fenv false tast_fun |> ignore;
     (* JIT the function, returning a function pointer. *)
     run_static_ctors jit;
     let ty = Foreign.funptr (void @->returning int32_t) in
@@ -100,15 +101,15 @@ let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
     print_string ((Tast.show_statement st) ^ "\n");
     let temp_renv = Codegen.new_renv () in
     let cg_ctx =
-      Codegen.mk_ctx ctx mod' builder
-      ll_envs.llvm_venv ll_envs.llvm_fenv type_envs.type_venv
+      Codegen.mk_ctx ctx.llcontext mod' builder
+      ll_envs.llvm_venv ll_envs.llvm_fenv type_envs.type_arrenv
       temp_renv false in
     let block = type_envs.type_venv, [st] in
     Codegen.allocate_stack cg_ctx block;
     Codegen.codegen_stm cg_ctx None st
   | Tast.FunctionDec fd  ->
     print_string ((Tast.show_function_dec fd) ^ "\n");
-    Codegen.codegen_fun ctx mod' builder cg_fenv false fd |> ignore
+    Codegen.codegen_fun ctx.llcontext mod' builder cg_fenv false fd |> ignore
 
 let rec repl2 mod' ctx builder jit type_envs ll_envs cg_fenv =
   (* Set the prompt *)
@@ -124,7 +125,7 @@ let rec repl2 mod' ctx builder jit type_envs ll_envs cg_fenv =
       (* Now lets JIT according to the type *)
       jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv tast
   end;
-  let mod'' = create_llvm_mod ctx jit in
+  let mod'' = create_llvm_mod ctx.llcontext jit in
   repl2 mod'' ctx builder jit type_envs ll_envs cg_fenv
 
 and parse () =
@@ -151,15 +152,18 @@ and tc_top_level type_envs = function
 
 let _ =
   ignore(initialize ());
-  let ctx = global_context () in
-  let mod' = create_module ctx "Initial module" in
-  let builder = Llvm.builder ctx in
+  let llcontext = global_context () in
+  let mod' = create_module llcontext "Initial module" in
+  let builder = Llvm.builder llcontext in
   let execution_engine = create mod' in
   add_module mod' execution_engine;
   let fenv = Env.new_env () in
   let venv = Env.new_env () in
+  let arrenv = Env.new_env () in
   let cg_fenv = Codegen.new_fenv () in
   let ll_venv = Env.new_env () in
-  let type_envs = { type_fenv=fenv; type_venv=venv } in
+  let type_envs = { type_fenv=fenv; type_venv=venv; type_arrenv=arrenv } in
   let ll_envs = { llvm_venv=ll_venv; llvm_fenv=cg_fenv } in
-  repl2 mod' ctx builder execution_engine type_envs ll_envs cg_fenv
+  (*let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; renv; verify_llvm }
+  repl2 mod' cg_ctx builder execution_engine type_envs ll_envs cg_fenv
+  *)()

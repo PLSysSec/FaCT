@@ -109,11 +109,11 @@ let compile (in_file,out_file,out_dir) args =
         raise (errSyntax p) in
   Log.debug "Parsing complete";
   output_ast args.ast_out out_file' ast;
-  let xftast = Typecheck.tc_module ast in
-  output_tast args.ast_out out_file' xftast;
+  let tast = Typecheck.tc_module ast in
+  output_tast args.ast_out out_file' tast;
   Log.debug "Typecheck complete";
-  (*let xftast = Transform.xf_module tast in
-  Log.debug "Tast transform complete";*)
+  let xftast = Transform.xf_module tast in
+  Log.debug "Tast transform complete";
   output_xftast args.core_ir_out out_file' xftast;
   generate_header args.gen_header out_file' xftast;
   let llvm_ctx = Llvm.create_context () in
@@ -130,7 +130,7 @@ let compile (in_file,out_file,out_dir) args =
   Llvm.set_data_layout (Llvm_target.DataLayout.as_string lldly) llvm_mod;
   *)
 
-  Llvm_analysis.assert_valid_module llvm_mod |> ignore;
+  (* ADD BACK: Llvm_analysis.assert_valid_module llvm_mod |> ignore;*)
   output_llvm args.llvm_out out_file' llvm_mod;
   output_bitcode out_file' llvm_mod;
   output_shared out_file';

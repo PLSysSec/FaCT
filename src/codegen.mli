@@ -3,8 +3,17 @@ open Env
 
 type fentry
 type fenv
-type codegen_ctx_record
 type renv
+type codegen_ctx_record = {
+  llcontext   : llcontext;
+  llmodule    : llmodule;
+  builder     : llbuilder;
+  venv        : llvalue env;
+  fenv        : fenv;
+  tenv        : Tast.array_type env;
+  renv        : renv;
+  verify_llvm : bool;
+}
 
 val new_renv : unit -> renv
 
@@ -13,7 +22,7 @@ val mk_ctx : llcontext
           -> llbuilder
           -> llvalue env
           -> fenv
-          -> Tast.variable_type env
+          -> Tast.array_type env
           -> renv
           -> bool
           -> codegen_ctx_record
@@ -48,7 +57,7 @@ val allocate_stack : codegen_ctx_record
                   -> Tast.block
                   -> unit
 
-val declare_prototype : llcontext
+val declare_prototype : codegen_ctx_record
                      -> llmodule
                      -> llbuilder
                      -> fenv
@@ -57,7 +66,7 @@ val declare_prototype : llcontext
                      -> Tast.fun_name
                      -> Llvm.llvalue
 
-val declare_prototypes : llcontext
+val declare_prototypes : codegen_ctx_record
                       -> llmodule
                       -> llbuilder
                       -> fenv

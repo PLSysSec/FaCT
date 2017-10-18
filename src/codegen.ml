@@ -50,7 +50,7 @@ type codegen_ctx_record = {
   builder     : llbuilder;
   venv        : llvalue env;
   fenv        : fenv;
-  tenv        : variable_type env;
+  tenv        : array_type env;
   renv        : renv;
   verify_llvm : bool;
 }
@@ -86,49 +86,53 @@ let is_signed = function
   | Bool     -> false
   | Num(i,s) -> s
 
-let get_size = function
+let get_size ctx = function
   | LIntLiteral s -> s
-  | LDynamic x    -> raise CodegenError
+  | LDynamic var_name -> raise CodegenError
 
-let bt_to_llvm_ty ctx = function
-  | UInt size when size <= 8  -> i8_type ctx
-  | UInt size when size <= 16 -> i16_type ctx
-  | UInt size when size <= 32 -> i32_type ctx
-  | Int  size when size <= 8  -> i8_type ctx
-  | Int  size when size <= 16 -> i16_type ctx
-  | Int  size when size <= 32 -> i32_type ctx
-  | Bool                      -> i32_type ctx (* TODO: Double check this*)
-  | Num(i,b)                  -> i32_type ctx (* TODO: Double check semantics for `Num` *)
+let bt_to_llvm_ty cg_ctx = function
+  | UInt size when size <= 8  -> i8_type cg_ctx.llcontext
+  | UInt size when size <= 16 -> i16_type cg_ctx.llcontext
+  | UInt size when size <= 32 -> i32_type cg_ctx.llcontext
+  | Int  size when size <= 8  -> i8_type cg_ctx.llcontext
+  | Int  size when size <= 16 -> i16_type cg_ctx.llcontext
+  | Int  size when size <= 32 -> i32_type cg_ctx.llcontext
+  | Bool                      -> i1_type cg_ctx.llcontext (* TODO: Double check this*)
+  | Num(i,b)                  -> i32_type cg_ctx.llcontext (* TODO: Double check semantics for `Num` *)
 
-let vt_to_llvm_ty ctx = function
+let vt_to_llvm_ty (cg_ctx : codegen_ctx_record) = function
   | RefVT({data=base_type},maybe_label,_) ->
-    bt_to_llvm_ty ctx base_type
+    bt_to_llvm_ty cg_ctx base_type
   | ArrayVT({data=ArrayAT(at,size)},maybe_label,_) ->
-    let arr_ty = bt_to_llvm_ty ctx at.data in
-    let size = get_size size.data in
+    let arr_ty = bt_to_llvm_ty cg_ctx at.data in
+    let size = get_size cg_ctx size.data in
     (* TODO: Should we be passing arrays as a * or **? *)
     array_type arr_ty size
 
-let param_to_type ctx = function
-  | { data=Param(var_name,var_type) } -> vt_to_llvm_ty ctx var_type.data
+let param_to_type cg_ctx = function
+  | {data=Param(var_name,{data=RefVT({data=base_type},maybe_label,_)})} ->
+    bt_to_llvm_ty cg_ctx base_type
+  | {data=Param(var_name,{data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_)})} ->
+    Hashtbl.add (get_vtbl cg_ctx.tenv) var_name.data ty;
+    pointer_type (bt_to_llvm_ty cg_ctx bt.data)
 
 (* Used to get the base type for arrays *)
 let expr_ty_to_base_ty = function
   | BaseET({data=base_type},_) -> base_type
   | ArrayET({data=ArrayAT(bt,size)},_,_) -> bt.data
 
-let bitsize ctx = function
+let bitsize cg_ctx = function
   | BaseET({data=base_type},_) ->
-    bt_to_llvm_ty ctx base_type
+    bt_to_llvm_ty cg_ctx base_type
   | ArrayET({data=ArrayAT(at,size)},_,_) ->
-    bt_to_llvm_ty ctx at.data
+    bt_to_llvm_ty cg_ctx at.data
 
-let expr_ty_to_llvm_ty ctx = function
+let expr_ty_to_llvm_ty cg_ctx = function
   | BaseET({data=base_type},_) ->
-    bt_to_llvm_ty ctx base_type
+    bt_to_llvm_ty cg_ctx base_type
   | ArrayET({data=ArrayAT(at,size)},_,_) ->
-    let arr_ty = bt_to_llvm_ty ctx at.data in
-    let size = get_size size.data in
+    let arr_ty = bt_to_llvm_ty cg_ctx at.data in
+    let size = get_size cg_ctx size.data in
     array_type arr_ty size (* TODO: Double check that this is not a pointer*)
 
 let rec byte_size_of_expr_ty = function
@@ -139,18 +143,17 @@ let rec byte_size_of_expr_ty = function
   | ArrayET({data=ArrayAT(bt,_)},_,_) ->
     byte_size_of_expr_ty (BaseET(bt, (make_ast fake_pos (Fixed Unknown))))
 
-let get_ret_ty ctx = function
-  | None -> void_type ctx
-  | Some ty -> expr_ty_to_llvm_ty ctx ty.data
+let get_ret_ty cg_ctx = function
+  | None -> void_type cg_ctx.llcontext
+  | Some ty -> expr_ty_to_llvm_ty cg_ctx ty.data
 
 (* Allocate all of the args for a function *)
 let allocate_args cg_ctx args f =
   let allocate_arg ({data=Param(var_name,var_type)} as arg) ll_arg =
     set_value_name var_name.data ll_arg;
-    let llvm_ty = param_to_type cg_ctx.llcontext arg in
+    let llvm_ty = param_to_type cg_ctx arg in
     let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
-    build_store ll_arg alloca cg_ctx.builder |> ignore;
-    add_var cg_ctx.venv var_name alloca
+    add_var cg_ctx.venv var_name alloca;
   in
   let ll_args = Array.to_list (params f) in
   List.iter2 allocate_arg args ll_args
@@ -166,7 +169,7 @@ let rec allocate_stack cg_ctx stms =
   and allocate_stack' = function
     | {data=BaseDec(var_name,var_type,expr)} ->
       allocate_inject expr;
-      let llvm_ty = vt_to_llvm_ty cg_ctx.llcontext var_type.data in
+      let llvm_ty = vt_to_llvm_ty cg_ctx var_type.data in
       let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
         add_var cg_ctx.venv var_name alloca
     | {data=ArrayDec(var_name,var_type,expr)} -> ()
@@ -190,7 +193,7 @@ let rec allocate_stack cg_ctx stms =
     | {data=For(var_name,base_type,low,high,stms)} ->
       allocate_inject low;
       allocate_inject high;
-      let llvm_ty = bt_to_llvm_ty cg_ctx.llcontext base_type.data in
+      let llvm_ty = bt_to_llvm_ty cg_ctx base_type.data in
       let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
       (* TODO: Fix the scoping here. This will force us to use a different
          var name for the loop iterator for each for loop per function. We
@@ -259,9 +262,9 @@ let rec codegen_arg cg_ctx arg ty =
       build_load var "argref" cg_ctx.builder
 
 and codegen_expr cg_ctx = function
-  | True, ty -> const_all_ones (expr_ty_to_llvm_ty cg_ctx.llcontext ty)
-  | False, ty -> const_null (expr_ty_to_llvm_ty cg_ctx.llcontext ty)
-  | IntLiteral i, ty -> const_int (expr_ty_to_llvm_ty cg_ctx.llcontext ty) i
+  | True, ty -> const_all_ones (expr_ty_to_llvm_ty cg_ctx ty)
+  | False, ty -> const_null (expr_ty_to_llvm_ty cg_ctx ty)
+  | IntLiteral i, ty -> const_int (expr_ty_to_llvm_ty cg_ctx ty) i
   | Register reg_name, ty ->
     get_reg cg_ctx.renv reg_name
   | Variable var_name, ty ->
@@ -273,12 +276,24 @@ and codegen_expr cg_ctx = function
     build_load store var_name.data cg_ctx.builder
   | ArrayGet(var_name,expr), ty ->
     let arr = find_var cg_ctx.venv var_name in
+    let zero = const_int (i32_type cg_ctx.llcontext) 0 in
     let index = codegen_expr cg_ctx expr.data in
-    let p = build_gep arr [| index; index |] "ptr" cg_ctx.builder in
+    let some_arg =
+      try Some(find_var cg_ctx.tenv var_name) with
+        | _ -> None in
+    let indices,ptr = match some_arg with
+      | None ->
+        let indices = [| zero; index |] in
+        indices,arr
+      | Some arg ->
+        let indices = [| index |] in
+        let ptr = build_load arr "loadedarrptr" cg_ctx.builder in
+        indices,ptr in
+    let p = build_in_bounds_gep ptr indices "ptr" cg_ctx.builder in
     build_load p (var_name.data ^ "_arrget") cg_ctx.builder
   | IntCast(base_ty,expr), ty ->
     let v = codegen_expr cg_ctx expr.data in
-    build_cast cg_ctx.llcontext cg_ctx.builder v base_ty.data
+    build_cast cg_ctx cg_ctx.builder v base_ty.data
   | UnOp(op,expr), ty ->
     let expr' = codegen_expr cg_ctx expr.data in
     codegen_unop cg_ctx.builder expr' op
@@ -317,20 +332,22 @@ and codegen_expr cg_ctx = function
       get_reg cg_ctx.renv reg
   | e, ty -> print_endline @@ show_expr' e; raise CodegenError
 
-and extend_to ctx builder signed ty v =
-  let llvm_ty = expr_ty_to_llvm_ty ctx ty in
-  let lb,rb = integer_bitwidth llvm_ty, integer_bitwidth (type_of v) in
+and extend_to ctx builder signed bt et v =
+  let llvm_et = expr_ty_to_llvm_ty ctx et in
+  let llvm_bt = bt_to_llvm_ty ctx bt in
+  let lb,rb = integer_bitwidth llvm_bt, integer_bitwidth llvm_et in
   match lb,rb with
-    | lb,rb when lb < rb -> build_trunc v llvm_ty "trunctmp" builder
-    | lb,rb when lb > rb && signed -> build_sext v llvm_ty "extendtmp" builder
-    | lb,rb when lb > rb -> build_zext v llvm_ty "extendtmp" builder
-    | _ -> v
+    | lb',rb' when lb' = rb' -> v
+    | lb',rb' when lb' < rb' -> build_trunc v llvm_et "trunctmp" builder
+    | lb',rb' when (lb' > rb') && signed ->build_sext v llvm_et "extendtmp" builder
+    | lb',rb' when lb' > rb' -> build_zext v llvm_et "extendtmp" builder
+    | _ -> raise CodegenError (* This should never be hit *)
 
 and codegen_ext cg_ctx ty (expr : expr) =
   match expr.data with
     | expr',ty' ->
       let expr' = codegen_expr cg_ctx expr.data in
-      extend_to cg_ctx.llcontext cg_ctx.builder (is_signed ty) ty' expr'
+      extend_to cg_ctx cg_ctx.builder (is_signed ty) ty ty' expr'
 
 and vt_to_bt = function
   | RefVT(bt,_,_) -> bt.data
@@ -345,7 +362,7 @@ and codegen_array_expr cg_ctx = function
              what clang does.*)
     let exprs' = List.map (fun expr -> expr.data) exprs in
     let ll_exprs = List.map (codegen_expr cg_ctx) exprs' in
-    let bitsize = bitsize cg_ctx.llcontext ty in
+    let bitsize = bitsize cg_ctx ty in
     let arr_ty = array_type bitsize (List.length ll_exprs) in
     let zero = const_int bitsize 0 in
     let alloca = build_array_alloca arr_ty zero "arraylit" cg_ctx.builder in
@@ -361,7 +378,7 @@ and codegen_array_expr cg_ctx = function
       match lexpr.data with
         | LIntLiteral n ->
           let ty' = expr_ty_to_base_ty ty in
-          let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
+          let ll_ty = bt_to_llvm_ty cg_ctx ty' in
           let zero = const_int ll_ty 0 in
           let zeros = Array.make n zero in
           let arr_ty = array_type ll_ty n in
@@ -372,8 +389,8 @@ and codegen_array_expr cg_ctx = function
     end
   | ArrayCopy var_name,ty ->
     (* This should be removed from TAST. ArrayCopy is logically an ArrayView from 0..len*)
-    let ll_ty = expr_ty_to_llvm_ty cg_ctx.llcontext ty in
-    let bitsize = bitsize cg_ctx.llcontext ty in
+    let ll_ty = expr_ty_to_llvm_ty cg_ctx ty in
+    let bitsize = bitsize cg_ctx ty in
     let zero' = const_int bitsize 0 in
     let alloca = build_array_alloca ll_ty zero' "copiedarray" cg_ctx.builder in
     let from = find_var cg_ctx.venv var_name in
@@ -393,10 +410,10 @@ and codegen_array_expr cg_ctx = function
     alloca
   | ArrayView(var_name, expr, lexpr),ty ->
     let index = codegen_expr cg_ctx expr.data in
-    let size = get_size lexpr.data in
+    let size = get_size cg_ctx lexpr.data in
     let index' = const_add index (const_int (type_of index) size) in
-    let ll_ty = expr_ty_to_llvm_ty cg_ctx.llcontext ty in
-    let bitsize = bitsize cg_ctx.llcontext ty in
+    let ll_ty = expr_ty_to_llvm_ty cg_ctx ty in
+    let bitsize = bitsize cg_ctx ty in
     let zero' = const_int bitsize 0 in
     let alloca = build_array_alloca ll_ty zero' "viewedarray" cg_ctx.builder in
     let from = find_var cg_ctx.venv var_name in
@@ -430,11 +447,13 @@ and codegen_stm cg_ctx ret_ty = function
       | _ -> raise CodegenError
     in
     let alloca = codegen_array_expr cg_ctx arr_expr.data in
-    let ct_verif_ty = bt_to_llvm_ty cg_ctx.llcontext (bt_of_vt var_type.data).data in
+    let ct_verif_ty = bt_to_llvm_ty cg_ctx (bt_of_vt var_type.data).data in
     let ct_verif_ty' = pointer_type ct_verif_ty in
     let alloca' = build_bitcast alloca ct_verif_ty' "" cg_ctx.builder in
     codegen_dec var_type alloca' cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;
-    add_var cg_ctx.venv var_name alloca
+    (*let zero = const_int (i32_type cg_ctx.llcontext) 0 in
+    let ptr = build_gep alloca [| zero |] "arrptr" cg_ctx.builder in*)
+    add_var cg_ctx.venv var_name alloca;
   | {data=BaseAssign(var_name,expr)} ->
     let v = find_var cg_ctx.venv var_name in
     let _,ty = expr.data in
@@ -455,7 +474,7 @@ and codegen_stm cg_ctx ret_ty = function
   | {data=If(cond,thenstms,elsestms)} ->
 
     let cond' = codegen_expr cg_ctx cond.data in
-    let one = const_int (i32_type cg_ctx.llcontext) 1 in
+    let one = const_int (i1_type cg_ctx.llcontext) 1 in
     let cond_val = build_icmp Icmp.Eq cond' one "branchcompare" cg_ctx.builder in
 
     let start_bb = insertion_block cg_ctx.builder in
@@ -504,7 +523,7 @@ and codegen_stm cg_ctx ret_ty = function
     position_at_end bb_body cg_ctx.builder;
     codegen_stms cg_ctx ret_ty statements;
     let i'' = build_load i var_name.data cg_ctx.builder in
-    let one = (const_int (bt_to_llvm_ty cg_ctx.llcontext base_type.data) 1) in
+    let one = (const_int (bt_to_llvm_ty cg_ctx base_type.data) 1) in
     let incr = build_add i'' one "loopincr" cg_ctx.builder in
     ignore(build_store incr i cg_ctx.builder);
     ignore(build_br bb_check cg_ctx.builder);
@@ -556,16 +575,16 @@ let rec declare_prototypes llcontext llmodule builder fenv = function
     ()
   | _ -> ()
 
-and declare_arg_prototypes llcontext llmodule builder fenv = function
+and declare_arg_prototypes cg_ctx llmodule builder fenv = function
     | ByValue expr ->
-      declare_prototypes llcontext llmodule builder fenv expr.data
+      declare_prototypes cg_ctx llmodule builder fenv expr.data
     | ByRef _ -> ()
     | ByArray _ -> raise CodegenError
 
-and declare_prototype llcontext llmodule builder fenv params ret name =
-  let param_types = List.map (param_to_type llcontext) params in
+and declare_prototype cg_ctx llmodule builder fenv params ret name =
+  let param_types = List.map (param_to_type cg_ctx) params in
   let param_types' = Array.of_list param_types in
-  let ret_ty = get_ret_ty llcontext ret in
+  let ret_ty = get_ret_ty cg_ctx ret in
   let ft = function_type ret_ty param_types' in
   let ft' =
     match lookup_function name.data llmodule with
@@ -579,13 +598,13 @@ and declare_prototype llcontext llmodule builder fenv params ret name =
 let codegen_fun llcontext llmodule builder fenv verify_llvm = function
   | { data=FunDec(name,ret,params,body) } ->
     Log.info "Generating function, %s" name.data;
-    let ft = declare_prototype llcontext llmodule builder fenv params ret name in
-    let bb = append_block llcontext "entry" ft in
-    position_at_end bb builder;
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
     let renv = new_renv () in
     let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; renv; verify_llvm } in
+    let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
+    let bb = append_block llcontext "entry" ft in
+    position_at_end bb builder;
     declare_ct_verif llcontext llmodule ASSUME;
     declare_ct_verif llcontext llmodule PUBLIC_IN;
     declare_ct_verif llcontext llmodule PUBLIC_OUT;
