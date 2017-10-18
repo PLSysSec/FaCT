@@ -114,8 +114,14 @@ let param_to_type cg_ctx = function
   | {data=Param(var_name,{data=RefVT({data=base_type},maybe_label,_)})} ->
     bt_to_llvm_ty cg_ctx base_type
   | {data=Param(var_name,{data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_)})} ->
-    Hashtbl.add (get_vtbl cg_ctx.tenv) var_name.data ty;
-    pointer_type (bt_to_llvm_ty cg_ctx bt.data)
+    begin
+      match size.data with
+        | LIntLiteral s ->
+          array_type (bt_to_llvm_ty cg_ctx bt.data) s
+        | LDynamic _ ->
+          Hashtbl.add (get_vtbl cg_ctx.tenv) var_name.data ty;
+          pointer_type (bt_to_llvm_ty cg_ctx bt.data)
+    end
 
 (* Used to get the base type for arrays *)
 let expr_ty_to_base_ty = function
@@ -255,9 +261,22 @@ let size_of_lexpr = function
 let rec codegen_arg cg_ctx arg ty =
   match arg.data with
     | ByValue expr -> codegen_expr cg_ctx expr.data
-    | ByArray(arr,_) -> 
-      let arr' = codegen_array_expr cg_ctx arr.data in
-      build_load arr' "arr" cg_ctx.builder 
+    | ByArray(arr,_) ->
+      begin
+        match ty.data with
+          | Param(_,{data=ArrayVT({data=ArrayAT(bt,lexpr)},_,_)}) ->
+            begin
+              match lexpr.data with
+                | LIntLiteral s ->
+                  let arr' = codegen_array_expr cg_ctx arr.data in
+                  build_load arr' "arr" cg_ctx.builder
+                | LDynamic var_name ->
+                  let arr' = codegen_array_expr cg_ctx arr.data in
+                  let ll_ty = bt_to_llvm_ty cg_ctx bt.data in
+                  build_bitcast arr' ll_ty "arrtoptr" cg_ctx.builder
+            end
+          | _-> raise CodegenError
+      end;
     | ByRef r ->
       let var = find_var cg_ctx.venv r in
       build_load var "argref" cg_ctx.builder
@@ -584,6 +603,7 @@ and declare_arg_prototypes cg_ctx llmodule builder fenv = function
 
 and declare_prototype cg_ctx llmodule builder fenv params ret name =
   let param_types = List.map (param_to_type cg_ctx) params in
+  (*let array_ty = array_type (i32_type cg_ctx.llcontext) 10 in*)
   let param_types' = Array.of_list param_types in
   let ret_ty = get_ret_ty cg_ctx ret in
   let ft = function_type ret_ty param_types' in
