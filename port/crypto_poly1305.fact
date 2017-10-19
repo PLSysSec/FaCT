@@ -1,0 +1,116 @@
+// using 64-bit implementation (poly1305_donna64.h)
+/*
+#define poly1305_block_size 16
+typedef struct poly1305_state_internal_t {
+    unsigned long long r[3];
+    unsigned long long h[3];
+    unsigned long long pad[2];
+    unsigned long long leftover;
+    unsigned char      buffer[poly1305_block_size];
+    unsigned char      final;
+} poly1305_state_internal_t;
+*/
+
+void poly1305_blocks(
+    secret mut uint64[3] state_r,
+    secret mut uint64[3] state_h,
+    secret mut uint64[2] state_pad,
+    public mut uint64 state_leftover,
+    secret mut uint8[16] state_buffer,
+    secret mut bool state_final,
+    secret uint8[] m) {
+  // TODO implement the actual bitshuffles
+  // this requires uint128s
+}
+
+void poly1305_init(
+    secret mut uint64[3] state_r,
+    secret mut uint64[3] state_h,
+    secret mut uint64[2] state_pad,
+    public mut uint64 state_leftover,
+    secret mut uint8[16] state_buffer,
+    secret mut bool state_final,
+    secret uint8[32] key) {
+  // TODO implement the actual bitshuffles
+}
+
+void poly1305_update(
+    secret mut uint64[3] state_r,
+    secret mut uint64[3] state_h,
+    secret mut uint64[2] state_pad,
+    public mut uint64 state_leftover,
+    secret mut uint8[16] state_buffer,
+    secret mut bool state_final,
+    secret uint8[] m) {
+  public mut uint64 mindex = 0;
+
+  /* handle leftover */
+  if (state_leftover != 0) {
+    public uint64 want = (uint64)(((uint64)16) - state_leftover > len m ? ((uint64)len m) : ((uint64)16) - state_leftover);
+
+    for (uint32 i = 0 to want) {
+      state_buffer[state_leftover + ((uint64)i)] = m[i];
+    }
+    mindex += want;
+    state_leftover += want;
+    if (state_leftover < 16) {
+      return;
+    }
+    poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, state_buffer);
+    state_leftover = 0;
+  }
+
+  /* process full blocks */
+  if (((uint64)len m) - mindex >= ((uint64)16)) {
+    public uint64 want = ((((uint64)len m) - mindex) & ~(16 - 1)); // XXX wat
+
+    secret uint8[] mview = arrview(m, mindex, 16); // XXX third param should be `want`
+    poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, m);
+    mindex += want;
+  }
+
+  /* store leftover */
+  if (mindex < len m) {
+    for (uint64 i = 0 to ((uint64)len m) - mindex) {
+      state_buffer[state_leftover + i] = m[i];
+    }
+    state_leftover += ((uint64)len m) - mindex;
+  }
+}
+
+void poly1305_finish(
+    secret mut uint64[3] state_r,
+    secret mut uint64[3] state_h,
+    secret mut uint64[2] state_pad,
+    public mut uint64 state_leftover,
+    secret mut uint8[16] state_buffer,
+    secret mut bool state_final,
+    public mut uint8[16] mac) {
+  if (state_leftover != 0) {
+    public uint64 start = state_leftover;
+    state_buffer[start] = 1;
+    for (uint64 i = start + 1 to 16) {
+      state_buffer[i] = 0;
+    }
+    state_final = true;
+    poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, state_buffer);
+  }
+  // TODO implement the actual bitshuffles
+}
+
+public int32 crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna from poly1305_donna.c
+    public mut uint8[16] out,
+    secret uint8[] m,
+    secret uint8[32] key) {
+  secret mut uint64[3] state_r = arrzeros(3);
+  secret mut uint64[3] state_h = arrzeros(3);
+  secret mut uint64[2] state_pad = arrzeros(2);
+  public mut uint64 state_leftover = 0;
+  secret mut uint8[16] state_buffer = arrzeros(16);
+  secret mut bool state_final = false;
+
+  poly1305_init(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, key);
+  poly1305_update(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, m);
+  poly1305_finish(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, ref out);
+  return 0;
+}
