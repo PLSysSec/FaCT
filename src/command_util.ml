@@ -11,7 +11,7 @@ open Transform
 *)
 
 type args_record = {
-  in_file     : string;
+  in_files    : string list;
   out_file    : string option;
   debug       : bool;
   ast_out     : bool;
@@ -95,19 +95,29 @@ let output_object out_file =
   Log.debug "Creating object file at %s" out_file_o;
   run_command "clang" [|"clang"; "-c"; out_file_s|]
 
-let compile (in_file,out_file,out_dir) args =
+let compile (in_files,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in
-  Log.debug "Compiling %s" in_file; 
-  (*ignore(Llvm_X86.initialize());*)
-  Lexer.file := Some in_file;
-  let lexbuf = (try Lexing.from_channel (open_in in_file) with
-    | _ -> raise (InternalCompilerError "Lexing failed")) in
-  ignore(lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = in_file });
-  Log.debug "Lexing complete";
-  let ast = try (Parser.main Lexer.token lexbuf) with
-    | _ -> let p = to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p lexbuf.lex_curr_p in
-        raise (errSyntax p) in
-  Log.debug "Parsing complete";
+  let lex_and_parse in_file =
+    Log.debug "Compiling %s" in_file;
+    (*ignore(Llvm_X86.initialize());*)
+    Lexer.file := Some in_file;
+    let lexbuf =
+      (try Lexing.from_channel (open_in in_file) with
+        | _ -> raise (InternalCompilerError "Lexing failed"))
+    in
+      ignore(lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = in_file });
+      Log.debug "Lexing complete";
+      let ast =
+        (try (Parser.main Lexer.token lexbuf) with
+          | _ -> let p = to_pos ~buf:(Some lexbuf) lexbuf.lex_curr_p lexbuf.lex_curr_p in
+              raise (errSyntax p))
+      in
+        Log.debug "Parsing complete";
+        ast
+  in
+  let asts = List.map lex_and_parse in_files in
+  let all_fdecs = List.fold_left (fun fdecs (Ast.Module more_fdecs) -> fdecs @ more_fdecs) [] asts in
+  let ast = Ast.Module all_fdecs in
   output_ast args.ast_out out_file' ast;
   let tast = Typecheck.tc_module ast in
   output_tast args.ast_out out_file' tast;

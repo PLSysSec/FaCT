@@ -18,12 +18,12 @@ let normalize_out_file out_file =
 (* Prepares and normalizes the input/output files.
    Returns a tuple where the first is the input, second is the output name,
    third is the output directory *)
-let prepare_compile out_file in_file () =
+let prepare_compile out_file (in_files : string list) () =
   Log.debug "Preparing to compile";
-  let base = Filename.chop_extension(Filename.basename in_file) in
+  let base = Filename.chop_extension(Filename.basename (List.hd_exn in_files)) in
   (match out_file with
-    | None -> (in_file, base, Filename.dirname in_file)
-    | Some f -> (in_file, normalize_out_file f, Filename.dirname f))
+    | None -> (in_files, base, Filename.dirname (List.hd_exn in_files))
+    | Some f -> (in_files, normalize_out_file f, Filename.dirname f))
 
 let set_log_level debug =
   Log.set_output stdout;
@@ -71,7 +71,7 @@ let compile_command =
       flag "-llvm-out" no_arg ~doc:llvm_doc +>
       flag "-generate-header" no_arg ~doc:header_doc +>
       flag "-verify-llvm" no_arg ~doc:verify_llvm_doc +>
-      anon ("filename" %: string))
+      anon (sequence ("filename" %: file)))
     (fun
       out_file
       debug
@@ -80,12 +80,12 @@ let compile_command =
       llvm_out
       gen_header
       verify_llvm
-      in_file () ->
-      let args = { in_file; out_file; debug;
+      in_files () ->
+      let args = { in_files; out_file; debug;
                    ast_out; core_ir_out;
                    llvm_out; gen_header; verify_llvm } in
         set_log_level debug;
-        let prep = prepare_compile out_file in_file () in
+        let prep = prepare_compile out_file in_files () in
           runner prep args)
 
 let () =
