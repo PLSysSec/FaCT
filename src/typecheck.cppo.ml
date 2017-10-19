@@ -605,7 +605,7 @@ let tc_param' = xfunction
                  | Some LDynamic len ->
                    let lenvt = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
                      [Param(len, lenvt)])
-let tc_param pa = List.rev (List.map (make_ast pa.pos) (tc_param' pa))
+let tc_param pa = List.map (make_ast pa.pos) (tc_param' pa)
 
 let tc_fdec' fenv (Ast.FunDec(f,rt,params,stms)) =
   let rt' =
