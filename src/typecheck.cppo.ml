@@ -395,7 +395,7 @@ let rec tc_arg tc_ctx = pfunction
           | ArrayVT _ ->
             let ae' = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar x) in
             let (_,ArrayET(_,_,mut)) = ae'.data in
-              if not (mut.data <* Mut) then raise @@ err(p);
+              if not (mut.data <* Mut) then raise @@ cerr("variable `" ^ x.data ^ "` is not mut; ", p);
               ByArray(ae', mkpos Mut)
       end
 
