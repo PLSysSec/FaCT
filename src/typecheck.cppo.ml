@@ -373,7 +373,6 @@ let tc_binop' p op e1 e2 =
 let rec tc_arg tc_ctx = pfunction
   | Ast.ByValue e ->
     begin
-      print_endline @@ (""<<p);
       match e.data with
         | Ast.Variable x ->
           let vty = Env.find_var tc_ctx.venv x in

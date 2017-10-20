@@ -27,6 +27,10 @@ let gh_mut = xfunction
   | Const -> ""
   | Mut -> "*"
 
+let gh_amut = xfunction
+  | Const -> "const "
+  | Mut -> ""
+
 let gh_lexpr = xfunction
   | LIntLiteral n -> string_of_int n
   | LDynamic _ -> ""
@@ -40,22 +44,24 @@ let gh_ety = xfunction
 
 let gh_vty = xfunction
   | RefVT(b,l,m) -> Printf.sprintf "%s %s%s" (gh_label l) (gh_bty b) (gh_mut m)
-  | ArrayVT(a,l,m) -> Printf.sprintf "%s %s%s" (gh_label l) (gh_aty a) (gh_mut m)
+  | ArrayVT(a,l,m) -> Printf.sprintf "%s %s%s" (gh_label l) (gh_amut m) (gh_aty a)
 
 let gh_rty = function
   | None -> "void"
   | Some ety -> gh_ety ety
 
 let gh_param { data=Param(x,vty) } =
-  gh_vty vty ^ " " ^ x.data
+  "\n  " ^ gh_vty vty ^ " " ^ x.data
 
-let gh_fdec { data=FunDec(f,rt,params,_) } =
-  let paramdecs = String.concat ", " @@ List.map gh_param params in
-    Printf.sprintf
-      "%s %s(%s);"
-      (gh_rty rt)
-      f.data
-      paramdecs
+let gh_fdec = xfunction
+  | FunDec(f,rt,params,_) ->
+    let paramdecs = String.concat "," @@ List.map gh_param params in
+      Printf.sprintf
+        "%s %s(%s);"
+        (gh_rty rt)
+        f.data
+        paramdecs
+  | _ -> ""
 
 let gh_module (Module(fenv,fdecs)) =
   String.concat "\n\n" @@ List.map gh_fdec fdecs

@@ -20,9 +20,9 @@ let normalize_out_file out_file =
    third is the output directory *)
 let prepare_compile out_file (in_files : string list) () =
   Log.debug "Preparing to compile";
-  let base = Filename.chop_extension(Filename.basename (List.hd_exn in_files)) in
+  let base = Filename.chop_extension(Filename.basename (List.last_exn in_files)) in
   (match out_file with
-    | None -> (in_files, base, Filename.dirname (List.hd_exn in_files))
+    | None -> (in_files, base, Filename.dirname (List.last_exn in_files))
     | Some f -> (in_files, normalize_out_file f, Filename.dirname f))
 
 let set_log_level debug =
