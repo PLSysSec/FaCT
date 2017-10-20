@@ -1,5 +1,5 @@
 type args_record = {
-  in_file     : string;
+  in_files    : string list;
   out_file    : string option;
   debug       : bool;
   ast_out     : bool;
@@ -10,7 +10,7 @@ type args_record = {
 }
 
 (** Compile a constantc program. *)
-val compile : (string * string * string) -> args_record -> unit
+val compile : (string list * string * string) -> args_record -> unit
 
 (*
 val run : unit -> unit

@@ -94,6 +94,7 @@ let bt_to_llvm_ty cg_ctx = function
   | UInt size when size <= 8  -> i8_type cg_ctx.llcontext
   | UInt size when size <= 16 -> i16_type cg_ctx.llcontext
   | UInt size when size <= 32 -> i32_type cg_ctx.llcontext
+  | UInt  size when size <= 64 -> i64_type cg_ctx.llcontext
   | Int  size when size <= 8  -> i8_type cg_ctx.llcontext
   | Int  size when size <= 16 -> i16_type cg_ctx.llcontext
   | Int  size when size <= 32 -> i32_type cg_ctx.llcontext

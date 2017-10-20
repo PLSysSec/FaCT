@@ -133,6 +133,7 @@ and ret_type = expr_type option [@@deriving show]
 
 and function_dec' =
   | FunDec of fun_name * ret_type * params * block
+  | CExtern of fun_name * ret_type * params
 [@@deriving show]
 and function_dec = function_dec' pos_ast [@@deriving show]
 
