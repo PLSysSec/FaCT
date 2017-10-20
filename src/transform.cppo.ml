@@ -40,7 +40,10 @@ let rec params_has_refs = function
           (mut = Mut) || params_has_refs params
     end
 
-let fdec_has_refs {data=FunDec(_,_,params,_)} = params_has_refs params
+let fdec_has_refs = xfunction
+  | FunDec(_,_,params,_)
+  | CExtern(_,_,params) ->
+    params_has_refs params
 
 let bty { data=(_,b) } = b
 let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
@@ -295,14 +298,19 @@ let xf_fdec fenv = pfunction
               (*FunDec(f,rt,params',(venv,stms'@[mkpos VoidReturn]))*)
               FunDec(f,rt,params',(venv,stms'))
         end
+  | CExtern _ as fdec -> fdec
 
 let rec xf_fdecs fenv = function
   | [] -> []
   | (fdec::fdecs) ->
     let fdec' = xf_fdec fenv fdec in
-    let {data=FunDec(fname,_,_,_)} = fdec' in
-      Env.add_var fenv fname fdec';
-      fdec'::(xf_fdecs fenv fdecs)
+      begin
+        match fdec'.data with
+          | FunDec(fname,_,_,_)
+          | CExtern(fname,_,_) ->
+            Env.add_var fenv fname fdec';
+            fdec'::(xf_fdecs fenv fdecs)
+      end
 
 let xf_module (Module(_,fdecs)) =
   let fenv = Env.new_env () in

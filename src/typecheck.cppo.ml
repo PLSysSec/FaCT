@@ -373,6 +373,7 @@ let tc_binop' p op e1 e2 =
 let rec tc_arg tc_ctx = pfunction
   | Ast.ByValue e ->
     begin
+      print_endline @@ (""<<p);
       match e.data with
         | Ast.Variable x ->
           let vty = Env.find_var tc_ctx.venv x in
@@ -399,7 +400,7 @@ let rec tc_arg tc_ctx = pfunction
               ByArray(ae', mkpos Mut)
       end
 
-and tc_args tc_ctx p params args =
+and tc_args xf_args tc_ctx p params args =
   match params,args with
     | [], [] -> []
     | (param::params), (arg::args) ->
@@ -407,7 +408,7 @@ and tc_args tc_ctx p params args =
       let argref = argtype_of tc_ctx.venv arg' in
       let Param(_,paramvt) = param.data in
         if not @@ can_be_passed_to argref paramvt then raise @@ err(arg'.pos);
-        if param_is_ldynamic param then
+        if param_is_ldynamic param && xf_args then
           let _::params = params in
           let ByArray({data=(_,atype')},_) = arg'.data in
           let lexpr' = aetype_to_lexpr' (mkpos atype') in
@@ -418,9 +419,9 @@ and tc_args tc_ctx p params args =
               | LDynamic lx ->
                 ByValue (mkpos (Variable lx, BaseET(mkpos UInt 32, mkpos Fixed Public)))
           in
-            arg' :: (mkpos len) :: tc_args tc_ctx p params args
+            arg' :: (mkpos len) :: tc_args xf_args tc_ctx p params args
         else
-          arg' :: tc_args tc_ctx p params args
+          arg' :: tc_args xf_args tc_ctx p params args
     | _ -> raise @@ err(p)
 
 and tc_expr tc_ctx = pfunction
@@ -472,9 +473,15 @@ and tc_expr tc_ctx = pfunction
     let e3' = tc_expr tc_ctx e3 in
       (TernOp(e1',e2',e3'), join_ty' p (type_of e2') (type_of e3'))
   | Ast.FnCall(f,args) ->
-    let (FunDec(_,Some rty,params,_)) = (Env.find_var tc_ctx.fenv f).data in
-    let args' = tc_args tc_ctx p params args in
-      (FnCall(f,args'), rty.data)
+    begin
+      match (Env.find_var tc_ctx.fenv f).data with
+        | (FunDec(_,Some rty,params,_)) ->
+          let args' = tc_args true tc_ctx p params args in
+            (FnCall(f,args'), rty.data)
+        | (CExtern(_,Some rty,params)) ->
+          let args' = tc_args false tc_ctx p params args in
+            (FnCall(f,args'), rty.data)
+    end
 
 and tc_arrayexpr tc_ctx = pfunction
   | Ast.ArrayLit exprs ->
@@ -571,11 +578,19 @@ let rec tc_stm tc_ctx = pfunction
         For(i,ity',lo',hi',stms')
 
   | Ast.VoidFnCall(f,args) ->
-    let (FunDec(_,_,params,_)) = (Env.find_var tc_ctx.fenv f).data in
-    (* TODO ensure no mut args lower than *rp U pc *)
-    (* e.g. fcall with public mut arg in a block where pc is Secret is disallowed *)
-    let args' = tc_args tc_ctx p params args in
-      VoidFnCall(f,args')
+    begin
+      match (Env.find_var tc_ctx.fenv f).data with
+        | (FunDec(_,_,params,_)) ->
+          (* TODO ensure no mut args lower than *rp U pc *)
+          (* e.g. fcall with public mut arg in a block where pc is Secret is disallowed *)
+          let args' = tc_args true tc_ctx p params args in
+            VoidFnCall(f,args')
+        | (CExtern(_,_,params)) ->
+          (* TODO ensure no mut args lower than *rp U pc *)
+          (* e.g. fcall with public mut arg in a block where pc is Secret is disallowed *)
+          let args' = tc_args false tc_ctx p params args in
+            VoidFnCall(f,args')
+    end
 
   | Ast.Return e ->
     let e' = tc_expr tc_ctx e in
@@ -591,7 +606,7 @@ and tc_block tc_ctx stms =
   let stms' = List.map (tc_stm tc_ctx) stms in
     (tc_ctx.venv, stms')
 
-let tc_param' = xfunction
+let tc_param' xf_param = xfunction
   | Ast.Param(x,vty) ->
     let len = "__" ^ x.data ^ "_len" in
     let lexpr' = LDynamic(mkpos len) in
@@ -600,27 +615,27 @@ let tc_param' = xfunction
     let param = Param(x,refvt) in
     let lexpr = refvt_to_lexpr_option refvt in
       param :: (match lexpr with
-                 | None
-                 | Some LIntLiteral _ -> []
-                 | Some LDynamic len ->
+                 | Some LDynamic len when xf_param ->
                    let lenvt = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
-                     [Param(len, lenvt)])
-let tc_param pa = List.map (make_ast pa.pos) (tc_param' pa)
+                     [Param(len, lenvt)]
+                 | _ -> [])
+let tc_param xf_param pa = List.map (make_ast pa.pos) (tc_param' xf_param pa)
 
-let tc_fdec' fenv (Ast.FunDec(f,rt,params,stms)) =
-  let rt' =
-    match rt with
-      | Some rty -> Some(etype_conv rty)
-      | None -> None
-  in
-  let params' = List.flatten @@ List.map tc_param params in
-  let venv = Env.new_env () in
-    List.iter (fun {data=Param(name,vty)} ->
-                Env.add_var venv name vty)
-      params';
-    let tc_ctx = { rp=ref Public; pc=Public; venv; fenv } in
-    let stms' = List.rev @@
-      match List.rev stms with
+let tc_fdec' fenv = function
+  | Ast.FunDec(f,rt,params,stms) ->
+    let rt' =
+      match rt with
+        | Some rty -> Some(etype_conv rty)
+        | None -> None
+    in
+    let params' = List.flatten @@ List.map (tc_param true) params in
+    let venv = Env.new_env () in
+      List.iter (fun {data=Param(name,vty)} ->
+                  Env.add_var venv name vty)
+        params';
+      let tc_ctx = { rp=ref Public; pc=Public; venv; fenv } in
+      let stms' = List.rev @@
+        match List.rev stms with
         | [] -> [make_ast f.pos Ast.VoidReturn]
         | s::ss ->
           begin
@@ -629,11 +644,24 @@ let tc_fdec' fenv (Ast.FunDec(f,rt,params,stms)) =
               | Ast.VoidReturn -> s::ss
               | _ -> make_ast s.pos Ast.VoidReturn::s::ss
           end
+      in
+        FunDec(f,rt',params',tc_block tc_ctx stms')
+  | Ast.CExtern(f,rt,params) ->
+    let rt' =
+      match rt with
+        | Some rty -> Some(etype_conv rty)
+        | None -> None
     in
-      FunDec(f,rt',params',tc_block tc_ctx stms')
-
+    let params' = List.flatten @@ List.map (tc_param false) params in
+    let venv = Env.new_env () in
+      List.iter (fun {data=Param(name,vty)} ->
+                  Env.add_var venv name vty)
+        params';
+      let tc_ctx = { rp=ref Public; pc=Public; venv; fenv } in
+        CExtern(f,rt',params')
 let tc_fdec fenv = xfunction
-  | Ast.FunDec(f,_,_,_) as fdec ->
+  | Ast.FunDec(f,_,_,_)
+  | Ast.CExtern(f,_,_) as fdec ->
     let fdec' = mkpos tc_fdec' fenv fdec in
       Env.add_var fenv f fdec';
       fdec'

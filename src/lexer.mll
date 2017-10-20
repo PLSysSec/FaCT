@@ -50,6 +50,7 @@ let keywords = [
   ("arrzeros",ARRZEROS);
   ("arrcopy",ARRCOPY);
   ("arrview",ARRVIEW);
+  ("extern",EXTERN);
 ]
 let _ = List.map add_keyword keywords
 }
