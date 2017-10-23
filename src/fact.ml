@@ -8,6 +8,7 @@ let o_doc = "Output Output object file name. Default is the input_file_name.o."
 let debug_doc = " Debug"
 let ast_doc = " Output AST to file"
 let core_ir_doc = " Output Core IR to file"
+let pseudo_doc = " Output transformed pseudocode to file"
 let llvm_doc = " Output LLVM to file"
 let header_doc = " Output C header to file"
 let verify_llvm_doc = "Verify LLVM IR with ct-verif"
@@ -68,6 +69,7 @@ let compile_command =
       flag "-debug" no_arg ~doc:debug_doc +>
       flag "-ast-out" no_arg ~doc:ast_doc +>
       flag "-core-ir-out" no_arg ~doc:core_ir_doc +>
+      flag "-pseudocode" no_arg ~doc:pseudo_doc +>
       flag "-llvm-out" no_arg ~doc:llvm_doc +>
       flag "-generate-header" no_arg ~doc:header_doc +>
       flag "-verify-llvm" no_arg ~doc:verify_llvm_doc +>
@@ -77,12 +79,13 @@ let compile_command =
       debug
       ast_out
       core_ir_out
+      pseudo_out
       llvm_out
       gen_header
       verify_llvm
       in_files () ->
       let args = { in_files; out_file; debug;
-                   ast_out; core_ir_out;
+                   ast_out; core_ir_out; pseudo_out;
                    llvm_out; gen_header; verify_llvm } in
         set_log_level debug;
         let prep = prepare_compile out_file in_files () in
