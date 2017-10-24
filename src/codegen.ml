@@ -627,7 +627,6 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
     let bb = append_block llcontext "entry" ft in
     position_at_end bb builder;
-    Log.error "VERIFY?? %s" (string_of_bool verify_llvm);
     declare_ct_verif verify_llvm llcontext llmodule ASSUME;
     declare_ct_verif verify_llvm llcontext llmodule PUBLIC_IN;
     declare_ct_verif verify_llvm llcontext llmodule PUBLIC_OUT;
