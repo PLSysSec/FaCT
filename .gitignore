@@ -58,3 +58,4 @@ test/testbin_sem
 setup.data
 setup.ml
 configure
+*.pseudo.fact

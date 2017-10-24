@@ -16,6 +16,7 @@ type args_record = {
   debug       : bool;
   ast_out     : bool;
   core_ir_out : bool;
+  pseudo_out  : bool;
   llvm_out    : bool;
   gen_header  : bool;
   verify_llvm : bool;
@@ -67,6 +68,13 @@ let generate_header gen_header out_file xftast =
       Log.debug "Outputting header file to %s" header_out_file;
       Core_kernel.Out_channel.write_all header_out_file
         ~data:(Header.generate_header out_file xftast)
+
+let generate_pseudo gen_pseudo out_file xftast =
+  if gen_pseudo then
+    let pseudo_out_file = out_file ^ ".pseudo.fact" in
+      Log.debug "Outputting pseudocode file to %s" pseudo_out_file;
+      Core_kernel.Out_channel.write_all pseudo_out_file
+        ~data:(Pseudocode.generate_pseudo out_file xftast)
 
 let output_llvm llvm_out out_file llvm_mod =
   match llvm_out with
@@ -125,6 +133,7 @@ let compile (in_files,out_file,out_dir) args =
   let xftast = Transform.xf_module tast in
   Log.debug "Tast transform complete";
   output_xftast args.core_ir_out out_file' xftast;
+  generate_pseudo args.pseudo_out out_file' xftast;
   generate_header args.gen_header out_file' xftast;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
