@@ -461,7 +461,7 @@ and codegen_stm cg_ctx ret_ty = function
     let s = build_store expr' v cg_ctx.builder in
     (*let load = build_load s "loaded" cg_ctx.builder in*)
     codegen_dec cg_ctx.verify_llvm var_type v cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;
-    ()
+    false
   | {data=ArrayDec(var_name,var_type,arr_expr)} ->
     let bt_of_vt = function
       | ArrayVT({data=ArrayAT(bt,_)},_,_) -> bt
@@ -475,21 +475,25 @@ and codegen_stm cg_ctx ret_ty = function
     (*let zero = const_int (i32_type cg_ctx.llcontext) 0 in
     let ptr = build_gep alloca [| zero |] "arrptr" cg_ctx.builder in*)
     add_var cg_ctx.venv var_name alloca;
+    false
   | {data=BaseAssign(var_name,expr)} ->
     let v = find_var cg_ctx.venv var_name in
     let _,ty = expr.data in
     let ty' = expr_ty_to_base_ty ty in
     let expr' = codegen_ext cg_ctx ty' expr in
-    ignore(build_store expr' v cg_ctx.builder)
+    build_store expr' v cg_ctx.builder |> ignore;
+    false
   | {data=RegAssign(reg_name,expr)} ->
     let expr' = codegen_expr cg_ctx expr.data in
-      add_reg cg_ctx.renv reg_name expr';
+    add_reg cg_ctx.renv reg_name expr';
+    false
   | {data=ArrayAssign(var_name,array_index,expr)} ->
     let v = find_var cg_ctx.venv var_name in
     let index = codegen_expr cg_ctx array_index.data in
     let expr' = codegen_expr cg_ctx expr.data in
     let p = build_gep v [| const_int (i32_type cg_ctx.llcontext) 0; index|] "ptr" cg_ctx.builder in
-    ignore(build_store expr' p cg_ctx.builder)
+    build_store expr' p cg_ctx.builder |> ignore;
+    false
   | {data=Block(stms)} ->
     codegen_stms cg_ctx ret_ty stms
   | {data=If(cond,thenstms,elsestms)} ->
@@ -503,14 +507,14 @@ and codegen_stm cg_ctx ret_ty = function
 
     let then_bb = append_block cg_ctx.llcontext "thenbranch" parent_function in
     position_at_end then_bb cg_ctx.builder;
-    codegen_stms cg_ctx ret_ty thenstms;
+    let then_terminated = codegen_stms cg_ctx ret_ty thenstms in
 
     let new_then_bb = insertion_block cg_ctx.builder in
 
 
     let else_bb = append_block cg_ctx.llcontext "elsebranch" parent_function in
     position_at_end else_bb cg_ctx.builder;
-    codegen_stms cg_ctx ret_ty elsestms;
+    let else_terminated = codegen_stms cg_ctx ret_ty elsestms in
 
     let new_else_bb = insertion_block cg_ctx.builder in
 
@@ -518,13 +522,22 @@ and codegen_stm cg_ctx ret_ty = function
     position_at_end merge_bb cg_ctx.builder;
 
     position_at_end start_bb cg_ctx.builder;
-    ignore(build_cond_br cond_val then_bb else_bb cg_ctx.builder);
+    build_cond_br cond_val then_bb else_bb cg_ctx.builder |> ignore;
 
-    position_at_end new_then_bb cg_ctx.builder;
-    ignore(build_br merge_bb cg_ctx.builder);
-    position_at_end new_else_bb cg_ctx.builder;
-    ignore(build_br merge_bb cg_ctx.builder);
-    position_at_end merge_bb cg_ctx.builder
+    (* Only merge if the basic blocks did not terminate *)
+    if not then_terminated then
+    begin
+      position_at_end new_then_bb cg_ctx.builder;
+      build_br merge_bb cg_ctx.builder |> ignore
+    end;
+    if not else_terminated then
+    begin
+      position_at_end new_else_bb cg_ctx.builder;
+      build_br merge_bb cg_ctx.builder |> ignore
+    end;
+
+    position_at_end merge_bb cg_ctx.builder;
+    false
   | {data=For(var_name,base_type,low_expr,high_expr,statements)} ->
     let preheader = insertion_block cg_ctx.builder in
     let parent_function = block_parent preheader in
@@ -548,7 +561,8 @@ and codegen_stm cg_ctx ret_ty = function
     let incr = build_add i'' one "loopincr" cg_ctx.builder in
     ignore(build_store incr i cg_ctx.builder);
     ignore(build_br bb_check cg_ctx.builder);
-    position_at_end bb_end cg_ctx.builder
+    position_at_end bb_end cg_ctx.builder;
+    false
   | {data=VoidFnCall(fun_name,arg_exprs)} ->
     (* TODO: refactor this with FnCall *)
     let fun_dec = get_fn cg_ctx.fenv fun_name in
@@ -557,9 +571,11 @@ and codegen_stm cg_ctx ret_ty = function
       | None -> raise CodegenError in
     let codegen_arg' = codegen_arg cg_ctx in
     let args' = List.map2 codegen_arg' arg_exprs fun_dec.args in
-    ignore(build_call callee (Array.of_list args') "voidcalltmp" cg_ctx.builder)
+    build_call callee (Array.of_list args') "voidcalltmp" cg_ctx.builder |> ignore;
+    false
   | {data=VoidReturn} ->
-    ignore (build_ret_void cg_ctx.builder)
+    build_ret_void cg_ctx.builder |> ignore;
+    true
   | {data=Return(expr)} ->
     begin
       match ret_ty with
@@ -569,12 +585,13 @@ and codegen_stm cg_ctx ret_ty = function
         (* TODO: assert valid function here *)
         | Some ArrayET _ -> raise CodegenError (* TODO: Cannot retur an array yet *)
         | None -> raise CodegenError
-    end
-  | {data=s} -> print_endline @@ show_statement' s; raise CodegenError
+    end;
+    true
 
 and codegen_stms cg_ctx ret_ty (stms : Tast.block) =
   let _,stms' = stms in
-  ignore(List.map (codegen_stm cg_ctx ret_ty) stms')
+  let cg = codegen_stm cg_ctx ret_ty in
+  List.fold_left (fun returned stm -> (cg stm) || returned) false stms'
 
 let rec declare_prototypes llcontext llmodule builder fenv = function
   | ArrayGet(_,expr),_ ->
@@ -644,7 +661,7 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     end;
     (*let ret' = codegen_ext llcontext llmodule builder var_env ret in
     build_ret ret' builder;*)
-    Llvm_analysis.assert_valid_function ft;
+    (*Llvm_analysis.assert_valid_function ft;*)
     ft
   | { data=CExtern(fun_name, ret_ty, params) } ->
     let venv = Env.new_env () in

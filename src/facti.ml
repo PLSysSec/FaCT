@@ -106,7 +106,7 @@ let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
       temp_renv false in
     let block = type_envs.type_venv, [st] in
     Codegen.allocate_stack cg_ctx block;
-    Codegen.codegen_stm cg_ctx None st
+    Codegen.codegen_stm cg_ctx None st |> ignore
   | Tast.FunctionDec fd  ->
     print_string ((Tast.show_function_dec fd) ^ "\n");
     Codegen.codegen_fun ctx.llcontext mod' builder cg_fenv false fd |> ignore

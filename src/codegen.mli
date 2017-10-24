@@ -51,7 +51,7 @@ val codegen_fun : llcontext
 val codegen_stm : codegen_ctx_record
                -> Tast.expr_type' option
                -> Tast.statement
-               -> unit
+               -> bool (* Has the statement returned? *)
 
 val allocate_stack : codegen_ctx_record
                   -> Tast.block
