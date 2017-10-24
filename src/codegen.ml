@@ -491,7 +491,7 @@ and codegen_stm cg_ctx ret_ty = function
     let v = find_var cg_ctx.venv var_name in
     let index = codegen_expr cg_ctx array_index.data in
     let expr' = codegen_expr cg_ctx expr.data in
-    let p = build_gep v [| const_int (i32_type cg_ctx.llcontext) 0; index|] "ptr" cg_ctx.builder in
+    let p = build_gep v [| index|] "ptr" cg_ctx.builder in
     build_store expr' p cg_ctx.builder |> ignore;
     false
   | {data=Block(stms)} ->
