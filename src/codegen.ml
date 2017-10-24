@@ -647,6 +647,12 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     build_ret ret' builder;*)
     Llvm_analysis.assert_valid_function ft;
     ft
+  | { data=CExtern(fun_name, ret_ty, params) } ->
+    let venv = Env.new_env () in
+    let tenv = Env.new_env () in
+    let renv = new_renv () in
+    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; renv; verify_llvm } in
+    declare_prototype cg_ctx llmodule builder fenv params ret_ty fun_name
 
 let rec codegen_fdecs llcontext llmodule builder fenv verify = function
   | [] -> ()
