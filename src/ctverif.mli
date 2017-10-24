@@ -15,6 +15,16 @@ type t =
 val string_of_ct_verif : t -> string
 
 (* Declare a prototype for a ct_verif function or type *)
-val declare_ct_verif : llcontext -> llmodule -> t -> unit
+val declare_ct_verif : bool
+                    -> llcontext
+                    -> llmodule
+                    -> t
+                    -> unit
 
-val codegen_dec : variable_type -> llvalue -> llcontext -> llmodule -> llbuilder -> unit
+val codegen_dec : bool
+               -> variable_type
+               -> llvalue
+               -> llcontext
+               -> llmodule
+               -> llbuilder
+               -> unit

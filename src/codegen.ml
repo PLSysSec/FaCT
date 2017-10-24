@@ -460,7 +460,7 @@ and codegen_stm cg_ctx ret_ty = function
     let expr' = codegen_ext cg_ctx (vt_to_bt var_type.data) expr in
     let s = build_store expr' v cg_ctx.builder in
     (*let load = build_load s "loaded" cg_ctx.builder in*)
-    codegen_dec var_type v cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;
+    codegen_dec cg_ctx.verify_llvm var_type v cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;
     ()
   | {data=ArrayDec(var_name,var_type,arr_expr)} ->
     let bt_of_vt = function
@@ -471,7 +471,7 @@ and codegen_stm cg_ctx ret_ty = function
     let ct_verif_ty = bt_to_llvm_ty cg_ctx (bt_of_vt var_type.data).data in
     let ct_verif_ty' = pointer_type ct_verif_ty in
     let alloca' = build_bitcast alloca ct_verif_ty' "" cg_ctx.builder in
-    codegen_dec var_type alloca' cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;
+    codegen_dec cg_ctx.verify_llvm var_type alloca' cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;
     (*let zero = const_int (i32_type cg_ctx.llcontext) 0 in
     let ptr = build_gep alloca [| zero |] "arrptr" cg_ctx.builder in*)
     add_var cg_ctx.venv var_name alloca;
@@ -627,13 +627,14 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
     let bb = append_block llcontext "entry" ft in
     position_at_end bb builder;
-    declare_ct_verif llcontext llmodule ASSUME;
-    declare_ct_verif llcontext llmodule PUBLIC_IN;
-    declare_ct_verif llcontext llmodule PUBLIC_OUT;
-    declare_ct_verif llcontext llmodule DECLASSIFIED_OUT;
-    declare_ct_verif llcontext llmodule SMACK_VALUE;
-    declare_ct_verif llcontext llmodule SMACK_VALUES;
-    declare_ct_verif llcontext llmodule SMACK_RETURN_VALUE;
+    Log.error "VERIFY?? %s" (string_of_bool verify_llvm);
+    declare_ct_verif verify_llvm llcontext llmodule ASSUME;
+    declare_ct_verif verify_llvm llcontext llmodule PUBLIC_IN;
+    declare_ct_verif verify_llvm llcontext llmodule PUBLIC_OUT;
+    declare_ct_verif verify_llvm llcontext llmodule DECLASSIFIED_OUT;
+    declare_ct_verif verify_llvm llcontext llmodule SMACK_VALUE;
+    declare_ct_verif verify_llvm llcontext llmodule SMACK_VALUES;
+    declare_ct_verif verify_llvm llcontext llmodule SMACK_RETURN_VALUE;
     allocate_args cg_ctx params ft;
     allocate_stack cg_ctx body;
     begin

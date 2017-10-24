@@ -54,51 +54,54 @@ let set_attributes f =
   add_target_dependent_function_attr f "use-soft-float" "false";
   add_target_dependent_function_attr f "disable-tail-calls" "false"
 
-let declare_ct_verif llctx llmod = function
-  | ASSUME ->
-    let i32_ty = i32_type llctx in
-    let vt = void_type llctx in
-    let arg_types = [| i32_ty |] in
-    let ft = function_type vt arg_types in
-    let f = declare_function (string_of_ct_verif ASSUME) ft llmod in
-    set_attributes f
-  | PUBLIC_IN ->
-    let smack_ty = get_smack_ty llctx llmod in
-    let vt = void_type llctx in
-    let ft = function_type vt [| smack_ty |] in
-    let f = declare_function (string_of_ct_verif PUBLIC_IN) ft llmod in
-    set_attributes f
-  | PUBLIC_OUT ->
-    let smack_ty = get_smack_ty llctx llmod in
-    let vt = void_type llctx in
-    let ft = function_type vt [| smack_ty |] in
-    let f = declare_function (string_of_ct_verif PUBLIC_OUT) ft llmod in
-    set_attributes f
-  | DECLASSIFIED_OUT ->
-    let smack_ty = get_smack_ty llctx llmod in
-    let vt = void_type llctx in
-    let ft = function_type vt [| smack_ty |] in
-    let f = declare_function (string_of_ct_verif DECLASSIFIED_OUT) ft llmod in
-    set_attributes f
-  | SMACK_VALUE ->
-    let smack_ty = get_smack_ty llctx llmod in
-    let ft = var_arg_function_type smack_ty [||] in
-    let f = declare_function (string_of_ct_verif SMACK_VALUE) ft llmod in
-    set_attributes f
-  | SMACK_VALUES ->
-    let smack_ty = get_smack_ty llctx llmod in
-    let i8_ptr_ty = pointer_type (i8_type llctx) in
-    let i32_ty = i32_type llctx in
-    let ft = function_type smack_ty [| i8_ptr_ty; i32_ty |] in
-    let f = declare_function (string_of_ct_verif SMACK_VALUES) ft llmod in
-    set_attributes f
-  | SMACK_RETURN_VALUE ->
-    let smack_ty = get_smack_ty llctx llmod in
-    let ft = function_type smack_ty [||] in
-    let f = declare_function (string_of_ct_verif SMACK_RETURN_VALUE) ft llmod in
-    set_attributes f
+let declare_ct_verif verify_llvm llctx llmod keyword =
+  if not verify_llvm then () else
+  match keyword with
+    | ASSUME ->
+      let i32_ty = i32_type llctx in
+      let vt = void_type llctx in
+      let arg_types = [| i32_ty |] in
+      let ft = function_type vt arg_types in
+      let f = declare_function (string_of_ct_verif ASSUME) ft llmod in
+      set_attributes f
+    | PUBLIC_IN ->
+      let smack_ty = get_smack_ty llctx llmod in
+      let vt = void_type llctx in
+      let ft = function_type vt [| smack_ty |] in
+      let f = declare_function (string_of_ct_verif PUBLIC_IN) ft llmod in
+      set_attributes f
+    | PUBLIC_OUT ->
+      let smack_ty = get_smack_ty llctx llmod in
+      let vt = void_type llctx in
+      let ft = function_type vt [| smack_ty |] in
+      let f = declare_function (string_of_ct_verif PUBLIC_OUT) ft llmod in
+      set_attributes f
+    | DECLASSIFIED_OUT ->
+      let smack_ty = get_smack_ty llctx llmod in
+      let vt = void_type llctx in
+      let ft = function_type vt [| smack_ty |] in
+      let f = declare_function (string_of_ct_verif DECLASSIFIED_OUT) ft llmod in
+      set_attributes f
+    | SMACK_VALUE ->
+      let smack_ty = get_smack_ty llctx llmod in
+      let ft = var_arg_function_type smack_ty [||] in
+      let f = declare_function (string_of_ct_verif SMACK_VALUE) ft llmod in
+      set_attributes f
+    | SMACK_VALUES ->
+      let smack_ty = get_smack_ty llctx llmod in
+      let i8_ptr_ty = pointer_type (i8_type llctx) in
+      let i32_ty = i32_type llctx in
+      let ft = function_type smack_ty [| i8_ptr_ty; i32_ty |] in
+      let f = declare_function (string_of_ct_verif SMACK_VALUES) ft llmod in
+      set_attributes f
+    | SMACK_RETURN_VALUE ->
+      let smack_ty = get_smack_ty llctx llmod in
+      let ft = function_type smack_ty [||] in
+      let f = declare_function (string_of_ct_verif SMACK_RETURN_VALUE) ft llmod in
+      set_attributes f
 
-let codegen_dec vt llvalue llctx llmod llbuilder =
+
+let codegen_dec verify_llvm vt llvalue llctx llmod llbuilder =
   let extract_label = function
     | RefVT(_,{data=Fixed(label)},_) ->
       let i32_ty = pointer_type (i32_type llctx) in
@@ -109,6 +112,7 @@ let codegen_dec vt llvalue llctx llmod llbuilder =
       Some(label,ty)
     | _ -> None 
   in
+  if not verify_llvm then () else
   let label = extract_label vt.data in
   match label with
     | None -> ()
@@ -128,4 +132,3 @@ let codegen_dec vt llvalue llctx llmod llbuilder =
         | None -> raise CTVerifError
         | Some public_in' -> public_in' in
       build_call public_in [| v |] "" llbuilder |> ignore
-
