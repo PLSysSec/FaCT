@@ -32,18 +32,6 @@ let add_fn = Hashtbl.add
 
 (* End env functionality *)
 
-(* TODO make this better *)
-type renv = (string,llvalue) Hashtbl.t [@printer pp_hashtbl]
-[@@deriving show]
-let new_renv () = Hashtbl.create 10
-let add_reg = Hashtbl.add
-let get_reg renv r =
-  try
-    Hashtbl.find renv r
-  with
-    Not_found -> raise CodegenError
-(* End reg env functionality *)
-
 type codegen_ctx_record = {
   llcontext   : llcontext;
   llmodule    : llmodule;
@@ -51,12 +39,11 @@ type codegen_ctx_record = {
   venv        : llvalue env;
   fenv        : fenv;
   tenv        : array_type env;
-  renv        : renv;
   verify_llvm : bool;
 }
 
-let mk_ctx llcontext llmodule builder venv fenv tenv renv verify_llvm =
-  { llcontext; llmodule; builder; venv; fenv; tenv; renv; verify_llvm }
+let mk_ctx llcontext llmodule builder venv fenv tenv verify_llvm =
+  { llcontext; llmodule; builder; venv; fenv; tenv; verify_llvm }
 
 type intrinsic = 
   | Memcpy
@@ -188,7 +175,6 @@ let rec allocate_stack cg_ctx stms =
       (*let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
       add_var cg_ctx.venv var_name alloca*)
     | {data=BaseAssign(var_name,expr)} -> allocate_inject expr
-    | {data=RegAssign(reg_name,expr)} -> allocate_inject expr
     | {data=ArrayAssign(var_name,index,expr)} ->
       allocate_inject index;
       allocate_inject expr
@@ -286,8 +272,6 @@ and codegen_expr cg_ctx = function
   | True, ty -> const_all_ones (expr_ty_to_llvm_ty cg_ctx ty)
   | False, ty -> const_null (expr_ty_to_llvm_ty cg_ctx ty)
   | IntLiteral i, ty -> const_int (expr_ty_to_llvm_ty cg_ctx ty) i
-  | Register reg_name, ty ->
-    get_reg cg_ctx.renv reg_name
   | Variable var_name, ty ->
     (* TODO: We should probably check the lltype of ty and compare it to the type_of of the
              result? This would be a sanity check. Or maybe even better, we should cast
@@ -347,10 +331,11 @@ and codegen_expr cg_ctx = function
     let e2 = codegen_expr cg_ctx expr2.data in
     let e3 = codegen_expr cg_ctx expr3.data in
       build_select e1' e2 e3 "terntmp" cg_ctx.builder
-  | Inject(reg,stms), ty ->
+  | Inject(var_name,stms), ty ->
     let ret_ty = None in
       ignore(List.map (codegen_stm cg_ctx ret_ty) stms);
-      get_reg cg_ctx.renv reg
+      let store = find_var cg_ctx.venv var_name in
+        build_load store var_name.data cg_ctx.builder
   | e, ty -> print_endline @@ show_expr' e; raise CodegenError
 
 and extend_to ctx builder signed bt et v =
@@ -482,10 +467,6 @@ and codegen_stm cg_ctx ret_ty = function
     let ty' = expr_ty_to_base_ty ty in
     let expr' = codegen_ext cg_ctx ty' expr in
     build_store expr' v cg_ctx.builder |> ignore;
-    false
-  | {data=RegAssign(reg_name,expr)} ->
-    let expr' = codegen_expr cg_ctx expr.data in
-    add_reg cg_ctx.renv reg_name expr';
     false
   | {data=ArrayAssign(var_name,array_index,expr)} ->
     let v = find_var cg_ctx.venv var_name in
@@ -639,8 +620,7 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     Log.info "Generating function, %s" name.data;
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
-    let renv = new_renv () in
-    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; renv; verify_llvm } in
+    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; verify_llvm } in
     let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
     let bb = append_block llcontext "entry" ft in
     position_at_end bb builder;
@@ -666,8 +646,7 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
   | { data=CExtern(fun_name, ret_ty, params) } ->
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
-    let renv = new_renv () in
-    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; renv; verify_llvm } in
+    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; verify_llvm } in
     declare_prototype cg_ctx llmodule builder fenv params ret_ty fun_name
 
 let rec codegen_fdecs llcontext llmodule builder fenv verify = function

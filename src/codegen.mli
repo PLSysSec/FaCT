@@ -3,7 +3,6 @@ open Env
 
 type fentry
 type fenv
-type renv
 type codegen_ctx_record = {
   llcontext   : llcontext;
   llmodule    : llmodule;
@@ -11,11 +10,8 @@ type codegen_ctx_record = {
   venv        : llvalue env;
   fenv        : fenv;
   tenv        : Tast.array_type env;
-  renv        : renv;
   verify_llvm : bool;
 }
-
-val new_renv : unit -> renv
 
 val mk_ctx : llcontext
           -> llmodule
@@ -23,7 +19,6 @@ val mk_ctx : llcontext
           -> llvalue env
           -> fenv
           -> Tast.array_type env
-          -> renv
           -> bool
           -> codegen_ctx_record
 

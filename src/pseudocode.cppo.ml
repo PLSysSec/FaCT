@@ -96,7 +96,6 @@ and ps_expr' ps_ctx = function
   | True -> "true"
   | False -> "false"
   | IntLiteral n -> string_of_int n
-  | Register r -> "%" ^ r
   | Variable x -> x.data
   | ArrayGet(x,n) ->
     Printf.sprintf
@@ -140,9 +139,9 @@ and ps_expr' ps_ctx = function
     Printf.sprintf
       "declassify(%s)"
       (ps_expr ps_ctx e)
-  | Inject(r,stms) ->
+  | Inject(x,stms) ->
     Printf.sprintf
-      "%%%s <- %s" r
+      "%s <- %s" x.data
       (ps_block inc (Env.new_env(), stms))
   | _ -> "<expr>"
 and ps_expr ps_ctx {data=(e,_)} = ps_expr' ps_ctx e
@@ -173,10 +172,6 @@ and ps_aexpr' ps_ctx = function
 and ps_aexpr ps_ctx {data=(ae,_)} = ps_aexpr' ps_ctx ae
 
 and ps_stm ps_ctx = xfunction
-  | RegAssign(r,e) ->
-    Printf.sprintf
-      "%%%s = %s;"
-      r (ps_expr ps_ctx e)
   | BaseDec(x,bty,e) ->
     Printf.sprintf
       "%s %s = %s;"

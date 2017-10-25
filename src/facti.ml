@@ -99,11 +99,10 @@ let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
     print_newline ();
   | Tast.Statement st ->
     print_string ((Tast.show_statement st) ^ "\n");
-    let temp_renv = Codegen.new_renv () in
     let cg_ctx =
       Codegen.mk_ctx ctx.llcontext mod' builder
       ll_envs.llvm_venv ll_envs.llvm_fenv type_envs.type_arrenv
-      temp_renv false in
+      false in
     let block = type_envs.type_venv, [st] in
     Codegen.allocate_stack cg_ctx block;
     Codegen.codegen_stm cg_ctx None st |> ignore

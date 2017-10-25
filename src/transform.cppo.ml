@@ -51,13 +51,14 @@ let a2bty { data=ArrayVT({data=ArrayAT(b,_)},ml,_) } = BaseET(b,ml)
 let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
 
 #define sbool (BaseET(mkpos Bool, mkpos Fixed Secret))
+#define svbool (RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const))
 #define sebool(e) (mkpos (e, sbool))
 #define band(e1,e2) sebool(BinOp(Ast.LogicalAnd,e1,e2))
 #define bor(e1,e2) sebool(BinOp(Ast.LogicalOr,e1,e2))
 #define bnot(e1) sebool(UnOp(Ast.LogicalNot,e1))
 #define bvar(x) sebool(Variable x)
 
-#define rctx sebool(Register "__rnset")
+#define rctx sebool(Variable(mkpos "__rnset"))
 #define bctx (List.fold_left (fun x y -> band(x,y)) sebool(True) \
                 (List.map (fun x -> bvar(x)) xf_ctx.ms))
 #define ctx (band(band(bctx,rctx), \
@@ -133,13 +134,16 @@ and xf_expr' xf_ctx { data; pos=p } =
       | TernOp(e1,e2,e3) ->
         let e1' = xf_expr xf_ctx e1 in
           if is_secret e1' then
-            let res = new_temp_var () in
+            let res = mkpos new_temp_var () in
+            let resvt = mkpos svbool in
+            let resdec = mkpos BaseDec(res, resvt, sebool(False)) in
+              Env.add_var xf_ctx.venv res resvt;
             let stm =
               mkpos If(e1,
-                       (xf_ctx.venv,[mkpos RegAssign(res, e2)]),
-                       (xf_ctx.venv,[mkpos RegAssign(res, e3)])) in
+                       (xf_ctx.venv,[mkpos BaseAssign(res, e2)]),
+                       (xf_ctx.venv,[mkpos BaseAssign(res, e3)])) in
             let stm' = xf_stm xf_ctx stm in
-              Inject(res, [mkpos RegAssign(res, sebool(False))]@stm')
+              Inject(res, resdec :: stm')
           else
             let e2' = xf_expr xf_ctx e2 in
             let e3' = xf_expr xf_ctx e3 in
@@ -179,13 +183,6 @@ and xf_stm' xf_ctx p = function
     let x' = mkpos (Variable x, r2bty (Env.find_var xf_ctx.venv x)) in
     let xfe' = ctx_select(e',x') in
       [BaseAssign(x,xfe')]
-
-  | RegAssign(r,e) ->
-    let e' = xf_expr xf_ctx e in
-    let (_,ety) = e'.data in
-    let r' = mkpos (Register r, ety) in
-    let rfe' = ctx_select(e',r') in
-      [RegAssign(r,rfe')]
 
   | ArrayDec(x,vt,ae) ->
     let ae' = xf_arrayexpr xf_ctx ae in
@@ -233,27 +230,27 @@ and xf_stm' xf_ctx p = function
   | Return e ->
     let Some rt = xf_ctx.rt in
     let e' = xf_expr xf_ctx e in
-    let rval = "__rval" in
-    let rval' = mkpos (Register rval, rt.data) in
+    let rval = mkpos "__rval" in
+    let rval' = mkpos (Variable rval, rt.data) in
     let xfe' = ctx_select(e',rval') in
-    let rassign = RegAssign(rval,xfe') in
+    let rassign = BaseAssign(rval,xfe') in
     let should_transform = (List.length xf_ctx.ms > 0) in
-      [ RegAssign(rval,xfe');
+      [ BaseAssign(rval,xfe');
         if should_transform then
-          let rnset = "__rnset" in
-          let rnset' = sebool(Register(rnset)) in
+          let rnset = mkpos "__rnset" in
+          let rnset' = sebool(Variable(rnset)) in
           let assigned = ctx_select(sebool(False),rnset') in
-            RegAssign(rnset,assigned)
+            BaseAssign(rnset,assigned)
         else
           Return rval' ]
 
   | VoidReturn ->
     let should_transform = (List.length xf_ctx.ms > 0) in
       if should_transform then
-        let rnset = "__rnset" in
-        let rnset' = sebool(Register(rnset)) in
+        let rnset = mkpos "__rnset" in
+        let rnset' = sebool(Variable(rnset)) in
         let assigned = ctx_select(sebool(False),rnset') in
-          [RegAssign(rnset,assigned)]
+          [BaseAssign(rnset,assigned)]
       else
         [VoidReturn]
 
@@ -277,25 +274,23 @@ let xf_fdec fenv = pfunction
           params @ [fctx_param]
       else params in
     let venv,stms' = xf_block rt fenv [] (venv,stms) in
-    let rnset = "__rnset" in
-    let rnset_dec = mkpos RegAssign(rnset, sebool(True)) in
+    let rnset = mkpos "__rnset" in
+    let rnset_dec = mkpos BaseDec(rnset, mkpos svbool, sebool(True)) in
       let stms' = rnset_dec::stms' in
         begin
           match rt with
             | Some {data=et} ->
-              let rval = "__rval" in
-              let BaseET({data=bty},_) = et in
+              let rval = mkpos "__rval" in
+              let BaseET(bty,l) = et in
               let def_val =
-                  match bty with
+                  match bty.data with
                     | Bool -> False
                     | _ -> IntLiteral 0
               in
-              let rval_dec = mkpos RegAssign(rval,mkpos (def_val,et)) in
-              let ret = mkpos Return (mkpos (Register(rval), et)) in
-                (*FunDec(f,rt,params',(venv,rval_dec::stms'@[ret]))*)
+              let rval_dec = mkpos BaseDec(rval, mkpos RefVT(bty, l, mkpos Const), mkpos (def_val,et)) in
+              let ret = mkpos Return (mkpos (Variable(rval), et)) in
                 FunDec(f,rt,params',(venv,rval_dec::stms'))
             | None ->
-              (*FunDec(f,rt,params',(venv,stms'@[mkpos VoidReturn]))*)
               FunDec(f,rt,params',(venv,stms'))
         end
   | CExtern _ as fdec -> fdec
