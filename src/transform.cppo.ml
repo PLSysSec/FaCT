@@ -69,7 +69,7 @@ let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
 type xf_ctx_record = {
   ms   : var_name list;
   rt   : ret_type;
-  venv : variable_type Env.env;
+  venv : (var_name * variable_type) Env.env;
   fenv : function_dec Env.env;
 }
 
@@ -137,7 +137,8 @@ and xf_expr' xf_ctx { data; pos=p } =
             let res = mkpos new_temp_var () in
             let resvt = mkpos svbool in
             let resdec = mkpos BaseDec(res, resvt, sebool(False)) in
-              Env.add_var xf_ctx.venv res resvt;
+            let entry = (res, resvt) in
+              Env.add_var xf_ctx.venv res entry;
             let stm =
               mkpos If(e1,
                        (xf_ctx.venv,[mkpos BaseAssign(res, e2)]),
@@ -180,7 +181,8 @@ and xf_stm' xf_ctx p = function
 
   | BaseAssign(x,e) ->
     let e' = xf_expr xf_ctx e in
-    let x' = mkpos (Variable x, r2bty (Env.find_var xf_ctx.venv x)) in
+    let _,vt = Env.find_var xf_ctx.venv x in
+    let x' = mkpos (Variable x, r2bty vt) in
     let xfe' = ctx_select(e',x') in
       [BaseAssign(x,xfe')]
 
@@ -191,7 +193,8 @@ and xf_stm' xf_ctx p = function
   | ArrayAssign(x,n,e) ->
     let n' = xf_expr xf_ctx n in
     let e' = xf_expr xf_ctx e in
-    let x' = mkpos (ArrayGet(x,n'), a2bty (Env.find_var xf_ctx.venv x)) in
+    let _,vt = Env.find_var xf_ctx.venv x in
+    let x' = mkpos (ArrayGet(x,n'), a2bty vt) in
     let xfe' = ctx_select(e',x') in
       [ArrayAssign(x,n',xfe')]
 
@@ -201,7 +204,8 @@ and xf_stm' xf_ctx p = function
         let vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
         let tname = mkpos new_temp_var () in
         let mdec = BaseDec(tname, vt, cond') in
-          Env.add_var xf_ctx.venv tname vt;
+        let entry = (tname, vt) in
+          Env.add_var xf_ctx.venv tname entry;
         let mnot = BaseAssign(tname, bnot(bvar(tname))) in
         let xf_ctx' = { xf_ctx with ms=(tname::xf_ctx.ms) } in
         let thenstms' = xf_block xf_ctx'.rt xf_ctx'.fenv xf_ctx'.ms thenstms in
@@ -270,7 +274,8 @@ let xf_fdec fenv = pfunction
         let fctx = mkpos "__fctx" in
         let fctx_vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
         let fctx_param = mkpos Param(fctx, fctx_vt) in
-          Env.add_var venv fctx fctx_vt;
+        let entry = (fctx, fctx_vt) in
+          Env.add_var venv fctx entry;
           params @ [fctx_param]
       else params in
     let venv,stms' = xf_block rt fenv [] (venv,stms) in

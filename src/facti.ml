@@ -39,7 +39,7 @@ let expr_to_fun e =
   let body = make_ast fake_pos (Ast.Return e) in
   name, make_ast fake_pos (Ast.FunDec(fun_name, (Some ret_type), [], [body]))
 
-let texpr_to_fun (expr :Tast.top_level) (venv : Tast.variable_type Env.env) = match expr with
+let texpr_to_fun (expr :Tast.top_level) (venv : (Tast.var_name * Tast.variable_type) Env.env) = match expr with
   | Tast.Expression expr ->
     begin
     match expr.data with
@@ -63,7 +63,7 @@ let texpr_to_fun (expr :Tast.top_level) (venv : Tast.variable_type Env.env) = ma
   are not allowed in functions.
 *)
 type type_envs = {
-  type_venv: Tast.variable_type Env.env;
+  type_venv: (Tast.var_name * Tast.variable_type) Env.env;
   type_fenv: Tast.function_dec Env.env;
   type_arrenv: Tast.array_type Env.env;
 }
