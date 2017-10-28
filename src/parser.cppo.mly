@@ -155,8 +155,7 @@ unop:
 arg:
   | e=expr { mkpos (ByValue e) }
   | REF x=var_name { mkpos (ByRef x) }
-  (* ByArray will look like ByValue at parse time,
-   * but will get properly converted to ByArray during typecheck *)
+  | m=mutability a=array_expr { mkpos (ByArray(a,m)) }
 
 lexpr:
   | n=INT { mkpos (LIntLiteral n) }

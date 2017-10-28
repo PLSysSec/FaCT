@@ -288,7 +288,9 @@ let (<*) m1 m2 =
 let can_be_passed_to { pos=p; data=argty} {data=paramty} =
   match argty, paramty with
     | RefVT(_,_,m1), RefVT(_,_,m2) when m1.data <> m2.data -> false
-    | ArrayVT(_,_,m1), ArrayVT(_,_,m2) when m1.data <> m2.data -> false
+    | ArrayVT(_,_,m1), ArrayVT(_,_,m2) when m1.data <> m2.data ->
+      Log.warn "FIXME: Unsafe stuff here. Use at own risk";
+      true
     | RefVT(b1,l1,_), RefVT(b2,l2,_) ->
       (b1 <: b2) && (l1 <$ l2)
     | ArrayVT(a1,l1,_), ArrayVT(a2,l2,_) ->
@@ -398,6 +400,12 @@ let rec tc_arg tc_ctx = pfunction
               if not (mut.data <* Mut) then raise @@ cerr("variable `" ^ x.data ^ "` is not mut; ", p);
               ByArray(ae', mkpos Mut)
       end
+  | Ast.ByArray(arr_expr, mutability) ->
+    Log.warn "FIXME: Unsafe array pass. Use at own risk";
+    let ae' = tc_arrayexpr tc_ctx arr_expr in
+    let (_,ArrayET(_,_,mut)) = ae'.data in
+    if not (mut.data <* Mut) then raise @@ cerr("array expression is not mut; ", p);
+    ByArray(ae', mkpos Mut)
 
 and tc_args xf_args tc_ctx p params args =
   match params,args with
@@ -406,6 +414,8 @@ and tc_args xf_args tc_ctx p params args =
       let arg' = tc_arg tc_ctx arg in
       let argref = argtype_of tc_ctx.venv arg' in
       let Param(_,paramvt) = param.data in
+      Log.error "Expected: %s" (show_variable_type paramvt);
+      Log.error "Actual: %s" (show_variable_type argref);
         if not @@ can_be_passed_to argref paramvt then raise @@ err(arg'.pos);
         if param_is_ldynamic param && xf_args then
           let _::params = params in

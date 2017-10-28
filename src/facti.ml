@@ -97,6 +97,7 @@ let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
     print_string "Evaluated to:\n";
     print_string (Int32.to_string (fun_ptr ()));
     print_newline ();
+    Llvm.print_module "expri.ll" mod'
   | Tast.Statement st ->
     print_string ((Tast.show_statement st) ^ "\n");
     let temp_renv = Codegen.new_renv () in
@@ -109,7 +110,8 @@ let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
     Codegen.codegen_stm cg_ctx None st |> ignore
   | Tast.FunctionDec fd  ->
     print_string ((Tast.show_function_dec fd) ^ "\n");
-    Codegen.codegen_fun ctx.llcontext mod' builder cg_fenv false fd |> ignore
+    Codegen.codegen_fun ctx.llcontext mod' builder cg_fenv false fd |> ignore;
+    Llvm.print_module "funi.ll" mod'
 
 let rec repl2 mod' ctx builder jit type_envs ll_envs cg_fenv =
   (* Set the prompt *)
@@ -157,13 +159,16 @@ let _ =
   let builder = Llvm.builder llcontext in
   let execution_engine = create mod' in
   add_module mod' execution_engine;
-  let fenv = Env.new_env () in
+  let fenv = Codegen.new_fenv () in
   let venv = Env.new_env () in
+  let tenv = Env.new_env () in
+  let renv = Codegen.new_renv () in
+  let fenv_ty = Env.new_env () in
+  let venv_ty = Env.new_env () in
   let arrenv = Env.new_env () in
   let cg_fenv = Codegen.new_fenv () in
   let ll_venv = Env.new_env () in
-  let type_envs = { type_fenv=fenv; type_venv=venv; type_arrenv=arrenv } in
+  let type_envs = { type_fenv=fenv_ty; type_venv=venv_ty; type_arrenv=arrenv } in
   let ll_envs = { llvm_venv=ll_venv; llvm_fenv=cg_fenv } in
-  (*let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; renv; verify_llvm }
+  let cg_ctx = Codegen.mk_ctx llcontext mod' builder venv fenv tenv renv false in
   repl2 mod' cg_ctx builder execution_engine type_envs ll_envs cg_fenv
-  *)()

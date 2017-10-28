@@ -106,6 +106,7 @@ and arg_exprs = arg_expr list [@@deriving show]
 
 and arg_expr' =
   | ByValue of expr
+  | ByArray of array_expr * mutability
   | ByRef of var_name
 [@@deriving show]
 and arg_expr = arg_expr' pos_ast [@@deriving show]
