@@ -19,10 +19,24 @@ let rebind f pa = { pa with data=f pa }
 type tc_ctx_record = {
   rp   : label' ref;
   pc   : label';
-  venv : variable_type Env.env;
+  venv : (var_name * variable_type) Env.env;
   fenv : function_dec Env.env;
 }
 
+let make_fresh =
+  let ctr = ref 0 in
+  let make_fresh' name =
+    ctr := !ctr + 1;
+    "__v" ^ (string_of_int !ctr) ^ "_" ^ name
+  in
+    make_fresh'
+
+let add_new_var venv x vt =
+  let x' = { x with data=make_fresh x.data } in
+  let entry = (x', vt) in
+    Env.add_var venv x entry;
+    Env.add_var venv x' entry;
+    x'
 
 
 (* Predicates *)
@@ -180,7 +194,8 @@ let argtype_of venv = xfunction
     let b,ml = expr_to_types e in
       mkpos RefVT(b,ml,mkpos Const)
   | ByRef x ->
-    Env.find_var venv x
+    let _,vt = Env.find_var venv x in
+      vt
   | ByArray({data=(aexpr,aty)}, mut) ->
     let b,ml = atype_out (mkpos aty) in
     mkpos ArrayVT(b,ml,mut)
@@ -377,7 +392,7 @@ let rec tc_arg tc_ctx = pfunction
     begin
       match e.data with
         | Ast.Variable x ->
-          let vty = Env.find_var tc_ctx.venv x in
+          let _,vty = Env.find_var tc_ctx.venv x in
             begin
               match vty.data with
                 | RefVT _ -> ByValue (tc_expr tc_ctx e)
@@ -390,10 +405,10 @@ let rec tc_arg tc_ctx = pfunction
         | _ -> ByValue (tc_expr tc_ctx e)
     end
   | Ast.ByRef x ->
-    let xref = Env.find_var tc_ctx.venv x in
+    let x',xref = Env.find_var tc_ctx.venv x in
       begin
         match xref.data with
-          | RefVT _ -> ByRef x
+          | RefVT _ -> ByRef x'
           | ArrayVT _ ->
             let ae' = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar x) in
             let (_,ArrayET(_,_,mut)) = ae'.data in
@@ -441,15 +456,15 @@ and tc_expr tc_ctx = pfunction
   | Ast.IntLiteral n ->
     (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public))
   | Ast.Variable x ->
-    let xref = Env.find_var tc_ctx.venv x in
-      (Variable x, refvt_to_etype' xref)
+    let x',xref = Env.find_var tc_ctx.venv x in
+      (Variable x', refvt_to_etype' xref)
   | Ast.ArrayGet(x,e) ->
-    let xref = Env.find_var tc_ctx.venv x in
+    let x',xref = Env.find_var tc_ctx.venv x in
     let e' = tc_expr tc_ctx e in
-      (ArrayGet(x,e'), refvt_to_betype' xref)
+      (ArrayGet(x',e'), refvt_to_betype' xref)
   | Ast.ArrayLen x ->
     (* XXX type should be size_t not uint32 *)
-    let xref = Env.find_var tc_ctx.venv x in
+    let _,xref = Env.find_var tc_ctx.venv x in
     let lexpr = refvt_to_lexpr xref in
       begin
         match lexpr.data with
@@ -500,22 +515,24 @@ and tc_arrayexpr tc_ctx = pfunction
     let at' = mkpos ArrayAT(b, mkpos LIntLiteral(List.length exprs')) in
       (ArrayLit exprs', ArrayET(at', mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Mut))
   | Ast.ArrayVar x ->
-    let xref = Env.find_var tc_ctx.venv x in
-      (ArrayVar x, refvt_to_etype' xref)
+    let x',xref = Env.find_var tc_ctx.venv x in
+      (ArrayVar x', refvt_to_etype' xref)
   | Ast.ArrayZeros lexpr ->
     let b = mkpos Num(0, false) in
     let lexpr' = lexprconv lexpr in
     let at' = mkpos ArrayAT(b, lexpr') in
     (ArrayZeros lexpr', ArrayET(at', mkpos Fixed Public, mkpos Mut))
   | Ast.ArrayCopy x ->
-    let ae' = refvt_to_etype' (Env.find_var tc_ctx.venv x) in
-      (ArrayCopy x, ae')
+    let x',vt = Env.find_var tc_ctx.venv x in
+    let ae' = refvt_to_etype' vt in
+      (ArrayCopy x', ae')
   | Ast.ArrayView(x,e,lexpr) ->
     let e' = tc_expr tc_ctx e in
     let lexpr' = lexprconv lexpr in
-    let ae = refvt_to_etype (Env.find_var tc_ctx.venv x) in
+    let x',vt = Env.find_var tc_ctx.venv x in
+    let ae = refvt_to_etype vt in
     let ae' = aetype_update_lexpr' lexpr'.data ae in
-      (ArrayView(x,e',lexpr'), ae')
+      (ArrayView(x',e',lexpr'), ae')
   | Ast.ArrayComp(b,lexpr,x,e) ->
     let b' = bconv b in
     let lexpr' = lexprconv lexpr in
@@ -531,16 +548,17 @@ let rec tc_stm tc_ctx = pfunction
     let vt' = refvt_conv vt in
     let xty = refvt_to_etype vt' in
       if not (ety <:$ xty) then raise @@ err(e'.pos);
-      Env.add_var tc_ctx.venv x vt';
-      BaseDec(x,vt',e')
+      let x' = add_new_var tc_ctx.venv x vt' in
+        BaseDec(x',vt',e')
 
   | Ast.BaseAssign(x,e) ->
     let e' = tc_expr tc_ctx e in
-    let b,{data=Fixed l},m = refvt_type_out (Env.find_var tc_ctx.venv x) in
+    let x',vt = Env.find_var tc_ctx.venv x in
+    let b,{data=Fixed l},m = refvt_type_out vt in
       if m.data <> Mut then raise @@ cerr("variable `" ^ x.data ^ "` is not mut; ", p);
       (* TODO check that types match *)
       if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then raise @@ err(p);
-      BaseAssign(x,e')
+      BaseAssign(x',e')
 
   | Ast.ArrayDec(x,vt,ae) ->
     let ae' = tc_arrayexpr tc_ctx ae in
@@ -550,18 +568,19 @@ let rec tc_stm tc_ctx = pfunction
     let vt' = refvt_conv_fill ae_lexpr' vt in
     let xty = refvt_to_etype vt' in
       (* TODO check that types match *)
-      Env.add_var tc_ctx.venv x vt';
-      ArrayDec(x,vt',ae')
+    let x' = add_new_var tc_ctx.venv x vt' in
+      ArrayDec(x',vt',ae')
 
   | Ast.ArrayAssign(x,n,e) ->
     let n' = tc_expr tc_ctx n in
     let e' = tc_expr tc_ctx e in
-    let b,{data=Fixed l},m = refvt_type_out (Env.find_var tc_ctx.venv x) in
+    let x',vt = Env.find_var tc_ctx.venv x in
+    let b,{data=Fixed l},m = refvt_type_out vt in
       if m.data <> Mut then raise @@ cerr("variable `" ^ x.data ^ "` is not mut; ", p);
       (* TODO check that types match *)
       (* TODO check that n' won't be out-of-bounds *)
       if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then raise @@ err(p);
-      ArrayAssign(x,n',e')
+      ArrayAssign(x',n',e')
 
   | Ast.If(cond,thenstms,elsestms) ->
     let cond' = tc_expr tc_ctx cond in
@@ -581,10 +600,10 @@ let rec tc_stm tc_ctx = pfunction
     let hi' = tc_expr tc_ctx hi in
     (* TODO check types and labels *)
     let venv' = Env.sub_env tc_ctx.venv in
-      Env.add_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const));
+    let i' = add_new_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const)) in
       let tc_ctx' = { tc_ctx with venv=venv' } in
       let stms' = tc_block tc_ctx' stms in
-        For(i,ity',lo',hi',stms')
+        For(i',ity',lo',hi',stms')
 
   | Ast.VoidFnCall(f,args) ->
     begin
@@ -640,7 +659,8 @@ let tc_fdec' fenv = function
     let params' = List.flatten @@ List.map (tc_param true) params in
     let venv = Env.new_env () in
       List.iter (fun {data=Param(name,vty)} ->
-                  Env.add_var venv name vty)
+                  let entry = (name,vty) in
+                    Env.add_var venv name entry)
         params';
       let tc_ctx = { rp=ref Public; pc=Public; venv; fenv } in
       let stms' = List.rev @@
@@ -664,7 +684,8 @@ let tc_fdec' fenv = function
     let params' = List.flatten @@ List.map (tc_param false) params in
     let venv = Env.new_env () in
       List.iter (fun {data=Param(name,vty)} ->
-                  Env.add_var venv name vty)
+                  let entry = (name,vty) in
+                    Env.add_var venv name entry)
         params';
       let tc_ctx = { rp=ref Public; pc=Public; venv; fenv } in
         CExtern(f,rt',params')

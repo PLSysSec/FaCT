@@ -39,7 +39,7 @@ let expr_to_fun e =
   let body = make_ast fake_pos (Ast.Return e) in
   name, make_ast fake_pos (Ast.FunDec(fun_name, (Some ret_type), [], [body]))
 
-let texpr_to_fun (expr :Tast.top_level) (venv : Tast.variable_type Env.env) = match expr with
+let texpr_to_fun (expr :Tast.top_level) (venv : (Tast.var_name * Tast.variable_type) Env.env) = match expr with
   | Tast.Expression expr ->
     begin
     match expr.data with
@@ -63,7 +63,7 @@ let texpr_to_fun (expr :Tast.top_level) (venv : Tast.variable_type Env.env) = ma
   are not allowed in functions.
 *)
 type type_envs = {
-  type_venv: Tast.variable_type Env.env;
+  type_venv: (Tast.var_name * Tast.variable_type) Env.env;
   type_fenv: Tast.function_dec Env.env;
   type_arrenv: Tast.array_type Env.env;
 }
@@ -100,11 +100,10 @@ let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
     Llvm.print_module "expri.ll" mod'
   | Tast.Statement st ->
     print_string ((Tast.show_statement st) ^ "\n");
-    let temp_renv = Codegen.new_renv () in
     let cg_ctx =
       Codegen.mk_ctx ctx.llcontext mod' builder
       ll_envs.llvm_venv ll_envs.llvm_fenv type_envs.type_arrenv
-      temp_renv false in
+      false in
     let block = type_envs.type_venv, [st] in
     Codegen.allocate_stack cg_ctx block;
     Codegen.codegen_stm cg_ctx None st |> ignore
@@ -162,7 +161,6 @@ let _ =
   let fenv = Codegen.new_fenv () in
   let venv = Env.new_env () in
   let tenv = Env.new_env () in
-  let renv = Codegen.new_renv () in
   let fenv_ty = Env.new_env () in
   let venv_ty = Env.new_env () in
   let arrenv = Env.new_env () in
@@ -170,5 +168,6 @@ let _ =
   let ll_venv = Env.new_env () in
   let type_envs = { type_fenv=fenv_ty; type_venv=venv_ty; type_arrenv=arrenv } in
   let ll_envs = { llvm_venv=ll_venv; llvm_fenv=cg_fenv } in
-  let cg_ctx = Codegen.mk_ctx llcontext mod' builder venv fenv tenv renv false in
+  let cg_ctx = Codegen.mk_ctx llcontext mod' builder venv fenv tenv false in
   repl2 mod' cg_ctx builder execution_engine type_envs ll_envs cg_fenv
+
