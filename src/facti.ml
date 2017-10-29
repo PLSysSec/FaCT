@@ -66,6 +66,7 @@ type type_envs = {
   type_venv: (Tast.var_name * Tast.variable_type) Env.env;
   type_fenv: Tast.function_dec Env.env;
   type_arrenv: Tast.array_type Env.env;
+  type_vtenv: Tast.variable_type Env.env;
 }
 
 (*
@@ -103,7 +104,7 @@ let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
     let cg_ctx =
       Codegen.mk_ctx ctx.llcontext mod' builder
       ll_envs.llvm_venv ll_envs.llvm_fenv type_envs.type_arrenv
-      false in
+      type_envs.type_vtenv false in
     let block = type_envs.type_venv, [st] in
     Codegen.allocate_stack cg_ctx block;
     Codegen.codegen_stm cg_ctx None st |> ignore
@@ -161,13 +162,14 @@ let _ =
   let fenv = Codegen.new_fenv () in
   let venv = Env.new_env () in
   let tenv = Env.new_env () in
+  let vtenv = Env.new_env () in
   let fenv_ty = Env.new_env () in
   let venv_ty = Env.new_env () in
   let arrenv = Env.new_env () in
   let cg_fenv = Codegen.new_fenv () in
   let ll_venv = Env.new_env () in
-  let type_envs = { type_fenv=fenv_ty; type_venv=venv_ty; type_arrenv=arrenv } in
+  let type_envs = { type_fenv=fenv_ty; type_venv=venv_ty; type_arrenv=arrenv; type_vtenv=vtenv } in
   let ll_envs = { llvm_venv=ll_venv; llvm_fenv=cg_fenv } in
-  let cg_ctx = Codegen.mk_ctx llcontext mod' builder venv fenv tenv false in
+  let cg_ctx = Codegen.mk_ctx llcontext mod' builder venv fenv tenv vtenv false in
   repl2 mod' cg_ctx builder execution_engine type_envs ll_envs cg_fenv
 

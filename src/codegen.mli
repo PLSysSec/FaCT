@@ -10,6 +10,7 @@ type codegen_ctx_record = {
   venv        : llvalue env;
   fenv        : fenv;
   tenv        : Tast.array_type env;
+  vtenv       : Tast.variable_type env;
   verify_llvm : bool;
 }
 
@@ -19,6 +20,7 @@ val mk_ctx : llcontext
           -> llvalue env
           -> fenv
           -> Tast.array_type env
+          -> Tast.variable_type env
           -> bool
           -> codegen_ctx_record
 
