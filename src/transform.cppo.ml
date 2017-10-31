@@ -135,8 +135,13 @@ and xf_expr' xf_ctx { data; pos=p } =
         let e1' = xf_expr xf_ctx e1 in
           if is_secret e1' then
             let res = mkpos new_temp_var () in
-            let resvt = mkpos svbool in
-            let resdec = mkpos BaseDec(res, resvt, sebool(False)) in
+            let resvt = mkpos b2rty (mkpos Const) (mkpos ety) in
+            let def_val =
+              match ety with
+                | BaseET({data=Bool},_) -> False
+                | _ -> IntLiteral 0
+            in
+            let resdec = mkpos BaseDec(res, resvt, mkpos (def_val, ety)) in
             let entry = (res, resvt) in
               Env.add_var xf_ctx.venv res entry;
             let stm =
