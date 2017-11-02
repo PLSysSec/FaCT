@@ -155,7 +155,7 @@ unop:
 arg:
   | e=expr { mkpos (ByValue e) }
   | REF x=var_name { mkpos (ByRef x) }
-  | m=mutability a=array_expr { mkpos (ByArray(a,m)) }
+  | hasmut=boption(REF) a=array_expr { mkpos (ByArray(a,mkpos (if hasmut then Mut else Const))) }
 
 lexpr:
   | n=INT { mkpos (LIntLiteral n) }

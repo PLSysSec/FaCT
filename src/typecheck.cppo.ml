@@ -416,11 +416,11 @@ let rec tc_arg tc_ctx = pfunction
               ByArray(ae', mkpos Mut)
       end
   | Ast.ByArray(arr_expr, mutability) ->
-    Log.warn "FIXME: Unsafe array pass. Use at own risk";
+    let m' = mconv mutability in
     let ae' = tc_arrayexpr tc_ctx arr_expr in
     let (_,ArrayET(_,_,mut)) = ae'.data in
-    if not (mut.data <* Mut) then raise @@ cerr("array expression is not mut; ", p);
-    ByArray(ae', mkpos Mut)
+    if not (mut.data <* m'.data) then raise @@ cerr("array expression is not proper mutability; ", p);
+    ByArray(ae', m')
 
 and tc_args xf_args tc_ctx p params args =
   match params,args with
