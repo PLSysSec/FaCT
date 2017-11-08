@@ -360,14 +360,15 @@ and codegen_expr cg_ctx = function
     let store = find_var cg_ctx.venv var_name in
     build_load store var_name.data cg_ctx.builder
 
+
 and extend_to ctx builder signed dest et v =
   let llvm_et = expr_ty_to_llvm_ty ctx et in
   let lb,rb = integer_bitwidth dest, integer_bitwidth llvm_et in
   match lb,rb with
     | lb',rb' when lb' = rb' -> v
-    | lb',rb' when lb' < rb' -> build_trunc v llvm_et "trunc" ctx.builder
-    | lb',rb' when (lb' > rb') && signed -> build_sext v dest "sext" ctx.builder
-    | lb',rb' when lb' > rb' -> build_zext v llvm_et "zext" ctx.builder
+    | lb',rb' when lb' < rb' -> build_trunc v dest "trunctmp" ctx.builder
+    | lb',rb' when (lb' > rb') && signed -> build_sext v dest "sexttmp" ctx.builder
+    | lb',rb' when lb' > rb' -> build_zext v dest "zexttmp" ctx.builder
     | _ -> raise CodegenError (* This should never be hit *)
 
 and codegen_ext cg_ctx dest (expr : expr) =

@@ -429,8 +429,6 @@ and tc_args xf_args tc_ctx p params args =
       let arg' = tc_arg tc_ctx arg in
       let argref = argtype_of tc_ctx.venv arg' in
       let Param(_,paramvt) = param.data in
-      Log.error "Expected: %s" (show_variable_type paramvt);
-      Log.error "Actual: %s" (show_variable_type argref);
         if not @@ can_be_passed_to argref paramvt then raise @@ err(arg'.pos);
         if param_is_ldynamic param && xf_args then
           let _::params = params in
