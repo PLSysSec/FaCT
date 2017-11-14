@@ -1,11 +1,11 @@
 void fact_memzero(secret mut uint8[] buf) {
-  for (uint32 i = 0 to len buf) {
+  for (int32 i = 0 to len buf) {
     buf[i] = 0;
   }
 }
 
 void fact_memzero64(secret mut uint64[] buf) {
-  for (uint32 i = 0 to len buf) {
+  for (int32 i = 0 to len buf) {
     buf[i] = 0;
   }
 }

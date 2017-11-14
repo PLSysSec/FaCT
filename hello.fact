@@ -1,3 +1,10 @@
+
+extern public int32 safeForeignCall();
+
+public int32 makeForeignCall() {
+  return safeForeignCall();
+}
+
 public int32 get5() {
     return 5;
 }
@@ -8,4 +15,43 @@ public int32 get10() {
 
 public int32 add10(public int32 a) {
     return a + 10;
+}
+
+public int32 t(public int32[] x, public int32[5] fucking) {
+  public int32[5] fuck = {1,2,3,4,5};
+  return x[2] + fuck[1] + fucking[4];
+}
+
+public int32 derp(public int32[5] fucker) {
+  return fucker[0] + fucker[2];
+}
+
+public int32 main() {
+  public int32[5] d = {1,2,4,3,2};
+  return derp(d);
+}
+
+void fact_memzero(secret mut uint8[] buf) {
+  for (uint32 i = 0 to len buf) {
+    buf[i] = 0;
+  }
+}
+
+public int8 mmmmmmmmm(public mut uint32 padded_buflen_p) {
+  secret mut uint32 tail = 0;
+  padded_buflen_p = tail + (uint32)1;
+  return 1;
+}
+
+void looping() {
+  public mut bool flag = false;
+  public uint64 slen = 10;
+  for(uint32 i = 0 to slen - 1) {
+    if(flag == false) {
+      if(true) {
+      } else {
+        flag = true;
+      }
+    }
+  }
 }

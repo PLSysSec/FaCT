@@ -323,14 +323,16 @@ and codegen_expr cg_ctx = function
     let v = codegen_expr cg_ctx expr.data in
     build_cast cg_ctx cg_ctx.builder v base_ty.data
   | UnOp(op,expr), ty ->
-    let expr' = codegen_expr cg_ctx expr.data in
+    let llty = expr_ty_to_llvm_ty cg_ctx ty in
+    let expr' = codegen_ext cg_ctx llty expr in
     codegen_unop cg_ctx.builder expr' op
   | BinOp(op,expr1,expr2), ty ->
     let ty' = match ty with
       | BaseET(bt,_) -> bt
       | ArrayET _ -> raise CodegenError in
-    let e1 = codegen_expr cg_ctx expr1.data in
-    let e2 = codegen_expr cg_ctx expr2.data in
+    let llty = expr_ty_to_llvm_ty cg_ctx ty in
+    let e1 = codegen_ext cg_ctx llty expr1 in
+    let e2 = codegen_ext cg_ctx llty expr2 in
     codegen_binop op e1 e2 ty'.data cg_ctx.builder
   | TernOp(expr1,expr2,expr3), ty ->
     let e1 = codegen_expr cg_ctx expr1.data in
@@ -561,12 +563,13 @@ and codegen_stm cg_ctx ret_ty = function
     let bb_body = append_block cg_ctx.llcontext "loop_body" parent_function in
     let bb_end = append_block cg_ctx.llcontext "loop_end" parent_function in
     let i = find_var cg_ctx.venv var_name in
-    let low = codegen_ext cg_ctx (i32_type cg_ctx.llcontext) low_expr in
+    let bt = bt_to_llvm_ty cg_ctx base_type.data in
+    let low = codegen_ext cg_ctx bt low_expr in
     ignore(build_store low i cg_ctx.builder);
     ignore(build_br bb_check cg_ctx.builder);
     position_at_end bb_check cg_ctx.builder;
     let i' = build_load i var_name.data cg_ctx.builder in
-    let high = codegen_ext cg_ctx (i32_type cg_ctx.llcontext) high_expr in
+    let high = codegen_ext cg_ctx bt high_expr in
     let cmp = if is_signed base_type.data then Icmp.Slt else Icmp.Ult in
     let cond = build_icmp cmp i' high "loopcond" cg_ctx.builder in
     ignore(build_cond_br cond bb_body bb_end cg_ctx.builder);
