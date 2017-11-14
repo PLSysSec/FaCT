@@ -72,3 +72,9 @@ public uint32 yyy(public uint8[4] buf) {
 public bool bugfixes(public int32 x) {
   return x >= 4;
 }
+
+void fact_memzero(secret mut uint8[] buf) {
+  for (uint32 i = 0 to len buf) {
+    buf[i] = 0;
+  }
+}

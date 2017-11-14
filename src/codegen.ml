@@ -497,7 +497,16 @@ and codegen_stm cg_ctx ret_ty = function
     let index = codegen_expr cg_ctx array_index.data in
     let expr' = codegen_expr cg_ctx expr.data in
     let zero = const_int (i32_type cg_ctx.llcontext) 0 in
-    let p = build_gep v [| zero; index |] "ptr" cg_ctx.builder in
+    let some_arg =
+      try Some(find_var cg_ctx.tenv var_name) with
+        | _-> None in
+    let indices,ptr = match some_arg with
+      | None -> [| zero; index |],v
+      | Some arg ->
+        let indices = [| index |] in
+        let ptr = build_load v "loadedassignptr" cg_ctx.builder in
+        indices, ptr in
+    let p = build_gep ptr indices "ptr" cg_ctx.builder in
     build_store expr' p cg_ctx.builder |> ignore;
     false
   | {data=Block(stms)} ->
