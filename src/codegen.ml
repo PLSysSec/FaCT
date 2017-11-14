@@ -169,6 +169,7 @@ let allocate_args cg_ctx args f =
     let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in*)
     build_store arg alloca cg_ctx.builder |> ignore;
     add_var cg_ctx.venv var_name alloca;
+    add_var cg_ctx.vtenv var_name var_type
   in
   let ll_args = Array.to_list (params f) in
   List.iter2 allocate_arg args ll_args

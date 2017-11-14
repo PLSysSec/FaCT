@@ -38,11 +38,8 @@ public int8 sodium_pad (
     }
 
     tail = xpadded_len;
-    
-    // the original code assigns the padded lenght back to
-    // padded_buflen_p (return parameter)
-    // the following line caused uncaught exception
-    // padded_buflen_p = tail + (uint32)1;
+
+    padded_buflen_p = tail + (uint32)1;
 
     mask = (uint8)0;
 
