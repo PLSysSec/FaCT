@@ -590,7 +590,7 @@ and codegen_stm cg_ctx ret_ty = function
       | None -> raise CodegenError in
     let codegen_arg' = codegen_arg cg_ctx in
     let args' = List.map2 codegen_arg' arg_exprs fun_dec.args in
-    build_call callee (Array.of_list args') "voidcalltmp" cg_ctx.builder |> ignore;
+    build_call callee (Array.of_list args') "" cg_ctx.builder |> ignore;
     false
   | {data=VoidReturn} ->
     build_ret_void cg_ctx.builder |> ignore;
