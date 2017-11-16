@@ -283,7 +283,7 @@ let rec codegen_arg cg_ctx arg ty =
                 | LDynamic var_name ->
                   let arr' = codegen_array_expr cg_ctx arr.data in
                   let ll_ty = bt_to_llvm_ty cg_ctx bt.data in
-                  build_bitcast arr' ll_ty "arrtoptr" cg_ctx.builder
+                  build_bitcast arr' (pointer_type ll_ty) "arrtoptr" cg_ctx.builder
             end
           | _-> raise CodegenError
       end;

@@ -78,3 +78,9 @@ void fact_memzero(secret mut uint8[] buf) {
     buf[i] = 0;
   }
 }
+
+void accept_var_len_array(secret uint8[] m) { }
+
+void pass_var_len_array(secret uint8[] m) {
+  accept_var_len_array(m);
+}
