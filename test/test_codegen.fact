@@ -84,3 +84,8 @@ void accept_var_len_array(secret uint8[] m) { }
 void pass_var_len_array(secret uint8[] m) {
   accept_var_len_array(m);
 }
+
+void do_a_view(secret uint8[32] m) {
+  public mut uint64 mindex = 0;
+  secret uint8[16] mview = arrview(m, mindex, 16);
+}

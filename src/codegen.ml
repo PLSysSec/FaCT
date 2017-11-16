@@ -442,7 +442,7 @@ and codegen_array_expr cg_ctx = function
   | ArrayView(var_name, expr, lexpr),ty ->
     let index = codegen_expr cg_ctx expr.data in
     let size = get_size cg_ctx lexpr.data in
-    let index' = const_add index (const_int (type_of index) size) in
+    let index' = build_add index (const_int (type_of index) size) "viewadd" cg_ctx.builder in
     let ll_ty = expr_ty_to_llvm_ty cg_ctx ty in
     let bitsize = bitsize cg_ctx ty in
     let zero' = const_int bitsize 0 in
@@ -453,7 +453,7 @@ and codegen_array_expr cg_ctx = function
     let ll_cpy_len = (const_int (i64_type cg_ctx.llcontext) num_bytes) in
     let alignment = (const_int (i32_type cg_ctx.llcontext) 16) in
     let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
-    let source_gep = build_in_bounds_gep from [| index; index' |] "source_gep" cg_ctx.builder in
+    let source_gep = build_in_bounds_gep from [| index'; index' |] "source_gep" cg_ctx.builder in
     let dest_gep   = build_in_bounds_gep alloca [| zero'; zero' |] "dest_gep" cg_ctx.builder in
     let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
     let source_casted = build_bitcast source_gep source_cast_ty "source_casted" cg_ctx.builder in
