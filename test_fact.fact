@@ -1,0 +1,38 @@
+/*
+public int32 derp(public int32[] d) {
+  return d[0] + d[1];
+}
+
+public int32 derping() {
+  public mut int32[3] arr = {5,42, 3};
+  arr[0] = 0;
+  return arr[0] + arr[1] + arr[2];
+}
+
+public int32 meh() {
+  public bool b = true;
+  public mut int64 xxx = 100;
+  xxx = b;
+  return 10;
+}
+
+
+void inject() {
+  secret bool xxx = true;
+  secret int32 yyy = 4;
+  secret int32 zzz = 5;
+
+  //secret int32 meh = xxx ? yyy : zzz;
+}
+*/
+public int8 sodium_pad (
+    public mut uint64 padded_buflen_p,
+    secret mut uint8[] buf,
+    secret uint64 unpadded_buflen,
+    public uint64 blocksize,
+    public uint64 max_buflen ) {
+    if (blocksize <= (uint64) 0) {
+        //blank
+    }
+    return 0;
+}

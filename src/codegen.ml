@@ -453,7 +453,16 @@ and codegen_array_expr cg_ctx = function
     let ll_cpy_len = (const_int (i64_type cg_ctx.llcontext) num_bytes) in
     let alignment = (const_int (i32_type cg_ctx.llcontext) 16) in
     let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
-    let source_gep = build_in_bounds_gep from [| index'; index' |] "source_gep" cg_ctx.builder in
+    let some_arg =
+      try Some(find_var cg_ctx.tenv var_name) with
+        | _-> None in
+    let from_indices,from_ptr = match some_arg with
+      | None -> [| index'; index' |],from
+      | Some arg ->
+        let indices = [| index' |] in
+        let ptr = build_load from "loadedviewptr" cg_ctx.builder in
+        indices, ptr in
+    let source_gep = build_in_bounds_gep from_ptr from_indices "source_gep" cg_ctx.builder in
     let dest_gep   = build_in_bounds_gep alloca [| zero'; zero' |] "dest_gep" cg_ctx.builder in
     let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
     let source_casted = build_bitcast source_gep source_cast_ty "source_casted" cg_ctx.builder in
