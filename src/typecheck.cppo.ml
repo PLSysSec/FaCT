@@ -226,14 +226,14 @@ let (<::) { data=ArrayAT(b1,lx1) } { data=ArrayAT(b2,lx2) } =
 let join_bt p { data=b1 } { data=b2 } =
   let b' =
     match b1,b2 with
-      | UInt n, UInt m when n = m -> b1
-      | Int n, Int m when n = m -> b1
+      | UInt n, UInt m -> UInt (max n m)
+      | Int n, Int m -> Int (max n m)
       | Bool, Bool -> b1
       | Num(k,s), Int n -> b2
       | Int n, Num(k,s) -> b1
       | Num(k,s), UInt n when not s -> b2
       | UInt n, Num(k,s) when not s -> b1
-      | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2)
+      | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2) (* XXX max k1 k2 makes no sense *)
       | _ -> raise @@ cerr("type mismatch: " ^ show_base_type' b1 ^ " <> " ^ show_base_type' b2, p);
   in mkpos b'
 

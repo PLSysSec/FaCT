@@ -65,10 +65,10 @@ void poly1305_update(
 
   /* handle leftover */
   if (state_leftover != 0) {
-    public uint64 want = (uint64)(((uint64)16) - state_leftover > len m ? ((uint64)len m) : ((uint64)16) - state_leftover);
+    public uint64 want = 16 - state_leftover > len m ? len m : 16 - state_leftover;
 
     for (uint32 i = 0 to want) {
-      state_buffer[state_leftover + ((uint64)i)] = m[i];
+      state_buffer[state_leftover + i] = m[i];
     }
     mindex += want;
     state_leftover += want;
@@ -80,8 +80,8 @@ void poly1305_update(
   }
 
   /* process full blocks */
-  if (((uint64)len m) - mindex >= ((uint64)16)) {
-    public uint64 want = ((((uint64)len m) - mindex) & ~(16 - 1)); // XXX wat
+  if (len m - mindex >= 16) {
+    public uint64 want = ((len m - mindex) & ~(16 - 1)); // XXX wat
 
     secret uint8[] mview = arrview(m, mindex, 16); // XXX third param should be `want`
     poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, m);
@@ -90,10 +90,10 @@ void poly1305_update(
 
   /* store leftover */
   if (mindex < len m) {
-    for (uint64 i = 0 to ((uint64)len m) - mindex) {
+    for (uint64 i = 0 to len m - mindex) {
       state_buffer[state_leftover + i] = m[i];
     }
-    state_leftover += ((uint64)len m) - mindex;
+    state_leftover += len m - mindex;
   }
 }
 
