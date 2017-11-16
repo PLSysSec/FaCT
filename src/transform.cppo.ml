@@ -41,9 +41,8 @@ let rec params_has_refs = function
     end
 
 let fdec_has_refs = xfunction
-  | FunDec(_,_,params,_)
-  | CExtern(_,_,params) ->
-    params_has_refs params
+  | FunDec(_,_,params,_) -> params_has_refs params
+  | CExtern(_,_,params) -> false
 
 let bty { data=(_,b) } = b
 let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)

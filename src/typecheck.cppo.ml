@@ -444,7 +444,7 @@ and tc_args xf_args tc_ctx p params args =
             arg' :: (mkpos len) :: tc_args xf_args tc_ctx p params args
         else
           arg' :: tc_args xf_args tc_ctx p params args
-    | _ -> raise @@ err(p)
+    | _ -> raise @@ cerr("mismatch in args vs params length", p)
 
 and tc_expr tc_ctx = pfunction
   | Ast.True ->
