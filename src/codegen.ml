@@ -486,8 +486,13 @@ and codegen_stm cg_ctx ret_ty = function
       | ArrayVT({data=ArrayAT(bt,_)},_,_) -> bt
       | _ -> raise CodegenError
     in
-    let arr_expr, arr_ty = arr_expr.data in
-    let alloca = codegen_array_expr cg_ctx (arr_expr, arr_ty) in
+    let at_to_et = function
+      | ArrayVT(at,lab,mut') -> ArrayET(at,lab,mut')
+      | _ -> raise CodegenError
+    in
+    let arr_expr, _ = arr_expr.data in
+    let left_ty = at_to_et var_type.data in
+    let alloca = codegen_array_expr cg_ctx (arr_expr, left_ty) in
     let ct_verif_ty = bt_to_llvm_ty cg_ctx (bt_of_vt var_type.data).data in
     let ct_verif_ty' = pointer_type ct_verif_ty in
     let alloca' = build_bitcast alloca ct_verif_ty' "" cg_ctx.builder in
