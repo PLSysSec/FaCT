@@ -268,8 +268,11 @@ let size_of_lexpr = function
   | LDynamic x -> raise CodegenError
 
 let rec codegen_arg cg_ctx arg ty =
+  let vt = 
+    match ty.data with
+      | Param(_,vt) -> vt.data in
   match arg.data with
-    | ByValue expr -> codegen_expr cg_ctx expr.data
+    | ByValue expr -> codegen_ext cg_ctx (vt_to_llvm_ty cg_ctx vt) expr
     | ByArray(arr,_) ->
       begin
         match ty.data with
