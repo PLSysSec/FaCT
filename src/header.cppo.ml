@@ -36,22 +36,25 @@ let gh_lexpr = xfunction
   | LDynamic _ -> ""
 
 let gh_aty = xfunction
-  | ArrayAT(b,lexpr) -> Printf.sprintf "%s[%s]" (gh_bty b) (gh_lexpr lexpr)
+  | ArrayAT(b,_) -> Printf.sprintf "%s" (gh_bty b)
+
+let gh_aty_post = xfunction
+  | ArrayAT(_,lexpr) -> Printf.sprintf "[%s]" (gh_lexpr lexpr)
 
 let gh_ety = xfunction
   | BaseET(b,l) -> String.concat "\n" [gh_label l; gh_bty b]
   | ArrayET _ -> raise @@ err(p)
 
-let gh_vty = xfunction
-  | RefVT(b,l,m) -> Printf.sprintf "%s %s%s" (gh_label l) (gh_bty b) (gh_mut m)
-  | ArrayVT(a,l,m) -> Printf.sprintf "%s %s%s" (gh_label l) (gh_amut m) (gh_aty a)
+let gh_vty x = xfunction
+  | RefVT(b,l,m) -> Printf.sprintf "%s %s%s %s" (gh_label l) (gh_bty b) (gh_mut m) x
+  | ArrayVT(a,l,m) -> Printf.sprintf "%s %s%s %s%s" (gh_label l) (gh_amut m) (gh_aty a) x (gh_aty_post a)
 
 let gh_rty = function
   | None -> "void"
   | Some ety -> gh_ety ety
 
 let gh_param { data=Param(x,vty) } =
-  "\n  " ^ gh_vty vty ^ " " ^ x.data
+  "\n  " ^ gh_vty x.data vty
 
 let gh_fdec = xfunction
   | FunDec(f,rt,params,_) ->
