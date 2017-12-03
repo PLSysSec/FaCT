@@ -1,1 +1,3 @@
 crypto_secretbox.h
+*.bin
+*.res
