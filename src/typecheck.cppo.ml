@@ -371,10 +371,10 @@ let tc_binop' p op e1 e2 =
       | Ast.BitwiseXor
       | Ast.BitwiseAnd
       | Ast.LogicalAnd
-      | Ast.LogicalOr
-      | Ast.Equal
-      | Ast.NEqual ->
+      | Ast.LogicalOr ->
         join_bt p b1 b2
+      | Ast.Equal
+      | Ast.NEqual
       | Ast.GT
       | Ast.GTE
       | Ast.LT

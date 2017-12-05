@@ -4,3 +4,13 @@ public int32 t(public int32[] x) {
   }
   return -1;
 }
+
+void iferror() {
+  secret mut int8 c = 0;
+  secret mut int8 d = 0;
+  secret mut bool flag = false;
+
+  if((c == 0) || (!flag)) {
+    //blank
+  }
+}
