@@ -160,7 +160,7 @@ let allocate_args cg_ctx args f =
         let ty = array_type (bt_to_llvm_ty cg_ctx bt.data) s in
         let size = const_int (i32_type cg_ctx.llcontext) s in
         let loaded = build_load ll_arg "loadedarrptr" cg_ctx.builder in
-        (build_array_alloca ty size "arrayarg" cg_ctx.builder),loaded
+        (build_alloca ty var_name.data cg_ctx.builder),loaded
       | ArrayVT({data=ArrayAT(bt,{data=LDynamic(var_name)})},_,_) ->
         let ty = pointer_type(bt_to_llvm_ty cg_ctx bt.data) in
         (build_alloca ty var_name.data cg_ctx.builder),ll_arg in
@@ -417,7 +417,7 @@ and codegen_array_expr cg_ctx = function
           let zero = const_int ll_ty 0 in
           let zeros = Array.make n zero in
           let arr_ty = array_type ll_ty n in
-          let alloca = build_array_alloca arr_ty zero "zerodarray" cg_ctx.builder in
+          let alloca = build_alloca arr_ty "zerodarray" cg_ctx.builder in
           build_store (const_array ll_ty zeros) alloca cg_ctx.builder |> ignore;
           alloca
         | LDynamic x -> raise CodegenError
@@ -427,7 +427,7 @@ and codegen_array_expr cg_ctx = function
     let ll_ty = expr_ty_to_llvm_ty cg_ctx ty in
     let bitsize = bitsize cg_ctx ty in
     let zero' = const_int bitsize 0 in
-    let alloca = build_array_alloca ll_ty zero' "copiedarray" cg_ctx.builder in
+    let alloca = build_alloca ll_ty "copiedarray" cg_ctx.builder in
     let from = find_var cg_ctx.venv var_name in
     let cpy_len = array_length ll_ty in
     let num_bytes = (byte_size_of_expr_ty ty) * cpy_len in
@@ -450,7 +450,7 @@ and codegen_array_expr cg_ctx = function
     let ll_ty = expr_ty_to_llvm_ty cg_ctx ty in
     let bitsize = bitsize cg_ctx ty in
     let zero' = const_int bitsize 0 in
-    let alloca = build_array_alloca ll_ty zero' "viewedarray" cg_ctx.builder in
+    let alloca = build_alloca ll_ty "viewedarray" cg_ctx.builder in
     let from = find_var cg_ctx.venv var_name in
     let cpy_len = array_length ll_ty in
     let num_bytes = (byte_size_of_expr_ty ty) * cpy_len in
