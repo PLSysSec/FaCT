@@ -3,9 +3,9 @@ CC=gcc
 CFLAGS=-Wall -Wextra -Werror
 
 INCLUDE=-I$(UNITY_ROOT)/src
-CSRC=$(wildcard *.const)
-SRC=$(patsubst test_%.const,harness_%.c,$(CSRC))
-OBJ=$(patsubst %.const,%.o,$(CSRC))
+CSRC=$(wildcard *.fact)
+SRC=$(patsubst test_%.fact,harness_%.c,$(CSRC))
+OBJ=$(patsubst %.fact,%.o,$(CSRC))
 RUNNER=$(patsubst %.c,%_runner.c,$(SRC))
 TESTS=$(patsubst harness%.c,testbin%,$(SRC))
 
@@ -13,8 +13,8 @@ TESTS=$(patsubst harness%.c,testbin%,$(SRC))
 
 all: $(TESTS) run
 
-%.o: %.const
-	../constanc.byte -ast-out -core-ir-out -llvm-out $<
+%.o: %.fact
+	../fact.byte -ast-out -core-ir-out -llvm-out $<
 
 %_runner.c: %.c
 	ruby $(UNITY_ROOT)/auto/generate_test_runner.rb $< $@
