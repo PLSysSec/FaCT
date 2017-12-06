@@ -417,10 +417,9 @@ and codegen_array_expr cg_ctx = function
     (* TODO: This needs optimization. We want this array to be global if
              all exprs are known at compile time. Side note -- this is
              what clang does.*)
-    let exprs' = List.map (fun expr -> expr.data) exprs in
-    let ll_exprs = List.map (codegen_expr cg_ctx) exprs' in
     let bitsize = bitsize cg_ctx ty in
-    let arr_ty = array_type bitsize (List.length ll_exprs) in
+    let ll_exprs' = List.map (codegen_ext cg_ctx bitsize) exprs in
+    let arr_ty = array_type bitsize (List.length ll_exprs') in
     let zero = const_int bitsize 0 in
     let alloca = build_alloca arr_ty "arraylit" cg_ctx.builder in
     let gep i el =
@@ -428,7 +427,7 @@ and codegen_array_expr cg_ctx = function
       let ptr = build_in_bounds_gep alloca [| zero; i' |]  "index" cg_ctx.builder in
       build_store el ptr cg_ctx.builder |> ignore
       in
-    List.iteri gep ll_exprs;
+    List.iteri gep ll_exprs';
     alloca
   | ArrayZeros lexpr,ty ->
     begin

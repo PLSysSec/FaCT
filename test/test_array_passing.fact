@@ -1,0 +1,46 @@
+public int32 mutateArray(public mut uint8[4] arr) {
+  for (uint32 i = 0 to 4) {
+    arr[i] = 22;
+  }
+  return 0;
+}
+
+public int32 passAlong(public mut uint8[4] arr) {
+  return mutateArray(arr);
+}
+
+public int32 copyArray(public mut uint8[4] arr) {
+  public uint8[4] myarr = {0,0,0,0};
+  public int32 dummy = mutateArray(myarr);
+  for (uint32 i = 0 to 4) {
+    arr[i] = myarr[i];
+  }
+  return 0;
+}
+
+public int32 dynamicArray(public mut uint8[] arr) {
+  for (uint32 i = 0 to len arr) {
+    arr[i] = arr[i] + 1;
+  }
+  return 0;
+}
+
+public int32 mutateIf5(public mut uint8[4] arr, public int32 cond) {
+  public mut int32 dummy = 0;
+  if (cond == 5) {
+    dummy = mutateArray(arr);
+  } else {
+    dummy = 0;
+  }
+  return 0;
+}
+
+public int32 mutateIfNot5(public mut uint8[4] arr, public int32 cond) {
+  public mut int32 dummy = 0;
+  if (cond == 5) {
+    dummy = 0;
+  } else {
+    dummy = mutateArray(arr);
+  }
+  return 0;
+}
