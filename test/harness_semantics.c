@@ -1,9 +1,10 @@
 #include "unity.h"
 #include <stdlib.h>
 #include <stdint.h>
+#include "test_semantics.h"
 
-int get100();
-int mutateArray(int*);
+/*int get100();
+int mutateArray(int*,uint8_t);
 int mutateArray2(int*,int);
 int identity(int);
 int simpleIf(int);
@@ -35,6 +36,7 @@ int complicatedAdd5(int);
 uint32_t add5uint32(uint32_t);
 uint16_t add5uint16(uint16_t);
 uint32_t add5uintUnify(uint16_t);
+*/
 
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
@@ -42,13 +44,13 @@ void test_get(void) {
 
 void test_mutate_array(void) {
   int myarr[5] = {1,2,3,4,5};
-  TEST_ASSERT_EQUAL(44,mutateArray(myarr));
+  TEST_ASSERT_EQUAL(44,mutateArray(myarr,1));
 }
 
 void test_mutate_array2(void) {
   int myarr2[5] = {1,2,3,4,5};
   int i = 444;
-  TEST_ASSERT_EQUAL(444,mutateArray2(myarr2,i));
+  TEST_ASSERT_EQUAL(444,mutateArray2(myarr2,i,1));
 }
 
 void test_identity(void) {
@@ -104,8 +106,8 @@ void test_loop_acc(void) {
 }
 
 void test_loop_assign(void) {
-  int arr[5] = {0,0,0,0,0};
-  loopAssignArray(arr);
+  uint32_t arr[5] = {0,0,0,0,0};
+  loopAssignArray(arr,1);
   for(int i = 0; i < 5; i++) {
     TEST_ASSERT_EQUAL(i,arr[i]);
   }
@@ -135,13 +137,13 @@ void test_multiply(void) {
 }
 
 void test_equal(void) {
-  TEST_ASSERT_EQUAL(-1,equal(1,1));
+  TEST_ASSERT_EQUAL(1,equal(1,1));
   TEST_ASSERT_EQUAL(0,equal(1,11));
 }
 
 void test_nequal(void) {
   TEST_ASSERT_EQUAL(0,nequal(1,1));
-  TEST_ASSERT_EQUAL(-1,nequal(1,11));
+  TEST_ASSERT_EQUAL(1,nequal(1,11));
 }
 
 void test_lshift(void) {
@@ -161,27 +163,27 @@ void test_rshift(void) {
 void test_gt(void) {
   TEST_ASSERT_EQUAL(0,gt(1,1));
   TEST_ASSERT_EQUAL(0,gt(0,1));
-  TEST_ASSERT_EQUAL(-1,gt(1,0));
-  TEST_ASSERT_EQUAL(-1,gt(111,11));
+  TEST_ASSERT_EQUAL(1,gt(1,0));
+  TEST_ASSERT_EQUAL(1,gt(111,11));
 }
 
 void test_gte(void) {
-  TEST_ASSERT_EQUAL(-1,gte(1,1));
+  TEST_ASSERT_EQUAL(1,gte(1,1));
   TEST_ASSERT_EQUAL(0,gte(0,1));
-  TEST_ASSERT_EQUAL(-1,gte(1,0));
-  TEST_ASSERT_EQUAL(-1,gte(111,11));
+  TEST_ASSERT_EQUAL(1,gte(1,0));
+  TEST_ASSERT_EQUAL(1,gte(111,11));
 }
 
 void test_lt(void) {
   TEST_ASSERT_EQUAL(0,lt(1,1));
-  TEST_ASSERT_EQUAL(-1,lt(0,1));
+  TEST_ASSERT_EQUAL(1,lt(0,1));
   TEST_ASSERT_EQUAL(0,lt(1,0));
   TEST_ASSERT_EQUAL(0,lt(111,11));
 }
 
 void test_lte(void) {
-  TEST_ASSERT_EQUAL(-1,lte(1,1));
-  TEST_ASSERT_EQUAL(-1,lte(0,1));
+  TEST_ASSERT_EQUAL(1,lte(1,1));
+  TEST_ASSERT_EQUAL(1,lte(0,1));
   TEST_ASSERT_EQUAL(0,lte(1,0));
   TEST_ASSERT_EQUAL(0,lte(111,11));
 }

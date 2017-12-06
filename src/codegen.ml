@@ -151,25 +151,29 @@ let get_ret_ty cg_ctx = function
 (* Allocate all of the args for a function *)
 let allocate_args cg_ctx args f =
   let allocate_arg ({data=Param(var_name,var_type)} as arg) ll_arg =
-    let alloca,arg =
+    let () =
     match var_type.data with
       | RefVT _ ->
         let ty = param_to_type cg_ctx arg in
-        (build_alloca ty var_name.data cg_ctx.builder),ll_arg
+        let alloca = build_alloca ty var_name.data cg_ctx.builder in
+        add_var cg_ctx.venv var_name alloca;
+        build_store ll_arg alloca cg_ctx.builder |> ignore
       | ArrayVT({data=ArrayAT(bt,{data=LIntLiteral(s)})},_,_) ->
         let ty = array_type (bt_to_llvm_ty cg_ctx bt.data) s in
         let size = const_int (i32_type cg_ctx.llcontext) s in
         let loaded = build_load ll_arg "loadedarrptr" cg_ctx.builder in
-        (build_alloca ty var_name.data cg_ctx.builder),loaded
-      | ArrayVT({data=ArrayAT(bt,{data=LDynamic(var_name)})},_,_) ->
+        let alloca = build_alloca ty var_name.data cg_ctx.builder in
+        add_var cg_ctx.venv var_name ll_arg;
+        ()
+      | ArrayVT({data=ArrayAT(bt,{data=LDynamic(var_name')})},_,_) ->
         let ty = pointer_type(bt_to_llvm_ty cg_ctx bt.data) in
-        (build_alloca ty var_name.data cg_ctx.builder),ll_arg in
+        let alloca = (build_alloca ty var_name'.data cg_ctx.builder) in
+        add_var cg_ctx.venv var_name alloca;
+        build_store ll_arg alloca cg_ctx.builder |> ignore in
     
     set_value_name var_name.data ll_arg;
     (*let llvm_ty = param_to_type cg_ctx arg in
     let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in*)
-    build_store arg alloca cg_ctx.builder |> ignore;
-    add_var cg_ctx.venv var_name alloca;
     add_var cg_ctx.vtenv var_name var_type
   in
   let ll_args = Array.to_list (params f) in
@@ -224,25 +228,45 @@ let rec allocate_stack cg_ctx stms =
   let env,stms' = stms in
   ignore(List.map allocate_stack' stms')
 
-let codegen_binop op e1 e2 ty b =
-  match op with
-    | Ast.Plus -> build_add e1 e2 "addtmp" b
-    | Ast.Minus -> build_sub e1 e2 "subtmp" b
-    | Ast.Multiply -> build_mul e1 e2 "multmp" b
-    | Ast.Equal -> build_icmp Icmp.Eq e1 e2 "eqtmp" b
-    | Ast.NEqual -> build_icmp Icmp.Ne e1 e2 "neqtmp" b
-    | Ast.GT -> build_icmp Icmp.Ugt e1 e2 "gttmp" b
-    | Ast.GTE -> build_icmp Icmp.Uge e1 e2 "gtetmp" b
-    | Ast.LT -> build_icmp Icmp.Ult e1 e2 "lttmp" b
-    | Ast.LTE -> build_icmp Icmp.Ule e1 e2 "ltetmp" b
-    | Ast.LogicalAnd -> build_and e1 e2 "landtmp" b
-    | Ast.LogicalOr -> build_or e1 e2 "lortmp" b
-    | Ast.BitwiseAnd -> build_and e1 e2 "andtmp" b
-    | Ast.BitwiseOr -> build_or e1 e2 "ortmp" b
-    | Ast.BitwiseXor -> build_xor e1 e2 "xortmp" b
-    | Ast.LeftShift -> build_shl e1 e2 "lshift" b
-    | Ast.RightShift when is_signed ty -> build_ashr e1 e2 "arshift" b
-    | Ast.RightShift -> build_lshr e1 e2 "lrshift" b
+let codegen_binop cg_ctx op e1 e2 ty b =
+  let e1_width = integer_bitwidth (type_of e1) in
+  let e2_width = integer_bitwidth (type_of e2) in
+  let e1,e2 =
+    match e1_width,e2_width with
+      | w1,w2 when w1 < w2 ->
+        let e1' = (build_sext e1 (type_of e2)) "lhssext" cg_ctx.builder in
+        e1',e2
+      | w1,w2 when w1 > w2 -> 
+        let e2' = (build_sext e2 (type_of e1)) "rhssext" cg_ctx.builder in
+        e1,e2'
+      | w1,w2 -> e1,e2 in
+  let res = 
+    match op with
+      | Ast.Plus -> build_add e1 e2 "addtmp" b
+      | Ast.Minus -> build_sub e1 e2 "subtmp" b
+      | Ast.Multiply -> build_mul e1 e2 "multmp" b
+      | Ast.Equal -> build_icmp Icmp.Eq e1 e2 "eqtmp" b
+      | Ast.NEqual -> build_icmp Icmp.Ne e1 e2 "neqtmp" b
+      | Ast.GT -> build_icmp Icmp.Ugt e1 e2 "gttmp" b
+      | Ast.GTE -> build_icmp Icmp.Uge e1 e2 "gtetmp" b
+      | Ast.LT -> build_icmp Icmp.Ult e1 e2 "lttmp" b
+      | Ast.LTE -> build_icmp Icmp.Ule e1 e2 "ltetmp" b
+      | Ast.LogicalAnd -> build_and e1 e2 "landtmp" b
+      | Ast.LogicalOr -> build_or e1 e2 "lortmp" b
+      | Ast.BitwiseAnd -> build_and e1 e2 "andtmp" b
+      | Ast.BitwiseOr -> build_or e1 e2 "ortmp" b
+      | Ast.BitwiseXor -> build_xor e1 e2 "xortmp" b
+      | Ast.LeftShift -> build_shl e1 e2 "lshift" b
+      | Ast.RightShift when is_signed ty -> build_ashr e1 e2 "arshift" b
+      | Ast.RightShift -> build_lshr e1 e2 "lrshift" b in
+
+  let ret_ty = bt_to_llvm_ty cg_ctx ty in
+  let ret_width = integer_bitwidth ret_ty in
+  let expr_width = integer_bitwidth (type_of res) in
+  match ret_width,expr_width with
+    | rw,ew when rw < ew -> build_trunc res ret_ty "truncbinop" cg_ctx.builder
+    | rw,ew when rw > ew -> build_sext res ret_ty "sextbinop" cg_ctx.builder
+    | rw,ew -> res
 
 let codegen_unop builder value = function
   | Ast.Neg -> build_neg value "negtmp" builder
@@ -334,10 +358,9 @@ and codegen_expr cg_ctx = function
     let ty' = match ty with
       | BaseET(bt,_) -> bt
       | ArrayET _ -> raise CodegenError in
-    let llty = expr_ty_to_llvm_ty cg_ctx ty in
-    let e1 = codegen_ext cg_ctx llty expr1 in
-    let e2 = codegen_ext cg_ctx llty expr2 in
-    codegen_binop op e1 e2 ty'.data cg_ctx.builder
+    let e1 = codegen_expr cg_ctx expr1.data in
+    let e2 = codegen_expr cg_ctx expr2.data in
+    codegen_binop cg_ctx op e1 e2 ty'.data cg_ctx.builder
   | TernOp(expr1,expr2,expr3), ty ->
     let e1 = codegen_expr cg_ctx expr1.data in
     let e1' = build_is_not_null e1 "condtmp" cg_ctx.builder in
@@ -366,7 +389,6 @@ and codegen_expr cg_ctx = function
     ignore(List.map (codegen_stm cg_ctx ret_ty) stms);
     let store = find_var cg_ctx.venv var_name in
     build_load store var_name.data cg_ctx.builder
-
 
 and extend_to ctx builder signed dest et v =
   let llvm_et = expr_ty_to_llvm_ty ctx et in
@@ -515,8 +537,13 @@ and codegen_stm cg_ctx ret_ty = function
     false
   | {data=ArrayAssign(var_name,array_index,expr)} ->
     let v = find_var cg_ctx.venv var_name in
+    let vt = find_var cg_ctx.vtenv var_name in
+    let bt = match vt.data with
+      | ArrayVT({data=ArrayAT(bt,_)},_,_) -> bt.data
+      | _ -> raise CodegenError in
+    let ll_ty = bt_to_llvm_ty cg_ctx bt in
     let index = codegen_expr cg_ctx array_index.data in
-    let expr' = codegen_expr cg_ctx expr.data in
+    let expr' = codegen_ext cg_ctx ll_ty expr in
     let zero = const_int (i32_type cg_ctx.llcontext) 0 in
     let some_arg =
       try Some(find_var cg_ctx.tenv var_name) with
@@ -553,27 +580,28 @@ and codegen_stm cg_ctx ret_ty = function
     let else_terminated = codegen_stms cg_ctx ret_ty elsestms in
 
     let new_else_bb = insertion_block cg_ctx.builder in
-
-    let merge_bb = append_block cg_ctx.llcontext "branchmerge" parent_function in
-    position_at_end merge_bb cg_ctx.builder;
-
     position_at_end start_bb cg_ctx.builder;
     build_cond_br cond_val then_bb else_bb cg_ctx.builder |> ignore;
 
-    (* Only merge if the basic blocks did not terminate *)
-    if not then_terminated then
-    begin
-      position_at_end new_then_bb cg_ctx.builder;
-      build_br merge_bb cg_ctx.builder |> ignore
-    end;
-    if not else_terminated then
-    begin
-      position_at_end new_else_bb cg_ctx.builder;
-      build_br merge_bb cg_ctx.builder |> ignore
-    end;
+    if not (then_terminated && else_terminated) then
+        (let merge_bb = append_block cg_ctx.llcontext "branchmerge" parent_function in
+        position_at_end merge_bb cg_ctx.builder;
 
-    position_at_end merge_bb cg_ctx.builder;
-    false
+        (* Only merge if the basic blocks did not terminate *)
+        if not then_terminated then
+        begin
+          position_at_end new_then_bb cg_ctx.builder;
+          build_br merge_bb cg_ctx.builder |> ignore;
+          position_at_end merge_bb cg_ctx.builder
+        end;
+        if not else_terminated then
+        begin
+          position_at_end new_else_bb cg_ctx.builder;
+          build_br merge_bb cg_ctx.builder |> ignore;
+          position_at_end merge_bb cg_ctx.builder;
+        end;
+        false)
+    else true
   | {data=For(var_name,base_type,low_expr,high_expr,statements)} ->
     let preheader = insertion_block cg_ctx.builder in
     let parent_function = block_parent preheader in
@@ -617,7 +645,8 @@ and codegen_stm cg_ctx ret_ty = function
     begin
       match ret_ty with
         | Some BaseET(bt,label) ->
-          let ret' = codegen_ext cg_ctx (bt_to_llvm_ty cg_ctx bt.data) expr in
+          let ty = (bt_to_llvm_ty cg_ctx bt.data) in
+          let ret' = codegen_ext cg_ctx ty expr in
           ignore(build_ret ret' cg_ctx.builder)
         (* TODO: assert valid function here *)
         | Some ArrayET _ -> raise CodegenError (* TODO: Cannot retur an array yet *)
@@ -690,12 +719,15 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     declare_ct_verif verify_llvm llcontext llmodule SMACK_RETURN_VALUE;
     allocate_args cg_ctx params ft;
     allocate_stack cg_ctx body;
-    begin
-      match ret with
-        | None -> codegen_stms cg_ctx None body
-        | Some ret' ->
-          codegen_stms cg_ctx (Some ret'.data) body
-    end;
+    let returned = 
+      begin
+        match ret with
+          | None -> codegen_stms cg_ctx None body
+          | Some ret' ->
+            codegen_stms cg_ctx (Some ret'.data) body
+      end in
+    if not returned then build_ret_void builder |> ignore;
+
     (*let ret' = codegen_ext llcontext llmodule builder var_env ret in
     build_ret ret' builder;*)
     (*Llvm_analysis.assert_valid_function ft;*)
