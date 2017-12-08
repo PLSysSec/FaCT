@@ -222,3 +222,39 @@ public uint16 add5uint16(public uint16 num) {
 public uint32 add5uintUnify(public uint16 num) {
   return num + 5;
 }
+
+
+// Start of complex array tests
+
+secret int32 summ(secret int32[] arr) {
+  secret mut int32 acc = 0;
+  for ( int32 i = 0 to len arr) {
+    acc += arr[i];
+  }
+  return acc;
+}
+
+secret int32 summZero() {
+  secret int32[10] arr = arrzeros(10);
+  return summ(arr);
+}
+
+secret int32 summNonZero() {
+  secret mut int32[3] arr = arrzeros(3);
+  arr[0] = 1;
+  arr[1] = 2;
+  arr[2] = 3;
+  return summ(arr);
+}
+
+secret int32 summCopyZero() {
+  secret int32[5] arr = arrzeros(5);
+  secret int32[5] arr2 = arrcopy(arr);
+  return summ(arr2);
+}
+
+secret int32 summCopyNonZero() {
+  secret int32[5] arr = {1,2,3,4,5};
+  secret int32[5] arr2 = arrcopy(arr);
+  return summ(arr2);
+}

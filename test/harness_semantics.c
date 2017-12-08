@@ -241,3 +241,19 @@ void test_add5uintUnify(void) {
   uint32_t fifteen = 15;
   TEST_ASSERT_EQUAL(fifteen, add5uintUnify(ten));
 }
+
+void test_summZero(void) {
+  TEST_ASSERT_EQUAL(0, summZero());
+}
+
+void test_summNonZero(void) {
+  TEST_ASSERT_EQUAL(6, summNonZero());
+}
+
+void test_summCopyZero(void) {
+  TEST_ASSERT_EQUAL(0, summCopyZero());
+}
+
+void test_summCopyNonZero(void) {
+  TEST_ASSERT_EQUAL(15, summCopyNonZero());
+}

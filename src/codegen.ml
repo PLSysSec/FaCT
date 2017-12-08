@@ -453,14 +453,12 @@ and codegen_array_expr cg_ctx = function
     let cpy_len = array_length ll_ty in
     let num_bytes = (byte_size_of_expr_ty ty) * cpy_len in
     let ll_cpy_len = (const_int (i64_type cg_ctx.llcontext) num_bytes) in
-    let alignment = (const_int (i32_type cg_ctx.llcontext) 16) in
+    let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
     let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
-    let source_gep = build_in_bounds_gep from [| zero'; zero' |] "source_gep" cg_ctx.builder in
-    let dest_gep   = build_in_bounds_gep alloca [| zero'; zero' |] "dest_gep" cg_ctx.builder in
     let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
-    let source_casted = build_bitcast source_gep source_cast_ty "source_casted" cg_ctx.builder in
-    let dest_casted = build_bitcast dest_gep source_cast_ty "dest_cast" cg_ctx.builder in
-    let args = [| source_casted; dest_casted; ll_cpy_len; alignment; volatility |] in
+    let source_casted = build_bitcast from source_cast_ty "source_casted" cg_ctx.builder in
+    let dest_casted = build_bitcast alloca source_cast_ty "dest_cast" cg_ctx.builder in
+    let args = [| dest_casted; source_casted; ll_cpy_len; alignment; volatility |] in
     let memcpy = get_intrinsic Memcpy cg_ctx in
     build_call memcpy args "" cg_ctx.builder |> ignore;
     alloca
