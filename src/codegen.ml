@@ -293,6 +293,20 @@ let size_of_lexpr = function
   | LDynamic x -> raise CodegenError
 
 let rec codegen_arg cg_ctx arg ty =
+  let is_dynamic_array = function
+    | ArrayView _,_ -> true
+    | ArrayVar var_name,_ ->
+      let some_arg =
+        try Some(find_var cg_ctx.tenv var_name) with
+          | _ -> None in
+      begin
+      match some_arg with
+        | None -> false
+        | Some arg -> true
+      end
+    | _,ArrayET({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true
+    | _,ArrayET({data=ArrayAT(_,{data=LIntLiteral _})},_,_) -> false
+    | _ -> raise CodegenError in
   let vt = 
     match ty.data with
       | Param(_,vt) -> vt.data in
@@ -303,12 +317,15 @@ let rec codegen_arg cg_ctx arg ty =
         match ty.data with
           | Param(name,{data=ArrayVT({data=ArrayAT(bt,lexpr)},_,_)}) ->
             begin
-              match lexpr.data with
-                | LIntLiteral s ->
+              match lexpr.data, is_dynamic_array arr.data with
+                | LIntLiteral s,_ ->
                   let arr' = codegen_array_expr cg_ctx name arr.data in
                   build_load arr' "arr" cg_ctx.builder |> ignore;
                   arr'
-                | LDynamic var_name ->
+                | LDynamic var_name,true ->
+                  let arr' = codegen_array_expr cg_ctx name arr.data in
+                  build_load arr' "loadeddynarrarg" cg_ctx.builder
+                | LDynamic var_name,false ->
                   let arr' = codegen_array_expr cg_ctx name arr.data in
                   let ll_ty = bt_to_llvm_ty cg_ctx bt.data in
                   build_bitcast arr' (pointer_type ll_ty) "arrtoptr" cg_ctx.builder

@@ -282,6 +282,13 @@ void test_summViewNonZero(void) {
   TEST_ASSERT_EQUAL(3, summViewNonZero());
 }
 
+void test_summViewDynamic(void) {
+  int arr1[5] = {1,2,3,4,5};
+  TEST_ASSERT_EQUAL(6, summViewDynamic(arr1,5));
+  int arr2[5] = {5,4,3,2,1};
+  TEST_ASSERT_EQUAL(12, summViewDynamic(arr2,5));
+}
+
 void test_arrget1(void) {
   TEST_ASSERT_EQUAL(1, arrget1());
 }
