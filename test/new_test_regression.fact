@@ -14,3 +14,19 @@ void iferror() {
     //blank
   }
 }
+
+secret int32 nestedIf(secret int32 cond) {
+  if (10 > cond) {
+    if (5 > cond) {
+      return 1;
+    } else {
+      return 2;
+    }
+  } else {
+    if (15 > cond) {
+      return 3;
+    } else {
+      return 4;
+    }
+  }
+}

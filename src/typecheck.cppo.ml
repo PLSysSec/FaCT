@@ -653,7 +653,7 @@ let tc_param' xf_param = xfunction
                  | _ -> [])
 let tc_param xf_param pa = List.map (make_ast pa.pos) (tc_param' xf_param pa)
 
-let tc_fdec' fenv = function
+let tc_fdec' fpos fenv = function
   | Ast.FunDec(f,rt,params,stms) ->
     let rt' =
       match rt with
@@ -667,16 +667,24 @@ let tc_fdec' fenv = function
                     Env.add_var venv name entry)
         params';
       let tc_ctx = { rp=ref Public; pc=Public; venv; fenv } in
-      let stms' = List.rev @@
-        match List.rev stms with
-        | [] -> [make_ast f.pos Ast.VoidReturn]
-        | s::ss ->
-          begin
-            match s.data with
-              | Ast.Return _
-              | Ast.VoidReturn -> s::ss
-              | _ -> make_ast s.pos Ast.VoidReturn::s::ss
-          end
+      let rec final_stmt_rets stms =
+        begin
+          match List.rev stms with
+            | [] -> false
+            | s::ss ->
+              begin
+                match s.data with
+                  | Ast.Return _
+                  | Ast.VoidReturn -> true
+                  | Ast.For(_,_,_,_,fstms) ->
+                    final_stmt_rets fstms
+                  | Ast.If(_,tstms,fstms) ->
+                    (final_stmt_rets tstms) && (final_stmt_rets fstms)
+              end
+        end in
+      let stms' = if not (final_stmt_rets stms)
+        then stms @ [make_ast fpos Ast.VoidReturn]
+        else stms
       in
         FunDec(f,rt',params',tc_block tc_ctx stms')
   | Ast.CExtern(f,rt,params) ->
@@ -696,7 +704,7 @@ let tc_fdec' fenv = function
 let tc_fdec fenv = xfunction
   | Ast.FunDec(f,_,_,_)
   | Ast.CExtern(f,_,_) as fdec ->
-    let fdec' = mkpos tc_fdec' fenv fdec in
+    let fdec' = mkpos tc_fdec' p fenv fdec in
       Env.add_var fenv f fdec';
       fdec'
 
