@@ -104,8 +104,14 @@ let refvt_conv = pfunction
     ArrayVT(aconv a, mlconv l, mconv m)
 
 let atype_conv_fill lexpr' = pfunction
-  | Ast.ArrayAT(bt,({data=LIntLiteral _} as le)) ->
-    ArrayAT(bconv bt, lexprconv le)
+  | Ast.ArrayAT(bt,({data=LIntLiteral n} as le)) ->
+    begin
+      match lexpr' with
+        | LIntLiteral m when n = m ->
+          ArrayAT(bconv bt, lexprconv le)
+        | _ ->
+          raise @@ err(p)
+    end
   | Ast.ArrayAT(bt,{data=LUnspecified}) ->
     ArrayAT(bconv bt, mkpos lexpr')
 
