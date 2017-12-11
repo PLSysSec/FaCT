@@ -247,6 +247,16 @@ secret int32 summNonZero() {
   return summ(arr);
 }
 
+secret int32 summZeroDynamic() {
+  secret int32[] arr = arrzeros(10);
+  return summ(arr);
+}
+
+secret int32 summNonZeroDynamic() {
+  secret int32[] arr = {1,2,3};
+  return summ(arr);
+}
+
 secret int32 summCopyZero() {
   secret int32[5] arr = arrzeros(5);
   secret int32[5] arr2 = arrcopy(arr);
@@ -257,4 +267,64 @@ secret int32 summCopyNonZero() {
   secret int32[5] arr = {1,2,3,4,5};
   secret int32[5] arr2 = arrcopy(arr);
   return summ(arr2);
+}
+
+secret int32 summCopyZeroDynamic() {
+  secret int32[] arr = arrzeros(5);
+  secret int32[] arr2 = arrcopy(arr);
+  return summ(arr2);
+}
+
+secret int32 summCopyNonZeroDynamic() {
+  secret int32[] arr = {1,2,3,4,5};
+  secret int32[] arr2 = arrcopy(arr);
+  return summ(arr2);
+}
+
+secret int32 summViewZero() {
+  secret int32[10] arr = arrzeros(10);
+  secret int32[2] arr2 = arrview(arr,0,2);
+  return summ(arr2);
+}
+
+secret int32 summViewNonZero() {
+  secret int32[10] arr = {1,2,3,4,5,6,7,8,9,10};
+  secret int32[2] arr2 = arrview(arr,0,2);
+  return summ(arr2);
+}
+
+secret int32 arrget1() {
+  secret int32[10] arr = {1,2,3,4,5,6,7,8,9,10};
+  return arr[0];
+}
+
+secret int32 arrget2() {
+  secret int32[10] arr = {1,2,3,4,5,6,7,8,9,10};
+  return arr[1];
+}
+
+secret int32 arrget3() {
+  secret int32[10] arr = {1,2,3,4,5,6,7,8,9,10};
+  return arr[2];
+}
+
+secret int32 arrget4() {
+  secret int32[10] arr = {1,2,3,4,5,6,7,8,9,10};
+  return arr[9];
+}
+
+secret int32 arrgetDynamic1(secret int32[] arr) {
+  return arr[0];
+}
+
+secret int32 arrgetDynamic2(secret int32[] arr) {
+  return arr[1];
+}
+
+secret int32 arrgetDynamic3(secret int32[] arr) {
+  return arr[2];
+}
+
+secret int32 arrgetDynamic4(secret int32[] arr) {
+  return arr[6];
 }

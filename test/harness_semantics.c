@@ -250,10 +250,70 @@ void test_summNonZero(void) {
   TEST_ASSERT_EQUAL(6, summNonZero());
 }
 
+void test_summZeroDynamic(void) {
+  TEST_ASSERT_EQUAL(0, summZeroDynamic());
+}
+
+void test_summNonZeroDynamic(void) {
+  TEST_ASSERT_EQUAL(6, summNonZeroDynamic());
+}
+
 void test_summCopyZero(void) {
   TEST_ASSERT_EQUAL(0, summCopyZero());
 }
 
 void test_summCopyNonZero(void) {
   TEST_ASSERT_EQUAL(15, summCopyNonZero());
+}
+
+void test_summCopyZeroDynamic(void) {
+  TEST_ASSERT_EQUAL(0, summCopyZeroDynamic());
+}
+
+void test_summCopyNonZeroDynamic(void) {
+  TEST_ASSERT_EQUAL(15, summCopyNonZeroDynamic());
+}
+
+void test_summViewZero(void) {
+  TEST_ASSERT_EQUAL(0, summViewZero());
+}
+
+void test_summViewNonZero(void) {
+  TEST_ASSERT_EQUAL(3, summViewNonZero());
+}
+
+void test_arrget1(void) {
+  TEST_ASSERT_EQUAL(1, arrget1());
+}
+
+void test_arrget2(void) {
+  TEST_ASSERT_EQUAL(2, arrget2());
+}
+
+void test_arrget3(void) {
+  TEST_ASSERT_EQUAL(3, arrget3());
+}
+
+void test_arrget4(void) {
+  TEST_ASSERT_EQUAL(10, arrget4());
+}
+
+void test_arrgetDynamic1(void) {
+  int arr[] = {1,2,3,4,5,6,7};
+  TEST_ASSERT_EQUAL(1, arrgetDynamic1(arr,7));
+}
+
+void test_arrgetDynamic2(void) {
+  int arr[] = {1,2,3,4,5,6,7};
+  TEST_ASSERT_EQUAL(2, arrgetDynamic2(arr,7));
+}
+
+void test_arrgetDynamic3(void) {
+  int arr[] = {1,2,3,4,5,6,7};
+  TEST_ASSERT_EQUAL(3, arrgetDynamic3(arr,7));
+}
+
+void test_arrgetDynamic4(void) {
+  int arr[] = {1,2,3,4,5,6,7};
+  TEST_ASSERT_EQUAL(7, arrgetDynamic4(arr,7));
 }
