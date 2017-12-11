@@ -109,6 +109,8 @@ let atype_conv_fill lexpr' = pfunction
       match lexpr' with
         | LIntLiteral m when n = m ->
           ArrayAT(bconv bt, lexprconv le)
+        | LDynamic _ ->
+          ArrayAT(bconv bt, lexprconv le)
         | _ ->
           raise @@ err(p)
     end
@@ -680,6 +682,7 @@ let tc_fdec' fpos fenv = function
                     final_stmt_rets fstms
                   | Ast.If(_,tstms,fstms) ->
                     (final_stmt_rets tstms) && (final_stmt_rets fstms)
+                  | _ -> false
               end
         end in
       let stms' = if not (final_stmt_rets stms)
