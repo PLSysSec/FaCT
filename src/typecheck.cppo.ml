@@ -311,12 +311,9 @@ let (<*) m1 m2 =
 let can_be_passed_to { pos=p; data=argty} {data=paramty} =
   match argty, paramty with
     | RefVT(_,_,m1), RefVT(_,_,m2) when m1.data <> m2.data -> false
-    | ArrayVT(_,_,m1), ArrayVT(_,_,m2) when m1.data <> m2.data ->
-      Log.warn "FIXME: Unsafe stuff here. Use at own risk";
-      true
     | RefVT(b1,l1,_), RefVT(b2,l2,_) ->
       (b1 <: b2) && (l1 <$ l2)
-    | ArrayVT(a1,l1,_), ArrayVT(a2,l2,_) ->
+    | ArrayVT(a1,l1,m1), ArrayVT(a2,l2,m2) ->
       let ArrayAT(b1,lx1), ArrayAT(b2,lx2) = a1.data, a2.data in
       let lxmatch =
         match lx1.data, lx2.data with
@@ -324,7 +321,7 @@ let can_be_passed_to { pos=p; data=argty} {data=paramty} =
           | LIntLiteral n, LIntLiteral m when n = m -> true
           | _ -> false
       in
-        (b1.data = b2.data) && lxmatch && (l1 <$ l2)
+        (b1.data = b2.data) && lxmatch && (l1 <$ l2) && (m1.data = m2.data)
 
 
 (* Actual typechecking *)
