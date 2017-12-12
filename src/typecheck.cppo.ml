@@ -104,8 +104,16 @@ let refvt_conv = pfunction
     ArrayVT(aconv a, mlconv l, mconv m)
 
 let atype_conv_fill lexpr' = pfunction
-  | Ast.ArrayAT(bt,({data=LIntLiteral _} as le)) ->
-    ArrayAT(bconv bt, lexprconv le)
+  | Ast.ArrayAT(bt,({data=LIntLiteral n} as le)) ->
+    begin
+      match lexpr' with
+        | LIntLiteral m when n = m ->
+          ArrayAT(bconv bt, lexprconv le)
+        | LDynamic _ ->
+          ArrayAT(bconv bt, lexprconv le)
+        | _ ->
+          raise @@ err(p)
+    end
   | Ast.ArrayAT(bt,{data=LUnspecified}) ->
     ArrayAT(bconv bt, mkpos lexpr')
 
@@ -303,12 +311,9 @@ let (<*) m1 m2 =
 let can_be_passed_to { pos=p; data=argty} {data=paramty} =
   match argty, paramty with
     | RefVT(_,_,m1), RefVT(_,_,m2) when m1.data <> m2.data -> false
-    | ArrayVT(_,_,m1), ArrayVT(_,_,m2) when m1.data <> m2.data ->
-      Log.warn "FIXME: Unsafe stuff here. Use at own risk";
-      true
     | RefVT(b1,l1,_), RefVT(b2,l2,_) ->
       (b1 <: b2) && (l1 <$ l2)
-    | ArrayVT(a1,l1,_), ArrayVT(a2,l2,_) ->
+    | ArrayVT(a1,l1,m1), ArrayVT(a2,l2,m2) ->
       let ArrayAT(b1,lx1), ArrayAT(b2,lx2) = a1.data, a2.data in
       let lxmatch =
         match lx1.data, lx2.data with
@@ -316,7 +321,7 @@ let can_be_passed_to { pos=p; data=argty} {data=paramty} =
           | LIntLiteral n, LIntLiteral m when n = m -> true
           | _ -> false
       in
-        (b1.data = b2.data) && lxmatch && (l1 <$ l2)
+        (b1.data = b2.data) && lxmatch && (l1 <$ l2) && (m1.data = m2.data)
 
 
 (* Actual typechecking *)
@@ -647,7 +652,7 @@ let tc_param' xf_param = xfunction
                  | _ -> [])
 let tc_param xf_param pa = List.map (make_ast pa.pos) (tc_param' xf_param pa)
 
-let tc_fdec' fenv = function
+let tc_fdec' fpos fenv = function
   | Ast.FunDec(f,rt,params,stms) ->
     let rt' =
       match rt with
@@ -661,16 +666,25 @@ let tc_fdec' fenv = function
                     Env.add_var venv name entry)
         params';
       let tc_ctx = { rp=ref Public; pc=Public; venv; fenv } in
-      let stms' = List.rev @@
-        match List.rev stms with
-        | [] -> [make_ast f.pos Ast.VoidReturn]
-        | s::ss ->
-          begin
-            match s.data with
-              | Ast.Return _
-              | Ast.VoidReturn -> s::ss
-              | _ -> make_ast s.pos Ast.VoidReturn::s::ss
-          end
+      let rec final_stmt_rets stms =
+        begin
+          match List.rev stms with
+            | [] -> false
+            | s::ss ->
+              begin
+                match s.data with
+                  | Ast.Return _
+                  | Ast.VoidReturn -> true
+                  | Ast.For(_,_,_,_,fstms) ->
+                    final_stmt_rets fstms
+                  | Ast.If(_,tstms,fstms) ->
+                    (final_stmt_rets tstms) && (final_stmt_rets fstms)
+                  | _ -> false
+              end
+        end in
+      let stms' = if not (final_stmt_rets stms)
+        then stms @ [make_ast fpos Ast.VoidReturn]
+        else stms
       in
         FunDec(f,rt',params',tc_block tc_ctx stms')
   | Ast.CExtern(f,rt,params) ->
@@ -690,7 +704,7 @@ let tc_fdec' fenv = function
 let tc_fdec fenv = xfunction
   | Ast.FunDec(f,_,_,_)
   | Ast.CExtern(f,_,_) as fdec ->
-    let fdec' = mkpos tc_fdec' fenv fdec in
+    let fdec' = mkpos tc_fdec' p fenv fdec in
       Env.add_var fenv f fdec';
       fdec'
 
