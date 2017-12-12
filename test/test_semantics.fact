@@ -333,3 +333,8 @@ secret int32 arrgetDynamic3(secret int32[] arr) {
 secret int32 arrgetDynamic4(secret int32[] arr) {
   return arr[6];
 }
+
+secret int32 mutateRef(secret mut int32 a) {
+  a = 5;
+  return 1;
+}

@@ -105,7 +105,11 @@ let vt_to_llvm_ty (cg_ctx : codegen_ctx_record) = function
     array_type arr_ty size
 
 let param_to_type cg_ctx = function
-  | {data=Param(var_name,{data=RefVT({data=base_type},maybe_label,_)})} ->
+  | {data=Param(var_name,
+    {data=RefVT({data=base_type},maybe_label,{data=Mut})})} ->
+    pointer_type(bt_to_llvm_ty cg_ctx base_type)
+  | {data=Param(var_name,
+    {data=RefVT({data=base_type},maybe_label,{data=Const})})} ->
     bt_to_llvm_ty cg_ctx base_type
   | {data=Param(var_name,{data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_)})} ->
     begin
@@ -153,7 +157,9 @@ let allocate_args cg_ctx args f =
   let allocate_arg ({data=Param(var_name,var_type)} as arg) ll_arg =
     let () =
     match var_type.data with
-      | RefVT _ ->
+      | RefVT (bt,ml,{data=Mut}) ->
+        add_var cg_ctx.venv var_name ll_arg
+      | RefVT (bt,ml,{data=Const}) ->
         let ty = param_to_type cg_ctx arg in
         let alloca = build_alloca ty var_name.data cg_ctx.builder in
         add_var cg_ctx.venv var_name alloca;
@@ -318,10 +324,15 @@ let rec codegen_arg cg_ctx arg ty =
           | Param(name,{data=ArrayVT({data=ArrayAT(bt,lexpr)},_,_)}) ->
             begin
               match lexpr.data, is_dynamic_array arr.data with
-                | LIntLiteral s,_ ->
+                | LIntLiteral s,false ->
                   let arr' = codegen_array_expr cg_ctx name arr.data in
                   build_load arr' "arr" cg_ctx.builder |> ignore;
                   arr'
+                | LIntLiteral s,true ->
+                  let arr' = codegen_array_expr cg_ctx name arr.data in
+                  let arr_type = array_type (bt_to_llvm_ty cg_ctx bt.data) s in
+                  let pt = pointer_type arr_type in
+                  build_bitcast arr' pt "dyntostaticarr" cg_ctx.builder
                 | LDynamic var_name,true ->
                   let arr' = codegen_array_expr cg_ctx name arr.data in
                   build_load arr' "loadeddynarrarg" cg_ctx.builder

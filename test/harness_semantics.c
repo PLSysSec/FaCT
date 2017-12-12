@@ -324,3 +324,9 @@ void test_arrgetDynamic4(void) {
   int arr[] = {1,2,3,4,5,6,7};
   TEST_ASSERT_EQUAL(7, arrgetDynamic4(arr,7));
 }
+
+void test_mutateRef(void) {
+  int a = 0;
+  mutateRef(&a,1);
+  TEST_ASSERT_EQUAL(5, a);
+}
