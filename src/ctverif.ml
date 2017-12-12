@@ -41,7 +41,7 @@ let get_smack_ty llctx llmod =
 
 (* Target dependent attributes. These are for x86-64. We need to explore
    this more if we want to support more architectures *)
-let set_attributes f =
+let set_attributes f = ()(*
   add_target_dependent_function_attr f "less-precise-fpmad" "false";
   add_target_dependent_function_attr f "no-frame-pointer-elim" "true";
   add_target_dependent_function_attr f "no-frame-pointer-elim-non-leaf" "";
@@ -52,7 +52,7 @@ let set_attributes f =
   add_target_dependent_function_attr f "target-features" "+fxsr,+mmx,+sse,+sse2";
   add_target_dependent_function_attr f "unsafe-fp-math" "false";
   add_target_dependent_function_attr f "use-soft-float" "false";
-  add_target_dependent_function_attr f "disable-tail-calls" "false"
+  add_target_dependent_function_attr f "disable-tail-calls" "false"*)
 
 let declare_ct_verif verify_llvm llctx llmod keyword =
   if not verify_llvm then () else
