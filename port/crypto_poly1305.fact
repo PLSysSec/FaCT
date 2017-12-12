@@ -227,8 +227,8 @@ void poly1305_finish(
   h0 = (h0 | (h1 << 44));
   h1 = ((h1 >> 20) | (h2 << 24));
 
-  store64_le(arrview(mac, 0, 8), h0);
-  store64_le(arrview(mac, 8, 8), h1);
+  store64_le(ref arrview(mac, 0, 8), h0);
+  store64_le(ref arrview(mac, 8, 8), h1);
 
   /* zero out the state */
   fact_memzero64(ref state_r);
