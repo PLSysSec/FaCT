@@ -322,6 +322,7 @@ let rec codegen_arg cg_ctx arg ty =
       begin
         match ty.data with
           | Param(name,{data=ArrayVT({data=ArrayAT(bt,lexpr)},_,_)}) ->
+            let arr = 
             begin
               match lexpr.data, is_dynamic_array arr.data with
                 | LIntLiteral s,false ->
@@ -340,7 +341,9 @@ let rec codegen_arg cg_ctx arg ty =
                   let arr' = codegen_array_expr cg_ctx name arr.data in
                   let ll_ty = bt_to_llvm_ty cg_ctx bt.data in
                   build_bitcast arr' (pointer_type ll_ty) "arrtoptr" cg_ctx.builder
-            end
+            end in
+            remove_var cg_ctx.tenv name;
+            arr
           | _-> raise CodegenError
       end;
     | ByRef r ->

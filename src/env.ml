@@ -44,6 +44,10 @@ let add_var env v lt =
     if Hashtbl.mem vtbl v.data then raise (errRedefVar v);
     Hashtbl.add vtbl v.data lt
 
+let remove_var env v =
+  let vtbl = get_vtbl env in
+  Hashtbl.remove vtbl v.data
+
 let rec find_var' fnyes fnno env =
   let find_var_helper fnno vtbl v =
     try

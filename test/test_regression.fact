@@ -1,0 +1,53 @@
+/*
+public int32 t(public int32[] x) {
+  if (len x > 0) {
+    return x[0];
+  }
+  return -1;
+}
+
+void iferror() {
+  secret mut int8 c = 0;
+  secret mut int8 d = 0;
+  secret mut bool flag = false;
+
+  if((c == 0) || (!flag)) {
+    //blank
+  }
+}
+
+secret int32 nestedIf(secret int32 cond) {
+  if (10 > cond) {
+    if (5 > cond) {
+      return 1;
+    } else {
+      return 2;
+    }
+  } else {
+    if (15 > cond) {
+      return 3;
+    } else {
+      return 4;
+    }
+  }
+}
+*/
+
+secret uint64 load64_le(secret uint8[8] src) {
+  secret mut uint64 w = (uint64) src[0];
+  w |= (uint64) src[1] <<  8;
+  w |= (uint64) src[2] << 16;
+  w |= (uint64) src[3] << 24;
+  w |= (uint64) src[4] << 32;
+  w |= (uint64) src[5] << 40;
+  w |= (uint64) src[6] << 48;
+  w |= (uint64) src[7] << 56;
+  return w;
+}
+
+secret uint64 duplicateCall() {
+  secret uint8[] meh = arrzeros(16);
+  secret uint64 t0 = load64_le(arrview(meh, 0, 8));
+  secret uint64 t01 = load64_le(arrview(meh, 0, 8));
+  return 0;
+}
