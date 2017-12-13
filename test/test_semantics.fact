@@ -338,3 +338,9 @@ secret int32 mutateRef(secret mut int32 a) {
   a = 5;
   return 1;
 }
+
+secret int32 mutateRefCall() {
+  secret mut int32 a = 0;
+  secret int32 call = mutateRef(ref a);
+  return a;
+}

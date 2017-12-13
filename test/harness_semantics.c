@@ -330,3 +330,7 @@ void test_mutateRef(void) {
   mutateRef(&a,1);
   TEST_ASSERT_EQUAL(5, a);
 }
+
+void test_mutateRefCall(void) {
+  TEST_ASSERT_EQUAL(5, mutateRefCall());
+}

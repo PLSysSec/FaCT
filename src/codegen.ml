@@ -326,29 +326,34 @@ let rec codegen_arg cg_ctx arg ty =
             begin
               match lexpr.data, is_dynamic_array arr.data with
                 | LIntLiteral s,false ->
-                  let arr' = codegen_array_expr cg_ctx name arr.data in
+                  let arr',_ = codegen_array_expr cg_ctx name arr.data in
                   build_load arr' "arr" cg_ctx.builder |> ignore;
                   arr'
                 | LIntLiteral s,true ->
-                  let arr' = codegen_array_expr cg_ctx name arr.data in
+                  let arr',_ = codegen_array_expr cg_ctx name arr.data in
                   let arr_type = array_type (bt_to_llvm_ty cg_ctx bt.data) s in
                   let pt = pointer_type arr_type in
                   build_bitcast arr' pt "dyntostaticarr" cg_ctx.builder
                 | LDynamic var_name,true ->
-                  let arr' = codegen_array_expr cg_ctx name arr.data in
+                  let arr',_ = codegen_array_expr cg_ctx name arr.data in
                   build_load arr' "loadeddynarrarg" cg_ctx.builder
                 | LDynamic var_name,false ->
-                  let arr' = codegen_array_expr cg_ctx name arr.data in
+                  let arr',_ = codegen_array_expr cg_ctx name arr.data in
                   let ll_ty = bt_to_llvm_ty cg_ctx bt.data in
                   build_bitcast arr' (pointer_type ll_ty) "arrtoptr" cg_ctx.builder
             end in
-            remove_var cg_ctx.tenv name;
+            (*remove_var cg_ctx.tenv name;*)
             arr
           | _-> raise CodegenError
       end;
     | ByRef r ->
       let var = find_var cg_ctx.venv r in
-      build_load var "argref" cg_ctx.builder
+      match vt with
+        | RefVT(_,_,{data=Const})
+        | ArrayVT(_,_,{data=Const}) -> build_load var "argref" cg_ctx.builder
+        | RefVT(_,_,{data=Mut})
+        | ArrayVT(_,_,{data=Mut}) -> var
+
 
 and codegen_expr cg_ctx = function
   | True, ty -> const_all_ones (expr_ty_to_llvm_ty cg_ctx ty)
@@ -363,13 +368,13 @@ and codegen_expr cg_ctx = function
     build_load store var_name.data cg_ctx.builder
   | ArrayGet(var_name,expr), ty ->
     let arr = find_var cg_ctx.venv var_name in
-    let zero = const_int (i32_type cg_ctx.llcontext) 0 in
     let index = codegen_expr cg_ctx expr.data in
     let some_arg =
       try Some(find_var cg_ctx.tenv var_name) with
         | _ -> None in
     let indices,ptr = match some_arg with
       | None ->
+        let zero = const_int (type_of index) 0 in
         let indices = [| zero; index |] in
         indices,arr
       | Some arg ->
@@ -377,7 +382,7 @@ and codegen_expr cg_ctx = function
         let ptr = build_load arr "loadedarrptr" cg_ctx.builder in
         indices,ptr in
     let p = build_in_bounds_gep ptr indices "ptr" cg_ctx.builder in
-    build_load p (var_name.data ^ "_arrget") cg_ctx.builder
+    build_load p "arrget" cg_ctx.builder
   | IntCast(base_ty,expr), ty ->
     let v = codegen_expr cg_ctx expr.data in
     build_cast cg_ctx cg_ctx.builder v base_ty.data
@@ -443,7 +448,7 @@ and vt_to_bt = function
 
 and codegen_array_expr cg_ctx arr_name = function
   (* XXX gary here too pls *)
-  | ArrayVar var_name,ty -> find_var cg_ctx.venv var_name
+  | ArrayVar var_name,ty -> find_var cg_ctx.venv var_name,false
   | ArrayLit exprs,ty ->
     (* TODO: This needs optimization. We want this array to be global if
              all exprs are known at compile time. Side note -- this is
@@ -459,7 +464,7 @@ and codegen_array_expr cg_ctx arr_name = function
       build_store el ptr cg_ctx.builder |> ignore
       in
     List.iteri gep ll_exprs';
-    alloca
+    alloca,false
   | ArrayZeros lexpr,ty ->
     begin
       match lexpr.data with
@@ -471,7 +476,7 @@ and codegen_array_expr cg_ctx arr_name = function
           let arr_ty = array_type ll_ty n in
           let alloca = build_alloca arr_ty "zerodarray" cg_ctx.builder in
           build_store (const_array ll_ty zeros) alloca cg_ctx.builder |> ignore;
-          alloca
+          alloca,false
         | LDynamic x -> raise CodegenError
     end
   | ArrayCopy var_name,ty ->
@@ -489,7 +494,7 @@ and codegen_array_expr cg_ctx arr_name = function
     let args = [| dest_casted; source_casted; ll_cpy_len; alignment; volatility |] in
     let memcpy = get_intrinsic Memcpy cg_ctx in
     build_call memcpy args "" cg_ctx.builder |> ignore;
-    alloca
+    alloca,false
   | ArrayView(var_name, expr, lexpr),ty ->
     let index = codegen_expr cg_ctx expr.data in
     let from = find_var cg_ctx.venv var_name in
@@ -500,22 +505,23 @@ and codegen_array_expr cg_ctx arr_name = function
     let some_arg =
       try Some(find_var cg_ctx.tenv var_name) with
         | _-> None in
+    let r = 
     begin
     match some_arg with
       | None ->
         let bt,at = bt_at_of_et ty in
-        add_var cg_ctx.tenv arr_name at;
         let ty' = pointer_type (bt_to_llvm_ty cg_ctx bt.data) in
         let alloca = build_alloca ty' "arrview" cg_ctx.builder in
         let indices = [| index; index |] in
         let source_gep = build_in_bounds_gep from indices "source_gep" cg_ctx.builder in
         build_store source_gep alloca cg_ctx.builder |> ignore;
-        alloca
+        alloca,true
       | Some arg ->
         let indices = [| index |] in
         let ptr = build_load from "loadedviewptr" cg_ctx.builder in
-        build_in_bounds_gep ptr indices "source_gep" cg_ctx.builder
-    end
+        build_in_bounds_gep ptr indices "source_gep" cg_ctx.builder,false
+    end in
+    r
   | ArrayComp(bt,lexpr, var_name, expr),ty -> raise CodegenError
 
 and codegen_stm cg_ctx ret_ty = function
@@ -534,9 +540,13 @@ and codegen_stm cg_ctx ret_ty = function
       | ArrayVT(at,lab,mut') -> ArrayET(at,lab,mut')
       | _ -> raise CodegenError
     in
+    let bt_at_of_et = function
+    | ArrayET({data=ArrayAT(bt,_)} as at,_,_) -> bt,at
+    | _ -> raise CodegenError
+    in
     let arr_expr, _ = arr_expr.data in
     let left_ty = at_to_et var_type.data in
-    let alloca = codegen_array_expr cg_ctx var_name (arr_expr, left_ty) in
+    let alloca,add_to_type_env = codegen_array_expr cg_ctx var_name (arr_expr, left_ty) in
     (*let ct_verif_ty = bt_to_llvm_ty cg_ctx (bt_of_vt var_type.data).data in
     let ct_verif_ty' = pointer_type ct_verif_ty in
     let alloca' = build_bitcast alloca ct_verif_ty' "ddd" cg_ctx.builder in
@@ -545,6 +555,8 @@ and codegen_stm cg_ctx ret_ty = function
     let ptr = build_gep alloca [| zero |] "arrptr" cg_ctx.builder in*)
     add_var cg_ctx.venv var_name alloca;
     add_var cg_ctx.vtenv var_name var_type;
+    let bt,at = bt_at_of_et left_ty in
+    if add_to_type_env then add_var cg_ctx.tenv var_name at;
     false
   | {data=BaseAssign(var_name,expr)} ->
     let v = find_var cg_ctx.venv var_name in
