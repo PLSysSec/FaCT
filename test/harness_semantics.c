@@ -334,3 +334,35 @@ void test_mutateRef(void) {
 void test_mutateRefCall(void) {
   TEST_ASSERT_EQUAL(5, mutateRefCall());
 }
+
+void test_simpleArrAccess(void) {
+  TEST_ASSERT_EQUAL(1, simpleArrAccess());
+}
+
+void test_simpleArrZerosAccess(void) {
+  TEST_ASSERT_EQUAL(0, simpleArrZerosAccess());
+}
+
+void test_simpleArrViewAccess(void) {
+  TEST_ASSERT_EQUAL(3, simpleArrViewAccess());
+}
+
+void test_paramArrAccess(void) {
+  int arr[5] = {1,2,3,4,5};
+  TEST_ASSERT_EQUAL(5, paramArrAccess(arr));
+}
+
+void test_paramArrAccessDyn(void) {
+  int arr[5] = {1,2,3,4,5};
+  TEST_ASSERT_EQUAL(5, paramArrAccessDyn(arr,5));
+}
+
+void test_paramArrViewAccess(void) {
+  int arr[5] = {1,2,3,4,5};
+  TEST_ASSERT_EQUAL(4, paramArrViewAccess(arr));
+}
+
+void test_paramArrViewAccessDyn(void) {
+  int arr[5] = {1,2,3,4,5};
+  TEST_ASSERT_EQUAL(2, paramArrViewAccessDyn(arr,5));
+}

@@ -344,3 +344,37 @@ secret int32 mutateRefCall() {
   secret int32 call = mutateRef(ref a);
   return a;
 }
+
+secret int32 simpleArrAccess() {
+  secret int32[5] arr = {1,2,3,4,5};
+  return arr[0];
+}
+
+secret int32 simpleArrZerosAccess() {
+  secret int32[5] arr = arrzeros(5);
+  return arr[0];
+}
+
+secret int32 simpleArrViewAccess() {
+  secret int32[5] arr = {1,2,3,4,5};
+  secret int32[2] arr2 = arrview(arr,2,2);
+  return arr2[0];
+}
+
+secret int32 paramArrAccess(secret int32[5] arr) {
+  return arr[4];
+}
+
+secret int32 paramArrAccessDyn(secret int32[] arr) {
+  return arr[4];
+}
+
+secret int32 paramArrViewAccess(secret int32[5] arr) {
+  secret int32[2] arr2 = arrview(arr,2,2);
+  return arr2[1];
+}
+
+secret int32 paramArrViewAccessDyn(secret int32[] arr) {
+  secret int32[2] arr2 = arrview(arr,0,2);
+  return arr2[1];
+}
