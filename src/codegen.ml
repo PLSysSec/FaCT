@@ -519,7 +519,12 @@ and codegen_array_expr cg_ctx arr_name = function
       | Some arg ->
         let indices = [| index |] in
         let ptr = build_load from "loadedviewptr" cg_ctx.builder in
-        build_in_bounds_gep ptr indices "source_gep" cg_ctx.builder,false
+        let source_gep = build_in_bounds_gep ptr indices "source_gep" cg_ctx.builder in
+        let bt,at = bt_at_of_et ty in
+        let ty' = pointer_type (bt_to_llvm_ty cg_ctx bt.data) in
+        let alloca = build_alloca ty' "arrviewdyn" cg_ctx.builder in
+        build_store source_gep alloca cg_ctx.builder |> ignore;
+        alloca,true
     end in
     r
   | ArrayComp(bt,lexpr, var_name, expr),ty -> raise CodegenError
