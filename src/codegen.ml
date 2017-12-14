@@ -281,8 +281,14 @@ let codegen_unop builder value = function
 
 let build_cast ctx b value = (* from, to *) function
   | Bool -> build_intcast value (bt_to_llvm_ty ctx Bool) "cast" b
-  | UInt(n) -> build_intcast value (bt_to_llvm_ty ctx (UInt n)) "cast" b
-  | Int(n) -> build_intcast value (bt_to_llvm_ty ctx (Int n)) "cast" b
+  | UInt(n) ->
+    let m = integer_bitwidth (type_of value) in
+      (if n > m then build_zext else build_trunc)
+        value (bt_to_llvm_ty ctx (UInt n)) "cast" b
+  | Int(n) ->
+    let m = integer_bitwidth (type_of value) in
+      (if n > m then build_sext else build_trunc)
+        value (bt_to_llvm_ty ctx (Int n)) "cast" b
   | _ -> raise CodegenError (* TODO: How do we cast the Num type?? *)
 
 (*

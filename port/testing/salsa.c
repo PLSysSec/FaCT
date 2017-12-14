@@ -40,5 +40,16 @@ int main(void)
     }
     printf("\n");
 
+    memset(out, 0, 64);
+    store32_le(out, 0x7780777f, 1);
+    for (i = 0; i < 4; ++i) {
+        printf(",0x%02x", (unsigned int) out[i]);
+        if (i % 8 == 7)
+            printf("\n");
+    }
+    printf("\n");
+    printf("0x%08x\n", load32_le(out));
+    printf("0x%08x\n", rotl32(0xcafef00d, 4));
+
     return 0;
 }

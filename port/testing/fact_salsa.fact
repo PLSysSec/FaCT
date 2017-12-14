@@ -4,9 +4,9 @@ secret uint32 rotl32(secret uint32 x, public int32 b) {
 
 secret uint32 load32_le(secret uint8[4] src) {
   secret mut uint32 w = (uint32) src[0];
-  w |= (uint32) src[1] <<  8;
-  w |= (uint32) src[2] << 16;
-  w |= (uint32) src[3] << 24;
+  w |= ((uint32) src[1]) <<  8;
+  w |= ((uint32) src[2]) << 16;
+  w |= ((uint32) src[3]) << 24;
   return w;
 }
 
