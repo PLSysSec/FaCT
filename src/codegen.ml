@@ -89,7 +89,7 @@ let bt_to_llvm_ty cg_ctx = function
   | Int  size when size <= 32 -> i32_type cg_ctx.llcontext
   | Int  size when size <= 64 -> i64_type cg_ctx.llcontext
   | Bool                      -> i1_type cg_ctx.llcontext (* TODO: Double check this*)
-  | Num(i,b)                  -> i32_type cg_ctx.llcontext (* TODO: Double check semantics for `Num` *)
+  | Num(i,b)                  -> i64_type cg_ctx.llcontext (* TODO: Double check semantics for `Num` *)
 
 let is_dynamic_sized_array = function
   | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true

@@ -10,7 +10,7 @@ void fact_poly1305_blocks(
   public uint64 mask44 = 0xfffffffffff;
   public uint64 mask42 = 0x3ffffffffff;
 
-  secret uint64 hibit = state_final ? 0 : ((uint64)1 << 40);
+  secret uint64 hibit = state_final ? 0 : (((uint64)1) << 40);
 
   secret uint64 r0 = state_r[0];
   secret uint64 r1 = state_r[1];
@@ -35,9 +35,9 @@ void fact_poly1305_blocks(
     h2 += (((t1 >> 24)) & mask42) | hibit;
 
     /* h *= r */
-    secret mut uint128 d0 = ((uint128)h0 * r0) + ((uint128)h1 * s2) + ((uint128)h2 * s1);
-    secret mut uint128 d1 = ((uint128)h0 * r1) + ((uint128)h1 * r0) + ((uint128)h2 * s2);
-    secret mut uint128 d2 = ((uint128)h0 * r2) + ((uint128)h1 * r1) + ((uint128)h2 * r0);
+    secret mut uint128 d0 = (((uint128)h0) * r0) + (((uint128)h1) * s2) + (((uint128)h2) * s1);
+    secret mut uint128 d1 = (((uint128)h0) * r1) + (((uint128)h1) * r0) + (((uint128)h2) * s2);
+    secret mut uint128 d2 = (((uint128)h0) * r2) + (((uint128)h1) * r1) + (((uint128)h2) * r0);
 
     /* (partial) h %= p */
     secret mut uint64 c = (uint64)(d0 >> 44);
@@ -119,8 +119,8 @@ void fact_poly1305_update(
   if (len m - mindex >= 16) {
     public uint64 want = ((len m - mindex) & ~(16 - 1)); // XXX wat
 
-    secret uint8[] mview = arrview(m, mindex, 16); // XXX third param should be `want`
-    fact_poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, m);
+    secret uint8[] mview = arrview(m, mindex, 32); // XXX third param should be `want`
+    fact_poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, mview);
     mindex += want;
   }
 

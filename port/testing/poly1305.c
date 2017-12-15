@@ -17,8 +17,15 @@ typedef struct poly1305_state_internal_t {
 } poly1305_state_internal_t;
 
 void
+c_poly1305_init(poly1305_state_internal_t *st, const unsigned char key[32]);
+void
 c_poly1305_blocks(poly1305_state_internal_t *st, const unsigned char *m,
                 unsigned long long bytes);
+void
+c_poly1305_update(poly1305_state_internal_t *st, const unsigned char *m,
+                unsigned long long bytes);
+void
+c_poly1305_finish(poly1305_state_internal_t *st, unsigned char mac[16]);
 int
 c_crypto_onetimeauth_poly1305_donna(unsigned char *out, const unsigned char *m,
                                   unsigned long long   inlen,
@@ -36,23 +43,68 @@ static unsigned char in[32] = { 0x69, 0x69, 0x6e, 0xe9, 0x55, 0xb6, 0x2b, 0x73,
 
 static unsigned char out[16];
 
+void print64(uint64_t n)
+{
+    uint8_t *c = (uint8_t*)&n;
+    c += 7;
+    printf("    ");
+    for (int i = 0; i < 8; i++)
+        printf("%02x ", *c--);
+    printf("\n");
+}
+
+void print_state(poly1305_state_internal_t* st)
+{
+    printf("r\n");
+    for (int i = 0; i < 3; i++)
+        print64(st->r[i]);
+    printf("h\n");
+    for (int i = 0; i < 3; i++)
+        print64(st->h[i]);
+    printf("pad\n");
+    for (int i = 0; i < 2; i++)
+        print64(st->pad[i]);
+    printf("leftover\n");
+    print64(st->leftover);
+    printf("buffer and final\n");
+    printf("    ");
+    for (int i = 0; i < poly1305_block_size; i++)
+        printf("%02x ", st->buffer[i]);
+    printf("\n    %02x\n", st->final);
+}
+
 int main(void)
 {
     int i;
+    poly1305_state_internal_t st;
 
+    printf("C:\n");
+    memset(&st, 0, sizeof(poly1305_state_internal_t));
     memset(out, 0, 16);
+    //c_poly1305_init(&st, key);
+    //c_poly1305_update(&st, in, 32);
+    //c_poly1305_finish(&st, out);
+    //print_state(&st);
     c_crypto_onetimeauth_poly1305_donna(out, in, 32, key);
-    for (i = 0; i < 16; ++i) {
-        printf("%02x", (unsigned int) out[i]);
+    for (int i = 0; i < 16; i++)
+    {
+        printf("%02x ", out[i]);
         if (i % 8 == 7)
             printf("\n");
     }
     printf("\n");
 
+    printf("FaCT:\n");
+    memset(&st, 0, sizeof(poly1305_state_internal_t));
     memset(out, 0, 16);
+    //fact_poly1305_init(st.r, st.h, st.pad, &st.leftover, st.buffer, &st.final, key, 1);
+    //fact_poly1305_update(st.r, st.h, st.pad, &st.leftover, st.buffer, &st.final, in, 32, 1);
+    //fact_poly1305_finish(st.r, st.h, st.pad, &st.leftover, st.buffer, &st.final, out, 1);
+    //print_state(&st);
     fact_crypto_onetimeauth_poly1305(out, in, 32, key, 1);
-    for (i = 0; i < 16; ++i) {
-        printf("%02x", (unsigned int) out[i]);
+    for (int i = 0; i < 16; i++)
+    {
+        printf("%02x ", out[i]);
         if (i % 8 == 7)
             printf("\n");
     }
