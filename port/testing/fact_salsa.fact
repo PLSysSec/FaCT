@@ -1,22 +1,3 @@
-secret uint32 rotl32(secret uint32 x, public int32 b) {
-  return (x << b) | (x >> (32 - b));
-}
-
-secret uint32 load32_le(secret uint8[4] src) {
-  secret mut uint32 w = (uint32) src[0];
-  w |= ((uint32) src[1]) <<  8;
-  w |= ((uint32) src[2]) << 16;
-  w |= ((uint32) src[3]) << 24;
-  return w;
-}
-
-void store32_le(secret mut uint8[4] dst, secret uint32 w) {
-  dst[0] = (uint8)(w);
-  dst[1] = (uint8)(w >> 8);
-  dst[2] = (uint8)(w >> 16);
-  dst[3] = (uint8)(w >> 24);
-}
-
 void fact_crypto_core_salsa20( // crypto_core_salsa in core_salsa_ref.c
     secret mut uint8[64] out,
     secret uint8[16] in,
