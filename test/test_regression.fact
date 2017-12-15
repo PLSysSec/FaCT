@@ -33,7 +33,7 @@ secret int32 nestedIf(secret int32 cond) {
 }
 */
 
-secret uint64 load64_le(secret uint8[8] src) {
+secret uint64 load64_le(secret uint8[] src) {
   secret mut uint64 w = (uint64) src[0];
   w |= (uint64) src[1] <<  8;
   w |= (uint64) src[2] << 16;

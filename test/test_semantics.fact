@@ -379,7 +379,7 @@ secret int32 paramArrViewAccessDyn(secret int32[] arr) {
   return arr2[1];
 }
 
-secret int32 simpleArrayMutation(secret mut int32[5] arr) {
+secret int32 simpleArrayMutation(secret mut int32[] arr) {
   arr[0] = 2;
   arr[1] = 4;
   arr[2] = 6;
@@ -390,4 +390,18 @@ secret int32 simpleArrayMutation(secret mut int32[5] arr) {
 
 secret int32 complexArrayMutation(secret mut int32[5] arr) {
   return simpleArrayMutation(ref arr);
+}
+
+secret int32 complexArrayViewMutation(secret mut int32[10] arr) {
+  return simpleArrayMutation(ref arrview(arr,0,5));
+}
+
+secret int32 simpleArrayRead(secret mut int32[5] arr, secret int32 index) {
+  return arr[index];
+}
+
+secret int32 complexArrayViewRead(secret mut int32[10] arr, secret int32 index) {
+  secret int32[5] arr2 = arrview(arr,0,5);
+  return arr2[index];
+  //return simpleArrayRead(ref arrview(arr,0,5),index);
 }

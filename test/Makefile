@@ -14,7 +14,7 @@ TESTS=$(patsubst harness%.c,testbin%,$(SRC))
 all: $(TESTS) run
 
 %.o: %.fact
-	../fact.byte -ast-out -core-ir-out -llvm-out -generate-header $<
+	../fact.byte -debug -ast-out -core-ir-out -llvm-out -generate-header $<
 
 %_runner.c: %.c
 	ruby $(UNITY_ROOT)/auto/generate_test_runner.rb $< $@

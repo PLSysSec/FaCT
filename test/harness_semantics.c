@@ -369,7 +369,7 @@ void test_paramArrViewAccessDyn(void) {
 
 void test_simpleArrayMutation(void) {
   int arr[5] = {1,2,3,4,5};
-  simpleArrayMutation(arr,1);
+  simpleArrayMutation(arr,5,1);
   TEST_ASSERT_EQUAL(2, arr[0]);
   TEST_ASSERT_EQUAL(4, arr[1]);
   TEST_ASSERT_EQUAL(6, arr[2]);
@@ -385,4 +385,24 @@ void test_complexArrayMutation(void) {
   TEST_ASSERT_EQUAL(6, arr[2]);
   TEST_ASSERT_EQUAL(8, arr[3]);
   TEST_ASSERT_EQUAL(10, arr[4]);
+}
+
+void test_complexArrayViewMutation(void) {
+  int arr[10] = {1,2,3,4,5,6,7,8,9,10};
+  complexArrayViewMutation(arr,1);
+  TEST_ASSERT_EQUAL(2, arr[0]);
+  TEST_ASSERT_EQUAL(4, arr[1]);
+  TEST_ASSERT_EQUAL(6, arr[2]);
+  TEST_ASSERT_EQUAL(8, arr[3]);
+  TEST_ASSERT_EQUAL(10, arr[4]);
+  TEST_ASSERT_EQUAL(6, arr[5]);
+  TEST_ASSERT_EQUAL(7, arr[6]);
+  TEST_ASSERT_EQUAL(8, arr[7]);
+  TEST_ASSERT_EQUAL(9, arr[8]);
+  TEST_ASSERT_EQUAL(10, arr[9]);
+}
+
+void test_complexArrayViewRead(void) {
+  int arr[10] = {1,2,3,4,5,6,7,8,9,10};
+  TEST_ASSERT_EQUAL(1, complexArrayViewRead(arr,0,1));
 }
