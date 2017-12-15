@@ -39,7 +39,7 @@ main(void)
 {
     int i;
 
-    crypto_secretbox(c, m, 163, nonce, firstkey);
+    assert(crypto_secretbox(c, m, 163, nonce, firstkey) == 0);
     for (i = 16; i < 163; ++i) {
         printf(",0x%02x", (unsigned int) c[i]);
         if (i % 8 == 7)
@@ -48,7 +48,7 @@ main(void)
     printf("\n");
 
     memcpy(c, m, 163);
-    crypto_secretbox(c, c, 163, nonce, firstkey);
+    assert(crypto_secretbox(c, c, 163, nonce, firstkey) == 0);
     for (i = 16; i < 163; ++i) {
         printf(",0x%02x", (unsigned int) c[i]);
         if (i % 8 == 7)
