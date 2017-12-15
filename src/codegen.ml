@@ -164,16 +164,18 @@ let allocate_args cg_ctx args f =
         let alloca = build_alloca ty var_name.data cg_ctx.builder in
         add_var cg_ctx.venv var_name alloca;
         build_store ll_arg alloca cg_ctx.builder |> ignore
-      | ArrayVT({data=ArrayAT(bt,{data=LIntLiteral(s)})},_,_) ->
+      (*| ArrayVT({data=ArrayAT(bt,{data=LIntLiteral(s)})},_,_) ->
         let ty = array_type (bt_to_llvm_ty cg_ctx bt.data) s in
         let size = const_int (i32_type cg_ctx.llcontext) s in
         let loaded = build_load ll_arg "loadedarrptr" cg_ctx.builder in
         let alloca = build_alloca ty var_name.data cg_ctx.builder in
         add_var cg_ctx.venv var_name ll_arg;
-        ()
-      | ArrayVT({data=ArrayAT(bt,{data=LDynamic(var_name')})},_,_) ->
+        ()*)
+      (* We cannot pass a static array to a function.
+         Instead, it must be a dyn array *)
+      | ArrayVT({data=ArrayAT(bt,{data=_(*LDynamic(var_name')*)})},_,_) ->
         let ty = pointer_type(bt_to_llvm_ty cg_ctx bt.data) in
-        let alloca = (build_alloca ty var_name'.data cg_ctx.builder) in
+        let alloca = (build_alloca ty "arrarg" cg_ctx.builder) in
         add_var cg_ctx.venv var_name alloca;
         build_store ll_arg alloca cg_ctx.builder |> ignore in
     

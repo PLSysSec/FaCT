@@ -127,7 +127,8 @@ let compile (in_files,out_file,out_dir) args =
   let all_fdecs = List.fold_left (fun fdecs (Ast.Module more_fdecs) -> fdecs @ more_fdecs) [] asts in
   let ast = Ast.Module all_fdecs in
   output_ast args.ast_out out_file' ast;
-  let tast = Typecheck.tc_module ast in
+  let tast' = Typecheck.tc_module ast in
+  let tast = Transform_args.xf_module tast' in
   output_tast args.ast_out out_file' tast;
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast in
