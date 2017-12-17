@@ -144,11 +144,11 @@ and tc_top_level type_envs = function
     let tast = Typecheck.tc_fdec type_envs.type_fenv fd in
     Tast.FunctionDec tast
   | Ast.Statement s ->
-    let tc_ctx = Typecheck.{ rp=ref Tast.Public; pc=Tast.Public; venv=type_envs.type_venv; fenv=type_envs.type_fenv } in
-    let tast = Typecheck.tc_stm tc_ctx s in
+    let tc_ctx = Typecheck.{ rp=ref Tast.Public; pc=Tast.Public; venv=type_envs.type_venv; fenv=type_envs.type_fenv; add_stms=ref [] } in
+    let tast = List.hd @@ Typecheck.tc_stm tc_ctx s in
     Tast.Statement tast
   | Ast.Expression e ->
-    let tc_ctx = Typecheck.{ rp=ref Tast.Public; pc=Tast.Public; venv=type_envs.type_venv; fenv=type_envs.type_fenv } in
+    let tc_ctx = Typecheck.{ rp=ref Tast.Public; pc=Tast.Public; venv=type_envs.type_venv; fenv=type_envs.type_fenv; add_stms=ref [] } in
     let tast = Typecheck.tc_expr tc_ctx e in
     Tast.Expression tast
 

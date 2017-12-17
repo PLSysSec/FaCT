@@ -30,7 +30,7 @@ and base_type' =
 and base_type = base_type' pos_ast [@@deriving show]
 
 and lexpr' =
-  | LIntLiteral of int
+  | LExpression of expr
   | LUnspecified
 [@@deriving show]
 and lexpr = lexpr' pos_ast [@@deriving show]
