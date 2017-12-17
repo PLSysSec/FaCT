@@ -159,7 +159,7 @@ arg:
   | hasmut=boption(REF) a=array_expr { mkpos (ByArray(a,mkpos (if hasmut then Mut else Const))) }
 
 lexpr:
-  | n=INT { mkpos (LIntLiteral n) }
+  | e=expr { mkpos (LExpression e) }
 
 expr:
   | e=paren(expr) { mkpos e.data }

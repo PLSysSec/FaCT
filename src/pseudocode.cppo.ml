@@ -44,7 +44,7 @@ let ps_ref = xfunction
 
 let ps_lexpr = xfunction
   | LIntLiteral n -> string_of_int n
-  | LDynamic _ -> ""
+  | LDynamic x -> x.data
 
 let ps_aty = xfunction
   | ArrayAT(b,lexpr) -> Printf.sprintf "%s[%s]" (ps_bty b) (ps_lexpr lexpr)
