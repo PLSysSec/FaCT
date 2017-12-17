@@ -221,6 +221,7 @@ let (<:) { data=b1 } { data=b2 } =
     | Num(k,s), UInt n when not s -> true
     | UInt n, Num(k,s) when not s -> true
     | Num _, Num _ -> true
+    | String, String -> true
     | _ -> false
 
 let (<::) { data=ArrayAT(b1,lx1) } { data=ArrayAT(b2,lx2) } =
@@ -241,6 +242,7 @@ let join_bt p { data=b1 } { data=b2 } =
       | Int n, Num(k,s) -> b1
       | Num(k,s), UInt n when not s -> b2
       | UInt n, Num(k,s) when not s -> b1
+      | String, String -> b1
       | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2) (* XXX max k1 k2 makes no sense *)
       | _ -> raise @@ cerr("type mismatch: " ^ show_base_type' b1 ^ " <> " ^ show_base_type' b2, p);
   in mkpos b'
@@ -255,6 +257,7 @@ let meet_bt p { data=b1 } { data=b2 } =
       | Int n, Num(k,s) -> b1
       | Num(k,s), UInt n when k >= 0 -> b2
       | UInt n, Num(k,s) when k >= 0 -> b1
+      | String, String -> b1
       | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2)
       | _ -> raise @@ err(p)
   in mkpos b'
@@ -458,6 +461,8 @@ and tc_expr tc_ctx = pfunction
     (False, BaseET(mkpos Bool, mkpos Fixed Public))
   | Ast.IntLiteral n ->
     (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public))
+  | Ast.StringLiteral s ->
+    (StringLiteral s, BaseET(mkpos String, mkpos Fixed Public))
   | Ast.Variable x ->
     let x',xref = Env.find_var tc_ctx.venv x in
       (Variable x', refvt_to_etype' xref)
@@ -508,6 +513,9 @@ and tc_expr tc_ctx = pfunction
         | (CExtern(_,Some rty,params)) ->
           let args' = tc_args false tc_ctx p params args in
             (FnCall(f,args'), rty.data)
+        | (DebugFunDec(_,Some rty,params)) ->
+          let args' = tc_args false tc_ctx p params args in
+          DebugFnCall(f,args'), rty.data
     end
 
 and tc_arrayexpr tc_ctx = pfunction
@@ -621,6 +629,9 @@ let rec tc_stm tc_ctx = pfunction
           (* e.g. fcall with public mut arg in a block where pc is Secret is disallowed *)
           let args' = tc_args false tc_ctx p params args in
             VoidFnCall(f,args')
+        | (DebugFunDec(_,_,params)) ->
+          let args' = tc_args false tc_ctx p params args in
+          DebugVoidFnCall(f,args')
     end
 
   | Ast.Return e ->
@@ -709,7 +720,7 @@ let tc_fdec fenv = xfunction
       fdec'
 
 let tc_module (Ast.Module fdecs) =
-  let fenv = Env.new_env () in
+  let fenv = Debugfun.make_fenv () in
   let ret = Module (fenv, List.map (tc_fdec fenv) fdecs) in
     (*print_endline (Env.show_env pp_function_dec fenv);*)
     ret

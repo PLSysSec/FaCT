@@ -1,5 +1,6 @@
 open Command_util
 open Core
+open Debugfun
 
 let summary = "Compile the given const file."
 let readme = "Compile a const file. Pass the relative path to the file " ^
@@ -12,6 +13,7 @@ let pseudo_doc = " Output transformed pseudocode to file"
 let llvm_doc = " Output LLVM to file"
 let header_doc = " Output C header to file"
 let verify_llvm_doc = "Verify LLVM IR with ct-verif"
+let mode_doc = "The mode to compile with (dev or prod)"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -73,6 +75,7 @@ let compile_command =
       flag "-llvm-out" no_arg ~doc:llvm_doc +>
       flag "-generate-header" no_arg ~doc:header_doc +>
       flag "-verify-llvm" no_arg ~doc:verify_llvm_doc +>
+      flag "-mode" (optional string) ~doc:mode_doc +>
       anon (sequence ("filename" %: file)))
     (fun
       out_file
@@ -83,10 +86,16 @@ let compile_command =
       llvm_out
       gen_header
       verify_llvm
+      mode
       in_files () ->
+      let mode = match mode with
+        | Some "dev" -> DEV
+        | Some "prod" -> PROD
+        | Some m -> error_exit ("Unknown mode: " ^ m ^". Expected dev or prod")
+        | None -> PROD in
       let args = { in_files; out_file; debug;
                    ast_out; core_ir_out; pseudo_out;
-                   llvm_out; gen_header; verify_llvm } in
+                   llvm_out; gen_header; verify_llvm; mode } in
         set_log_level debug;
         let prep = prepare_compile out_file in_files () in
           runner prep args)

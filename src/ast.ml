@@ -25,6 +25,7 @@ and base_type' =
   | UInt of size
   | Int of size
   | Bool
+  | String
 [@@deriving show]
 and base_type = base_type' pos_ast [@@deriving show]
 
@@ -55,6 +56,7 @@ and expr' =
   | True
   | False
   | IntLiteral of int
+  | StringLiteral of string
   | Variable of var_name
   | ArrayGet of var_name * expr
   | ArrayLen of var_name

@@ -18,8 +18,6 @@ type fentry = { ret_ty:Tast.ret_type; args:Tast.params }
 type fenv = (string,fentry) Hashtbl.t [@printer pp_hashtbl]
 [@@deriving show]
 
-let new_fenv () = Hashtbl.create 10
-
 let has_fn = Hashtbl.mem
 
 let get_fn fenv f =
@@ -29,6 +27,14 @@ let get_fn fenv f =
     Not_found -> raise @@ Err.errFnNotDefined f
 
 let add_fn = Hashtbl.add
+
+let new_fenv () =
+  let fenvs = Hashtbl.create 10 in
+  let add = function
+    | n, {data=DebugFunDec(_,ret_ty,args)} -> add_fn fenvs n.data {ret_ty; args}
+    | _ -> raise CodegenError in
+  List.map add Debugfun.functions |> ignore;
+  fenvs
 
 (* End env functionality *)
 
@@ -90,6 +96,7 @@ let bt_to_llvm_ty cg_ctx = function
   | Int  size when size <= 64 -> i64_type cg_ctx.llcontext
   | Bool                      -> i1_type cg_ctx.llcontext (* TODO: Double check this*)
   | Num(i,b)                  -> i64_type cg_ctx.llcontext (* TODO: Double check semantics for `Num` *)
+  | String -> pointer_type (i8_type cg_ctx.llcontext)
 
 let is_dynamic_sized_array = function
   | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true
@@ -231,6 +238,7 @@ let rec allocate_stack cg_ctx stms =
       allocate_stack cg_ctx stms
     | {data=Return(expr)} -> allocate_inject expr
     | {data=VoidFnCall _} -> ()
+    | {data=DebugVoidFnCall _} -> ()
     | {data=VoidReturn} -> ()
   in
   let env,stms' = stms in
@@ -325,7 +333,8 @@ let rec codegen_arg cg_ctx arg ty =
     match ty.data with
       | Param(_,vt) -> vt.data in
   match arg.data with
-    | ByValue expr -> codegen_ext cg_ctx (vt_to_llvm_ty cg_ctx vt) expr
+    | ByValue expr ->
+      codegen_ext cg_ctx (vt_to_llvm_ty cg_ctx vt) expr
     | ByArray(arr,_) ->
       begin
         match ty.data with
@@ -367,6 +376,7 @@ and codegen_expr cg_ctx = function
   | True, ty -> const_all_ones (expr_ty_to_llvm_ty cg_ctx ty)
   | False, ty -> const_null (expr_ty_to_llvm_ty cg_ctx ty)
   | IntLiteral i, ty -> const_int (expr_ty_to_llvm_ty cg_ctx ty) i
+  | StringLiteral s, ty -> build_global_stringptr s "str" cg_ctx.builder
   | Variable var_name, ty ->
     (* TODO: We should probably check the lltype of ty and compare it to the type_of of the
              result? This would be a sanity check. Or maybe even better, we should cast
@@ -420,6 +430,7 @@ and codegen_expr cg_ctx = function
     let codegen_arg' = codegen_arg cg_ctx in
     let args' = List.map2 codegen_arg' args fun_dec.args in
     build_call callee (Array.of_list args') "calltmp" cg_ctx.builder
+  | DebugFnCall(_,_),_ -> raise CodegenError
   | Declassify(expr), ty -> codegen_expr cg_ctx expr.data
   | Select(expr1,expr2,expr3), ty ->
     let e1 = codegen_expr cg_ctx expr1.data in
@@ -448,7 +459,11 @@ and codegen_ext cg_ctx dest (expr : expr) =
   match expr.data with
     | expr',ty' ->
       let expr' = codegen_expr cg_ctx expr.data in
-      extend_to cg_ctx cg_ctx.builder true dest ty' expr'
+      begin
+        match classify_type dest with
+          | TypeKind.Pointer -> expr'
+          | _ -> extend_to cg_ctx cg_ctx.builder true dest ty' expr'
+      end
 
 and vt_to_bt = function
   | RefVT(bt,_,_) -> bt.data
@@ -682,6 +697,15 @@ and codegen_stm cg_ctx ret_ty = function
     let args' = List.map2 codegen_arg' arg_exprs fun_dec.args in
     build_call callee (Array.of_list args') "" cg_ctx.builder |> ignore;
     false
+  | {data=DebugVoidFnCall(fun_name,arg_exprs)} ->
+    let f = 
+    match lookup_function fun_name.data cg_ctx.llmodule with
+      | None -> Debugfun.codegen_proto cg_ctx.llcontext cg_ctx.llmodule fun_name
+      | Some f -> f in
+    let fun_dec = get_fn cg_ctx.fenv fun_name in
+    let args = List.map2 (codegen_arg cg_ctx) arg_exprs fun_dec.args in
+    let _ = build_call f (Array.of_list args) "" cg_ctx.builder in
+    false
   | {data=VoidReturn} ->
     build_ret_void cg_ctx.builder |> ignore;
     true
@@ -703,7 +727,7 @@ and codegen_stms cg_ctx ret_ty (stms : Tast.block) =
   let cg = codegen_stm cg_ctx ret_ty in
   List.fold_left (fun returned stm -> (cg stm) || returned) false stms'
 
-let rec declare_prototypes llcontext llmodule builder fenv = function
+and declare_prototypes llcontext llmodule builder fenv = function
   | ArrayGet(_,expr),_ ->
     declare_prototypes llcontext llmodule builder fenv expr.data
   | IntCast(_,expr),_ ->
@@ -782,6 +806,7 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     let vtenv = Env.new_env () in
     let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm } in
     declare_prototype cg_ctx llmodule builder fenv params ret_ty fun_name
+  | { data=DebugFunDec _} -> raise CodegenError
 
 let rec codegen_fdecs llcontext llmodule builder fenv verify = function
   | [] -> ()

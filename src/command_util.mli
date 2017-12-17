@@ -1,3 +1,5 @@
+open Debugfun
+
 type args_record = {
   in_files    : string list;
   out_file    : string option;
@@ -8,6 +10,7 @@ type args_record = {
   llvm_out    : bool;
   gen_header  : bool;
   verify_llvm : bool;
+  mode        : mode;
 }
 
 (** Compile a constantc program. *)

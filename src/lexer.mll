@@ -84,6 +84,7 @@ rule token = parse
   | "0x"           { let buf = Buffer.create 10 in
                      Buffer.add_string buf "0x";
                      num buf lexbuf }
+  | "\""           { mk_string (Buffer.create 10) lexbuf }
   | '+'            { PLUS }
   | '-'            { MINUS }
   | '*'            { TIMES }
@@ -149,3 +150,9 @@ and num buf = parse
       INT(int_of_string s)
     }
   | _      { raise_invalid_number lexbuf }
+
+and mk_string buf = parse
+  | "\"" { let s = Buffer.contents buf in
+           STRING (s)}
+  | _    { Buffer.add_string buf (Lexing.lexeme lexbuf);
+           mk_string buf lexbuf }

@@ -161,6 +161,7 @@ and xf_expr' xf_ctx { data; pos=p } =
               FnCall(f,args'@[mkpos ByValue fctx])
           else
             FnCall(f,args')
+      | DebugFnCall _ as f -> f
       | Declassify e ->
         let e' = xf_expr xf_ctx e in
           Declassify e'
@@ -234,7 +235,7 @@ and xf_stm' xf_ctx p = function
           [VoidFnCall(f,args'@[mkpos ByValue fctx])]
       else
         [VoidFnCall(f,args')]
-
+  | DebugVoidFnCall _ as f -> [f]
   | Return e ->
     let Some rt = xf_ctx.rt in
     let e' = xf_expr xf_ctx e in

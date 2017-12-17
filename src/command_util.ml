@@ -3,6 +3,7 @@ open Err
 open Lexing
 open Typecheck
 open Codegen
+open Debugfun
 
 (*
 open Cast
@@ -20,6 +21,7 @@ type args_record = {
   llvm_out    : bool;
   gen_header  : bool;
   verify_llvm : bool;
+  mode        : mode;
 }
 
 let run_command c args =
@@ -105,6 +107,7 @@ let output_object out_file =
 
 let compile (in_files,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in
+  Log.debug "Compiling program in %s mode" (show_mode args.mode);
   let lex_and_parse in_file =
     Log.debug "Compiling %s" in_file;
     (*ignore(Llvm_X86.initialize());*)
@@ -133,6 +136,7 @@ let compile (in_files,out_file,out_dir) args =
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast in
   Log.debug "Tast transform complete";
+  let xftast = Transform_debug.xf_module args.mode xftast in
   output_xftast args.core_ir_out out_file' xftast;
   generate_pseudo args.pseudo_out out_file' xftast;
   generate_header args.gen_header out_file' xftast;

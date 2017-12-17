@@ -21,6 +21,7 @@ let to_type { data=t; pos=p } =
 
 %token <int> INT
 %token <bool> BOOL
+%token <string> STRING
 %token VOID
 %token PLUS MINUS TIMES
 %token EQUAL NEQUAL GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
@@ -165,6 +166,7 @@ expr:
   | e=paren(expr) { mkpos e.data }
   | b=BOOL { mkpos (if b then True else False) }
   | n=INT { mkpos (IntLiteral n) }
+  | s=STRING {mkpos (StringLiteral s) }
   | x=var_name { mkpos (Variable x) }
   | a=var_name e=brack(expr) { mkpos (ArrayGet(a, e)) }
   | LEN a=var_name { mkpos (ArrayLen a) }
