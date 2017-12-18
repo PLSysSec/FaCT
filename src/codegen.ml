@@ -511,13 +511,31 @@ and codegen_array_expr cg_ctx arr_name = function
     let ll_cpy_len = (const_int (i64_type cg_ctx.llcontext) num_bytes) in
     let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
     let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
-    let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
-    let source_casted = build_bitcast from source_cast_ty "source_casted" cg_ctx.builder in
-    let dest_casted = build_bitcast alloca source_cast_ty "dest_cast" cg_ctx.builder in
-    let args = [| dest_casted; source_casted; ll_cpy_len; alignment; volatility |] in
+    
+    
+    let some_arg =
+      try Some(find_var cg_ctx.tenv var_name) with
+        | _-> None in
+
+    let source_val, source_ty = 
+      begin
+      match some_arg with
+        | None ->
+          let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
+          let source_casted = build_bitcast from source_cast_ty "source_casted" cg_ctx.builder in
+          source_casted, source_cast_ty
+        | Some arg ->
+          let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
+          let source_casted = build_load from "loadedtocopy" cg_ctx.builder in
+          source_casted, source_cast_ty
+      end in
+    let dest_casted = build_bitcast alloca source_ty "dest_cast" cg_ctx.builder in
+    let args = [| dest_casted; source_val; ll_cpy_len; alignment; volatility |] in
     let memcpy = get_intrinsic Memcpy cg_ctx in
     build_call memcpy args "" cg_ctx.builder |> ignore;
     alloca,false
+
+
   | ArrayView(var_name, expr, lexpr),ty ->
     let index = codegen_expr cg_ctx expr.data in
     let from = find_var cg_ctx.venv var_name in
