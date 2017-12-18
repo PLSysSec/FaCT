@@ -406,3 +406,72 @@ void test_complexArrayViewRead(void) {
   int arr[10] = {1,2,3,4,5,6,7,8,9,10};
   TEST_ASSERT_EQUAL(1, complexArrayViewRead(arr,0,1));
 }
+
+void test_arrcopy(void) {
+  int8_t arr[5] = {1,2,3,4,5};
+  int8_t arr2[5];
+  simpleArrCopy(arr2,5,arr,1);
+  TEST_ASSERT_EQUAL(1, arr2[0]);
+  TEST_ASSERT_EQUAL(2, arr2[1]);
+  TEST_ASSERT_EQUAL(3, arr2[2]);
+  TEST_ASSERT_EQUAL(4, arr2[3]);
+  TEST_ASSERT_EQUAL(5, arr2[4]);
+}
+
+void test_arrcopy32(void) {
+  int arr[5] = {1,2,3,4,5};
+  int arr2[5];
+  simpleArrCopy32(arr2,5,arr,1);
+  TEST_ASSERT_EQUAL(1, arr2[0]);
+  TEST_ASSERT_EQUAL(2, arr2[1]);
+  TEST_ASSERT_EQUAL(3, arr2[2]);
+  TEST_ASSERT_EQUAL(4, arr2[3]);
+  TEST_ASSERT_EQUAL(5, arr2[4]);
+}
+
+void test_arrcopyStatic(void) {
+  int8_t arr[5] = {1,2,3,4,5};
+  int8_t arr2[5];
+  simpleArrCopyStatic(arr2,arr,1);
+  TEST_ASSERT_EQUAL(1, arr2[0]);
+  TEST_ASSERT_EQUAL(2, arr2[1]);
+  TEST_ASSERT_EQUAL(3, arr2[2]);
+  TEST_ASSERT_EQUAL(4, arr2[3]);
+  TEST_ASSERT_EQUAL(5, arr2[4]);
+}
+
+void test_arrcopyStatic32(void) {
+  int arr[5] = {1,2,3,4,5};
+  int arr2[5];
+  simpleArrCopyStatic32(arr2,arr,1);
+  TEST_ASSERT_EQUAL(1, arr2[0]);
+  TEST_ASSERT_EQUAL(2, arr2[1]);
+  TEST_ASSERT_EQUAL(3, arr2[2]);
+  TEST_ASSERT_EQUAL(4, arr2[3]);
+  TEST_ASSERT_EQUAL(5, arr2[4]);
+}
+
+void test_arrCopy(void) {
+  int arr[5] = {11,12,13,14,15};
+  TEST_ASSERT_EQUAL(11, arrCopy(arr,0));
+  TEST_ASSERT_EQUAL(12, arrCopy(arr,1));
+  TEST_ASSERT_EQUAL(13, arrCopy(arr,2));
+  TEST_ASSERT_EQUAL(14, arrCopy(arr,3));
+  TEST_ASSERT_EQUAL(15, arrCopy(arr,4));
+}
+
+void test_mediumComplexArrCopy(void) {
+  TEST_ASSERT_EQUAL(1, mediumComplexArrCopy(0));
+  TEST_ASSERT_EQUAL(2, mediumComplexArrCopy(1));
+  TEST_ASSERT_EQUAL(3, mediumComplexArrCopy(2));
+  TEST_ASSERT_EQUAL(4, mediumComplexArrCopy(3));
+  TEST_ASSERT_EQUAL(5, mediumComplexArrCopy(4));
+}
+
+void test_complexArrCopy(void) {
+  TEST_ASSERT_EQUAL(1, complexArrCopy(0));
+  TEST_ASSERT_EQUAL(2, complexArrCopy(1));
+  TEST_ASSERT_EQUAL(3, complexArrCopy(2));
+  TEST_ASSERT_EQUAL(4, complexArrCopy(3));
+  TEST_ASSERT_EQUAL(5, complexArrCopy(4));
+}
