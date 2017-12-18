@@ -156,7 +156,7 @@ void poly1305_finish(
     public mut uint64 state_leftover,
     secret mut uint8[16] state_buffer,
     secret mut bool state_final,
-    public mut uint8[16] mac) {
+    secret mut uint8[16] mac) {
   /* process the remaining block */
   if (state_leftover != 0) {
     public uint64 start = state_leftover;
@@ -244,7 +244,7 @@ void poly1305_finish(
 }
 
 public int32 crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna from poly1305_donna.c
-    public mut uint8[16] out,
+    secret mut uint8[16] out,
     secret uint8[] m,
     secret uint8[32] key) {
   secret mut uint64[3] state_r = arrzeros(3);
@@ -258,4 +258,13 @@ public int32 crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna f
   poly1305_update(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, m);
   poly1305_finish(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, ref out);
   return 0;
+}
+
+public bool crypto_onetimeauth_poly1305_verify( // crypto_onetimeauth_poly1305_donna_verify from poly1305.c
+    secret uint8[16] h,
+    secret uint8[] in,
+    secret uint8[32] k) {
+  public mut uint8[16] correct = arrzeros(16);
+  crypto_onetimeauth_poly1305(ref correct, in, k);
+  return crypto_verify_16(h, correct);
 }

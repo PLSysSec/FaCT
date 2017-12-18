@@ -10,6 +10,15 @@ void fact_memzero64(secret mut uint64[] buf) {
   }
 }
 
+public int32 crypto_verify_16(secret uint8[16] x, secret uint8[16] y) {
+  for (uint32 i = 0 to 16) {
+    if (x[i] != y[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // this should be a language primitive
 secret uint32 rotl32(secret uint32 x, public int32 b) {
   return (x << b) | (x >> (32 - b));
