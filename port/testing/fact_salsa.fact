@@ -174,9 +174,6 @@ public int32 fact_crypto_stream_salsa20_xor_ic( // stream_ref_xor_ic in salsa20_
   }
   public mut uint64 ic = ic_val;
   secret mut uint8[32] kcopy = arrcopy(k);
-  //for (uint32 i = 0 to 32) {
-    //kcopy[i] = k[i];
-  //}
   public mut uint8[16] in = arrzeros(16);
   for (uint32 i = 0 to 8) {
     in[i] = n[i];
@@ -192,7 +189,7 @@ public int32 fact_crypto_stream_salsa20_xor_ic( // stream_ref_xor_ic in salsa20_
     public mut uint8[64] cview = arrview(c, j*64, 64);
     secret uint8[64] mview = arrview(m, j*64, 64);
     for (uint32 i = 0 to 64) {
-      cview[i] = kcopy[i];//mview[i] ^ block[i];
+      cview[i] = mview[i] ^ block[i];
     }
     public mut uint64 u = 1;
     for (uint32 i = 8 to 16) {

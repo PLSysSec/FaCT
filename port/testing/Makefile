@@ -1,5 +1,7 @@
 all: salsa.bin poly1305.bin
 
+.PRECIOUS: fact_%.h
+
 fact_%.o: stdlib.fact fact_%.fact
 	../../fact.byte -ast-out -pseudocode -generate-header -llvm-out -debug $^
 
