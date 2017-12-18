@@ -374,7 +374,8 @@ let rec lexprconv tc_ctx = pfunction
   | Ast.LExpression e ->
     let lenvt = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
     let e' = tc_expr tc_ctx e in
-    let len = add_new_var tc_ctx.venv (mkpos "len") lenvt in
+    let len_var = mkpos (make_fresh "len") in
+    let len = add_new_var tc_ctx.venv len_var lenvt in
       tc_ctx.add_stms := (BaseDec(len,lenvt,e')) :: !(tc_ctx.add_stms);
       LDynamic len
   | Ast.LUnspecified -> raise @@ err(p)

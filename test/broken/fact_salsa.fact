@@ -1,0 +1,13 @@
+public int32 bad(
+    public mut uint8[] c,
+    secret uint8[32] k
+    ) {
+  secret mut uint8[32] kcopy = arrcopy(k);
+  /*for (uint32 i = 0 to 32) {
+    kcopy[i] = k[i];
+  }*/
+    for (uint32 i = 0 to 64) {
+      c[i] = kcopy[i];
+    }
+  return 0;
+}

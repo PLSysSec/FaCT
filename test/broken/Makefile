@@ -1,18 +1,17 @@
-all: salsa.bin poly1305.bin
+all: salsa.bin
 
-fact_%.o: stdlib.fact fact_%.fact
+.PRECIOUS: fact_%.h
+
+fact_%.o: fact_%.fact
 	../../fact.byte -ast-out -pseudocode -generate-header -llvm-out -debug $^
 
 fact_%.h: fact_%.o
 	touch $@
 
-c_%.o: c_%.c
-	clang -g -c $< -o $@
-
 main_%.o: %.c fact_%.h
 	clang -g -c $< -o $@
 
-%.bin: fact_%.o c_%.o main_%.o
+%.bin: fact_%.o main_%.o
 	clang -g $^ -o $@
 
 clean:
