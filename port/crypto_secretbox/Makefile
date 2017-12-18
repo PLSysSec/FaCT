@@ -1,15 +1,20 @@
-all: secretbox.bin
+all: secretbox1.bin secretbox2.bin
+
+.PRECIOUS: crypto_secretbox.h
 
 crypto_secretbox.o: stdlib.fact crypto_poly1305.fact crypto_secretbox.fact
 	../../fact.byte -pseudocode -generate-header -llvm-out -debug $^
 
+crypto_secretbox.h: crypto_secretbox.o
+	touch $@
+
 crypto_secretbox_wrapper.o: crypto_secretbox_wrapper.c crypto_secretbox.o
 	clang -g -c $< -o $@
 
-secretbox.o: secretbox.c cmptest.h quirks.h crypto_secretbox_wrapper.h
+secretbox%.o: secretbox%.c cmptest.h quirks.h crypto_secretbox_wrapper.h
 	clang -g -c $< -o $@
 
-secretbox.bin: crypto_secretbox.o crypto_secretbox_wrapper.o secretbox.o
+secretbox%.bin: crypto_secretbox.o crypto_secretbox_wrapper.o secretbox%.o
 	clang -g $^ -o $@
 
 clean:
