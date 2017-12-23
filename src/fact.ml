@@ -1,6 +1,7 @@
 open Command_util
 open Core
 open Debugfun
+open Opt
 
 let summary = "Compile the given const file."
 let readme = "Compile a const file. Pass the relative path to the file " ^
@@ -13,7 +14,8 @@ let pseudo_doc = " Output transformed pseudocode to file"
 let llvm_doc = " Output LLVM to file"
 let header_doc = " Output C header to file"
 let verify_llvm_doc = "Verify LLVM IR with ct-verif"
-let mode_doc = "The mode to compile with (dev or prod)"
+let mode_doc = "mode The mode to compile with (dev or prod)"
+let opt_level_doc = "level The level of optimization to run (01 or 02)"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -76,6 +78,7 @@ let compile_command =
       flag "-generate-header" no_arg ~doc:header_doc +>
       flag "-verify-llvm" no_arg ~doc:verify_llvm_doc +>
       flag "-mode" (optional string) ~doc:mode_doc +>
+      flag "-opt" (optional string) ~doc:opt_level_doc +>
       anon (sequence ("filename" %: file)))
     (fun
       out_file
@@ -87,15 +90,21 @@ let compile_command =
       gen_header
       verify_llvm
       mode
+      opt_level
       in_files () ->
       let mode = match mode with
         | Some "dev" -> DEV
         | Some "prod" -> PROD
         | Some m -> error_exit ("Unknown mode: " ^ m ^". Expected dev or prod")
         | None -> PROD in
+      let opt_level = match opt_level with
+        | Some "O1" -> O1
+        | Some "O2" -> O2
+        | Some o -> error_exit ("Unknown optimization level: " ^ o ^ ". Expected O1 or O2")
+        | None -> O0 in
       let args = { in_files; out_file; debug;
                    ast_out; core_ir_out; pseudo_out;
-                   llvm_out; gen_header; verify_llvm; mode } in
+                   llvm_out; gen_header; verify_llvm; mode; opt_level } in
         set_log_level debug;
         let prep = prepare_compile out_file in_files () in
           runner prep args)

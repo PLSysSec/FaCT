@@ -4,6 +4,7 @@ open Lexing
 open Typecheck
 open Codegen
 open Debugfun
+open Opt
 
 (*
 open Cast
@@ -22,6 +23,7 @@ type args_record = {
   gen_header  : bool;
   verify_llvm : bool;
   mode        : mode;
+  opt_level   : opt_level;
 }
 
 let run_command c args =
@@ -144,6 +146,9 @@ let compile (in_files,out_file,out_dir) args =
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let llvm_builder = Llvm.builder llvm_ctx in
   let _ = codegen llvm_ctx llvm_mod llvm_builder args.verify_llvm xftast in
+
+  (* Lets optimize the module *)
+  Opt.run_optimizations args.opt_level llvm_mod;
   
   (*
   let triple = Llvm_target.Target.default_triple () in

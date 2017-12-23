@@ -1,39 +1,115 @@
-all: fact.bin c0.bin c2.bin f2.bin
+all: cond_sel.h salsa_fact.h cond_sel_fact0.bin cond_sel_c0.bin cond_sel_c0.bin cond_sel_fact1.bin cond_sel_fact2.bin cond_sel_c1.bin cond_sel_c2.bin salsa_c0.bin salsa_c1.bin salsa_c2.bin salsa_fact0.bin salsa_fact1.bin salsa_fact2.bin runner
 
 clean:
-	rm -f *.o *.s *.bc *.ll *.pseudo.fact *.bin perf.h
+	rm -f *.o *.s *.bc *.ll *.pseudo.fact *.bin cond_sel*.h salsa*.h fact*.h
 
 .PHONY: all clean
 
-fact.o: perf.fact
-	../fact.byte -generate-header -llvm-out -pseudocode -o $@ $^
+runner: cond_sel_fact0.bin cond_sel_c0.bin cond_sel_fact1.bin cond_sel_fact2.bin cond_sel_c1.bin cond_sel_c2.bin salsa_fact0.bin salsa_fact1.bin salsa_fact2.bin
+	python run.py
 
-perf.h: fact.o
-	mv fact.h $@
-
-cperf.o: cperf.c
+benchmark.o: benchmark.c
 	clang -c -O0 -o $@ $<
 
-cperf2.o: cperf.c
+# START CONDITIONAL SELECT
+cond_sel_fact0.o: cond_sel.fact
+	../fact.byte -generate-header -llvm-out -o $@ $^
+
+cond_sel_fact1.o: cond_sel.fact
+	../fact.byte -generate-header -llvm-out -opt O1 -o $@ $^
+
+cond_sel_fact2.o: cond_sel.fact
+	../fact.byte -generate-header -llvm-out -opt O2 -o $@ $^
+
+cond_sel.h: cond_sel_fact0.o
+	mv cond_sel_fact0.h $@
+
+cond_sel_c0.o: cond_sel.c
+	clang -c -O0 -o $@ $<
+
+cond_sel_c1.o: cond_sel.c
+	clang -c -O1 -o $@ $<
+
+cond_sel_c2.o: cond_sel.c
 	clang -c -O2 -o $@ $<
 
-opt.ll: fact.ll
-	opt-3.8 -S -O2 $< > $@
+cond_sel_impl0.o: cond_sel_impl.c
+	clang -c -O0 -o $@ $<
 
-opt.o: opt.ll
-	clang-3.8 -c -o $@ $<
+cond_sel_impl1.o: cond_sel_impl.c
+	clang -c -O1 -o $@ $<
 
-benchmark.o: benchmark.c perf.h
+cond_sel_impl2.o: cond_sel_impl.c
 	clang -c -O2 -o $@ $<
 
-fact.bin: benchmark.o fact.o
+cond_sel_fact0.bin: benchmark.o cond_sel_fact0.o cond_sel_fact.o
 	clang -o $@ $^
 
-c0.bin: benchmark.o cperf.o
+cond_sel_fact1.bin: benchmark.o cond_sel_fact1.o cond_sel_fact.o
 	clang -o $@ $^
 
-c2.bin: benchmark.o cperf2.o
+cond_sel_fact2.bin: benchmark.o cond_sel_fact2.o cond_sel_fact.o
 	clang -o $@ $^
 
-f2.bin: benchmark.o opt.o
+cond_sel_c0.bin: benchmark.o cond_sel_c0.o cond_sel_impl0.o
 	clang -o $@ $^
+
+cond_sel_c1.bin: benchmark.o cond_sel_c1.o cond_sel_impl1.o
+	clang -o $@ $^
+
+cond_sel_c2.bin: benchmark.o cond_sel_c2.o cond_sel_impl2.o
+	clang -o $@ $^
+
+# END CONDITIONAL SELECT
+
+# START SALSA
+
+salsa_fact0.o: ../port/testing/stdlib.fact ../port/testing/fact_salsa.fact
+	../fact.byte -generate-header -llvm-out -o $@ $^
+
+salsa_fact1.o: ../port/testing/stdlib.fact ../port/testing/fact_salsa.fact
+	../fact.byte -generate-header -llvm-out -opt O1 -o $@ $^
+
+salsa_fact2.o: ../port/testing/stdlib.fact ../port/testing/fact_salsa.fact
+	../fact.byte -generate-header -llvm-out -opt O2 -o $@ $^
+
+salsa_fact.h: salsa_fact0.o
+	mv salsa_fact0.h $@
+
+c_salsa0.o: ../port/testing/c_salsa.c
+	clang -c -O0 -o $@ $<
+
+c_salsa1.o: ../port/testing/c_salsa.c
+	clang -c -O1 -o $@ $<
+
+c_salsa2.o: ../port/testing/c_salsa.c
+	clang -c -O2 -o $@ $<
+
+salsa_wrapper0.o: salsa_wrapper.c
+	clang -c -O0 -o $@ $<
+
+salsa_wrapper1.o: salsa_wrapper.c
+	clang -c -O1 -o $@ $<
+
+salsa_wrapper2.o: salsa_wrapper.c
+	clang -c -O2 -o $@ $<
+
+salsa_fact0.bin: benchmark.o salsa_fact0.o salsa_wrapper_fact.o
+	clang -o $@ $^
+
+salsa_fact1.bin: benchmark.o salsa_fact1.o salsa_wrapper_fact.o
+	clang -o $@ $^
+
+salsa_fact2.bin: benchmark.o salsa_fact2.o salsa_wrapper_fact.o
+	clang -o $@ $^
+
+salsa_c0.bin: benchmark.o salsa_wrapper0.o c_salsa0.o
+	clang -o $@ $^
+
+salsa_c1.bin: benchmark.o salsa_wrapper1.o c_salsa1.o
+	clang -o $@ $^
+
+salsa_c2.bin: benchmark.o salsa_wrapper2.o c_salsa2.o
+	clang -o $@ $^
+
+# END SALSA

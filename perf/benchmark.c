@@ -9,13 +9,13 @@
 #include <unistd.h>
 #include <string.h>
 
-#include "perf.h"
+#include "benchmark.h"
 
-#define NUM_TRIALS 2048
-#define NUM_ITRS 2048
+#define NUM_TRIALS 500
+#define NUM_ITRS 1000
 #define WARMUP_COUNT 7
 
-double test(void) {
+double test(benchmarkable f) {
 	uint32_t ctr = 0;
 	uint8_t real = 0;
 	uint64_t offset_time;
@@ -28,9 +28,7 @@ runme:
 
 #ifndef TIME_READ_OVERHEAD
 	for(ctr=0;ctr<NUM_ITRS;ctr++){
-		int32_t x = NUM_ITRS;
-		int32_t y = NUM_ITRS / 2;
-		int32_t z = cond_sel(x < y, x, y);
+		f();
 	}
 #endif
 
@@ -67,6 +65,23 @@ void print_times(const double * times, int n) {
 		printf("%.9f\n", times[i]);
 }
 
+int benchmark(benchmarkable f) {
+	static double times[NUM_TRIALS];
+	double mean = 0;
+	int i;
+
+	for(i = 0; i < NUM_TRIALS; i++)
+		times[i] = test(f);
+
+	for (i = 0; i < NUM_TRIALS; i++) {
+		mean += times[i];
+	}
+	mean /= NUM_TRIALS;
+	printf("mean: %.9f\n", mean);
+
+	return 0;
+}
+/*
 int main(int argc, char* argv[]) {
 	static double times[NUM_TRIALS];
 	double mean = 0;
@@ -84,3 +99,4 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
+*/

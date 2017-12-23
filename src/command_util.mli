@@ -1,3 +1,4 @@
+open Opt
 open Debugfun
 
 type args_record = {
@@ -11,6 +12,7 @@ type args_record = {
   gen_header  : bool;
   verify_llvm : bool;
   mode        : mode;
+  opt_level   : opt_level;
 }
 
 (** Compile a constantc program. *)
