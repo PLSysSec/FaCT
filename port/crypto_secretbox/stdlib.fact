@@ -1,22 +1,31 @@
-void fact_memzero(secret mut uint8[] buf) {
+void _fact_memzero(secret mut uint8[] buf) {
   for (int32 i = 0 to len buf) {
     buf[i] = 0;
   }
 }
 
-void fact_memzero64(secret mut uint64[] buf) {
+void _fact_memzero64(secret mut uint64[] buf) {
   for (int32 i = 0 to len buf) {
     buf[i] = 0;
   }
+}
+
+public int32 _crypto_verify_16(secret uint8[16] x, secret uint8[16] y) {
+  for (uint32 i = 0 to 16) {
+    if (x[i] != y[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // this should be a language primitive
-secret uint32 rotl32(secret uint32 x, public int32 b) {
+secret uint32 _rotl32(secret uint32 x, public int32 b) {
   return (x << b) | (x >> (32 - b));
 }
 
 // load a number from little endian format
-secret uint64 load64_le(secret uint8[8] src) {
+secret uint64 _load64_le(secret uint8[8] src) {
   secret mut uint64 w = (uint64) src[0];
   w |= ((uint64) src[1]) <<  8;
   w |= ((uint64) src[2]) << 16;
@@ -28,7 +37,7 @@ secret uint64 load64_le(secret uint8[8] src) {
   return w;
 }
 
-secret uint32 load32_le(secret uint8[4] src) {
+secret uint32 _load32_le(secret uint8[4] src) {
   secret mut uint32 w = (uint32) src[0];
   w |= ((uint32) src[1]) <<  8;
   w |= ((uint32) src[2]) << 16;
@@ -37,7 +46,7 @@ secret uint32 load32_le(secret uint8[4] src) {
 }
 
 // store a number to little endian format
-void store64_le(secret mut uint8[8] dst, secret uint64 w) {
+void _store64_le(secret mut uint8[8] dst, secret uint64 w) {
   dst[0] = (uint8)(w);
   dst[1] = (uint8)(w >> 8);
   dst[2] = (uint8)(w >> 16);
@@ -48,7 +57,7 @@ void store64_le(secret mut uint8[8] dst, secret uint64 w) {
   dst[7] = (uint8)(w >> 56);
 }
 
-void store32_le(secret mut uint8[4] dst, secret uint32 w) {
+void _store32_le(secret mut uint8[4] dst, secret uint32 w) {
   dst[0] = (uint8)(w);
   dst[1] = (uint8)(w >> 8);
   dst[2] = (uint8)(w >> 16);
