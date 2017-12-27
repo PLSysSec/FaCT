@@ -909,5 +909,6 @@ ocaml_lib ~extern:true "llvm_bitwriter";;
 ocaml_lib ~extern:true "llvm_bitreader";;
 ocaml_lib ~extern:true "llvm_X86";;
 ocaml_lib ~extern:true "llvm_executionengine";;
+ocaml_lib ~extern:true "llvm_passmgr_builder";;
 
 flag ["link"; "ocaml"; "g++"] (S[A"-cc"; A"g++"]);;

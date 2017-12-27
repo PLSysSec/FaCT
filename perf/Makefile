@@ -64,25 +64,25 @@ cond_sel_c2.bin: benchmark.o cond_sel_c2.o cond_sel_impl2.o
 
 # START SALSA
 
-salsa_fact0.o: ../port/testing/stdlib.fact ../port/testing/fact_salsa.fact
+salsa_fact0.o: ../port/crypto_secretbox/testing/stdlib.fact ../port/crypto_secretbox/testing/fact_salsa.fact
 	../fact.byte -generate-header -llvm-out -o $@ $^
 
-salsa_fact1.o: ../port/testing/stdlib.fact ../port/testing/fact_salsa.fact
+salsa_fact1.o: ../port/crypto_secretbox/testing/stdlib.fact ../port/crypto_secretbox/testing/fact_salsa.fact
 	../fact.byte -generate-header -llvm-out -opt O1 -o $@ $^
 
-salsa_fact2.o: ../port/testing/stdlib.fact ../port/testing/fact_salsa.fact
+salsa_fact2.o: ../port/crypto_secretbox/testing/stdlib.fact ../port/crypto_secretbox/testing/fact_salsa.fact
 	../fact.byte -generate-header -llvm-out -opt O2 -o $@ $^
 
 salsa_fact.h: salsa_fact0.o
 	mv salsa_fact0.h $@
 
-c_salsa0.o: ../port/testing/c_salsa.c
+c_salsa0.o: ../port/crypto_secretbox/testing/c_salsa.c
 	clang -c -O0 -o $@ $<
 
-c_salsa1.o: ../port/testing/c_salsa.c
+c_salsa1.o: ../port/crypto_secretbox/testing/c_salsa.c
 	clang -c -O1 -o $@ $<
 
-c_salsa2.o: ../port/testing/c_salsa.c
+c_salsa2.o: ../port/crypto_secretbox/testing/c_salsa.c
 	clang -c -O2 -o $@ $<
 
 salsa_wrapper0.o: salsa_wrapper.c

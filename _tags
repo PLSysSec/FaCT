@@ -3,7 +3,7 @@ true: use_menhir, bin_annot, debug
 <*.{byte,native}>: g++, use_llvm, use_llvm_analysis, use_llvm_bitwriter, use_llvm_target, use_llvm_X86, use_llvm_bitreader, use_llvm_executionengine
 
 # OASIS_START
-# DO NOT EDIT (digest: 69d3ee5e4bf907801a2fda7f1615092a)
+# DO NOT EDIT (digest: 091b4ad0c579813d1e05d009d89b05ac)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -27,6 +27,7 @@ true: annot, bin_annot
 "src/fact.byte": package(llvm.analysis)
 "src/fact.byte": package(llvm.bitwriter)
 "src/fact.byte": package(llvm.executionengine)
+"src/fact.byte": package(llvm.passmgr_builder)
 "src/fact.byte": package(llvm.target)
 "src/fact.byte": package(oUnit)
 "src/fact.byte": package(ppx_deriving.std)
@@ -40,6 +41,7 @@ true: annot, bin_annot
 "src/facti.byte": package(llvm.analysis)
 "src/facti.byte": package(llvm.bitwriter)
 "src/facti.byte": package(llvm.executionengine)
+"src/facti.byte": package(llvm.passmgr_builder)
 "src/facti.byte": package(llvm.target)
 "src/facti.byte": package(oUnit)
 "src/facti.byte": package(ppx_deriving.std)
@@ -52,6 +54,7 @@ true: annot, bin_annot
 <src/*.ml{,i,y}>: package(llvm.analysis)
 <src/*.ml{,i,y}>: package(llvm.bitwriter)
 <src/*.ml{,i,y}>: package(llvm.executionengine)
+<src/*.ml{,i,y}>: package(llvm.passmgr_builder)
 <src/*.ml{,i,y}>: package(llvm.target)
 <src/*.ml{,i,y}>: package(oUnit)
 <src/*.ml{,i,y}>: package(ppx_deriving.std)
