@@ -102,8 +102,10 @@ let output_shared out_file =
 let output_object out_file =
   let out_file_s = out_file ^ ".s" in
   let out_file_o = out_file ^ ".o" in
+  let out_file_fpic = out_file ^ ".fpic.o" in
   Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang" [|"clang"; "-c"; out_file_s|]
+  run_command "clang" [|"clang"; "-c"; out_file_s|];
+  run_command "clang" [|"clang"; "-fPIC"; "-c"; out_file_s; "-o"; out_file_fpic|]
 
 let compile (in_files,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in

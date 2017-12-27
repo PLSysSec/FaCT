@@ -7,7 +7,7 @@ int32_t crypto_secretbox(
   /*secret*/ const uint8_t k[32]);
 
 /*public*/
-uint8_t crypto_secretbox_open(
+int32_t crypto_secretbox_open(
   /*secret*/ uint8_t m[],
   /*secret*/ const uint8_t c[],
   /*public*/ uint32_t __c_len,

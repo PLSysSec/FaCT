@@ -11,7 +11,7 @@ typedef struct poly1305_state_internal_t {
 } poly1305_state_internal_t;
 */
 
-void poly1305_blocks(
+void _poly1305_blocks(
     secret mut uint64[3] state_r,
     secret mut uint64[3] state_h,
     secret mut uint64[2] state_pad,
@@ -37,8 +37,8 @@ void poly1305_blocks(
 
   public mut uint32 mloops = (len m) >> 4; // dividing by 16
   for (uint32 bindex = 0 to mloops) {
-    secret uint64 t0 = load64_le(arrview(m, bindex * 16, 8));
-    secret uint64 t1 = load64_le(arrview(m, bindex * 16 + 8, 8));
+    secret uint64 t0 = _load64_le(arrview(m, bindex * 16, 8));
+    secret uint64 t1 = _load64_le(arrview(m, bindex * 16 + 8, 8));
 
     /* h += m[i] */
     // this is clearly some sort of odd-bit add-with-carry
@@ -71,7 +71,7 @@ void poly1305_blocks(
   state_h[2] = h2;
 }
 
-void poly1305_init(
+void _poly1305_init(
     secret mut uint64[3] state_r,
     secret mut uint64[3] state_h,
     secret mut uint64[2] state_pad,
@@ -80,8 +80,8 @@ void poly1305_init(
     secret mut bool state_final,
     secret uint8[32] key) {
   /* r &= 0xffffffc0ffffffc0ffffffc0fffffff */
-  secret uint64 t0 = load64_le(arrview(key, 0, 8));
-  secret uint64 t1 = load64_le(arrview(key, 8, 8));
+  secret uint64 t0 = _load64_le(arrview(key, 0, 8));
+  secret uint64 t1 = _load64_le(arrview(key, 8, 8));
 
   /* wiped after finalization */
   state_r[0] = (t0) & 0xffc0fffffff;
@@ -94,14 +94,14 @@ void poly1305_init(
   state_h[2] = 0;
 
   /* save pad for later */
-  state_pad[0] = load64_le(arrview(key, 16, 8));
-  state_pad[1] = load64_le(arrview(key, 24, 8));
+  state_pad[0] = _load64_le(arrview(key, 16, 8));
+  state_pad[1] = _load64_le(arrview(key, 24, 8));
 
   state_leftover = 0;
   state_final = 0;
 }
 
-void poly1305_update(
+void _poly1305_update(
     secret mut uint64[3] state_r,
     secret mut uint64[3] state_h,
     secret mut uint64[2] state_pad,
@@ -126,7 +126,7 @@ void poly1305_update(
     if (state_leftover < 16) {
       return;
     }
-    poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, state_buffer);
+    _poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, state_buffer);
     state_leftover = 0;
   }
 
@@ -135,7 +135,7 @@ void poly1305_update(
     public uint64 want = ((len m - mindex) & ~(16 - 1)); // XXX wat
 
     secret uint8[] mview = arrview(m, mindex, want);
-    poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, mview);
+    _poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, mview);
     mindex += want;
   }
 
@@ -149,7 +149,7 @@ void poly1305_update(
   }
 }
 
-void poly1305_finish(
+void _poly1305_finish(
     secret mut uint64[3] state_r,
     secret mut uint64[3] state_h,
     secret mut uint64[2] state_pad,
@@ -165,7 +165,7 @@ void poly1305_finish(
       state_buffer[i] = 0;
     }
     state_final = true;
-    poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, state_buffer);
+    _poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, state_buffer);
   }
 
   public uint64 mask44 = 0xfffffffffff;
@@ -231,19 +231,19 @@ void poly1305_finish(
   h0 = (h0 | (h1 << 44));
   h1 = ((h1 >> 20) | (h2 << 24));
 
-  store64_le(ref arrview(mac, 0, 8), h0);
-  store64_le(ref arrview(mac, 8, 8), h1);
+  _store64_le(ref arrview(mac, 0, 8), h0);
+  _store64_le(ref arrview(mac, 8, 8), h1);
 
   /* zero out the state */
-  fact_memzero64(ref state_r);
-  fact_memzero64(ref state_h);
-  fact_memzero64(ref state_pad);
+  _fact_memzero64(ref state_r);
+  _fact_memzero64(ref state_h);
+  _fact_memzero64(ref state_pad);
   state_leftover = 0;
-  fact_memzero(ref state_buffer);
+  _fact_memzero(ref state_buffer);
   state_final = false;
 }
 
-public int32 crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna from poly1305_donna.c
+public int32 _crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna from poly1305_donna.c
     secret mut uint8[16] out,
     secret uint8[] m,
     secret uint8[32] key) {
@@ -254,17 +254,17 @@ public int32 crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna f
   secret mut uint8[16] state_buffer = arrzeros(16);
   secret mut bool state_final = false;
 
-  poly1305_init(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, key);
-  poly1305_update(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, m);
-  poly1305_finish(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, ref out);
+  _poly1305_init(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, key);
+  _poly1305_update(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, m);
+  _poly1305_finish(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, ref out);
   return 0;
 }
 
-public bool crypto_onetimeauth_poly1305_verify( // crypto_onetimeauth_poly1305_donna_verify from poly1305.c
+public bool _crypto_onetimeauth_poly1305_verify( // crypto_onetimeauth_poly1305_donna_verify from poly1305.c
     secret uint8[16] h,
     secret uint8[] in,
     secret uint8[32] k) {
   secret mut uint8[16] correct = arrzeros(16);
-  crypto_onetimeauth_poly1305(ref correct, in, k);
-  return crypto_verify_16(h, correct);
+  _crypto_onetimeauth_poly1305(ref correct, in, k);
+  return _crypto_verify_16(h, correct);
 }

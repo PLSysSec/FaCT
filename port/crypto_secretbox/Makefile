@@ -1,4 +1,4 @@
-all: secretbox1.bin secretbox2.bin
+all: secretbox1.bin secretbox2.bin crypto_secretbox_wrapper.fpic.o
 
 .PRECIOUS: crypto_secretbox.h
 
@@ -10,6 +10,9 @@ crypto_secretbox.h: crypto_secretbox.o
 
 crypto_secretbox_wrapper.o: crypto_secretbox_wrapper.c crypto_secretbox.o
 	clang -g -c $< -o $@
+
+crypto_secretbox_wrapper.fpic.o: crypto_secretbox_wrapper.c crypto_secretbox.o
+	clang -g -fPIC -c $< -o $@
 
 secretbox%.o: secretbox%.c cmptest.h quirks.h crypto_secretbox_wrapper.h
 	clang -g -c $< -o $@
