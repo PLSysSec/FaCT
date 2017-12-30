@@ -910,5 +910,9 @@ ocaml_lib ~extern:true "llvm_bitreader";;
 ocaml_lib ~extern:true "llvm_X86";;
 ocaml_lib ~extern:true "llvm_executionengine";;
 ocaml_lib ~extern:true "llvm_passmgr_builder";;
+ocaml_lib ~extern:true "llvm_transform_utils";;
+ocaml_lib ~extern:true "llvm_scalar_opts";;
+ocaml_lib ~extern:true "llvm_vecotorize";;
+ocaml_lib ~extern:true "llvm_ipo";;
 
 flag ["link"; "ocaml"; "g++"] (S[A"-cc"; A"g++"]);;

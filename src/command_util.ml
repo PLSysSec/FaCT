@@ -109,6 +109,14 @@ let output_object out_file =
   run_command "clang" [|"clang"; "-c"; out_file_s|];
   run_command "clang" [|"clang"; "-fPIC"; "-c"; out_file_s; "-o"; out_file_fpic|]
 
+let verify_opt_passes llmod = function
+  | false -> Log.info "Not verifying opt passes"
+  | true  ->
+    Log.info "Verifying opt passes";
+    match Verify.verify_opts llmod with
+      | true -> Log.error "An optimzation did not pass!"
+      | false -> Log.info "All optimzations passed!"
+
 let compile (in_files,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in
   Log.debug "Compiling program in %s mode" (show_mode args.mode);
@@ -148,6 +156,8 @@ let compile (in_files,out_file,out_dir) args =
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let llvm_builder = Llvm.builder llvm_ctx in
   let _ = codegen llvm_ctx llvm_mod llvm_builder args.verify_llvm xftast in
+
+  verify_opt_passes llvm_mod args.verify_llvm;
 
   (* Lets optimize the module *)
   Opt.run_optimizations args.opt_level llvm_mod;

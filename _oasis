@@ -5,7 +5,7 @@ Synopsis:    Compiler for the FaCT programming language
 Authors:     Gary Soeller, Sunjay Cauligi, Brian Johannesmeyer, Ariana Mirian
 License:     MIT
 Plugins:     META (0.4), DevFiles (0.4)
-BuildDepends: llvm, llvm.analysis, llvm.bitwriter, llvm.executionengine, llvm.target, llvm.passmgr_builder, core, oUnit, dolog, threads, ppx_deriving.std, ctypes, ctypes.foreign
+BuildDepends: llvm, llvm.analysis, llvm.bitwriter, llvm.executionengine, llvm.target, llvm.passmgr_builder, llvm.transform_utils, llvm.scalar_opts, llvm.vectorize, llvm.ipo, core, oUnit, dolog, threads, ppx_deriving.std, ctypes, ctypes.foreign
 OCamlVersion: >= 4.03
 AlphaFeatures: ocamlbuild_more_args
 XOCamlbuildPluginTags: package(cppo_ocamlbuild)

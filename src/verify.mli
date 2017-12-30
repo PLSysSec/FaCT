@@ -1,0 +1,1 @@
+val verify_opts : Llvm.llmodule -> bool
