@@ -24,6 +24,7 @@ type args_record = {
   verify_llvm : bool;
   mode        : mode;
   opt_level   : opt_level;
+  verify_opts : string option;
 }
 
 let run_command c args =
@@ -109,11 +110,20 @@ let output_object out_file =
   run_command "clang" [|"clang"; "-c"; out_file_s|];
   run_command "clang" [|"clang"; "-fPIC"; "-c"; out_file_s; "-o"; out_file_fpic|]
 
+let verify_opt_pass llmod out_file llvm_out = function
+  | None       -> Log.info "Not verifying opt passes"
+  | Some pass  ->
+    let passes = Core.String.split pass ~on:',' in
+    Log.info "Verifying opt passes `%s`" pass;
+    let llmod' = Llvm_transform_utils.clone_module llmod in
+    Opt.verify_some_opts llmod' passes;
+    output_llvm llvm_out (out_file ^ "_optimized") llmod'
+
 let verify_opt_passes llmod = function
   | false -> Log.info "Not verifying opt passes"
   | true  ->
     Log.info "Verifying opt passes";
-    match Verify.verify_opts llmod with
+    match Opt.verify_opts llmod with
       | true -> Log.error "An optimzation did not pass!"
       | false -> Log.info "All optimzations passed!"
 
@@ -157,10 +167,12 @@ let compile (in_files,out_file,out_dir) args =
   let llvm_builder = Llvm.builder llvm_ctx in
   let _ = codegen llvm_ctx llvm_mod llvm_builder args.verify_llvm xftast in
 
+  verify_opt_pass llvm_mod out_file' args.llvm_out args.verify_opts;
+
   verify_opt_passes llvm_mod args.verify_llvm;
 
   (* Lets optimize the module *)
-  Opt.run_optimizations args.opt_level llvm_mod;
+  let llvm_mod = Opt.run_optimizations args.opt_level llvm_mod in
   
   (*
   let triple = Llvm_target.Target.default_triple () in

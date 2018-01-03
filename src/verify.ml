@@ -81,9 +81,7 @@ and label_of_instr pass instr =
   set_prefix "_public_" Public;
   set_prefix "_unknown_" Unknown;
   match !prefix with
-    | None ->
-      let msg = "Could not find label of instruction" in
-      Unknown
+    | None -> Unknown
     | Some l -> l
 
 let label_module errors pass () instr =
@@ -113,28 +111,8 @@ let add_error errors (Error(pass,des,det)) =
     | true -> ()
     | false -> Hashtbl.add errors (des,det) pass
 
-(* This checks that each br instruction is done on a public value *)
-let conditional_checker errors pass () instr =
-  let check_branch = function
-    | Secret ->
-      let msg = "Secret branch found on instruction" in
-      let instr_str = string_of_llvalue instr in
-      add_error errors (Error(pass, msg, instr_str))
-    | Public -> ()
-    | Unknown ->
-      let msg = "Found an unknown conditional" in
-      let instr_str = string_of_llvalue instr in
-      add_error errors (Error(pass, msg, instr_str)) in
-match get_branch instr with
-  | Some `Conditional(instr,_,_) ->
-    if (is_constant instr)
-      then ()
-      else (check_branch (label_inference pass instr)) |> ignore
-  | Some `Unconditional(_) -> ()
-  | None -> ()
 
-(* This checks that all public writes are done with public values *)
-let write_checker errors pass () instr =
+let checker errors pass () instr =
   let has_secret_operand instr =
     let num_operands = Llvm.num_operands instr in
     let is_secret_operand instr =
@@ -148,6 +126,27 @@ let write_checker errors pass () instr =
         | n -> check_operands (remaining - 1) instr (acc || (is_secret_operand (operand instr (remaining - 1)))) in
     check_operands num_operands instr false in
 
+  (* This checks that each br instruction is done on a public value *)
+  let analyze_branch instr =
+    let check_branch = function
+      | Secret ->
+        let msg = "Secret branch found on instruction" in
+        let instr_str = string_of_llvalue instr in
+        add_error errors (Error(pass, msg, instr_str))
+      | Public -> ()
+      | Unknown ->
+        let msg = "Found an unknown conditional" in
+        let instr_str = string_of_llvalue instr in
+        add_error errors (Error(pass, msg, instr_str)) in
+    match get_branch instr with
+      | Some `Conditional(instr,_,_) ->
+        if (is_constant instr)
+          then ()
+          else (check_branch (label_inference pass instr)) |> ignore
+      | Some `Unconditional(_) -> ()
+      | None -> () in
+
+  (* This checks that public reads are not on secret data *)
   let analyze_read instr =
     match label_inference pass instr with
       | Secret -> ()
@@ -156,15 +155,15 @@ let write_checker errors pass () instr =
         match has_secret_operand instr with
           | true ->
             let msg = "Found Public->Secret read!" in
-            Log.error "%s" msg;
+            Log.debug "%s" msg;
             let instr_str = string_of_llvalue instr in
             add_error errors (Error(pass,msg, instr_str))
           | false -> ()
         end
       | Unknown -> () in
 
+  (* This checks that secret writes are not on public data *)
   let analyze_write instr =
-    (* Value cannot be secret when pointer is public *)
     let value = operand instr 0 in
     let pointer = operand instr 1 in
     let value_label = label_inference pass value in
@@ -172,7 +171,7 @@ let write_checker errors pass () instr =
     match value_label,pointer_label with
       | Secret, Public ->
         let msg = "Found Secret->Public write!" in
-        Log.error "%s" msg;
+        Log.debug "%s" msg;
         let instr_str = string_of_llvalue instr in
         add_error errors (Error(pass,msg,instr_str))
       | Secret, Secret -> ()
@@ -191,7 +190,6 @@ let write_checker errors pass () instr =
     | Invalid
     | Alloca
     | Ret
-    | Br
     | Switch
     | IndirectBr
     | Invoke
@@ -234,7 +232,6 @@ let write_checker errors pass () instr =
     | BitCast
     | ICmp
     | FCmp
-    | Select
     | UserOp1
     | UserOp2
     | VAArg
@@ -247,11 +244,11 @@ let write_checker errors pass () instr =
     | AtomicCmpXchg
     | AtomicRMW
     | Resume
+    | Select
     | LandingPad -> analyze_read instr
     | Load -> () (* This needs a special checker *)
     | Store -> analyze_write instr
-
-
+    | Br -> analyze_branch instr
 
 let verify errors name llmod =
   let get_functions funs llval = llval :: funs in
@@ -264,6 +261,7 @@ let verify errors name llmod =
       Hashtbl.add blocks f bbs)
     funs |> ignore;
 
+  (* Allows iteration over all instructions in the module *)
   let check_runner checker =
     let iter f bb =  List.map (fold_left_instrs checker ()) bb |> ignore in
     Hashtbl.iter iter blocks in
@@ -271,40 +269,8 @@ let verify errors name llmod =
   (* Label everything before running the optimization *)
   check_runner (label_module errors name);
 
-  (* We need to keep a copy of the old module in order to get a diff *)
+  (* We need to keep a copy of the old module in order to get a diff. TODO *)
   let llmod' = Llvm_transform_utils.clone_module llmod in
   
   (* Run the checkers *)
-  check_runner (write_checker errors name);
-  check_runner (conditional_checker errors name)
-
-
-let verify_opts llmod =
-  Log.info "\n\n";
-  let verify_opt errors llmod opt name =
-    Log.info "Verifying `%s`" name;
-    let pm = Opt.create_pass_manager () in
-    Opt.add_optimization opt pm;
-    match Opt.run_optimization_pipeline pm llmod with
-      | true  -> verify errors name llmod
-      | false -> () in
-
-  let opts = Opt.scalar_optimizations
-           @ Opt.vector_optimizations
-           @ Opt.ipo_optimizations in
-
-  let errors = Hashtbl.create 100 in
-
-  (* Run the checkers for each optimization *)
-  List.iter
-    (fun (opt,name) -> (verify_opt errors llmod opt name))
-    opts;
-  
-  (* Print the results of all the errors found *)
-  Hashtbl.iter
-    (fun (des,det) pass ->
-      Log.error "%s" (show_checkerstatus (Error(pass,des,det))))
-    errors;
-
-  Log.info "\n\n";
-  true
+  check_runner (checker errors name);

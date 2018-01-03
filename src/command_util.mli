@@ -13,6 +13,7 @@ type args_record = {
   verify_llvm : bool;
   mode        : mode;
   opt_level   : opt_level;
+  verify_opts : string option;
 }
 
 (** Compile a constantc program. *)
