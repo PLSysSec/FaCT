@@ -1,0 +1,13 @@
+# OASIS_START
+# DO NOT EDIT (digest: a631097e66607a18c4b6bacce1a863e7)
+version = "0.1"
+description = "Compiler for the FaCT programming language"
+requires =
+"llvm llvm.analysis llvm.bitwriter llvm.executionengine llvm.target llvm.passmgr_builder llvm.transform_utils llvm.scalar_opts llvm.vectorize llvm.ipo core oUnit dolog threads ppx_deriving.std ctypes ctypes.foreign ocamlgraph graphics lwt.unix lwt.ppx"
+archive(byte) = "llvm-extra.cma"
+archive(byte, plugin) = "llvm-extra.cma"
+archive(native) = "llvm-extra.cmxa"
+archive(native, plugin) = "llvm-extra.cmxs"
+exists_if = "llvm-extra.cma"
+# OASIS_STOP
+

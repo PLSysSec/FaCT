@@ -1,3 +1,4 @@
+open Lwt
 open Pos
 open Err
 open Lexing
@@ -24,19 +25,21 @@ type args_record = {
   verify_llvm : bool;
   mode        : mode;
   opt_level   : opt_level;
+  opt_limit   : seconds option;
   verify_opts : string option;
 }
 
 let run_command c args =
-  let a  = Unix.fork () in
-  match a with
-  | 0 -> (try
-            Unix.execvp c args
-          with
-            Unix.Unix_error(n,s1,s2) ->
-            Log.error "%s: %s %s" (Unix.error_message n) s1 s2; exit (-1))
-  | -1 -> Log.error "%s" "error accured on fork"
-  | _ -> ignore (Unix.wait ())
+  let process = Lwt_process.exec (c,args) in
+  let handler = function
+    | Unix.WEXITED s -> Lwt.return_unit
+    | Unix.WSIGNALED s ->
+      Log.debug "Command signaled to stop. Code %d" s;
+      Lwt.return_unit
+    | Unix.WSTOPPED s ->
+      Log.debug "Error occured on command. Code %d" s;
+      Lwt.return_unit in
+  Lwt_main.run (process >>= handler)
 
 let generate_out_file out_dir out_file = out_dir ^ "/" ^ out_file
 
@@ -172,7 +175,8 @@ let compile (in_files,out_file,out_dir) args =
   verify_opt_passes llvm_mod args.verify_llvm;
 
   (* Lets optimize the module *)
-  let llvm_mod = Opt.run_optimizations args.opt_level llvm_mod in
+  let llvm_mod = Opt.run_optimizations args.opt_level args.opt_limit llvm_mod in
+  Cost.generate_cost llvm_mod;
   
   (*
   let triple = Llvm_target.Target.default_triple () in

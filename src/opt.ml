@@ -2,9 +2,17 @@ open Llvm_scalar_opts
 open Llvm_vectorize
 open Llvm_ipo
 
+open Optf
+open Opt_driver
+open Graphf
+
+open Lwt
+
 exception OptimizationError
 
 type opt_level = O0 | O1 | O2 | OF
+
+type seconds = int
 
 type scalar_opts
 
@@ -92,23 +100,65 @@ let run_and_verify_opt llmod (opt, name) =
   begin
   match run_optimization_pipeline pm llmod with
     | false -> Log.error "Optimization had no effect"
-    | true -> Verify.verify errors name llmod
+    | true -> Verify.verify errors name llmod |> ignore
   end;
   match Hashtbl.length errors with
     | 0 -> Log.info "No errors found for optimization `%s`" name; llmod,errors
     | n -> Log.error "Found %d errors with opt `%s`" n name; 
            llmod_copy,errors
 
-let run_fact_pipeline llmod =
-  let opts = scalar_optimizations
+let run_fact_pipeline llmod limit =
+  (*let pm = create_pass_manager () in
+  let opt = Pass.cost_model_pass in
+  add_optimization opt pm;
+  match Llvm.PassManager.run_module llmod pm with
+    | false -> Log.error "Cost model had no effect"; llmod;
+    | true -> Log.error "Cost model had an effect"; llmod*)
+  (*let opts = scalar_optimizations
     @ vector_optimizations
     @ ipo_optimizations in
   let run_and_verify_opt' llmod opt =
     let llmod,_ = run_and_verify_opt llmod opt in
     llmod in
-  List.fold_left run_and_verify_opt' llmod opts
+  List.fold_left run_and_verify_opt' llmod opts*)
+  let limit = match limit with
+    | None ->
+      Log.debug "Time limit not specified. Defaulting to 60 seconds..."; 60
+    | Some l ->
+      Log.debug "Time limit is set to `%d` seconds..." l; l in
+  let waiter,wakener = Lwt.task () in
+  let driver = waiter >>= (fun () -> Opt_driver.drive llmod) in
+  
+  let timeout t =
+    Lwt_unix.sleep (float_of_int limit) >>= fun () ->
+    match Lwt.state t with
+    | Lwt.Sleep    ->
+      Log.error "\n\n\n\nTIMEOUT FIRING\n\n\n\n";
+      Lwt.cancel t;
+      Opt_driver.continue := false;
+      Log.error "\n\n\n\nFired\n\n\n\n";
+      Lwt.return_unit
+    | Lwt.Return v -> Lwt.return_unit
+    | Lwt.Fail ex  -> Lwt.fail ex in
+  (*Lwt.wakeup wakener2 driver;*)
+  let timeout' = timeout driver in
+  Lwt.on_cancel driver (fun () -> Log.error "\n\n\nCancelling...\n\n\n");
+  Lwt.wakeup wakener ();
+  
+  match Lwt_main.run (Lwt.pick [driver; timeout']) with
+    | _ -> ();
+  (*)
+  begin try (match Lwt_main.run driver with
+    | _ -> Log.error "Done RUNNINGNGNIOSGN:")
+    with | Lwt.Canceled -> Log.error "Yepyepyep" end;
+  begin match Lwt.state timeout' with
+    | Lwt.Sleep -> Log.error "Cancelling the canceller"; Lwt.cancel timeout'
+    | Lwt.Return v -> ()
+    | Lwt.Fail ex -> () end;
+  *)
+  llmod
 
-let run_optimizations opt_level llmodule =
+let run_optimizations opt_level limit llmodule =
   let pmb = Llvm_passmgr_builder.create () in
   let opt_level' =
     match opt_level with 
@@ -119,7 +169,7 @@ let run_optimizations opt_level llmodule =
   match opt_level' with
     | None ->
       Log.info "Running custom FaCT optimization pipeline";
-      run_fact_pipeline llmodule
+      run_fact_pipeline llmodule limit
     | Some l ->
       Log.info "Optimizing code at O%d" l;
       Llvm_passmgr_builder.set_opt_level l pmb;
@@ -170,7 +220,7 @@ let verify_opts llmod =
     let pm = create_pass_manager () in
     add_optimization opt pm;
     match run_optimization_pipeline pm llmod with
-      | true  -> Verify.verify errors name llmod
+      | true  -> Verify.verify errors name llmod |> ignore
       | false -> () in
 
   let opts = scalar_optimizations
@@ -181,7 +231,7 @@ let verify_opts llmod =
 
   (* Run the checkers for each optimization *)
   List.iter
-    (fun (opt,name) -> (verify_opt errors llmod opt name))
+    (fun (opt,name) -> (verify_opt errors llmod opt name |> ignore))
     opts;
   
   (* Print the results of all the errors found *)
