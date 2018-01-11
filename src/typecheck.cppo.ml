@@ -39,6 +39,12 @@ let add_new_var venv x vt =
     Env.add_var venv x' entry;
     x'
 
+let make_blit p n =
+  ((if n then True else False), BaseET(mkpos Bool, mkpos Fixed Public))
+
+let make_nlit p n =
+  (IntLiteral n, BaseET(mkpos Num(abs n, n < 0), mkpos Fixed Public))
+
 
 (* Predicates *)
 
@@ -313,7 +319,18 @@ let tc_unop' p op e =
         | Ast.LogicalNot ->
           if not (is_bool b) then raise @@ err(p);
     end;
-    (UnOp(op, e), BaseET(b, ml))
+    begin
+      match b.data with
+        | Num(k,s) ->
+          let n = k * if s then -1 else 1 in
+            begin
+              match op with
+                | Ast.Neg        -> make_nlit p ( -n)
+                | Ast.BitwiseNot -> make_nlit p ((-n) - 1)
+            end
+        | _ ->
+          (UnOp(op, e), BaseET(b, ml))
+    end
 
 let tc_binop_check p op b1 b2 =
   match op with
@@ -342,31 +359,53 @@ let tc_binop_check p op b1 b2 =
 let tc_binop' p op e1 e2 =
   let b1,ml1 = expr_to_types e1 in
   let b2,ml2 = expr_to_types e2 in
-    tc_binop_check p op b1 b2;
-  let b' =
-    match op with
-      | Ast.Plus
-      | Ast.Minus
-      | Ast.Multiply
-      | Ast.BitwiseOr
-      | Ast.BitwiseXor
-      | Ast.BitwiseAnd
-      | Ast.LogicalAnd
-      | Ast.LogicalOr ->
-        join_bt p b1 b2
-      | Ast.Equal
-      | Ast.NEqual
-      | Ast.GT
-      | Ast.GTE
-      | Ast.LT
-      | Ast.LTE ->
-        mkpos Bool
-      | Ast.LeftShift
-      | Ast.RightShift ->
-        { b1 with pos=p }
-  in
-  let ml' = join_ml p ml1 ml2 in
-    (BinOp(op, e1, e2), BaseET(b', ml'))
+    match b1.data, b2.data with
+      | Num (k1,s1), Num (k2,s2) ->
+        let n = k1 * if s1 then -1 else 1 in
+        let m = k2 * if s2 then -1 else 1 in
+          begin
+            match op with
+              | Ast.Plus       -> make_nlit p (n + m)
+              | Ast.Minus      -> make_nlit p (n - m)
+              | Ast.Multiply   -> make_nlit p (n * m)
+              | Ast.BitwiseOr  -> make_nlit p (n lor m)
+              | Ast.BitwiseXor -> make_nlit p (n lxor m)
+              | Ast.BitwiseAnd -> make_nlit p (n land m)
+              | Ast.Equal      -> make_blit p (n = m)
+              | Ast.NEqual     -> make_blit p (n != m)
+              | Ast.GT         -> make_blit p (n > m)
+              | Ast.GTE        -> make_blit p (n >= m)
+              | Ast.LT         -> make_blit p (n < m)
+              | Ast.LTE        -> make_blit p (n <= m)
+              | Ast.LeftShift  -> make_nlit p (n lsl m)
+              | Ast.RightShift -> make_nlit p (n asr m)
+          end
+      | _ ->
+        tc_binop_check p op b1 b2;
+        let b' =
+          match op with
+            | Ast.Plus
+            | Ast.Minus
+            | Ast.Multiply
+            | Ast.BitwiseOr
+            | Ast.BitwiseXor
+            | Ast.BitwiseAnd
+            | Ast.LogicalAnd
+            | Ast.LogicalOr ->
+              join_bt p b1 b2
+            | Ast.Equal
+            | Ast.NEqual
+            | Ast.GT
+            | Ast.GTE
+            | Ast.LT
+            | Ast.LTE ->
+              mkpos Bool
+            | Ast.LeftShift
+            | Ast.RightShift ->
+              { b1 with pos=p }
+        in
+        let ml' = join_ml p ml1 ml2 in
+          (BinOp(op, e1, e2), BaseET(b', ml'))
 
 let rec lexprconv tc_ctx = pfunction
   | Ast.LExpression ({data=Ast.IntLiteral n}) ->
@@ -453,11 +492,11 @@ and tc_args xf_args tc_ctx p params args =
 
 and tc_expr tc_ctx = pfunction
   | Ast.True ->
-    (True, BaseET(mkpos Bool, mkpos Fixed Public))
+    make_blit p true
   | Ast.False ->
-    (False, BaseET(mkpos Bool, mkpos Fixed Public))
+    make_blit p false
   | Ast.IntLiteral n ->
-    (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public))
+    make_nlit p n
   | Ast.StringLiteral s ->
     (StringLiteral s, BaseET(mkpos String, mkpos Fixed Public))
   | Ast.Variable x ->
