@@ -25,10 +25,10 @@ def run():
   print '\n'
 
   print 'Running salsa tests...'
-  salsa_fact0 = run_command("./salsa_fact0.bin")
-  salsa_c0    = run_command("./salsa_c0.bin")
   print 'Salsa\tFaCT\t\tC'
-  print 'O0\t' + salsa_fact0 + '\t' + salsa_c0
+  #salsa_fact0 = run_command("./salsa_fact0.bin")
+  #salsa_c0    = run_command("./salsa_c0.bin")
+  #print 'O0\t' + salsa_fact0 + '\t' + salsa_c0
   salsa_fact1 = run_command("./salsa_fact1.bin")
   salsa_c1    = run_command("./salsa_c1.bin")
   print 'O1\t' + salsa_fact1 + '\t' + salsa_c1
