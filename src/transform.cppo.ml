@@ -25,8 +25,23 @@ let new_temp_var =
   in
   new_temp_var'
 
+type xf_ctx_record = {
+  rp   : label' ref;
+  pc   : label';
+  ms   : var_name list;
+  rt   : ret_type;
+  venv : (var_name * variable_type) Env.env;
+  fenv : function_dec Env.env;
+}
+
 let is_secret e =
   let { data=(_,BaseET(_,{data=Fixed l})) } = e in
+    l = Secret
+
+let is_var_secret xf_ctx x =
+  let _,vt = Env.find_var xf_ctx.venv x in
+  let RefVT(_,ml,_) = vt.data in
+  let Fixed l = ml.data in
     l = Secret
 
 let rec params_has_refs = function
@@ -47,7 +62,9 @@ let fdec_has_refs = xfunction
 let bty { data=(_,b) } = b
 let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
 let a2bty { data=ArrayVT({data=ArrayAT(b,_)},ml,_) } = BaseET(b,ml)
-let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
+let b2rty l mut { data=BaseET(b,_); pos=p } =
+  let ml = mkpos Fixed l in
+    RefVT(b,ml,mut)
 
 #define sbool (BaseET(mkpos Bool, mkpos Fixed Secret))
 #define svbool (RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const))
@@ -64,13 +81,6 @@ let b2rty mut { data=BaseET(b,ml) } = RefVT(b,ml,mut)
                   if Env.has_var xf_ctx.venv (mkpos "__fctx") then bvar((mkpos "__fctx")) else sebool(True)))
 
 #define ctx_select(e1,e2) (mkpos (Select(ctx,e1,e2), bty e2))
-
-type xf_ctx_record = {
-  ms   : var_name list;
-  rt   : ret_type;
-  venv : (var_name * variable_type) Env.env;
-  fenv : function_dec Env.env;
-}
 
 let (<$) l1 l2 =
   match l1,l2 with
@@ -134,7 +144,7 @@ and xf_expr' xf_ctx { data; pos=p } =
         let e1' = xf_expr xf_ctx e1 in
           if is_secret e1' then
             let res = mkpos new_temp_var () in
-            let resvt = mkpos b2rty (mkpos Const) (mkpos ety) in
+            let resvt = mkpos b2rty Secret (mkpos Const) (mkpos ety) in
             let def_val =
               match ety with
                 | BaseET({data=Bool},_) -> False
@@ -185,11 +195,14 @@ and xf_stm' xf_ctx p = function
       [BaseDec(x,vt,e')]
 
   | BaseAssign(x,e) ->
-    let e' = xf_expr xf_ctx e in
-    let _,vt = Env.find_var xf_ctx.venv x in
-    let x' = mkpos (Variable x, r2bty vt) in
-    let xfe' = ctx_select(e',x') in
-      [BaseAssign(x,xfe')]
+    if true then
+      let e' = xf_expr xf_ctx e in
+      let _,vt = Env.find_var xf_ctx.venv x in
+      let x' = mkpos (Variable x, r2bty vt) in
+      let xfe' = ctx_select(e',x') in
+        [BaseAssign(x,xfe')]
+    else
+      [BaseAssign(x,e)]
 
   | ArrayDec(x,vt,ae) ->
     let ae' = xf_arrayexpr xf_ctx ae in
@@ -267,7 +280,7 @@ and xf_stm' xf_ctx p = function
 and xf_stm xf_ctx pa = List.map (make_ast pa.pos) (xf_stm' xf_ctx pa.pos pa.data)
 
 and xf_block rt fenv ms (venv,stms) =
-  let xf_ctx = { rt; fenv; venv; ms } in
+  let xf_ctx = { rp=ref Public; pc=Public; rt; fenv; venv; ms } in
   let stms' = List.flatten @@ List.map (xf_stm xf_ctx) stms in
     (venv, stms')
 
