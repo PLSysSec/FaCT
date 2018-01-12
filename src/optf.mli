@@ -108,7 +108,7 @@ type optimization =
   | IPSCCP
   | Internalize
   | StripDeadPrototypes
-  | StripSymbols
+  (*| StripSymbols*)
 [@@deriving show, eq]
 
 val opts : optimization list

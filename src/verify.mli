@@ -26,6 +26,7 @@ type state =
   | Secure
   | InSecure
   | Unchanged
+  | Unknown
 [@@deriving show]
 
 val verify : (description * details, opt_pass_name) Hashtbl.t

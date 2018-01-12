@@ -10,6 +10,8 @@ type vertex
 
 type pipeline = vertex list
 
+val bfs : (vertex -> unit) -> t -> unit
+
 val vertex_opt : vertex -> Optf.optimization
 
 val create_graph : unit -> t
@@ -32,3 +34,5 @@ val traverse : t -> vertex -> unit
 val get_pipelines : t -> vertex list-> vertex -> pipeline list
 
 val generate_pipeline : t -> vertex -> pipeline
+
+val size : t -> int

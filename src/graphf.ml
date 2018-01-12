@@ -20,6 +20,9 @@ type t = G.t
 type vertex = G.vertex
 type pipeline = vertex list
 
+module Bfs = Graph.Traverse.Bfs(G)
+let bfs f g = Bfs.iter f g
+
 let vertex_opt v = let o,_,_ = G.V.label v in o
 
 let index = ref 50
@@ -88,3 +91,5 @@ let dump_graph g =
     let x1, x2 = (Optf.show_optimization x1),(Optf.show_optimization x2) in
     Format.printf "%s,%s@\n" x1 x2) g;
   Format.printf "@?"
+
+let size g = G.nb_edges g

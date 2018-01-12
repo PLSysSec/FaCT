@@ -64,7 +64,7 @@ type optimization =
   | IPSCCP
   | Internalize
   | StripDeadPrototypes
-  | StripSymbols
+  (*| StripSymbols*)
 [@@deriving show,eq]
   (* ... *)
 
@@ -126,7 +126,7 @@ let opts = [
   IPSCCP;
   Internalize;
   StripDeadPrototypes;
-  StripSymbols
+  (*StripSymbols*)
 ]
 (* In order to have an effect, some optimizations must occur in a certain order.
    This type lets us enumerate these cases to provide a better search. *)
@@ -287,5 +287,5 @@ let to_llopt = function
 | Internalize -> (* Some add_internalize*) None
 | StripDeadPrototypes ->
   Some (add_strip_dead_prototypes, "add_strip_dead_prototypes")
-| StripSymbols ->
-  (*Some (add_strip_symbols, "add_strip_symbols")*) None
+(*| StripSymbols ->
+  (*Some (add_strip_symbols, "add_strip_symbols")*) None*)

@@ -28,6 +28,7 @@ type state =
   | Secure
   | InSecure
   | Unchanged
+  | Unknown
 [@@deriving show]
 
 let join l1 l2 =

@@ -86,11 +86,11 @@ let run_optimization_pipeline pm llmod = Llvm.PassManager.run_module llmod pm
 let add_optimization opt pm = opt pm
 
 let print_errors errors =
-  Hashtbl.iter
-  (fun (des,det) pass ->
-    Log.error "%s" 
-      (Verify.show_checkerstatus (Verify.Error(pass,des,det))))
-  errors
+  let strings = Hashtbl.fold
+  (fun (des,det) pass acc -> (pass ^ " -- " ^ des ^ " -- " ^ det)::acc)
+  errors [] in
+  Log.error "%s" (String.concat "\n" strings);
+  ()
 
 let run_and_verify_opt llmod (opt, name) =
   let llmod_copy = Llvm_transform_utils.clone_module llmod in
@@ -133,20 +133,21 @@ let run_fact_pipeline llmod limit =
     Lwt_unix.sleep (float_of_int limit) >>= fun () ->
     match Lwt.state t with
     | Lwt.Sleep    ->
-      Log.error "\n\n\n\nTIMEOUT FIRING\n\n\n\n";
+      Log.info "Time is up. Preparing to shut down the optimization tool...";
       Lwt.cancel t;
       Opt_driver.continue := false;
-      Log.error "\n\n\n\nFired\n\n\n\n";
       Lwt.return_unit
     | Lwt.Return v -> Lwt.return_unit
     | Lwt.Fail ex  -> Lwt.fail ex in
-  (*Lwt.wakeup wakener2 driver;*)
+  
   let timeout' = timeout driver in
-  Lwt.on_cancel driver (fun () -> Log.error "\n\n\nCancelling...\n\n\n");
+  Lwt.on_cancel driver (fun () -> Log.error "Shutting down...");
   Lwt.wakeup wakener ();
   
-  match Lwt_main.run (Lwt.pick [driver; timeout']) with
-    | _ -> ();
+  Lwt_main.run (Lwt.pick [driver; timeout']);
+
+  Log.info "Preparing to pick an optimization pipeline...";
+  Opt_driver.pick_pipeline ();
   (*)
   begin try (match Lwt_main.run driver with
     | _ -> Log.error "Done RUNNINGNGNIOSGN:")
@@ -156,6 +157,10 @@ let run_fact_pipeline llmod limit =
     | Lwt.Return v -> ()
     | Lwt.Fail ex -> () end;
   *)
+  llmod
+
+let run_fact_pipeline llmod limit =
+  Opt_driver.pair_prune llmod;
   llmod
 
 let run_optimizations opt_level limit llmodule =

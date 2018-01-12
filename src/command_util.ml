@@ -170,6 +170,20 @@ let compile (in_files,out_file,out_dir) args =
   let llvm_builder = Llvm.builder llvm_ctx in
   let _ = codegen llvm_ctx llvm_mod llvm_builder args.verify_llvm xftast in
 
+  let errors = Hashtbl.create 100 in
+  match Verify.verify errors "NoOpt" llvm_mod with
+    | Verify.Secure -> Log.error "Secure!"
+    | Verify.InSecure ->
+      let print_errors errors =
+        let strings = Hashtbl.fold
+        (fun (des,det) pass acc -> (pass ^ " -- " ^ des ^ " -- " ^ det)::acc)
+        errors [] in
+        Log.error "%s" (String.concat "\n" strings);
+        () in
+      Log.error "Insecure!";
+      print_errors errors;
+    | Verify.Unchanged -> Log.error "Unchanged!"
+    | Verify.Unknown -> Log.error "Unknown!";
   verify_opt_pass llvm_mod out_file' args.llvm_out args.verify_opts;
 
   verify_opt_passes llvm_mod args.verify_llvm;
