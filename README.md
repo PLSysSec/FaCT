@@ -1,24 +1,24 @@
-# Constantc
+# FaCT
 
 ## Installation
 
-To install you can either build the source or download ```constanc.byte```. We recommend to build from source if possible.
+To install you can either build the source or download ```fact.byte```. We recommend to build from source if possible.
 
-```constanc.byte``` is the executable used to compile Constantc programs. Execute ```./constanc.byte``` for a list of the command line options.
+```fact.byte``` is the executable used to compile FaCT programs. Execute ```./fact.byte``` for a list of the command line options.
 
 ## Usage
 
 #### Basic Usage
 
-Run ```./constanc.byte ex.const``` to compile a Constantc program where ```ex.const``` is the name of your file.
+Run ```./fact.byte ex.fact``` to compile a FaCT program where ```ex.fact``` is the name of your file.
 
 #### Debugging
 
-Many debugging options and intermediate data structures are available. Run ```./constanc.byte -help``` for all options.
+Many debugging options and intermediate data structures are available. Run ```./fact.byte -help``` for all options.
 
 ## Set Up And Build On Local Machine
 
-Constantc is developed using Ocaml and LLVM 3.8. Make sure both of these are installed.
+FaCT is developed using Ocaml and LLVM 3.8. Make sure both of these are installed.
 On OS X it can be done with brew.
 
 ```
@@ -67,28 +67,28 @@ Finally we can build the compiler.
 
 If you want to add a dependency, add it to ```_oasis```, then run the 3 previous commands again.
 
-This will give us the ```constanc.byte``` executable.
+This will give us the ```fact.byte``` executable.
 
-To install constanc, run the command
+To install FaCT, run the command
 
 ```make install```
 
-This will add constanc to your path so that you can compile const files with the command,
+This will add FaCT to your path so that you can compile const files with the command,
 
-```constanc```
+```fact```
 
 ## Link to a C library
 
-Constantc is designed to be called from C code. In order to do so, write your constanc functions and compile them. This will output an object file. This can then be linked to a C file. A full working example is in the `example` directory. First, we must compile ```main.c``` in the `example` directory:
+FaCT is designed to be called from C code. In order to do so, write your FaCT functions and compile them. This will output an object file. This can then be linked to a C file. A full working example is in the `example` directory. First, we must compile ```main.c``` in the `example` directory:
 
 ```
 cd example/
 clang -c main.c
 ```
 
-Then we compile ```ex.const``` using constanc. This requires clang to use version ≥3.8:
+Then we compile ```ex.fact``` using FaCT. This requires clang to use version ≥3.8:
 
-```../constanc.byte ex.const```
+```../fact.byte ex.fact```
 
 Next, we link them together:
 
