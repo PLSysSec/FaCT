@@ -190,7 +190,6 @@ let compile (in_files,out_file,out_dir) args =
 
   (* Lets optimize the module *)
   let llvm_mod = Opt.run_optimizations args.opt_level args.opt_limit llvm_mod in
-  Cost.generate_cost llvm_mod;
   
   (*
   let triple = Llvm_target.Target.default_triple () in

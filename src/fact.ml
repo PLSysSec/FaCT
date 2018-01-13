@@ -132,36 +132,6 @@ let compile_command =
       opt_limit
       verify_opts
       in_files () ->
-      (*)
-      let s = Pass.ident "vresag" in
-      Log.error "%s" s;
-      let waiter,wakener = Lwt.task () in
-      let waiter2,wakener2 = Lwt.task () in
-      let sleeper =
-        Lwt.bind waiter (fun x -> Log.error "Waiting"; Lwt_unix.sleep (float_of_int x)) in
-      
-      
-      Lwt.on_cancel sleeper (fun () -> Log.error "Cancelling...");
-
-      let canceler =
-        Lwt.bind waiter2
-        (fun t ->
-          Log.error "About to cancel";
-          Lwt.bind (Lwt_unix.sleep 2.) (fun () ->
-          Lwt.cancel t;
-          Lwt.return ())) in
-      
-      Lwt.wakeup wakener 5 |> ignore;
-      Lwt.wakeup wakener2 sleeper |> ignore;
-      
-      
-      
-      match Lwt_main.run (Lwt.join [ sleeper]) with
-        | () -> Log.error "NUMBER: %d" 1)
-      
-      
-      
-      Opt_driver.drive () |> ignore;*)
       let mode = match mode with
         | Some "dev" -> DEV
         | Some "prod" -> PROD
