@@ -40,9 +40,11 @@ let is_secret e =
 
 let is_var_secret xf_ctx x =
   let _,vt = Env.find_var xf_ctx.venv x in
-  let RefVT(_,ml,_) = vt.data in
-  let Fixed l = ml.data in
-    l = Secret
+    match vt.data with
+      | RefVT(_,ml,_)
+      | ArrayVT(_,ml,_) ->
+        let Fixed l = ml.data in
+          l = Secret
 
 let rec params_has_refs = function
   | [] -> false
@@ -195,7 +197,7 @@ and xf_stm' xf_ctx p = function
       [BaseDec(x,vt,e')]
 
   | BaseAssign(x,e) ->
-    if true then
+    if is_var_secret xf_ctx x then
       let e' = xf_expr xf_ctx e in
       let _,vt = Env.find_var xf_ctx.venv x in
       let x' = mkpos (Variable x, r2bty vt) in
@@ -209,12 +211,15 @@ and xf_stm' xf_ctx p = function
       [ArrayDec(x,vt,ae')]
 
   | ArrayAssign(x,n,e) ->
-    let n' = xf_expr xf_ctx n in
-    let e' = xf_expr xf_ctx e in
-    let _,vt = Env.find_var xf_ctx.venv x in
-    let x' = mkpos (ArrayGet(x,n'), a2bty vt) in
-    let xfe' = ctx_select(e',x') in
-      [ArrayAssign(x,n',xfe')]
+    if is_var_secret xf_ctx x then
+      let n' = xf_expr xf_ctx n in
+      let e' = xf_expr xf_ctx e in
+      let _,vt = Env.find_var xf_ctx.venv x in
+      let x' = mkpos (ArrayGet(x,n'), a2bty vt) in
+      let xfe' = ctx_select(e',x') in
+        [ArrayAssign(x,n',xfe')]
+    else
+      [ArrayAssign(x,n,e)]
 
   | If(cond,thenstms,elsestms) ->
     let cond' = xf_expr xf_ctx cond in
