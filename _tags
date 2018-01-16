@@ -3,7 +3,7 @@ true: use_menhir, bin_annot, debug
 <*.{byte,native}>: g++, use_llvm, use_llvm_analysis, use_llvm_bitwriter, use_llvm_target, use_llvm_X86, use_llvm_bitreader, use_llvm_executionengine
 
 # OASIS_START
-# DO NOT EDIT (digest: bff45fcd1936972c55619b93b8e14e65)
+# DO NOT EDIT (digest: 35965e05e7ab221915478f9ddfc088a7)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -21,7 +21,7 @@ true: annot, bin_annot
 # Executable fact
 "src/fact.byte": package(core)
 "src/fact.byte": package(ctypes)
-"src/fact.byte": package(ctypes.foreign)
+"src/fact.byte": package(ctypes.foreign ANSITerminal)
 "src/fact.byte": package(dolog)
 "src/fact.byte": package(llvm)
 "src/fact.byte": package(llvm.analysis)
@@ -39,7 +39,7 @@ true: annot, bin_annot
 # Executable facti
 "src/facti.byte": package(core)
 "src/facti.byte": package(ctypes)
-"src/facti.byte": package(ctypes.foreign)
+"src/facti.byte": package(ctypes.foreign ANSITerminal)
 "src/facti.byte": package(dolog)
 "src/facti.byte": package(llvm)
 "src/facti.byte": package(llvm.analysis)
@@ -56,7 +56,7 @@ true: annot, bin_annot
 "src/facti.byte": package(threads)
 <src/*.ml{,i,y}>: package(core)
 <src/*.ml{,i,y}>: package(ctypes)
-<src/*.ml{,i,y}>: package(ctypes.foreign)
+<src/*.ml{,i,y}>: package(ctypes.foreign ANSITerminal)
 <src/*.ml{,i,y}>: package(dolog)
 <src/*.ml{,i,y}>: package(llvm)
 <src/*.ml{,i,y}>: package(llvm.analysis)

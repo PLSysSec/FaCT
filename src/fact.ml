@@ -39,13 +39,21 @@ let set_log_level debug =
     | false -> Log.set_log_level Log.ERROR
 
 let error_exit s =
-  Printf.eprintf "%s\n" s;
-  exit 1
+  let ss = Str.bounded_split (Str.regexp_string " ") s 3 in
+    ANSITerminal.eprintf [ANSITerminal.white] "%s "  (List.nth_exn ss 0);
+    ANSITerminal.eprintf [ANSITerminal.red]   "%s "  (List.nth_exn ss 1);
+    Printf.eprintf                            "%s\n" (List.nth_exn ss 2);
+    exit 1
 
 let runner prep args =
-  compile prep args
-  (*try compile prep ast_out core_ir_out llvm_out with
-    | (Err.InternalCompilerError s) -> error_exit s
+  (*compile prep args*)
+  try compile prep args with
+    | (Err.InternalCompilerError s) ->
+      let backtrace = Printexc.get_backtrace () in
+      let lines = Str.split (Str.regexp_string "\n") backtrace in
+      let rlines = List.rev lines in
+        List.iter rlines print_endline;
+        error_exit s(*
     | (Err.VariableNotDefined s) -> error_exit s
     | (Err.LabelError s) -> error_exit s
     | (Err.UnclassifiedError s) -> error_exit s

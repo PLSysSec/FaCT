@@ -4,7 +4,7 @@ open Tast
 open Pseudocode
 
 #define err(p) InternalCompilerError("from source " ^ __LOC__ << p)
-#define cerr(msg, p) InternalCompilerError((msg) ^ " @ " ^ __FILE__ ^ ":" ^ string_of_int __LINE__ << p)
+#define cerr(msg, p) InternalCompilerError("error: " ^ msg << p)
 
 let wrap f pa = { pa with data=f pa.pos pa.data }
 let xwrap f pa = f pa.pos pa.data
