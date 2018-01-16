@@ -22,8 +22,8 @@ let prindent ps_ctx n =
 let ps_bty = xfunction
   | UInt n -> Printf.sprintf "uint%d" n
   | Int  n -> Printf.sprintf  "int%d" n
-  | Bool   -> Printf.sprintf  "bool" (* XXX *)
-  | Num  _ -> raise @@ err(p)
+  | Bool   -> Printf.sprintf  "bool"
+  | Num _  -> Printf.sprintf "arrzeros"
 
 let ps_label' p = function
   | Public -> "public"
@@ -51,7 +51,7 @@ let ps_aty = xfunction
 
 let ps_ety = xfunction
   | BaseET(b,l) -> String.concat " " [ps_label l; ps_bty b]
-  | ArrayET _ -> raise @@ err(p)
+  | ArrayET(a,l,m) -> String.concat " " [ps_aty a; ps_label l; ps_mut m]
 
 let ps_vty = xfunction
   | RefVT(b,l,m) -> Printf.sprintf "%s %s%s" (ps_label l) (ps_mut m) (ps_bty b)

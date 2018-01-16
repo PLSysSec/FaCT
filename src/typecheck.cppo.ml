@@ -1,6 +1,7 @@
 open Pos
 open Err
 open Tast
+open Pseudocode
 
 #define err(p) InternalCompilerError("from source " ^ __LOC__ << p)
 #define cerr(msg, p) InternalCompilerError((msg) ^ " @ " ^ __FILE__ ^ ":" ^ string_of_int __LINE__ << p)
@@ -155,6 +156,7 @@ let refvt_to_betype' = xfunction
   | ArrayVT(a,ml,m) ->
     let ArrayAT(bt,lexpr) = a.data in
       BaseET(bt,ml)
+let refvt_to_betype = rebind refvt_to_betype'
 
 let refvt_type_out = xfunction
   | RefVT(b,ml,m) -> b,ml,m
@@ -203,13 +205,22 @@ let (<:) { data=b1 } { data=b2 } =
     | String, String -> true
     | _ -> false
 
+let (=:) { data=b1 } { data=b2 } =
+  match b1,b2 with
+    | Num (0,_), UInt _
+    | Num (0,_), Int _
+    | UInt _, Num (0,_)
+    | Int _, Num (0,_) -> true
+    | x, y when x = y -> true
+    | _ -> false
+
 let (<::) { data=ArrayAT(b1,lx1) } { data=ArrayAT(b2,lx2) } =
   let lxmatch =
     match lx1.data,lx2.data with
       | LIntLiteral n, LIntLiteral m when n = m -> true
       | LDynamic x, LDynamic y when x.data = y.data -> true
       | _ -> false in
-    lxmatch && (b1 = b2)
+    lxmatch && (b1=: b2)
 
 let join_bt p { data=b1 } { data=b2 } =
   let b' =
@@ -594,7 +605,8 @@ let rec tc_stm' tc_ctx = xfunction
     let ety = type_of e' in
     let vt' = refvt_conv vt in
     let xty = refvt_to_etype vt' in
-      if not (ety <:$ xty) then raise @@ err(e'.pos);
+      if not (ety <:$ xty) then
+        raise @@ cerr("expression of type `" ^ ps_ety ety ^ "` cannot be assigned to variable of type `" ^ ps_ety xty ^ "`", p);
       let x' = add_new_var tc_ctx.venv x vt' in
         [BaseDec(x',vt',e')]
 
@@ -602,9 +614,19 @@ let rec tc_stm' tc_ctx = xfunction
     let e' = tc_expr tc_ctx e in
     let x',vt = Env.find_var tc_ctx.venv x in
     let b,{data=Fixed l},m = refvt_type_out vt in
-      if m.data <> Mut then raise @@ cerr("variable `" ^ x.data ^ "` is not mut; ", p);
-      (* TODO check that types match *)
-      if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then raise @@ err(p);
+      (* check that x is indeed mutable *)
+      if m.data <> Mut then raise @@ cerr("variable `" ^ x.data ^ "` is not mutable; ", p);
+
+      (* check that rp U pc is <= label of x *)
+      if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then
+        raise @@ cerr("cannot assign to " ^ ps_label' p l ^ " variable when program context is " ^ ps_label' p (!(tc_ctx.rp) +$. tc_ctx.pc), p);
+
+      (* check that labeled type of e is <= labeled type of x *)
+      let ety = type_of e' in
+      let xty = refvt_to_etype vt in
+        if not (ety <:$ xty) then
+          raise @@ cerr("expression of type `" ^ ps_ety ety ^ "` cannot be assigned to variable of type `" ^ ps_ety xty ^ "`", p);
+
       [BaseAssign(x',e')]
 
   | Ast.ArrayDec(x,vt,ae) ->
@@ -614,19 +636,32 @@ let rec tc_stm' tc_ctx = xfunction
     let ae_lexpr' = aetype_to_lexpr' aty in
     let vt' = refvt_conv_fill tc_ctx ae_lexpr' vt in
     let xty = refvt_to_etype vt' in
-      (* TODO check that types match *)
-    let x' = add_new_var tc_ctx.venv x vt' in
-      [ArrayDec(x',vt',ae')]
+      (* check that types match *)
+      if not (aty <:$ xty) then
+        raise @@ cerr("array of type `" ^ ps_ety aty ^ "` cannot be assigned to variable of type `" ^ ps_ety xty ^ "`", p);
+
+      let x' = add_new_var tc_ctx.venv x vt' in
+        [ArrayDec(x',vt',ae')]
 
   | Ast.ArrayAssign(x,n,e) ->
     let n' = tc_expr tc_ctx n in
     let e' = tc_expr tc_ctx e in
     let x',vt = Env.find_var tc_ctx.venv x in
     let b,{data=Fixed l},m = refvt_type_out vt in
-      if m.data <> Mut then raise @@ cerr("variable `" ^ x.data ^ "` is not mut; ", p);
-      (* TODO check that types match *)
+      (* check that x is indeed mutable *)
+      if m.data <> Mut then raise @@ cerr("array `" ^ x.data ^ "` is not mutable; ", p);
+
+      (* check that rp U pc is <= label of x *)
+      if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then
+        raise @@ cerr("cannot assign into " ^ ps_label' p l ^ " array when program context is " ^ ps_label' p (!(tc_ctx.rp) +$. tc_ctx.pc), p);
+
+      (* check that labeled type of e is <= labeled type of x *)
+      let ety = type_of e' in
+      let xty = refvt_to_betype vt in
+        if not (ety <:$ xty) then
+          raise @@ cerr("expression of type `" ^ ps_ety ety ^ "` cannot be assigned into array with elements of type `" ^ ps_ety xty ^ "`", p);
+
       (* TODO check that n' won't be out-of-bounds *)
-      if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then raise @@ err(p);
       [ArrayAssign(x',n',e')]
 
   | Ast.If(cond,thenstms,elsestms) ->
@@ -766,5 +801,4 @@ let tc_fdec fenv = xfunction
 let tc_module (Ast.Module fdecs) =
   let fenv = Debugfun.make_fenv () in
   let ret = Module (fenv, List.map (tc_fdec fenv) fdecs) in
-    (*print_endline (Env.show_env pp_function_dec fenv);*)
     ret
