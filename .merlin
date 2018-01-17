@@ -1,3 +1,4 @@
+S src/llvm/
 S src/
 S test/
 B _build/src/
@@ -10,3 +11,7 @@ PKG dolog
 PKG ppx_deriving.std
 PKG ctypes
 PKG ctype.foreign
+PKG ocamlgraph
+PKG lwt
+
+EXT lwt

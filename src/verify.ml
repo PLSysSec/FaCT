@@ -24,6 +24,13 @@ type checkerstatus =
   | Error of reason
 [@@deriving show]
 
+type state =
+  | Secure
+  | InSecure
+  | Unchanged
+  | Unknown
+[@@deriving show]
+
 let join l1 l2 =
   match l1, l2 with
     | Secret, _  -> Secret
@@ -274,3 +281,7 @@ let verify errors name llmod =
   
   (* Run the checkers *)
   check_runner (checker errors name);
+
+  match Hashtbl.length errors with
+    | 0 -> Secure
+    | n -> Log.error "Hashtable length %d" n; InSecure

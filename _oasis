@@ -1,11 +1,12 @@
 OASISFormat: 0.4
-Name:        TACo FaCT
+Name:        fact
 Version:     0.1
 Synopsis:    Compiler for the FaCT programming language
-Authors:     Gary Soeller, Sunjay Cauligi, Brian Johannesmeyer, Ariana Mirian
+Authors:     Gary Soeller, Sunjay Cauligi, Brian Johannesmeyer, Ariana Mirian, Yunlu Huang, Ranjit Jhala, Deian Stefan
+Homepage:    https://github.com/PLSysSec/FaCT
 License:     MIT
 Plugins:     META (0.4), DevFiles (0.4)
-BuildDepends: llvm, llvm.analysis, llvm.bitwriter, llvm.executionengine, llvm.target, llvm.passmgr_builder, llvm.transform_utils, llvm.scalar_opts, llvm.vectorize, llvm.ipo, core, oUnit, dolog, threads, ppx_deriving.std, ctypes, ctypes.foreign ANSITerminal
+BuildDepends: llvm, llvm.analysis, llvm.bitwriter, llvm.executionengine, llvm.target, llvm.passmgr_builder, llvm.transform_utils, llvm.scalar_opts, llvm.vectorize, llvm.ipo, core, oUnit, dolog, threads, ppx_deriving.std, ctypes, ctypes.foreign, ocamlgraph, graphics, lwt.unix, lwt.ppx, ANSITerminal
 OCamlVersion: >= 4.03
 AlphaFeatures: ocamlbuild_more_args
 XOCamlbuildPluginTags: package(cppo_ocamlbuild)

@@ -1,3 +1,4 @@
+open Lwt
 open Pos
 open Err
 open Lexing
@@ -24,19 +25,21 @@ type args_record = {
   verify_llvm : bool;
   mode        : mode;
   opt_level   : opt_level;
+  opt_limit   : seconds option;
   verify_opts : string option;
 }
 
 let run_command c args =
-  let a  = Unix.fork () in
-  match a with
-  | 0 -> (try
-            Unix.execvp c args
-          with
-            Unix.Unix_error(n,s1,s2) ->
-            Log.error "%s: %s %s" (Unix.error_message n) s1 s2; exit (-1))
-  | -1 -> Log.error "%s" "error accured on fork"
-  | _ -> ignore (Unix.wait ())
+  let process = Lwt_process.exec (c,args) in
+  let handler = function
+    | Unix.WEXITED s -> Lwt.return_unit
+    | Unix.WSIGNALED s ->
+      Log.debug "Command signaled to stop. Code %d" s;
+      Lwt.return_unit
+    | Unix.WSTOPPED s ->
+      Log.debug "Error occured on command. Code %d" s;
+      Lwt.return_unit in
+  Lwt_main.run (process >>= handler)
 
 let generate_out_file out_dir out_file = out_dir ^ "/" ^ out_file
 
@@ -167,13 +170,32 @@ let compile (in_files,out_file,out_dir) args =
   let llvm_builder = Llvm.builder llvm_ctx in
   let _ = codegen llvm_ctx llvm_mod llvm_builder args.verify_llvm xftast in
 
+  (* Verify the opt passes via the command line. This doesn't affect llvm_mod *)
   verify_opt_pass llvm_mod out_file' args.llvm_out args.verify_opts;
 
+  (* Verify all of the opt passes on the IR. This doesn't affect llvm_mod *)
   verify_opt_passes llvm_mod args.verify_llvm;
 
   (* Lets optimize the module *)
-  let llvm_mod = Opt.run_optimizations args.opt_level llvm_mod in
-  
+  let llvm_mod = Opt.run_optimizations args.opt_level args.opt_limit llvm_mod in
+
+  (* Start verify final IR *)
+  let errors = Hashtbl.create 100 in
+  match Verify.verify errors "NoOpt" llvm_mod with
+    | Verify.Secure -> Log.error "Secure!"
+    | Verify.InSecure ->
+      let print_errors errors =
+        let strings = Hashtbl.fold
+        (fun (des,det) pass acc -> (pass ^ " -- " ^ des ^ " -- " ^ det)::acc)
+        errors [] in
+        Log.error "%s" (String.concat "\n" strings);
+        () in
+      Log.error "Insecure!";
+      print_errors errors;
+    | Verify.Unchanged -> Log.error "Unchanged!"
+    | Verify.Unknown -> Log.error "Unknown!";
+  (* End verify final IR *)
+
   (*
   let triple = Llvm_target.Target.default_triple () in
   let lltarget = Llvm_target.Target.by_triple triple in

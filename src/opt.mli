@@ -1,5 +1,6 @@
 
 type opt_level = O0 | O1 | O2 | OF
+type seconds = int
 
 val scalar_optimizations :
   (([ `Module ] Llvm.PassManager.t -> unit) * string) list
@@ -10,7 +11,10 @@ val vector_optimizations :
 val ipo_optimizations :
   (([ `Module ] Llvm.PassManager.t -> unit) * string) list
 
-val run_optimizations : opt_level -> Llvm.llmodule -> Llvm.llmodule
+val run_optimizations : opt_level
+                     -> seconds option
+                     -> Llvm.llmodule
+                     -> Llvm.llmodule
 
 val create_pass_manager : unit -> [ `Module ] Llvm.PassManager.t
 
