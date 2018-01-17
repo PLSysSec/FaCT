@@ -13,5 +13,7 @@ PKG ctypes
 PKG ctype.foreign
 PKG ocamlgraph
 PKG lwt
+PKG ANSITerminal
+PKG str
 
 EXT lwt
