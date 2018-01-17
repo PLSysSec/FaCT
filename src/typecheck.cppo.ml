@@ -194,8 +194,8 @@ let argtype_of venv = xfunction
 
 let (<:) { data=b1 } { data=b2 } =
   match b1,b2 with
-    | UInt n, UInt m when n = m -> true
-    | Int n, Int m when n = m -> true
+    | UInt n, UInt m when n <= m -> true
+    | Int n, Int m when n <= m -> true
     | Bool, Bool -> true
     | Num(k,s), Int n -> true
     | Int n, Num(k,s) -> true
