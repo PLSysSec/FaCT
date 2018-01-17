@@ -23,7 +23,7 @@ let ps_bty = xfunction
   | UInt n -> Printf.sprintf "uint%d" n
   | Int  n -> Printf.sprintf  "int%d" n
   | Bool   -> Printf.sprintf  "bool"
-  | Num _  -> Printf.sprintf "num_literal"
+  | Num _  -> Printf.sprintf "literal"
 
 let ps_label' p = function
   | Public -> "public"
