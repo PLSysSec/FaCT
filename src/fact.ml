@@ -46,32 +46,16 @@ let error_exit s =
     exit 1
 
 let runner prep args =
-  (*compile prep args*)
   try compile prep args with
     | (Err.InternalCompilerError s) ->
-      let backtrace = Printexc.get_backtrace () in
-      let lines = Str.split (Str.regexp_string "\n") backtrace in
-      let rlines = List.rev lines in
-        List.iter print_endline rlines;
-        error_exit s(*
-    | (Err.VariableNotDefined s) -> error_exit s
-    | (Err.LabelError s) -> error_exit s
-    | (Err.UnclassifiedError s) -> error_exit s
-    | (Err.TypeError s) -> error_exit s
-    | (Err.SMTSolverError s) -> error_exit ("error: "^s)
-    | (Err.NotImplemented s) -> error_exit ("error: "^s)*)
-    (*| (Command_util.SyntaxError s) -> error_exit s
-    | (Codegen.Error s) -> error_exit s
-    | (Command_util.SyntaxError s) -> error_exit s
-    | (Codegen.Error s) -> error_exit s
-    | (Typecheck.NotImplemented) -> error_exit "Not implemented"
-    | (Env.VariableNotDefined s) -> error_exit s
-    | (Env.FunctionNotDefined s) -> error_exit s
-    | (Typecheck.TypeError s) -> error_exit s
-    | (Typecheck.UnknownType s) -> error_exit s
-    | (Typecheck.CallError s) -> error_exit s
-    | (Typecheck.ForError s) -> error_exit s
-    | _ -> error_exit "Error"*)
+      begin match args.debug with
+        | false -> ()
+        | true  ->
+          let backtrace = Printexc.get_backtrace () in
+          let lines = Str.split (Str.regexp_string "\n") backtrace in
+          let rlines = List.rev lines in
+          List.iter print_endline rlines end;
+      error_exit s
 
 let test_graph () =
   (*let g = Graphf.create_graph () in
