@@ -181,8 +181,9 @@ let compile (in_files,out_file,out_dir) args =
 
   (* Start verify final IR *)
   let errors = Hashtbl.create 100 in
+  begin
   match Verify.verify errors "NoOpt" llvm_mod with
-    | Verify.Secure -> Log.error "Secure!"
+    | Verify.Secure -> Log.debug "Secure!"
     | Verify.InSecure ->
       let print_errors errors =
         let strings = Hashtbl.fold
@@ -192,8 +193,8 @@ let compile (in_files,out_file,out_dir) args =
         () in
       Log.error "Insecure!";
       print_errors errors;
-    | Verify.Unchanged -> Log.error "Unchanged!"
-    | Verify.Unknown -> Log.error "Unknown!";
+    | Verify.Unchanged -> Log.debug "Unchanged!"
+    | Verify.Unknown -> Log.debug "Unknown!" end;
   (* End verify final IR *)
 
   (*
