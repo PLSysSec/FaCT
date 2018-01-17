@@ -406,7 +406,7 @@ secret int32 complexArrayViewRead(secret mut int32[10] arr, secret int32 index) 
   return simpleArrayRead(ref arrview(arr,0,5),index);
 }
 
-public int32 simpleArrCopy(public mut int8[] c, secret int8[5] k) {
+public int32 simpleArrCopy(secret mut int8[] c, secret int8[5] k) {
     secret mut int8[5] kcopy = arrcopy(k);
     for (uint32 i = 0 to 5) {
       c[i] = kcopy[i];
@@ -414,7 +414,7 @@ public int32 simpleArrCopy(public mut int8[] c, secret int8[5] k) {
   return 0;
 }
 
-public int32 simpleArrCopy32(public mut int32[] c, secret int32[5] k) {
+public int32 simpleArrCopy32(secret mut int32[] c, secret int32[5] k) {
     secret mut int32[5] kcopy = arrcopy(k);
     for (uint32 i = 0 to 5) {
       c[i] = kcopy[i];
@@ -422,7 +422,7 @@ public int32 simpleArrCopy32(public mut int32[] c, secret int32[5] k) {
   return 0;
 }
 
-public int32 simpleArrCopyStatic(public mut int8[5] c, secret int8[5] k) {
+public int32 simpleArrCopyStatic(secret mut int8[5] c, secret int8[5] k) {
     secret mut int8[5] kcopy = arrcopy(k);
     for (uint32 i = 0 to 5) {
       c[i] = kcopy[i];
@@ -430,7 +430,7 @@ public int32 simpleArrCopyStatic(public mut int8[5] c, secret int8[5] k) {
   return 0;
 }
 
-public int32 simpleArrCopyStatic32(public mut int32[5] c, secret int32[5] k) {
+public int32 simpleArrCopyStatic32(secret mut int32[5] c, secret int32[5] k) {
     secret mut int32[5] kcopy = arrcopy(k);
     for (uint32 i = 0 to 5) {
       c[i] = kcopy[i];

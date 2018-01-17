@@ -3,7 +3,7 @@ CC=gcc
 CFLAGS=-Wall -Wextra -Werror
 
 INCLUDE=-I$(UNITY_ROOT)/src
-CSRC=$(wildcard *.fact)
+CSRC=$(filter-out $(wildcard *.pseudo.fact), $(wildcard *.fact))
 SRC=$(patsubst test_%.fact,harness_%.c,$(CSRC))
 OBJ=$(patsubst %.fact,%.o,$(CSRC))
 RUNNER=$(patsubst %.c,%_runner.c,$(SRC))
