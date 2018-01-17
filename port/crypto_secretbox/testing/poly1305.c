@@ -118,7 +118,7 @@ int main(void)
     //fact_poly1305_update(st.r, st.h, st.pad, &st.leftover, st.buffer, &st.final, in, 32, 1);
     //fact_poly1305_finish(st.r, st.h, st.pad, &st.leftover, st.buffer, &st.final, out, 1);
     //print_state(&st);
-    fact_crypto_onetimeauth_poly1305(out, in, BYTES_OF_INPUT, key, 1);
+    fact_crypto_onetimeauth_poly1305(out, in, BYTES_OF_INPUT, key);
     for (int i = 0; i < 16; i++)
     {
         printf("%02x ", out[i]);

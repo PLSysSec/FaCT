@@ -164,7 +164,7 @@ void fact_crypto_core_hsalsa20(
 }
 
 public int32 fact_crypto_stream_salsa20_xor_ic( // stream_ref_xor_ic in salsa20_ref.c
-    public mut uint8[] c,
+    secret mut uint8[] c,
     secret uint8[] m,
     secret uint8[8] n,
     public uint64 ic_val,
@@ -174,34 +174,34 @@ public int32 fact_crypto_stream_salsa20_xor_ic( // stream_ref_xor_ic in salsa20_
   }
   public mut uint64 ic = ic_val;
   secret mut uint8[32] kcopy = arrcopy(k);
-  public mut uint8[16] in = arrzeros(16);
+  secret mut uint8[16] in = arrzeros(16);
   for (uint32 i = 0 to 8) {
     in[i] = n[i];
   }
   for (uint32 i = 8 to 16) {
-    in[i] = ic & 0xff;
+    in[i] = ic & ((uint8)0xff);
     ic >>= 8;
   }
   public uint32 mtimes = len m >> 6;
   secret mut uint8[64] block = arrzeros(64);
   for (uint32 j = 0 to mtimes) {
     fact_crypto_core_salsa20(ref block, in, kcopy);
-    public mut uint8[64] cview = arrview(c, j*64, 64);
+    secret mut uint8[64] cview = arrview(c, j*64, 64);
     secret uint8[64] mview = arrview(m, j*64, 64);
     for (uint32 i = 0 to 64) {
-      cview[i] = mview[i] ^ block[i];
+      cview[i] = mview[i] ^ block[i]; // XXX ???
     }
-    public mut uint64 u = 1;
+    secret mut uint64 u = 1;
     for (uint32 i = 8 to 16) {
       u += in[i];
-      in[i] = u;
+      in[i] = (uint8)u;
       u >>= 8;
     }
   }
   if (mtimes * 64 < len m) {
     public uint32 remain = len m - mtimes * 64;
     fact_crypto_core_salsa20(ref block, in, kcopy);
-    public mut uint8[] cview = arrview(c, mtimes*64, remain);
+    secret mut uint8[] cview = arrview(c, mtimes*64, remain);
     secret uint8[] mview = arrview(m, mtimes*64, remain);
     for (uint32 i = 0 to remain) {
       cview[i] = mview[i] ^ block[i];
