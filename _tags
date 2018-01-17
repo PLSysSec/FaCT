@@ -78,3 +78,5 @@ true: annot, bin_annot
 "port": not_hygienic
 "test": -traverse
 "test": not_hygienic
+"tmp": -traverse
+"tmp": not_hygienic
