@@ -207,10 +207,10 @@ let (<:) { data=b1 } { data=b2 } =
 
 let (=:) { data=b1 } { data=b2 } =
   match b1,b2 with
-    | Num (0,_), UInt _
-    | Num (0,_), Int _
-    | UInt _, Num (0,_)
-    | Int _, Num (0,_) -> true
+    | Num _, UInt _
+    | Num _, Int _
+    | UInt _, Num _
+    | Int _, Num _ -> true
     | x, y when x = y -> true
     | _ -> false
 
@@ -220,7 +220,7 @@ let (<::) { data=ArrayAT(b1,lx1) } { data=ArrayAT(b2,lx2) } =
       | LIntLiteral n, LIntLiteral m when n = m -> true
       | LDynamic x, LDynamic y when x.data = y.data -> true
       | _ -> false in
-    lxmatch && (b1=: b2)
+    lxmatch && (b1 =: b2)
 
 let join_bt p { data=b1 } { data=b2 } =
   let b' =
@@ -235,6 +235,19 @@ let join_bt p { data=b1 } { data=b2 } =
       | String, String -> b1
       | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2) (* XXX max k1 k2 makes no sense *)
       | _ -> raise @@ cerr("type mismatch: " ^ show_base_type' b1 ^ " <> " ^ show_base_type' b2, p);
+  in mkpos b'
+
+let min_bt p { data=b1 } { data=b2 } =
+  let b' =
+    match b1,b2 with
+      | UInt n, UInt m -> UInt (min n m)
+      | Int n, Int m -> Int (min n m)
+      | Num(k,s), Int n -> b2
+      | Int n, Num(k,s) -> b1
+      | Num(k,s), UInt n -> b2
+      | UInt n, Num(k,s) -> b1
+      | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2) (* XXX max k1 k2 makes no sense *)
+      | _ -> raise @@ cerr("invalid types for min_bt: " ^ show_base_type' b1 ^ " <> " ^ show_base_type' b2, p);
   in mkpos b'
 
 let meet_bt p { data=b1 } { data=b2 } =
@@ -279,10 +292,6 @@ let join_ml p { data=ml1 } { data=ml2 } =
 
 let (<:$) ty1 ty2 =
   match (is_array ty1),(is_array ty2) with
-    | true, true ->
-      let a1,ml1 = atype_out ty1 in
-      let a2,ml2 = atype_out ty2 in
-        (a1 <:: a2) && (ml1 <$ ml2)
     | false, false ->
       let b1,ml1 = type_out ty1 in
       let b2,ml2 = type_out ty2 in
@@ -315,6 +324,26 @@ let can_be_passed_to { pos=p; data=argty} {data=paramty} =
           | _ -> false
       in
         (b1.data = b2.data) && lxmatch && (l1 <$ l2) && (m1.data = m2.data)
+
+let (<:$*) (ty1,is_new_mem) ty2 =
+  let ArrayET(a1,l1,m1) = ty1.data in
+  let ArrayET(a2,l2,m2) = ty2.data in
+  let ArrayAT(b1,lx1), ArrayAT(b2,lx2) = a1.data, a2.data in
+  let lxmatch =
+    match lx1.data, lx2.data with
+      | _, LDynamic _ -> true
+      | LIntLiteral n, LIntLiteral m when n = m -> true
+      | _ -> false
+  in
+    (b1 <: b2) &&
+    lxmatch &&
+    (match m1.data, m2.data with
+      | Const, Const -> l1 <$ l2
+      | Mut, Const -> l1 <$ l2
+      | Const, Mut -> is_new_mem && l1 <$ l2
+      | Mut, Mut -> l1.data = l2.data
+    )
+
 
 
 (* Actual typechecking *)
@@ -400,20 +429,20 @@ let tc_binop' p op e1 e2 =
             | Ast.Multiply
             | Ast.BitwiseOr
             | Ast.BitwiseXor
-            | Ast.BitwiseAnd
             | Ast.LogicalAnd
-            | Ast.LogicalOr ->
-              join_bt p b1 b2
+            | Ast.LogicalOr -> join_bt p b1 b2
+
+            | Ast.BitwiseAnd -> min_bt p b1 b2
+
             | Ast.Equal
             | Ast.NEqual
             | Ast.GT
             | Ast.GTE
             | Ast.LT
-            | Ast.LTE ->
-              mkpos Bool
+            | Ast.LTE -> mkpos Bool
+
             | Ast.LeftShift
-            | Ast.RightShift ->
-              { b1 with pos=p }
+            | Ast.RightShift -> { b1 with pos=p }
         in
         let ml' = join_ml p ml1 ml2 in
           (BinOp(op, e1, e2), BaseET(b', ml'))
@@ -452,7 +481,7 @@ and tc_arg tc_ctx = pfunction
               match vty.data with
                 | RefVT _ -> ByValue (tc_expr tc_ctx e)
                 | ArrayVT _ ->
-                  let ae' = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar x) in
+                  let ae',_ = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar x) in
                   let (_,ArrayET(_,_,mut)) = ae'.data in
                     if not (mut.data <* Const) then raise @@ err(p);
                     ByArray(ae', mkpos Const)
@@ -465,14 +494,14 @@ and tc_arg tc_ctx = pfunction
         match xref.data with
           | RefVT _ -> ByRef x'
           | ArrayVT _ ->
-            let ae' = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar x) in
+            let ae',_ = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar x) in
             let (_,ArrayET(_,_,mut)) = ae'.data in
               if not (mut.data <* Mut) then raise @@ cerr("variable `" ^ x.data ^ "` is not mut; ", p);
               ByArray(ae', mkpos Mut)
       end
   | Ast.ByArray(arr_expr, mutability) ->
     let m' = mconv mutability in
-    let ae' = tc_arrayexpr tc_ctx arr_expr in
+    let ae',_ = tc_arrayexpr tc_ctx arr_expr in
     let (_,ArrayET(_,_,mut)) = ae'.data in
     if not (mut.data <* m'.data) then raise @@ cerr("array expression is not proper mutability; ", p);
     ByArray(ae', m')
@@ -565,38 +594,44 @@ and tc_expr tc_ctx = pfunction
           DebugFnCall(f,args'), rty.data
     end
 
-and tc_arrayexpr tc_ctx = pfunction
+(* returns ((Tast.array_expr', Tast.ArrayET), is_new_memory) *)
+and tc_arrayexpr' tc_ctx = xfunction
   | Ast.ArrayLit exprs ->
     (* XXX check that all expr types are compatible *)
     let exprs' = List.map (tc_expr tc_ctx) exprs in
     let b = expr_to_btype @@ List.hd exprs' in (* XXX should be join of all exprs' *)
     let at' = mkpos ArrayAT(b, mkpos LIntLiteral(List.length exprs')) in
-      (ArrayLit exprs', ArrayET(at', mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Mut))
+      (ArrayLit exprs',
+       ArrayET(at', mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Const)),
+       true
   | Ast.ArrayVar x ->
     let x',xref = Env.find_var tc_ctx.venv x in
-      (ArrayVar x', refvt_to_etype' xref)
+      (ArrayVar x', refvt_to_etype' xref), false
   | Ast.ArrayZeros lexpr ->
     let b = mkpos Num(0, false) in
     let lexpr' = lexprconv tc_ctx lexpr in
     let at' = mkpos ArrayAT(b, lexpr') in
-    (ArrayZeros lexpr', ArrayET(at', mkpos Fixed Public, mkpos Mut))
+    (ArrayZeros lexpr', ArrayET(at', mkpos Fixed Public, mkpos Const)), true
   | Ast.ArrayCopy x ->
     let x',vt = Env.find_var tc_ctx.venv x in
     let ae' = refvt_to_etype' vt in
-      (ArrayCopy x', ae')
+      (ArrayCopy x', aetype_update_mut' (mkpos Mut) ae'), true
   | Ast.ArrayView(x,e,lexpr) ->
     let e' = tc_expr tc_ctx e in
     let lexpr' = lexprconv tc_ctx lexpr in
     let x',vt = Env.find_var tc_ctx.venv x in
     let ae = refvt_to_etype vt in
     let ae' = aetype_update_lexpr' lexpr'.data ae in
-      (ArrayView(x',e',lexpr'), ae')
+      (ArrayView(x',e',lexpr'), ae'), false
   | Ast.ArrayComp(b,lexpr,x,e) ->
     let b' = bconv b in
     let lexpr' = lexprconv tc_ctx lexpr in
     let e' = tc_expr tc_ctx e in
     let ae = ArrayET(mkpos ArrayAT(b', lexpr'), expr_to_ml e', mkpos Mut) in
-      (ArrayComp(b',lexpr',x,e'), ae)
+      (ArrayComp(b',lexpr',x,e'), ae), true
+and tc_arrayexpr tc_ctx pa =
+  let ae', is_mem_new = tc_arrayexpr' tc_ctx pa in
+    make_ast pa.pos ae', is_mem_new
 
 let rec tc_stm' tc_ctx = xfunction
 
@@ -630,14 +665,13 @@ let rec tc_stm' tc_ctx = xfunction
       [BaseAssign(x',e')]
 
   | Ast.ArrayDec(x,vt,ae) ->
-    let ae' = tc_arrayexpr tc_ctx ae in
+    let ae',is_new_mem = tc_arrayexpr tc_ctx ae in
     let aty = atype_of ae' in
     (* if vt is LUnspecified then take it from aty *)
     let ae_lexpr' = aetype_to_lexpr' aty in
     let vt' = refvt_conv_fill tc_ctx ae_lexpr' vt in
     let xty = refvt_to_etype vt' in
-      (* check that types match *)
-      if not (aty <:$ xty) then
+      if not ((aty,is_new_mem) <:$* xty) then
         raise @@ cerr("array of type `" ^ ps_ety aty ^ "` cannot be assigned to variable of type `" ^ ps_ety xty ^ "`", p);
 
       let x' = add_new_var tc_ctx.venv x vt' in
