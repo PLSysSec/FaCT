@@ -94,7 +94,7 @@ let test_graph () =
 
   List.iter print_pipeline pipeline;
 
-  Opt_driver.drive ();*)
+  Pipeline.drive ();*)
 
   (*Graphf.draw_graph (ref g);*)
   error_exit "Testing graph"

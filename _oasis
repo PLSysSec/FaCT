@@ -11,27 +11,12 @@ OCamlVersion: >= 4.03
 AlphaFeatures: ocamlbuild_more_args
 XOCamlbuildPluginTags: package(cppo_ocamlbuild)
 
-#Library llvm-extra
-#  Path: src/llvm
-#  Modules: Pass
-#  CSources: pass_stub.c, pass_header.h
-#  CCOpt: -D OPTION_PASSED
-#  BuildTools: ocamlbuild
-
 Executable fact
   Path:       src
-#  BuildDepends: llvm-extra
   BuildTools: ocamlbuild
   MainIs:     fact.ml
 
 Executable facti
   Path:       src
-#  BuildDepends: llvm-extra
   BuildTools: ocamlbuild
   MainIs:     facti.ml
-
-Executable g
-  Path: src
-  BuildTools: ocamlbuild
-  BuildDepends: graphics
-  MainIs: g.ml

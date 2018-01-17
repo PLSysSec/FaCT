@@ -166,9 +166,6 @@ let rec drive llmod =
           let pipeline = Graphf.generate_pipeline opt_graph v in
           run v pipeline opt_name llmod
 
-
-
-
 (*
   END DRIVER CODE
 *)
@@ -183,9 +180,7 @@ let pick_pipeline () =
   match !v with
     | None -> Log.error "No optmization pipeline found"
     | Some v ->
-      Log.error "Fuckin right. Found a pipeline! %s" (Optf.show_optimization (Graphf.get_opt v))
-      
-
+      Log.error "Found a pipeline! %s" (Optf.show_optimization (Graphf.get_opt v))
 
 (*
   Current state:
@@ -326,7 +321,6 @@ let pair_prune llmod =
   Log.error "Found %d secure pipelines!" (List.length secure);
   List.iter (fun g -> Log.error "Pipeline: %s" (group_string g)) secure;
   ()
-
 
 (*
     End pair pruning methodology

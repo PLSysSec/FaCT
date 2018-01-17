@@ -3,7 +3,7 @@ open Llvm_vectorize
 open Llvm_ipo
 
 open Optf
-open Opt_driver
+open Pipeline
 open Graphf
 
 open Lwt
@@ -127,7 +127,7 @@ let run_fact_pipeline llmod limit =
     | Some l ->
       Log.debug "Time limit is set to `%d` seconds..." l; l in
   let waiter,wakener = Lwt.task () in
-  let driver = waiter >>= (fun () -> Opt_driver.drive llmod) in
+  let driver = waiter >>= (fun () -> Pipeline.drive llmod) in
   
   let timeout t =
     Lwt_unix.sleep (float_of_int limit) >>= fun () ->
@@ -135,7 +135,7 @@ let run_fact_pipeline llmod limit =
     | Lwt.Sleep    ->
       Log.info "Time is up. Preparing to shut down the optimization tool...";
       Lwt.cancel t;
-      Opt_driver.continue := false;
+      Pipeline.continue := false;
       Lwt.return_unit
     | Lwt.Return v -> Lwt.return_unit
     | Lwt.Fail ex  -> Lwt.fail ex in
@@ -147,20 +147,11 @@ let run_fact_pipeline llmod limit =
   Lwt_main.run (Lwt.pick [driver; timeout']);
 
   Log.info "Preparing to pick an optimization pipeline...";
-  Opt_driver.pick_pipeline ();
-  (*)
-  begin try (match Lwt_main.run driver with
-    | _ -> Log.error "Done RUNNINGNGNIOSGN:")
-    with | Lwt.Canceled -> Log.error "Yepyepyep" end;
-  begin match Lwt.state timeout' with
-    | Lwt.Sleep -> Log.error "Cancelling the canceller"; Lwt.cancel timeout'
-    | Lwt.Return v -> ()
-    | Lwt.Fail ex -> () end;
-  *)
+  Pipeline.pick_pipeline ();
   llmod
 
-let run_fact_pipeline llmod limit =
-  Opt_driver.pair_prune llmod;
+let run_fact_pipeline_pair_prune llmod limit =
+  Pipeline.pair_prune llmod;
   llmod
 
 let run_optimizations opt_level limit llmodule =

@@ -3,7 +3,7 @@ true: use_menhir, bin_annot, debug
 <*.{byte,native}>: g++, use_llvm, use_llvm_analysis, use_llvm_bitwriter, use_llvm_target, use_llvm_X86, use_llvm_bitreader, use_llvm_executionengine
 
 # OASIS_START
-# DO NOT EDIT (digest: 3f266c084f1e0e6e342934be4b2c65c9)
+# DO NOT EDIT (digest: c560be7e7dc8df32d92ebe86aafdbc58)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -62,28 +62,6 @@ true: annot, bin_annot
 "src/facti.byte": package(ocamlgraph)
 "src/facti.byte": package(ppx_deriving.std)
 "src/facti.byte": package(threads)
-# Executable g
-"src/g.byte": package(core)
-"src/g.byte": package(ctypes)
-"src/g.byte": package(ctypes.foreign)
-"src/g.byte": package(dolog)
-"src/g.byte": package(graphics)
-"src/g.byte": package(llvm)
-"src/g.byte": package(llvm.analysis)
-"src/g.byte": package(llvm.bitwriter)
-"src/g.byte": package(llvm.executionengine)
-"src/g.byte": package(llvm.ipo)
-"src/g.byte": package(llvm.passmgr_builder)
-"src/g.byte": package(llvm.scalar_opts)
-"src/g.byte": package(llvm.target)
-"src/g.byte": package(llvm.transform_utils)
-"src/g.byte": package(llvm.vectorize)
-"src/g.byte": package(lwt.ppx)
-"src/g.byte": package(lwt.unix)
-"src/g.byte": package(oUnit)
-"src/g.byte": package(ocamlgraph)
-"src/g.byte": package(ppx_deriving.std)
-"src/g.byte": package(threads)
 <src/*.ml{,i,y}>: package(core)
 <src/*.ml{,i,y}>: package(ctypes)
 <src/*.ml{,i,y}>: package(ctypes.foreign)

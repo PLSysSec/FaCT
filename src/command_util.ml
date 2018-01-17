@@ -170,6 +170,16 @@ let compile (in_files,out_file,out_dir) args =
   let llvm_builder = Llvm.builder llvm_ctx in
   let _ = codegen llvm_ctx llvm_mod llvm_builder args.verify_llvm xftast in
 
+  (* Verify the opt passes via the command line. This doesn't affect llvm_mod *)
+  verify_opt_pass llvm_mod out_file' args.llvm_out args.verify_opts;
+
+  (* Verify all of the opt passes on the IR. This doesn't affect llvm_mod *)
+  verify_opt_passes llvm_mod args.verify_llvm;
+
+  (* Lets optimize the module *)
+  let llvm_mod = Opt.run_optimizations args.opt_level args.opt_limit llvm_mod in
+
+  (* Start verify final IR *)
   let errors = Hashtbl.create 100 in
   match Verify.verify errors "NoOpt" llvm_mod with
     | Verify.Secure -> Log.error "Secure!"
@@ -184,13 +194,8 @@ let compile (in_files,out_file,out_dir) args =
       print_errors errors;
     | Verify.Unchanged -> Log.error "Unchanged!"
     | Verify.Unknown -> Log.error "Unknown!";
-  verify_opt_pass llvm_mod out_file' args.llvm_out args.verify_opts;
+  (* End verify final IR *)
 
-  verify_opt_passes llvm_mod args.verify_llvm;
-
-  (* Lets optimize the module *)
-  let llvm_mod = Opt.run_optimizations args.opt_level args.opt_limit llvm_mod in
-  
   (*
   let triple = Llvm_target.Target.default_triple () in
   let lltarget = Llvm_target.Target.by_triple triple in
