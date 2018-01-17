@@ -40,9 +40,9 @@ let set_log_level debug =
 
 let error_exit s =
   let ss = Str.bounded_split (Str.regexp_string " ") s 3 in
-    ANSITerminal.eprintf [ANSITerminal.white] "%s "  (List.nth_exn ss 0);
-    ANSITerminal.eprintf [ANSITerminal.red]   "%s "  (List.nth_exn ss 1);
-    Printf.eprintf                            "%s\n" (List.nth_exn ss 2);
+    ANSITerminal.eprintf [ANSITerminal.white] "%s "  (List.nth ss 0);
+    ANSITerminal.eprintf [ANSITerminal.red]   "%s "  (List.nth ss 1);
+    Printf.eprintf                            "%s\n" (List.nth ss 2);
     exit 1
 
 let runner prep args =
@@ -52,7 +52,7 @@ let runner prep args =
       let backtrace = Printexc.get_backtrace () in
       let lines = Str.split (Str.regexp_string "\n") backtrace in
       let rlines = List.rev lines in
-        List.iter rlines print_endline;
+        List.iter print_endline rlines;
         error_exit s(*
     | (Err.VariableNotDefined s) -> error_exit s
     | (Err.LabelError s) -> error_exit s
