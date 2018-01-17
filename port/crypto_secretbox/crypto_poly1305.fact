@@ -98,7 +98,7 @@ void _poly1305_init(
   state_pad[1] = _load64_le(arrview(key, 24, 8));
 
   state_leftover = 0;
-  state_final = 0;
+  state_final = false;
 }
 
 void _poly1305_update(
