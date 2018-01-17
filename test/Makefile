@@ -14,7 +14,7 @@ TESTS=$(patsubst harness%.c,testbin%,$(SRC))
 all: $(TESTS) run
 
 %.o: %.fact
-	../fact.byte -debug -ast-out -core-ir-out -llvm-out -generate-header $<
+	../fact.byte -debug -ast-out -core-ir-out -llvm-out -pseudocode -generate-header $<
 
 %_runner.c: %.c
 	ruby $(UNITY_ROOT)/auto/generate_test_runner.rb $< $@
@@ -26,4 +26,4 @@ run:
 	for x in testbin_*; do ./$$x; done
 
 clean:
-	rm -f *.o *.bc *.s *_runner.c testbin* *.ast.ml *.tast.ml *.core.ml *.ll
+	rm -f *.o *.bc *.s *_runner.c testbin* *.ast.ml *.tast.ml *.core.ml *.ll *.pseudo.fact *.xftast.ml *.h
