@@ -447,6 +447,21 @@ let tc_binop' p op e1 e2 =
         let ml' = join_ml p ml1 ml2 in
           (BinOp(op, e1, e2), BaseET(b', ml'))
 
+let params_all_refs_above rpc params =
+  let rec checker n = function
+    | [] -> -1
+    | ({data=Param(_,{data=vty'}); pos=p}::params) ->
+      begin
+        match vty' with
+          | RefVT(_,{data=Fixed l},{data=mut})
+          | ArrayVT(_,{data=Fixed l},{data=mut}) ->
+            if (mut != Mut) || (rpc <$. l)
+            then (checker (n+1) params)
+            else n
+      end
+  in
+  checker 0 params
+
 let rec lexprconv tc_ctx = pfunction
   | Ast.LExpression ({data=Ast.IntLiteral n}) ->
     LIntLiteral n
@@ -506,7 +521,7 @@ and tc_arg tc_ctx = pfunction
     if not (mut.data <* m'.data) then raise @@ cerr("array expression is not proper mutability; ", p);
     ByArray(ae', m')
 
-and tc_args xf_args tc_ctx p params args =
+and tc_args ~xf_args tc_ctx p params args =
   match params,args with
     | [], [] -> []
     | (param::params), (arg::args) ->
@@ -525,9 +540,9 @@ and tc_args xf_args tc_ctx p params args =
               | LDynamic lx ->
                 ByValue (mkpos (Variable lx, BaseET(mkpos UInt 32, mkpos Fixed Public)))
           in
-            arg' :: (mkpos len) :: tc_args xf_args tc_ctx p params args
+            arg' :: (mkpos len) :: tc_args ~xf_args tc_ctx p params args
         else
-          arg' :: tc_args xf_args tc_ctx p params args
+          arg' :: tc_args ~xf_args tc_ctx p params args
     | _ -> raise @@ cerr("mismatch in args vs params length", p)
 
 and tc_expr tc_ctx = pfunction
@@ -581,17 +596,30 @@ and tc_expr tc_ctx = pfunction
     let e3' = tc_expr tc_ctx e3 in
       (TernOp(e1',e2',e3'), join_ty' p (type_of e2') (type_of e3'))
   | Ast.FnCall(f,args) ->
+    let rpc = !(tc_ctx.rp) +$. tc_ctx.pc in
     begin
       match (Env.find_var tc_ctx.fenv f).data with
         | (FunDec(_,Some rty,params,_)) ->
-          let args' = tc_args true tc_ctx p params args in
-            (FnCall(f,args'), rty.data)
+          (* ensure no mut args lower than rp U pc *)
+          (* e.g. fcall with public mut arg in a block where pc is Secret *)
+          let earg_n = params_all_refs_above rpc params in
+            if earg_n >= 0 then
+              (let earg = List.nth args earg_n in
+                 raise @@ err(earg.pos));
+            let args' = tc_args ~xf_args:true tc_ctx p params args in
+              (FnCall(f,args'), rty.data)
         | (CExtern(_,Some rty,params)) ->
-          let args' = tc_args false tc_ctx p params args in
-            (FnCall(f,args'), rty.data)
+          (* ensure no mut args lower than rp U pc *)
+          (* e.g. fcall with public mut arg in a block where pc is Secret *)
+          let earg_n = params_all_refs_above rpc params in
+            if earg_n >= 0 then
+              (let earg = List.nth args earg_n in
+                 raise @@ err(earg.pos));
+            let args' = tc_args ~xf_args:false tc_ctx p params args in
+              (FnCall(f,args'), rty.data)
         | (DebugFunDec(_,Some rty,params)) ->
-          let args' = tc_args false tc_ctx p params args in
-          DebugFnCall(f,args'), rty.data
+          let args' = tc_args ~xf_args:false tc_ctx p params args in
+            DebugFnCall(f,args'), rty.data
     end
 
 (* returns ((Tast.array_expr', Tast.ArrayET), is_new_memory) *)
@@ -722,22 +750,33 @@ let rec tc_stm' tc_ctx = xfunction
         [For(i',ity',lo',hi',stms')]
 
   | Ast.VoidFnCall(f,args) ->
-    begin
-      match (Env.find_var tc_ctx.fenv f).data with
-        | (FunDec(_,_,params,_)) ->
-          (* TODO ensure no mut args lower than *rp U pc *)
-          (* e.g. fcall with public mut arg in a block where pc is Secret is disallowed *)
-          let args' = tc_args true tc_ctx p params args in
-            [VoidFnCall(f,args')]
-        | (CExtern(_,_,params)) ->
-          (* TODO ensure no mut args lower than *rp U pc *)
-          (* e.g. fcall with public mut arg in a block where pc is Secret is disallowed *)
-          let args' = tc_args false tc_ctx p params args in
-          [VoidFnCall(f,args')]
-        | (DebugFunDec(_,_,params)) ->
-          let args' = tc_args false tc_ctx p params args in
-          [DebugVoidFnCall(f,args')]
-    end
+    let rpc = !(tc_ctx.rp) +$. tc_ctx.pc in
+      begin
+        match (Env.find_var tc_ctx.fenv f).data with
+          | (FunDec(_,_,params,_)) ->
+            (* ensure no mut args lower than rp U pc *)
+            (* e.g. fcall with public mut arg in a block where pc is Secret *)
+            let earg_n = params_all_refs_above rpc params in
+              if earg_n >= 0 then
+                (let earg = List.nth args earg_n in
+                   raise @@ err(earg.pos));
+
+              let args' = tc_args ~xf_args:true tc_ctx p params args in
+                [VoidFnCall(f,args')]
+          | (CExtern(_,_,params)) ->
+            (* ensure no mut args lower than rp U pc *)
+            (* e.g. fcall with public mut arg in a block where pc is Secret *)
+            let earg_n = params_all_refs_above rpc params in
+              if earg_n >= 0 then
+                (let earg = List.nth args earg_n in
+                   raise @@ err(earg.pos));
+
+              let args' = tc_args ~xf_args:false tc_ctx p params args in
+                [VoidFnCall(f,args')]
+          | (DebugFunDec(_,_,params)) ->
+            let args' = tc_args ~xf_args:false tc_ctx p params args in
+              [DebugVoidFnCall(f,args')]
+      end
 
   | Ast.Return e ->
     let e' = tc_expr tc_ctx e in
