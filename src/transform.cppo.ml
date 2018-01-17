@@ -46,19 +46,19 @@ let is_var_secret xf_ctx x =
         let Fixed l = ml.data in
           l = Secret
 
-let rec params_has_refs = function
+let rec params_has_secret_refs = function
   | [] -> false
   | ({data=Param(_,{data=vty'})}::params) ->
     begin
       match vty' with
-        | RefVT(_,_,{data=mut}) ->
-          (mut = Mut) || params_has_refs params
-        | ArrayVT(_,_,{data=mut}) ->
-          (mut = Mut) || params_has_refs params
+        | RefVT(_,{data=Fixed label},{data=mut}) ->
+          (mut = Mut && label == Secret) || params_has_secret_refs params
+        | ArrayVT(_,{data=Fixed label},{data=mut}) ->
+          (mut = Mut && label == Secret) || params_has_secret_refs params
     end
 
-let fdec_has_refs = xfunction
-  | FunDec(_,_,params,_) -> params_has_refs params
+let fdec_has_secret_refs = xfunction
+  | FunDec(_,_,params,_) -> params_has_secret_refs params
   | CExtern(_,_,params) -> false
 
 let bty { data=(_,b) } = b
@@ -168,7 +168,7 @@ and xf_expr' xf_ctx { data; pos=p } =
       | FnCall(f,args) ->
         let args' = List.map (xf_arg xf_ctx) args in
         let fdec = Env.find_var xf_ctx.fenv f in
-          if fdec_has_refs fdec then
+          if fdec_has_secret_refs fdec then
             let fctx = ctx in
               FnCall(f,args'@[mkpos ByValue fctx])
           else
@@ -248,7 +248,7 @@ and xf_stm' xf_ctx p = function
   | VoidFnCall(f,args) ->
     let args' = List.map (xf_arg xf_ctx) args in
     let fdec = Env.find_var xf_ctx.fenv f in
-      if fdec_has_refs fdec then
+      if fdec_has_secret_refs fdec then
         let fctx = ctx in
           [VoidFnCall(f,args'@[mkpos ByValue fctx])]
       else
@@ -292,7 +292,7 @@ and xf_block rt fenv ms (venv,stms) =
 let xf_fdec fenv = pfunction
   | FunDec(f,rt,params,block) ->
     let (venv,stms) = block in
-    let params' = if params_has_refs params
+    let params' = if params_has_secret_refs params
       then
         let fctx = mkpos "__fctx" in
         let fctx_vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
