@@ -1,13 +1,13 @@
 open Pos
 open Err
 open Tast
+open Tast_utils
+open Pseudocode
 
-#define err(p) InternalCompilerError("from source" ^ __LOC__ << p)
+#define cerr(msg, p) InternalCompilerError("error: " ^ msg << p)
+#define err(p) cerr("internal compiler error", p)
 
-let wrap f pa = { pa with data=f pa.pos pa.data }
-let xwrap f pa = f pa.pos pa.data
-
-let rebind f pa = { pa with data=f pa }
+#define cwarn(msg, p) Log.warn "%s" ("warning: " ^ msg << p)
 
 #define mkpos make_ast p @@
 (* p for 'uses Position' *)
@@ -34,10 +34,6 @@ type xf_ctx_record = {
   fenv : function_dec Env.env;
 }
 
-let is_secret e =
-  let { data=(_,BaseET(_,{data=Fixed l})) } = e in
-    l = Secret
-
 let is_var_secret xf_ctx x =
   let _,vt = Env.find_var xf_ctx.venv x in
     match vt.data with
@@ -46,22 +42,6 @@ let is_var_secret xf_ctx x =
         let Fixed l = ml.data in
           l = Secret
 
-let rec params_has_secret_refs = function
-  | [] -> false
-  | ({data=Param(_,{data=vty'})}::params) ->
-    begin
-      match vty' with
-        | RefVT(_,{data=Fixed label},{data=mut}) ->
-          (mut = Mut && label == Secret) || params_has_secret_refs params
-        | ArrayVT(_,{data=Fixed label},{data=mut}) ->
-          (mut = Mut && label == Secret) || params_has_secret_refs params
-    end
-
-let fdec_has_secret_refs = xfunction
-  | FunDec(_,_,params,_) -> params_has_secret_refs params
-  | CExtern(_,_,params) -> false
-
-let bty { data=(_,b) } = b
 let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
 let a2bty { data=ArrayVT({data=ArrayAT(b,_)},ml,_) } = BaseET(b,ml)
 let b2rty l mut { data=BaseET(b,_); pos=p } =
@@ -82,20 +62,11 @@ let b2rty l mut { data=BaseET(b,_); pos=p } =
 #define ctx (band(band(bctx,rctx), \
                   if Env.has_var xf_ctx.venv (mkpos "__fctx") then bvar((mkpos "__fctx")) else sebool(True)))
 
-#define ctx_select(e1,e2) (mkpos (Select(ctx,e1,e2), bty e2))
+let selty p e1 e2 =
+  let BaseET(b',ml') = join_ty' p (type_of e1) (type_of e2) in
+    BaseET(b',mkpos Fixed Secret)
 
-let (<$) l1 l2 =
-  match l1,l2 with
-    | x, y when x = y -> true
-    | Public, Secret -> true
-    | _ -> false
-
-let join_ml l1 l2 =
-  match l1,l2 with
-    | Public, Public -> Public
-    | Public, Secret
-    | Secret, Public
-    | Secret, Secret -> Secret
+#define ctx_select(e1,e2) (mkpos (Select(ctx,e1,e2), selty p e1 e2))
 
 let rec xf_arg' xf_ctx { data; pos=p } =
   match data with
@@ -126,7 +97,7 @@ and xf_expr' xf_ctx { data; pos=p } =
         let e' = xf_expr xf_ctx e in
           UnOp(op,e')
       | BinOp(op,e1,e2) ->
-        if is_secret e1 then
+        if is_expr_secret e1 then
           match op with
             | Ast.LogicalAnd ->
               let { data=(expr,ety) } = xf_expr xf_ctx (mkpos (TernOp(e1,e2,sebool(False)), sbool)) in
@@ -144,7 +115,7 @@ and xf_expr' xf_ctx { data; pos=p } =
             BinOp(op,e1',e2')
       | TernOp(e1,e2,e3) ->
         let e1' = xf_expr xf_ctx e1 in
-          if is_secret e1' then
+          if is_expr_secret e1' then
             let res = mkpos new_temp_var () in
             let resvt = mkpos b2rty Secret (mkpos Const) (mkpos ety) in
             let def_val =
@@ -223,7 +194,7 @@ and xf_stm' xf_ctx p = function
 
   | If(cond,thenstms,elsestms) ->
     let cond' = xf_expr xf_ctx cond in
-      if is_secret cond' then
+      if is_expr_secret cond' then
         let vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
         let tname = mkpos new_temp_var () in
         let mdec = BaseDec(tname, vt, cond') in
@@ -260,6 +231,12 @@ and xf_stm' xf_ctx p = function
     let rval = mkpos "__rval" in
     let rval' = mkpos (Variable rval, rt.data) in
     let xfe' = ctx_select(e',rval') in
+
+    let xfeml = expr_to_ml xfe' in
+    let BaseET(_,rml) = rt.data in
+      if not (xfeml <$ rml) then
+        (*raise @@ *)cwarn(Printf.sprintf "cannot return a %s expression from a %s function" (ps_label xfeml) (ps_label rml), e'.pos);
+
     let rassign = BaseAssign(rval,xfe') in
     let should_transform = (List.length xf_ctx.ms > 0) in
       [ BaseAssign(rval,xfe');

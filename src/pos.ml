@@ -27,3 +27,8 @@ let pos_string { file=f; line=l; lpos=lp; rpos=rp } =
 
 let unpack {data} = data
 let posmap fn = fun pa -> { pa with data=(fn pa.data) }
+
+let wrap f pa = { pa with data=f pa.pos pa.data }
+let xwrap f pa = f pa.pos pa.data
+
+let rebind f pa = { pa with data=f pa }
