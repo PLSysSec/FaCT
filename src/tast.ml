@@ -144,7 +144,7 @@ and function_decs = function_dec list
 [@@deriving show]
 
 and fact_module =
-  | Module of function_dec Env.env * function_decs
+  | Module of (function_dec * bool ref) Env.env * function_decs
 [@@deriving show]
 
 (* Used to parse a top level value in the REPL *)

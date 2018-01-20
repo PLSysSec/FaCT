@@ -1,7 +1,6 @@
 open Tast
 open Llvm
 open Pos
-open Env
 (*open Ctverif*)
 
 exception CodegenError
@@ -15,7 +14,7 @@ let fake_pos = { file=""; line=0; lpos=0; rpos=0 }
 type fentry = { ret_ty:Tast.ret_type; args:Tast.params }
 [@@deriving show]
 
-type fenv = (string,fentry) Hashtbl.t [@printer pp_hashtbl]
+type fenv = (string,fentry) Hashtbl.t [@printer Env.pp_hashtbl]
 [@@deriving show]
 
 let has_fn = Hashtbl.mem
@@ -42,10 +41,10 @@ type codegen_ctx_record = {
   llcontext   : llcontext;
   llmodule    : llmodule;
   builder     : llbuilder;
-  venv        : llvalue env;
+  venv        : llvalue Env.env;
   fenv        : fenv;
-  tenv        : array_type env;
-  vtenv       : variable_type env;
+  tenv        : array_type Env.env;
+  vtenv       : variable_type Env.env;
   verify_llvm : bool;
 }
 
@@ -124,7 +123,7 @@ let param_to_type cg_ctx = function
         | LIntLiteral s ->
           pointer_type(array_type (bt_to_llvm_ty cg_ctx bt.data) s)
         | LDynamic _ ->
-          Hashtbl.add (get_vtbl cg_ctx.tenv) var_name.data ty;
+          Hashtbl.add (Env.get_vtbl cg_ctx.tenv) var_name.data ty;
           pointer_type (bt_to_llvm_ty cg_ctx bt.data)
     end
 
@@ -198,13 +197,13 @@ let allocate_args cg_ctx args f =
     match var_type.data with
       | RefVT (bt,ml,{data=Mut}) ->
         let name = make_name var_name.data ml in
-        add_var cg_ctx.venv var_name ll_arg;
+        Env.add_var cg_ctx.venv var_name ll_arg;
         set_value_name name ll_arg
       | RefVT (bt,ml,{data=Const}) ->
         let ty = param_to_type cg_ctx arg in
         let name = make_name var_name.data ml in
         let alloca = build_alloca ty name cg_ctx.builder in
-        add_var cg_ctx.venv var_name alloca;
+        Env.add_var cg_ctx.venv var_name alloca;
         set_value_name name ll_arg;
         build_store ll_arg alloca cg_ctx.builder |> ignore
       (*| ArrayVT({data=ArrayAT(bt,{data=LIntLiteral(s)})},_,_) ->
@@ -220,13 +219,13 @@ let allocate_args cg_ctx args f =
         let ty = pointer_type(bt_to_llvm_ty cg_ctx bt.data) in
         let name = make_name "arrarg" ml in
         let alloca = build_alloca ty name cg_ctx.builder in
-        add_var cg_ctx.venv var_name alloca;
+        Env.add_var cg_ctx.venv var_name alloca;
         set_value_name name ll_arg;
         build_store ll_arg alloca cg_ctx.builder |> ignore in
 
     (*let llvm_ty = param_to_type cg_ctx arg in
     let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in*)
-    add_var cg_ctx.vtenv var_name var_type
+    Env.add_var cg_ctx.vtenv var_name var_type
   in
   let ll_args = Array.to_list (params f) in
   List.iter2 allocate_arg args ll_args
@@ -245,8 +244,8 @@ let rec allocate_stack cg_ctx stms =
       let llvm_ty = vt_to_llvm_ty cg_ctx var_type.data in
       let name = make_name_vt var_name.data var_type.data in
       let alloca = build_alloca llvm_ty name cg_ctx.builder in
-      add_var cg_ctx.venv var_name alloca;
-      add_var cg_ctx.vtenv var_name var_type
+      Env.add_var cg_ctx.venv var_name alloca;
+      Env.add_var cg_ctx.vtenv var_name var_type
     | {data=ArrayDec(var_name,var_type,expr)} -> ()
       (*let llvm_ty = vt_to_llvm_ty cg_ctx.llcontext var_type.data in*)
       (* TODO: I think this will fail. I think this will just allocate a
@@ -274,7 +273,7 @@ let rec allocate_stack cg_ctx stms =
       (* TODO: Fix the scoping here. This will force us to use a different
          var name for the loop iterator for each for loop per function. We
          probably want to be able to reuse this?? *)
-      add_var cg_ctx.venv var_name alloca;
+      Env.add_var cg_ctx.venv var_name alloca;
       allocate_stack cg_ctx stms
     | {data=Return(expr)} -> allocate_inject expr
     | {data=VoidFnCall _} -> ()
@@ -368,7 +367,7 @@ let rec codegen_arg cg_ctx arg ty =
     | ArrayView _,_ -> true
     | ArrayVar var_name,_ ->
       let some_arg =
-        try Some(find_var cg_ctx.tenv var_name) with
+        try Some(Env.find_var cg_ctx.tenv var_name) with
           | _ -> None in
       begin
       match some_arg with
@@ -409,14 +408,14 @@ let rec codegen_arg cg_ctx arg ty =
                   let arr',_ = codegen_array_expr cg_ctx name arr.data in
                   let ll_ty = bt_to_llvm_ty cg_ctx bt.data in
                   let name = make_name "arrtoptr" ml in
-                  build_bitcast arr' (pointer_type ll_ty) name cg_ctx.builder
+                    build_bitcast arr' (pointer_type ll_ty) name cg_ctx.builder
             end in
             (*remove_var cg_ctx.tenv name;*)
             arr
           | _-> raise CodegenError
       end;
     | ByRef r ->
-      let var = find_var cg_ctx.venv r in
+      let var = Env.find_var cg_ctx.venv r in
       match vt with
         | RefVT(_,ml,{data=Const})
         | ArrayVT(_,ml,{data=Const}) ->
@@ -435,13 +434,13 @@ and codegen_expr cg_ctx = function
              result? This would be a sanity check. Or maybe even better, we should cast
              the result to ty. This should pass the typechecker so it should be safe no matter
              what.*)
-    let store = find_var cg_ctx.venv var_name in
+    let store = Env.find_var cg_ctx.venv var_name in
     build_load store (make_name_et var_name.data ty) cg_ctx.builder
   | ArrayGet(var_name,expr), ty ->
-    let arr = find_var cg_ctx.venv var_name in
+    let arr = Env.find_var cg_ctx.venv var_name in
     let index = codegen_expr cg_ctx expr.data in
     let some_arg =
-      try Some(find_var cg_ctx.tenv var_name) with
+      try Some(Env.find_var cg_ctx.tenv var_name) with
         | _ -> None in
     let indices,ptr = match some_arg with
       | None ->
@@ -490,7 +489,10 @@ and codegen_expr cg_ctx = function
     let name = make_name_et "calltmp" ty in
     build_call callee (Array.of_list args') name cg_ctx.builder
   | DebugFnCall(_,_),_ -> raise CodegenError
-  | Declassify(expr), ty -> codegen_expr cg_ctx expr.data
+  | Declassify(expr), ty ->
+    let e = codegen_expr cg_ctx expr.data in
+    let n = value_name e in
+      set_value_name ("_declassified_" ^ n) e; e
   | Select(expr1,expr2,expr3), ty ->
     let e1 = codegen_expr cg_ctx expr1.data in
     let e1' = build_is_not_null e1 (make_name_et "condtmp" ty) cg_ctx.builder in
@@ -501,7 +503,7 @@ and codegen_expr cg_ctx = function
   | Inject(var_name,stms), ty ->
     let ret_ty = None in
     ignore(List.map (codegen_stm cg_ctx ret_ty) stms);
-    let store = find_var cg_ctx.venv var_name in
+    let store = Env.find_var cg_ctx.venv var_name in
     build_load store (make_name_et var_name.data ty) cg_ctx.builder
 
 and extend_to ctx builder signed dest et v =
@@ -533,7 +535,7 @@ and vt_to_bt = function
 
 and codegen_array_expr cg_ctx arr_name = function
   (* XXX gary here too pls *)
-  | ArrayVar var_name,ty -> find_var cg_ctx.venv var_name,false
+  | ArrayVar var_name,ty -> Env.find_var cg_ctx.venv var_name,false
   | ArrayLit exprs,ty ->
     (* TODO: This needs optimization. We want this array to be global if
              all exprs are known at compile time. Side note -- this is
@@ -571,14 +573,14 @@ and codegen_array_expr cg_ctx arr_name = function
     let ll_ty = expr_ty_to_llvm_ty cg_ctx ty in
     let name = make_name_et "copiedarray" ty in
     let alloca = build_alloca ll_ty name cg_ctx.builder in
-    let from = find_var cg_ctx.venv var_name in
+    let from = Env.find_var cg_ctx.venv var_name in
     let cpy_len = array_length ll_ty in
     let num_bytes = (byte_size_of_expr_ty ty) * cpy_len in
     let ll_cpy_len = (const_int (i64_type cg_ctx.llcontext) num_bytes) in
     let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
     let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
     let some_arg =
-      try Some(find_var cg_ctx.tenv var_name) with
+      try Some(Env.find_var cg_ctx.tenv var_name) with
         | _-> None in
     let source_val, source_ty = 
       begin
@@ -607,13 +609,13 @@ and codegen_array_expr cg_ctx arr_name = function
 
   | ArrayView(var_name, expr, lexpr),ty ->
     let index = codegen_expr cg_ctx expr.data in
-    let from = find_var cg_ctx.venv var_name in
+    let from = Env.find_var cg_ctx.venv var_name in
     let bt_at_of_et = function
       | ArrayET({data=ArrayAT(bt,_)} as at,_,_) -> bt,at
       | _ -> raise CodegenError
       in
     let some_arg =
-      try Some(find_var cg_ctx.tenv var_name) with
+      try Some(Env.find_var cg_ctx.tenv var_name) with
         | _-> None in
     let r = 
     begin
@@ -647,7 +649,7 @@ and codegen_array_expr cg_ctx arr_name = function
 
 and codegen_stm cg_ctx ret_ty = function
   | {data=BaseDec(var_name,var_type,expr)} ->
-    let v = find_var cg_ctx.venv var_name in
+    let v = Env.find_var cg_ctx.venv var_name in
     let expr' = codegen_ext cg_ctx (vt_to_llvm_ty cg_ctx var_type.data) expr in
     let s = build_store expr' v cg_ctx.builder in
     (*codegen_dec cg_ctx.verify_llvm var_type v cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;*)
@@ -674,21 +676,21 @@ and codegen_stm cg_ctx ret_ty = function
     codegen_dec cg_ctx.verify_llvm var_type alloca' cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;*)
     (*let zero = const_int (i32_type cg_ctx.llcontext) 0 in
     let ptr = build_gep alloca [| zero |] "arrptr" cg_ctx.builder in*)
-    add_var cg_ctx.venv var_name alloca;
-    add_var cg_ctx.vtenv var_name var_type;
+    Env.add_var cg_ctx.venv var_name alloca;
+    Env.add_var cg_ctx.vtenv var_name var_type;
     let bt,at = bt_at_of_et left_ty in
-    if add_to_type_env then add_var cg_ctx.tenv var_name at;
+    if add_to_type_env then Env.add_var cg_ctx.tenv var_name at;
     false
   | {data=BaseAssign(var_name,expr)} ->
-    let v = find_var cg_ctx.venv var_name in
-    let vt = find_var cg_ctx.vtenv var_name in
+    let v = Env.find_var cg_ctx.venv var_name in
+    let vt = Env.find_var cg_ctx.vtenv var_name in
     let vt' = vt_to_llvm_ty cg_ctx vt.data in
     let expr' = codegen_ext cg_ctx vt' expr in
     build_store expr' v cg_ctx.builder |> ignore;
     false
   | {data=ArrayAssign(var_name,array_index,expr)} ->
-    let v = find_var cg_ctx.venv var_name in
-    let vt = find_var cg_ctx.vtenv var_name in
+    let v = Env.find_var cg_ctx.venv var_name in
+    let vt = Env.find_var cg_ctx.vtenv var_name in
     let bt,ml = match vt.data with
       | ArrayVT({data=ArrayAT(bt,_)},ml,_) -> bt.data, ml
       | _ -> raise CodegenError in
@@ -697,7 +699,7 @@ and codegen_stm cg_ctx ret_ty = function
     let expr' = codegen_ext cg_ctx ll_ty expr in
     let zero = const_int (i32_type cg_ctx.llcontext) 0 in
     let some_arg =
-      try Some(find_var cg_ctx.tenv var_name) with
+      try Some(Env.find_var cg_ctx.tenv var_name) with
         | _-> None in
     let indices,ptr = match some_arg with
       | None -> [| zero; index |],v
@@ -761,7 +763,7 @@ and codegen_stm cg_ctx ret_ty = function
     let bb_check = append_block cg_ctx.llcontext "loop_check" parent_function in
     let bb_body = append_block cg_ctx.llcontext "loop_body" parent_function in
     let bb_end = append_block cg_ctx.llcontext "loop_end" parent_function in
-    let i = find_var cg_ctx.venv var_name in
+    let i = Env.find_var cg_ctx.venv var_name in
     let ml = make_ast fake_pos (Fixed Public) in
     let name_i = make_name var_name.data ml in
     set_value_name name_i i;

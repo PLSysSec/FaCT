@@ -17,7 +17,7 @@ type tc_ctx_record = {
   rp       : label' ref;
   pc       : label';
   venv     : (var_name * variable_type) Env.env;
-  fenv     : function_dec Env.env;
+  fenv     : (function_dec * bool ref) Env.env;
   add_stms : statement' list ref;
 }
 
@@ -318,30 +318,32 @@ and tc_expr tc_ctx = pfunction
       (TernOp(e1',e2',e3'), bty')
   | Ast.FnCall(f,args) ->
     let rpc = !(tc_ctx.rp) +$. tc_ctx.pc in
-    begin
-      match (Env.find_var tc_ctx.fenv f).data with
-        | (FunDec(_,Some rty,params,_)) ->
-          (* ensure no mut args lower than rp U pc *)
-          (* e.g. fcall with public mut arg in a block where pc is Secret *)
-          let earg_n = params_all_refs_above rpc params in
-            if earg_n >= 0 then
-              (let earg = List.nth args earg_n in
-                 raise @@ err(earg.pos));
-            let args' = tc_args ~xf_args:true tc_ctx p params args in
-              (FnCall(f,args'), rty.data)
-        | (CExtern(_,Some rty,params)) ->
-          (* ensure no mut args lower than rp U pc *)
-          (* e.g. fcall with public mut arg in a block where pc is Secret *)
-          let earg_n = params_all_refs_above rpc params in
-            if earg_n >= 0 then
-              (let earg = List.nth args earg_n in
-                 raise @@ err(earg.pos));
+    let (fdec,everhi) =  Env.find_var tc_ctx.fenv f in
+      if rpc = Secret then everhi := true;
+      begin
+        match fdec.data with
+          | (FunDec(_,Some rty,params,_)) ->
+            (* ensure no mut args lower than rp U pc *)
+            (* e.g. fcall with public mut arg in a block where pc is Secret *)
+            let earg_n = params_all_refs_above rpc params in
+              if earg_n >= 0 then
+                (let earg = List.nth args earg_n in
+                   raise @@ err(earg.pos));
+              let args' = tc_args ~xf_args:true tc_ctx p params args in
+                (FnCall(f,args'), rty.data)
+          | (CExtern(_,Some rty,params)) ->
+            (* ensure no mut args lower than rp U pc *)
+            (* e.g. fcall with public mut arg in a block where pc is Secret *)
+            let earg_n = params_all_refs_above rpc params in
+              if earg_n >= 0 then
+                (let earg = List.nth args earg_n in
+                   raise @@ err(earg.pos));
+              let args' = tc_args ~xf_args:false tc_ctx p params args in
+                (FnCall(f,args'), rty.data)
+          | (DebugFunDec(_,Some rty,params)) ->
             let args' = tc_args ~xf_args:false tc_ctx p params args in
-              (FnCall(f,args'), rty.data)
-        | (DebugFunDec(_,Some rty,params)) ->
-          let args' = tc_args ~xf_args:false tc_ctx p params args in
-            DebugFnCall(f,args'), rty.data
-    end
+              DebugFnCall(f,args'), rty.data
+      end
 
 (* returns ((Tast.array_expr', Tast.ArrayET), is_new_memory) *)
 and tc_arrayexpr' tc_ctx = xfunction
@@ -472,8 +474,10 @@ let rec tc_stm' tc_ctx = xfunction
 
   | Ast.VoidFnCall(f,args) ->
     let rpc = !(tc_ctx.rp) +$. tc_ctx.pc in
+    let (fdec,everhi) =  Env.find_var tc_ctx.fenv f in
+      if rpc = Secret then everhi := true;
       begin
-        match (Env.find_var tc_ctx.fenv f).data with
+        match fdec.data with
           | (FunDec(_,_,params,_)) ->
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
@@ -507,7 +511,9 @@ let rec tc_stm' tc_ctx = xfunction
 
   | Ast.VoidReturn ->
     (* TODO check that fn is indeed void *)
+    tc_ctx.rp := !(tc_ctx.rp) +$. tc_ctx.pc;
     [VoidReturn]
+
 and tc_stm tc_ctx pa =
   List.map
     (make_ast pa.pos)
@@ -589,10 +595,11 @@ let tc_fdec fenv = xfunction
   | Ast.FunDec(f,_,_,_)
   | Ast.CExtern(f,_,_) as fdec ->
     let fdec' = mkpos tc_fdec' p fenv fdec in
-      Env.add_var fenv f fdec';
+      Env.add_var fenv f (fdec', ref false);
       fdec'
 
 let tc_module (Ast.Module fdecs) =
-  let fenv = Debugfun.make_fenv () in
+  let dbgfenv = Debugfun.make_fenv () in
+  let fenv = Env.map (fun fdec -> (fdec, ref false)) dbgfenv in
   let ret = Module (fenv, List.map (tc_fdec fenv) fdecs) in
     ret

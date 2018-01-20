@@ -64,7 +64,7 @@ let texpr_to_fun (expr :Tast.top_level) (venv : (Tast.var_name * Tast.variable_t
 *)
 type type_envs = {
   type_venv: (Tast.var_name * Tast.variable_type) Env.env;
-  type_fenv: Tast.function_dec Env.env;
+  type_fenv: (Tast.function_dec * bool ref) Env.env;
   type_arrenv: Tast.array_type Env.env;
   type_vtenv: Tast.variable_type Env.env;
 }

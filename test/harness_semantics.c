@@ -3,54 +3,19 @@
 #include <stdint.h>
 #include "test_semantics.h"
 
-/*int get100();
-int mutateArray(int*,uint8_t);
-int mutateArray2(int*,int);
-int identity(int);
-int simpleIf(int);
-int mediumComplexIf(int);
-int mixedIf(int);
-int mixedIf2(int);
-int nestedIf(int);
-int simpleLoop();
-int loopAcc();
-int loopAssignArray(int*);
-int add(int, int);
-int add10And20();
-int addAll(int*);
-int multiply(int,int);
-int equal(int,int);
-int nequal(int,int);
-int lshift(int,int);
-int rshift(int,int);
-int gt(int,int);
-int gte(int,int);
-int lt(int,int);
-int lte(int,int);
-int neg(int);
-int xor(int,int);
-int prec(int);
-int opassign();
-int add5int8(int8_t);
-int complicatedAdd5(int);
-uint32_t add5uint32(uint32_t);
-uint16_t add5uint16(uint16_t);
-uint32_t add5uintUnify(uint16_t);
-*/
-
 void test_get(void) {
   TEST_ASSERT_EQUAL(100, get100());
 }
 
 void test_mutate_array(void) {
   int myarr[5] = {1,2,3,4,5};
-  TEST_ASSERT_EQUAL(44,mutateArray(myarr,1));
+  TEST_ASSERT_EQUAL(44,mutateArray(myarr));
 }
 
 void test_mutate_array2(void) {
   int myarr2[5] = {1,2,3,4,5};
   int i = 444;
-  TEST_ASSERT_EQUAL(444,mutateArray2(myarr2,i,1));
+  TEST_ASSERT_EQUAL(444,mutateArray2(myarr2,i));
 }
 
 void test_identity(void) {
@@ -107,7 +72,7 @@ void test_loop_acc(void) {
 
 void test_loop_assign(void) {
   uint32_t arr[5] = {0,0,0,0,0};
-  loopAssignArray(arr,1);
+  loopAssignArray(arr);
   for(int i = 0; i < 5; i++) {
     TEST_ASSERT_EQUAL(i,arr[i]);
   }
@@ -327,7 +292,7 @@ void test_arrgetDynamic4(void) {
 
 void test_mutateRef(void) {
   int a = 0;
-  mutateRef(&a,1);
+  mutateRef(&a);
   TEST_ASSERT_EQUAL(5, a);
 }
 
@@ -369,7 +334,7 @@ void test_paramArrViewAccessDyn(void) {
 
 void test_simpleArrayMutation(void) {
   int arr[5] = {1,2,3,4,5};
-  simpleArrayMutation(arr,5,1);
+  simpleArrayMutation(arr,5);
   TEST_ASSERT_EQUAL(2, arr[0]);
   TEST_ASSERT_EQUAL(4, arr[1]);
   TEST_ASSERT_EQUAL(6, arr[2]);
@@ -379,7 +344,7 @@ void test_simpleArrayMutation(void) {
 
 void test_complexArrayMutation(void) {
   int arr[5] = {1,2,3,4,5};
-  complexArrayMutation(arr,1);
+  complexArrayMutation(arr);
   TEST_ASSERT_EQUAL(2, arr[0]);
   TEST_ASSERT_EQUAL(4, arr[1]);
   TEST_ASSERT_EQUAL(6, arr[2]);
@@ -389,7 +354,7 @@ void test_complexArrayMutation(void) {
 
 void test_complexArrayViewMutation(void) {
   int arr[10] = {1,2,3,4,5,6,7,8,9,10};
-  complexArrayViewMutation(arr,1);
+  complexArrayViewMutation(arr);
   TEST_ASSERT_EQUAL(2, arr[0]);
   TEST_ASSERT_EQUAL(4, arr[1]);
   TEST_ASSERT_EQUAL(6, arr[2]);
@@ -404,13 +369,13 @@ void test_complexArrayViewMutation(void) {
 
 void test_complexArrayViewRead(void) {
   int arr[10] = {1,2,3,4,5,6,7,8,9,10};
-  TEST_ASSERT_EQUAL(1, complexArrayViewRead(arr,0,1));
+  TEST_ASSERT_EQUAL(1, complexArrayViewRead(arr,0));
 }
 
 void test_arrcopy(void) {
   int8_t arr[5] = {1,2,3,4,5};
   int8_t arr2[5];
-  simpleArrCopy(arr2,5,arr,1);
+  simpleArrCopy(arr2,5,arr);
   TEST_ASSERT_EQUAL(1, arr2[0]);
   TEST_ASSERT_EQUAL(2, arr2[1]);
   TEST_ASSERT_EQUAL(3, arr2[2]);
@@ -421,7 +386,7 @@ void test_arrcopy(void) {
 void test_arrcopy32(void) {
   int arr[5] = {1,2,3,4,5};
   int arr2[5];
-  simpleArrCopy32(arr2,5,arr,1);
+  simpleArrCopy32(arr2,5,arr);
   TEST_ASSERT_EQUAL(1, arr2[0]);
   TEST_ASSERT_EQUAL(2, arr2[1]);
   TEST_ASSERT_EQUAL(3, arr2[2]);
@@ -432,7 +397,7 @@ void test_arrcopy32(void) {
 void test_arrcopyStatic(void) {
   int8_t arr[5] = {1,2,3,4,5};
   int8_t arr2[5];
-  simpleArrCopyStatic(arr2,arr,1);
+  simpleArrCopyStatic(arr2,arr);
   TEST_ASSERT_EQUAL(1, arr2[0]);
   TEST_ASSERT_EQUAL(2, arr2[1]);
   TEST_ASSERT_EQUAL(3, arr2[2]);
@@ -443,7 +408,7 @@ void test_arrcopyStatic(void) {
 void test_arrcopyStatic32(void) {
   int arr[5] = {1,2,3,4,5};
   int arr2[5];
-  simpleArrCopyStatic32(arr2,arr,1);
+  simpleArrCopyStatic32(arr2,arr);
   TEST_ASSERT_EQUAL(1, arr2[0]);
   TEST_ASSERT_EQUAL(2, arr2[1]);
   TEST_ASSERT_EQUAL(3, arr2[2]);

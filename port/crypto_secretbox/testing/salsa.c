@@ -100,19 +100,19 @@ int main(void)
     memset(out_c, 0, 64);
     memset(out_fact, 0, 64);
     c_crypto_core_salsa(out_c, newin, key, NULL, 20);
-    fact_crypto_core_salsa20(out_fact, newin, key, 1);
+    fact_crypto_core_salsa20(out_fact, newin, key);
     compare_outputs(8);
 
     memset(out_c, 0, 64);
     memset(out_fact, 0, 64);
     c_crypto_core_salsa(out_c, nonce, key, NULL, 20);
-    fact_crypto_core_salsa20(out_fact, nonce, key, 1);
+    fact_crypto_core_salsa20(out_fact, nonce, key);
     compare_outputs(8);
 
     memset(out_c, 0, 64);
     memset(out_fact, 0, 64);
     c_crypto_core_hsalsa20(out_c, nonce, key, NULL);
-    fact_crypto_core_hsalsa20(out_fact, nonce, key, 1);
+    fact_crypto_core_hsalsa20(out_fact, nonce, key);
     compare_outputs(4);
 
     memcpy(subkey, out_c, 32);
@@ -120,7 +120,7 @@ int main(void)
     memset(out_c, 0, 64);
     memset(out_fact, 0, 64);
     c_stream_ref_xor_ic(out_c, in, BYTES_OF_INPUT, &nonce[16], 0, subkey);
-    fact_crypto_stream_salsa20_xor_ic(out_fact, BYTES_OF_INPUT, in, BYTES_OF_INPUT, &nonce[16], 0, subkey, 1);
+    fact_crypto_stream_salsa20_xor_ic(out_fact, BYTES_OF_INPUT, in, BYTES_OF_INPUT, &nonce[16], 0, subkey);
     compare_outputs(BYTES_OF_INPUT >> 3);
 
     return 0;

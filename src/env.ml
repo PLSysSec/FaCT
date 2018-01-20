@@ -39,6 +39,18 @@ let get_vtbl = function
   | TopEnv vtbl -> vtbl
   | SubEnv(vtbl,_) -> vtbl
 
+let rec map f = function
+  | TopEnv vtbl ->
+    let env' = new_env () in
+    let vtbl' = get_vtbl env' in
+      Hashtbl.iter (fun k v -> Hashtbl.add vtbl' k (f v)) vtbl;
+      env'
+  | SubEnv(vtbl,env) ->
+    let env' = sub_env (map f env) in
+    let vtbl' = get_vtbl env' in
+      Hashtbl.iter (fun k v -> Hashtbl.add vtbl' k (f v)) vtbl;
+      env'
+
 let add_var env v lt =
   let vtbl = get_vtbl env in
     if Hashtbl.mem vtbl v.data then raise (errRedefVar v);

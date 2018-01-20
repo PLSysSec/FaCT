@@ -114,6 +114,11 @@ let argtype_of venv = xfunction
     let b,ml = atype_out (mkpos aty) in
     mkpos ArrayVT(b,ml,mut)
 
+let fname_of = xfunction
+  | FunDec(fname,_,_,_)
+  | CExtern(fname,_,_)
+  | DebugFunDec(fname,_,_) -> fname
+
 
 (* Subtyping *)
 
@@ -295,9 +300,10 @@ let rec params_has_secret_refs = function
           (mut = Mut && label == Secret) || params_has_secret_refs params
     end
 
-let fdec_has_secret_refs = xfunction
-  | FunDec(_,_,params,_) -> params_has_secret_refs params
-  | CExtern(_,_,params) -> false
+let fdec_has_secret_refs (fdec,everhi) =
+  match fdec.data with
+    | FunDec(_,_,params,_) -> (params_has_secret_refs params) && !everhi
+    | CExtern(_,_,params) -> false
 
 
 (* Simple Manipulation *)

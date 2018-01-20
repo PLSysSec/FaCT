@@ -87,6 +87,7 @@ and label_of_instr pass instr =
   set_prefix "_secret_" Secret;
   set_prefix "_public_" Public;
   set_prefix "_unknown_" Unknown;
+  set_prefix "_declassified_" Public;
   match !prefix with
     | None -> Unknown
     | Some l -> l

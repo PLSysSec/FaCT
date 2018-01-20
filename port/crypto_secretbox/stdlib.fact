@@ -10,7 +10,7 @@ void _fact_memzero64(secret mut uint64[] buf) {
   }
 }
 
-public int32 _crypto_verify_16(secret uint8[16] x, secret uint8[16] y) {
+secret bool _crypto_verify_16(secret uint8[16] x, secret uint8[16] y) {
   for (uint32 i = 0 to 16) {
     if (x[i] != y[i]) {
       return false;

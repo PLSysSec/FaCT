@@ -231,7 +231,7 @@ void fact_poly1305_finish(
   state_final = false;
 }
 
-public int32 fact_crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna from poly1305_donna.c
+void fact_crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna from poly1305_donna.c
     public mut uint8[16] out,
     secret uint8[] m,
     secret uint8[32] key) {
@@ -245,5 +245,4 @@ public int32 fact_crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_do
   fact_poly1305_init(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, key);
   fact_poly1305_update(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, m);
   fact_poly1305_finish(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, ref out);
-  return 0;
 }

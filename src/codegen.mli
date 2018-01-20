@@ -1,5 +1,4 @@
 open Llvm
-open Env
 
 type fentry
 type fenv
@@ -7,20 +6,20 @@ type codegen_ctx_record = {
   llcontext   : llcontext;
   llmodule    : llmodule;
   builder     : llbuilder;
-  venv        : llvalue env;
+  venv        : llvalue Env.env;
   fenv        : fenv;
-  tenv        : Tast.array_type env;
-  vtenv       : Tast.variable_type env;
+  tenv        : Tast.array_type Env.env;
+  vtenv       : Tast.variable_type Env.env;
   verify_llvm : bool;
 }
 
 val mk_ctx : llcontext
           -> llmodule
           -> llbuilder
-          -> llvalue env
+          -> llvalue Env.env
           -> fenv
-          -> Tast.array_type env
-          -> Tast.variable_type env
+          -> Tast.array_type Env.env
+          -> Tast.variable_type Env.env
           -> bool
           -> codegen_ctx_record
 
