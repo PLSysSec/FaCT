@@ -1,0 +1,133 @@
+void ssl3_cbc_digest_record(
+    secret uint8[13] header,
+    secret uint8[] data,
+    // `data_plus_mac_plus_padding_size` is len data
+    secret uint64 data_plus_mac_size,
+    secret uint8[] mac_secret,
+    public bool is_sslv3) {
+  public uint32 MAX_HASH_BLOCK_SIZE = 128;
+  public uint32 SIZEOF_LARGEST_DIGEST_CTX = 256; // idk just picking some arbitrary number
+  public uint32 MAX_HASH_BIT_COUNT_BYTES = 16;
+  public uint32 EVP_MAX_MD_SIZE = 64;
+
+  // skipping the prequel stuff in the function since it doesn't really have any ct
+
+  public uint64 header_length = 13;
+  if (is_sslv3) {
+    header_length = mac_secret_length + sslv3_pad_length + 8 + 1 + 2;
+  }
+
+  secret uint64 variance_blocks = is_sslv3 ? 2 : 6;
+  secret uint64 length = data_plus_mac_plus_padding_size + header_length; // `len` in openssl but that's a keyword
+  secret uint64 max_mac_bytes = length - md_size - 1;
+  secret // `>> log_md_block_size` is `/ log_md_block_size` in openssl but we don't have division
+  secret uint64 num_blocks = (max_mac_bytes + 1 + md_length_size + md_block_size - 1) >> log_md_block_size;
+  secret uint64 num_starting_blocks = 0;
+  secret uint64 k = 0;
+  secret uint64 mac_end_offset = data_plus_mac_size + header_length - md_size;
+  secret uint64 c = mac_end_offset & (md_block_size - 1); // `% md_block_size`
+  secret uint64 index_a = mac_end_offset >> log_md_block_size;
+  secret uint64 index_b = (mac_end_offset + md_length_size) >> log_md_block_size;
+
+  if (num_blocks > variance_blocks + (is_sslv3 ? 1 : 0)) {
+    num_starting_blocks = num_lbocks - variance_blocks;
+    k = md_block_size * num_starting_blocks;
+  }
+
+  secret mut uint8[128] hmac_pad = arrzeros(128); // `MAX_HASH_BLOCK_SIZE`
+  secret mut uint8[128] first_block = arrzeros(128); // `MAX_HASH_BLOCK_SIZE`
+  /*aligned*/ secret mut uint8[256] md_state; // `sizeof(LARGEST_DIGEST_CTX)`
+
+  secret mut uint64 bits = 8 * mac_end_offset;
+  if (!is_sslv3) {
+    bits += 8 * md_block_size;
+    if (!ossl_assert(mac_secret_length <= MAX_HASH_BLOCK_SIZE))
+      return 0;
+    arrcopy(ref hmac_pad, mac_secret);
+    for (uint32 i = 0 to md_block_size) {
+      hmac_pad[i] ^= 0x36;
+    }
+    md_transform(ref md_state, hmac_pad);
+  }
+
+  secret uint8[16] length_bytes; // `MAX_HASH_BIT_COUNT_BYTES`
+
+  if (length_is_big_endian) {
+    length_bytes[md_length_size - 4] = (uint8)(bits >> 24);
+    length_bytes[md_length_size - 3] = (uint8)(bits >> 16);
+    length_bytes[md_length_size - 2] = (uint8)(bits >> 8);
+    length_bytes[md_length_size - 1] = (uint8)bits;
+  } else {
+    length_bytes[md_length_size - 5] = (uint8)(bits >> 24);
+    length_bytes[md_length_size - 6] = (uint8)(bits >> 16);
+    length_bytes[md_length_size - 7] = (uint8)(bits >> 8);
+    length_bytes[md_length_size - 8] = (uint8)bits;
+  }
+
+  if (k > 0) {
+    if (is_sslv3) {
+      public uint64 overhang = 0;
+
+      if (header_length <= md_block_size) {
+        /* "Should never happen */
+        return 0;
+      }
+      overhang = header_length - md_block_size;
+      md_transform(ref md_state, header);
+      arrcopy(ref first_block, arrview(header, md_block_size, overhang));
+      arrcopy(ref arrview(first_block, overhang, md_block_size - overhang),
+          arrview(data, 0, md_block_size - overhang));
+      md_transform(ref md_state, first_block);
+      for (uint32 i = 1 to (k >> log_md_block_size) - 1) {
+        md_transform(ref md_state, arrview(data, md_block_size * i - overhang));
+      }
+    } else {
+      arrcopy(ref first_block, header);
+      arrcopy(ref arrview(first_block, 13, md_block_size - 13),
+          arrview(data, md_block_size - 13));
+      md_transform(ref md_state, first_block);
+      for (uint32 i = 1 to k >> log_md_block_size) {
+        md_transform(ref md_state, arrview(data, md_block_size * i - 13));
+      }
+    }
+  }
+
+  secret uint8[64] mac_out = arrzeros(64); // `EVP_MAX_MD_SIZE`
+
+  for (uint32 i = num_starting_blocks to num_starting_blocks + variance_blocks + 1) {
+    secret uint8[MAX_HASH_BLOCK_SIZE] block;
+    secret bool is_block_a = (i == index_a)
+    secret bool is_block_b = (i == index_b)
+    for (uint32 j = 0 to md_block_size) {
+      secret uint8 b = 0;
+      if (k < header_length) {
+        b = header[k];
+      } else if (k < data_plus_mac_plus_padding_size + header_length) {
+        b = data[k - header_length];
+      }
+      k += 1;
+
+      secret bool is_past_c = is_block_a && (j == c);
+      secret bool is_past_cp1 = is_block_a && (j == c + 1);
+      b = is_past_c ? 0x80 : b;
+      if (is_past_cp1) {
+        b = 0;
+      }
+      if (is_block_b && (!is_block_a)) {
+        b = 0;
+      }
+      if (j >= md_block_size - md_length_size) {
+        b = is_block_b ? length_bytes[j - (md_block_size - md_length_size)] : b;
+      }
+      block[j] = b;
+    }
+
+    md_transform(ref md_state, block);
+    md_final_raw(ref md_state, block);
+    for (uint32 j = 0; j < md_size; j++) {
+      mac_out[j] |= is_block_b ? block[j] : 0;
+    }
+  }
+
+  // and the rest of this is non-ct stuff again
+}
