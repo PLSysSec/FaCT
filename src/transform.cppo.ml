@@ -236,7 +236,11 @@ and xf_stm' xf_ctx p = function
   | Return e ->
     xf_ctx.rp := !(xf_ctx.rp) +$. xf_ctx.pc;
     let rpc = !(xf_ctx.rp) +$. xf_ctx.pc in
-    let Some rt = xf_ctx.rt in
+    let rt =
+      begin match xf_ctx.rt with
+        | Some rt -> rt
+        | _ -> raise @@ cerr("cannot return value from void function", p)
+      end in
     let e' = xf_expr xf_ctx e in
     let rval = mkpos "__rval" in
     let rval' = mkpos (Variable rval, rt.data) in

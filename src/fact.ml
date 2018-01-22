@@ -47,6 +47,7 @@ let error_exit s =
 
 let runner prep args =
   try compile prep args with
+    | (Err.VariableNotDefined s)
     | (Err.InternalCompilerError s) ->
       begin match args.debug with
         | false -> ()

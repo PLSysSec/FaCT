@@ -228,10 +228,12 @@ statement:
     { mkpos (BaseAssign(x, mkpos (BinOp(op, mkposof(x) (Variable x), e)))) }
   | a=var_name i=brack(expr) ASSIGN e=expr SEMICOLON
     { mkpos (ArrayAssign(a, i, e)) }
+  | a=var_name i=brack(expr) op=binopeq e=expr SEMICOLON
+    { mkpos (ArrayAssign(a, i, mkpos (BinOp(op, mkposrange(a,i) (ArrayGet(a, i)), e)))) }
   | iff=if_clause (* takes care of else ifs and elses too! *)
     { iff }
-  | FOR LPAREN b=base_type i=var_name ASSIGN e1=expr TO e2=expr RPAREN stms=block
-    { mkpos (For(i, b, e1, e2, stms)) }
+  | a=FOR LPAREN b=base_type i=var_name ASSIGN e1=expr TO e2=expr z=RPAREN stms=block
+    { mkposrange(a,z) (For(i, b, e1, e2, stms)) }
   | fn=fun_name args=plist(arg) SEMICOLON
     { mkpos (VoidFnCall(fn, args)) }
   | RETURN e=expr SEMICOLON

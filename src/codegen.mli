@@ -1,5 +1,7 @@
 open Llvm
 
+exception CodegenError
+
 type fentry
 type fenv
 type codegen_ctx_record = {

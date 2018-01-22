@@ -452,7 +452,13 @@ let rec tc_stm' tc_ctx = xfunction
   | Ast.If(cond,thenstms,elsestms) ->
     let cond' = tc_expr tc_ctx cond in
     let {data=Fixed l} = expr_to_ml cond' in
-    (* TODO check that cond' is bool *)
+
+    (* check that labeled type of cond is <= secret bool *)
+    let condty = type_of cond' in
+    let ifty = mkpos BaseET(mkpos Bool, mkpos Fixed Secret) in
+      if not (condty <:$ ifty) then
+        raise @@ cerr("expression of type `" ^ ps_ety condty ^ "` cannot be used as a conditional", p);
+
     let pc' = tc_ctx.pc +$. l in
     let tc_ctx1 = { tc_ctx with pc=pc'; rp=ref !(tc_ctx.rp); venv=(Env.sub_env tc_ctx.venv) } in
     let tc_ctx2 = { tc_ctx with pc=pc'; rp=ref !(tc_ctx.rp); venv=(Env.sub_env tc_ctx.venv) } in
@@ -465,9 +471,19 @@ let rec tc_stm' tc_ctx = xfunction
     let ity' = bconv ity in
     let lo' = tc_expr tc_ctx lo in
     let hi' = tc_expr tc_ctx hi in
-    (* TODO check types and labels *)
-    let venv' = Env.sub_env tc_ctx.venv in
-    let i' = add_new_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const)) in
+
+    (* check that types are numbers and loop bounds are public *)
+    let lob,{data=Fixed lol} = expr_to_types lo' in
+    let hib,{data=Fixed hil} = expr_to_types hi' in
+      if not (is_int ity' && is_int lob && is_int hib) then
+        raise @@ cerr("loop bounds and iterator must have numeric types", p);
+      if not (lob <: ity' && hib <: ity') then
+        raise @@ cerr("loop iterator must be assignable from loop bounds", p);
+      if not (lol = Public && hil = Public) then
+        raise @@ cerr("loop bounds must be public", p);
+
+      let venv' = Env.sub_env tc_ctx.venv in
+      let i' = add_new_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const)) in
       let tc_ctx' = { tc_ctx with venv=venv' } in
       let stms' = tc_block tc_ctx' stms in
         [For(i',ity',lo',hi',stms')]

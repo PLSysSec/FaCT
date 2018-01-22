@@ -235,9 +235,18 @@ let allocate_args cg_ctx args f =
 (* NOTE(src): we really should find a way to get this directly from the tast venvs
    instead of descending through the AST again *)
 let rec allocate_stack cg_ctx stms =
-  let rec allocate_inject = function
-    | {data=(Inject(_,stms),_)} -> List.iter allocate_stack' stms
-    | _ -> ()
+  let rec allocate_inject {data=(expr,_)} =
+    match expr with
+      | ArrayGet(_,n) -> allocate_inject n
+      | IntCast(_,e) -> allocate_inject e
+      | UnOp(_,e) -> allocate_inject e
+      | BinOp(_,e1,e2) -> allocate_inject e1; allocate_inject e2
+      | TernOp(e1,e2,e3) -> allocate_inject e1; allocate_inject e2; allocate_inject e3
+      | Select(e1,e2,e3) -> allocate_inject e1; allocate_inject e2; allocate_inject e3
+      | FnCall(f,args) -> () (* XXX descend into the exprs in args *)
+      | Declassify e -> allocate_inject e
+      | Inject(_,stms) -> List.iter allocate_stack' stms
+      | _ -> ()
   and allocate_stack' = function
     | {data=BaseDec(var_name,var_type,expr)} ->
       allocate_inject expr;
