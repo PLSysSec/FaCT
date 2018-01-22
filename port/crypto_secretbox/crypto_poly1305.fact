@@ -118,7 +118,7 @@ void _poly1305_update(
       want = len m;
     }
 
-    for (uint32 i = 0 to want) {
+    for (uint64 i = 0 to want) {
       state_buffer[state_leftover + i] = m[i];
     }
     mindex += want;
