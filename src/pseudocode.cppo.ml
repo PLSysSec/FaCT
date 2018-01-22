@@ -144,10 +144,7 @@ and ps_expr' ps_ctx = function
       "%s <- %s" x.data
       (ps_block inc (Env.new_env(), stms))
   | _ -> "<expr>"
-(*and ps_expr ps_ctx {data=(e,_)} = ps_expr' ps_ctx e*)
-and ps_expr ps_ctx {data=(e,BaseET(_,ml))} =
-  let psl = if ml.data = Fixed Secret then "S" else "P" in
-    Printf.sprintf "%s:%s" psl (ps_expr' ps_ctx e)
+and ps_expr ps_ctx {data=(e,_)} = ps_expr' ps_ctx e
 
 and ps_aexpr' ps_ctx = function
   | ArrayLit es ->
