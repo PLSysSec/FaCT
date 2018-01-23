@@ -32,7 +32,7 @@ let prepare_compile out_file (in_files : string list) () =
     | Some f -> (in_files, normalize_out_file f, Filename.dirname f))
 
 let set_log_level debug =
-  Log.set_output stdout;
+  Log.set_output stderr;
   Log.color_on ();
   match debug with
     | true -> Log.set_log_level Log.DEBUG
@@ -55,7 +55,7 @@ let runner prep args =
           let backtrace = Printexc.get_backtrace () in
           let lines = Str.split (Str.regexp_string "\n") backtrace in
           let rlines = List.rev lines in
-          List.iter print_endline rlines end;
+          List.iter (fun s -> Printf.eprintf "%s\n" s) rlines end;
       error_exit s
 
 let test_graph () =
