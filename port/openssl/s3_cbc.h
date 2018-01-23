@@ -17,8 +17,8 @@ void _memcpy(
 
 /*secret*/
 uint8_t _crypto_verify_16(
-  /*secret*/ const uint8_t x[],
-  /*secret*/ const uint8_t y[]);
+  /*secret*/ const uint8_t x[16],
+  /*secret*/ const uint8_t y[16]);
 
 /*secret*/
 uint32_t _rotl32(
@@ -27,32 +27,34 @@ uint32_t _rotl32(
 
 /*secret*/
 uint64_t _load64_le(
-  /*secret*/ const uint8_t src[]);
+  /*secret*/ const uint8_t src[8]);
 
 /*secret*/
 uint32_t _load32_le(
-  /*secret*/ const uint8_t src[]);
+  /*secret*/ const uint8_t src[4]);
 
 void _store64_le(
-  /*secret*/ uint8_t dst[],
+  /*secret*/ uint8_t dst[8],
   /*secret*/ uint64_t w);
 
 void _store32_le(
-  /*secret*/ uint8_t dst[],
+  /*secret*/ uint8_t dst[4],
   /*secret*/ uint32_t w);
 
 
 
 
 
-void ssl3_cbc_digest_record(
+void _ssl3_cbc_digest_record(
+  /*secret*/ uint8_t md_state[256],
+  /*secret*/ uint8_t mac_out[64],
   /*public*/ uint64_t md_size,
   /*public*/ uint64_t md_block_size,
   /*public*/ uint64_t log_md_block_size,
   /*public*/ uint64_t sslv3_pad_length,
   /*public*/ uint64_t md_length_size,
   /*public*/ uint8_t length_is_big_endian,
-  /*secret*/ const uint8_t header[],
+  /*secret*/ const uint8_t header[13],
   /*secret*/ const uint8_t data[],
   /*public*/ uint32_t __data_len,
   /*secret*/ uint64_t data_plus_mac_size,
