@@ -56,18 +56,22 @@ let gh_rty = function
 let gh_param { data=Param(x,vty) } =
   "\n  " ^ gh_vty x.data vty
 
-let gh_fdec = xfunction
+let gh_fdec fenv = xfunction
   | FunDec(f,rt,params,_) ->
-    let paramdecs = String.concat "," @@ List.map gh_param params in
-      Printf.sprintf
-        "%s %s(%s);"
-        (gh_rty rt)
-        f.data
-        paramdecs
+    let _,everhi = Env.find_var fenv f in
+    if !everhi then
+      Printf.sprintf "/* %s is not an exportable function */" f.data
+    else
+      let paramdecs = String.concat "," @@ List.map gh_param params in
+        Printf.sprintf
+          "%s %s(%s);"
+          (gh_rty rt)
+          f.data
+          paramdecs
   | _ -> ""
 
 let gh_module (Module(fenv,fdecs)) =
-  String.concat "\n\n" @@ List.map gh_fdec fdecs
+  String.concat "\n\n" @@ List.map (gh_fdec fenv) fdecs
 
 let generate_header fname m =
   let header_name = fname

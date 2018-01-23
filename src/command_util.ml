@@ -155,6 +155,7 @@ let compile (in_files,out_file,out_dir) args =
   let ast = Ast.Module all_fdecs in
   output_ast args.ast_out out_file' ast;
   let tast' = Typecheck.tc_module ast in
+  generate_header args.gen_header out_file' tast';
   let tast = Transform_args.xf_module tast' in
   output_tast args.ast_out out_file' tast;
   Log.debug "Typecheck complete";
@@ -163,7 +164,6 @@ let compile (in_files,out_file,out_dir) args =
   let xftast = Transform_debug.xf_module args.mode xftast in
   output_xftast args.core_ir_out out_file' xftast;
   generate_pseudo args.pseudo_out out_file' xftast;
-  generate_header args.gen_header out_file' xftast;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let llvm_builder = Llvm.builder llvm_ctx in
