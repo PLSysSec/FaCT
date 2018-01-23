@@ -33,12 +33,19 @@ type xf_ctx_record = {
 }
 
 let is_var_secret xf_ctx x =
+  let rpc = !(xf_ctx.rp) +$. xf_ctx.pc in
   let _,vt = Env.find_var xf_ctx.venv x in
     match vt.data with
       | RefVT(_,ml,_)
       | ArrayVT(_,ml,_) ->
         let Fixed l = ml.data in
-          l = Secret
+          rpc = Secret && l = Secret
+
+let fdec_has_secret_refs p (fdec,everhi) =
+  match fdec.data with
+    | FunDec(_,_,params,_) -> (params_has_secret_refs params) && !everhi
+    | CExtern(_,_,params) when !everhi -> raise @@ cerr("cannot call C extern from secret context", p)
+    | _ -> false
 
 let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
 let a2bty { data=ArrayVT({data=ArrayAT(b,_)},ml,_) } = BaseET(b,ml)
@@ -137,7 +144,7 @@ and xf_expr' xf_ctx { data; pos=p } =
       | FnCall(f,args) ->
         let args' = List.map (xf_arg xf_ctx) args in
         let fdec = Env.find_var xf_ctx.fenv f in
-          if fdec_has_secret_refs fdec then
+          if fdec_has_secret_refs p fdec then
             let fctx = ctx in
               FnCall(f,args'@[mkpos ByValue fctx])
           else
@@ -227,15 +234,13 @@ and xf_stm' xf_ctx p = function
   | VoidFnCall(f,args) ->
     let args' = List.map (xf_arg xf_ctx) args in
     let fdec = Env.find_var xf_ctx.fenv f in
-      if fdec_has_secret_refs fdec then
+      if fdec_has_secret_refs p fdec then
         let fctx = ctx in
           [VoidFnCall(f,args'@[mkpos ByValue fctx])]
       else
         [VoidFnCall(f,args')]
   | DebugVoidFnCall _ as f -> [f]
   | Return e ->
-    xf_ctx.rp := !(xf_ctx.rp) +$. xf_ctx.pc;
-    let rpc = !(xf_ctx.rp) +$. xf_ctx.pc in
     let rt =
       begin match xf_ctx.rt with
         | Some rt -> rt
@@ -246,6 +251,8 @@ and xf_stm' xf_ctx p = function
     let rval' = mkpos (Variable rval, rt.data) in
     let BaseET(_,rml) = rt.data in
 
+    let rpc = !(xf_ctx.rp) +$. xf_ctx.pc in
+      xf_ctx.rp := rpc;
     let should_transform = (rpc = Secret) in
       if should_transform then
         let xfe' = ctx_select(e',rval') in

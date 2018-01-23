@@ -300,11 +300,6 @@ let rec params_has_secret_refs = function
           (mut = Mut && label == Secret) || params_has_secret_refs params
     end
 
-let fdec_has_secret_refs (fdec,everhi) =
-  match fdec.data with
-    | FunDec(_,_,params,_) -> (params_has_secret_refs params) && !everhi
-    | CExtern(_,_,params) -> false
-
 
 (* Simple Manipulation *)
 
