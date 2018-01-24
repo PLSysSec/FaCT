@@ -45,15 +45,25 @@ void _store32_le(
 
 
 
-void _ssl3_cbc_digest_record(
-  /*secret*/ uint8_t md_state[256],
+
+
+
+
+
+
+
+
+void __ssl3_cbc_digest_record(
+  /*secret*/ uint8_t md_state[216],
   /*secret*/ uint8_t mac_out[64],
+  /*secret*/ uint8_t hmac_pad[128],
   /*public*/ uint64_t md_size,
   /*public*/ uint64_t md_block_size,
   /*public*/ uint64_t log_md_block_size,
   /*public*/ uint64_t sslv3_pad_length,
   /*public*/ uint64_t md_length_size,
   /*public*/ uint8_t length_is_big_endian,
+  /*public*/ int32_t sha_type,
   /*secret*/ const uint8_t header[13],
   /*secret*/ const uint8_t data[],
   /*public*/ uint32_t __data_len,

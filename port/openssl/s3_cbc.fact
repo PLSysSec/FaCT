@@ -1,15 +1,22 @@
-extern void _md_transform(secret mut uint8[256] ctx, secret uint8[] in); // `md_transform`
-extern void _md_final_raw(secret mut uint8[256] ctx, secret uint8[] in); // `md_final_raw`
+extern void _md_transform(public int32 sha_type, secret mut uint8[216] ctx, secret uint8[] in); // `md_transform`
+extern void _md_final_raw(public int32 sha_type, secret mut uint8[216] ctx, secret uint8[] in); // `md_final_raw`
 
-void _ssl3_cbc_digest_record(
-    secret mut uint8[256] md_state,
+extern void _print(secret uint64 bits);
+extern void _prints(secret uint64 bits);
+extern void _println();
+extern void _printx(secret uint8 b);
+
+void __ssl3_cbc_digest_record(
+    secret mut uint8[216] md_state,
     secret mut uint8[64] mac_out,
+    secret mut uint8[128] hmac_pad, // `MAX_HASH_BLOCK_SIZE`
     public uint64 md_size,
     public uint64 md_block_size,
     public uint64 log_md_block_size,
     public uint64 sslv3_pad_length,
     public uint64 md_length_size,
     public bool length_is_big_endian,
+    public int32 sha_type,
     /* ~~~ */
     secret uint8[13] header,
     secret uint8[] data,
@@ -18,7 +25,7 @@ void _ssl3_cbc_digest_record(
     secret uint8[] mac_secret,
     public bool is_sslv3) {
   public uint32 MAX_HASH_BLOCK_SIZE = 128;
-  public uint32 SIZEOF_LARGEST_DIGEST_CTX = 256; // idk just picking some arbitrary number
+  public uint32 SIZEOF_LARGEST_DIGEST_CTX = 216; // idk just picking some arbitrary number
   public uint32 MAX_HASH_BIT_COUNT_BYTES = 16;
   public uint32 EVP_MAX_MD_SIZE = 64;
 
@@ -46,7 +53,6 @@ void _ssl3_cbc_digest_record(
     k = md_block_size * num_starting_blocks;
   }
 
-  secret mut uint8[128] hmac_pad = arrzeros(128); // `MAX_HASH_BLOCK_SIZE`
   secret mut uint8[128] first_block = arrzeros(128); // `MAX_HASH_BLOCK_SIZE`
 
   secret mut uint64 bits = 8 * mac_end_offset;
@@ -59,7 +65,7 @@ void _ssl3_cbc_digest_record(
     for (uint64 i = 0 to md_block_size) {
       hmac_pad[i] ^= 0x36;
     }
-    _md_transform(ref md_state, hmac_pad);
+    _md_transform(sha_type, ref md_state, hmac_pad);
   }
 
   secret mut uint8[16] length_bytes = arrzeros(16); // `MAX_HASH_BIT_COUNT_BYTES`
@@ -76,38 +82,12 @@ void _ssl3_cbc_digest_record(
     length_bytes[md_length_size - 8] = (uint8)bits;
   }
 
-  if (k > 0) {
-    if (is_sslv3) {
-      if (header_length <= md_block_size) {
-        /* "Should never happen */
-        return;
-      }
-      public uint64 overhang = header_length - md_block_size;
-      _md_transform(ref md_state, header);
-      _memcpy(ref first_block, arrview(header, md_block_size, overhang));
-      _memcpy(ref arrview(first_block, overhang, md_block_size - overhang),
-          arrview(data, 0, md_block_size - overhang));
-      _md_transform(ref md_state, first_block);
-      for (uint64 i = 1 to (k >> log_md_block_size) - 1) {
-        public uint64 pos = md_block_size * i - overhang;
-        _md_transform(ref md_state, arrview(data, pos, len data - pos));
-      }
-    } else {
-      _memcpy(ref first_block, header);
-      _memcpy(ref arrview(first_block, 13, md_block_size - 13),
-          arrview(data, 0, md_block_size - 13));
-      _md_transform(ref md_state, first_block);
-      for (uint64 i = 1 to k >> log_md_block_size) {
-        public uint64 pos = md_block_size * i - 13;
-        _md_transform(ref md_state, arrview(data, pos, len data - pos));
-      }
-    }
-  }
-
   for (uint64 i = num_starting_blocks to num_starting_blocks + variance_blocks + 1) {
     secret mut uint8[128] block = arrzeros(128); // `MAX_HASH_BLOCK_SIZE`
     secret bool is_block_a = (i == index_a);
     secret bool is_block_b = (i == index_b);
+      _print(i);
+      _print(num_starting_blocks + variance_blocks);
     for (uint64 j = 0 to md_block_size) {
       secret mut uint8 b = 0;
       if (k < header_length) {
@@ -117,8 +97,8 @@ void _ssl3_cbc_digest_record(
       }
       k += 1;
 
-      secret bool is_past_c = is_block_a && (j == c);
-      secret bool is_past_cp1 = is_block_a && (j == c + 1);
+      secret bool is_past_c = is_block_a && (j >= c);
+      secret bool is_past_cp1 = is_block_a && (j >= c + 1);
       b = is_past_c ? 0x80 : b;
       if (is_past_cp1) {
         b = 0;
@@ -132,12 +112,15 @@ void _ssl3_cbc_digest_record(
       block[j] = b;
     }
 
-    _md_transform(ref md_state, block);
-    _md_final_raw(ref md_state, block);
+    _md_transform(sha_type, ref md_state, block);
+    _md_final_raw(sha_type, ref md_state, block);
+
     for (uint64 j = 0 to md_size) {
       mac_out[j] |= is_block_b ? block[j] : 0;
+      _printx(mac_out[j]);
+      if ((j & 7) == 7) {
+        _println();
+      }
     }
   }
-
-  // and the rest of this is non-ct stuff again
 }
