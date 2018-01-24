@@ -28,6 +28,7 @@ let xf_params params =
 
 let xf_fdec = function
   | FunDec(fn,rt,params,block) -> FunDec(fn,rt,xf_params params,block)
+  | CExtern(fn,rt,params) -> CExtern(fn,rt,xf_params params)
   | fd -> fd
 
 
