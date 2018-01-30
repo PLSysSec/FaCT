@@ -67,6 +67,8 @@ let ps_binop = function
   | Ast.Plus       -> "+"
   | Ast.Minus      -> "-"
   | Ast.Multiply   -> "*"
+  | Ast.Divide     -> "/"
+  | Ast.Modulo     -> "%"
   | Ast.Equal      -> "=="
   | Ast.NEqual     -> "!="
   | Ast.GT         -> ">"

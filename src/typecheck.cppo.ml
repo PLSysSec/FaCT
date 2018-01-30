@@ -100,6 +100,8 @@ let tc_binop_check p op b1 b2 =
     | Ast.Plus
     | Ast.Minus
     | Ast.Multiply
+    | Ast.Divide
+    | Ast.Modulo
     | Ast.GT
     | Ast.GTE
     | Ast.LT
@@ -126,6 +128,8 @@ let tc_binop' p op e1 e2 =
               | Ast.Plus       -> make_nlit p (n + m)
               | Ast.Minus      -> make_nlit p (n - m)
               | Ast.Multiply   -> make_nlit p (n * m)
+              | Ast.Divide     -> make_nlit p (n / m)
+              | Ast.Modulo     -> make_nlit p (n mod m)
               | Ast.BitwiseOr  -> make_nlit p (n lor m)
               | Ast.BitwiseXor -> make_nlit p (n lxor m)
               | Ast.BitwiseAnd -> make_nlit p (n land m)
@@ -149,6 +153,13 @@ let tc_binop' p op e1 e2 =
             | Ast.BitwiseXor
             | Ast.LogicalAnd
             | Ast.LogicalOr -> join_bt p b1 b2
+
+            | Ast.Divide
+            | Ast.Modulo ->
+              if (ml1.data = Fixed Secret) or (ml2.data = Fixed Secret) then
+                raise @@ err(p)
+              else
+                join_bt p b1 b2
 
             | Ast.BitwiseAnd -> min_bt p b1 b2
 

@@ -88,9 +88,13 @@ rule token = parse
   | '+'            { PLUS }
   | '-'            { MINUS }
   | '*'            { TIMES }
+  | '/'            { DIVIDE }
+  | '%'            { MODULO }
   | "+="           { PLUSEQ }
   | "-="           { MINUSEQ }
   | "*="           { TIMESEQ }
+  | "/="           { DIVIDEEQ }
+  | "%="           { MODULOEQ }
   | "=="           { EQUAL }
   | "!="           { NEQUAL }
   | ">"            { GREATERTHAN }

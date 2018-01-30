@@ -79,6 +79,8 @@ and binop =
   | Plus
   | Minus
   | Multiply
+  | Divide
+  | Modulo
   | Equal
   | NEqual
   | GT

@@ -23,12 +23,12 @@ let to_type { data=t; pos=p } =
 %token <bool> BOOL
 %token <string> STRING
 %token VOID
-%token PLUS MINUS TIMES
+%token PLUS MINUS TIMES DIVIDE MODULO
 %token EQUAL NEQUAL GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
 %token LOGNOT LOGAND LOGOR
 %token BITOR BITXOR BITAND LEFTSHIFT RIGHTSHIFT BITNOT
 %token ASSIGN
-%token PLUSEQ MINUSEQ TIMESEQ
+%token PLUSEQ MINUSEQ TIMESEQ DIVIDEEQ MODULOEQ
 %token LOGANDEQ LOGOREQ
 %token BITOREQ BITXOREQ BITANDEQ LEFTSHIFTEQ RIGHTSHIFTEQ
 %token QUESTION COLON
@@ -68,7 +68,7 @@ let to_type { data=t; pos=p } =
 %left GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
 %left LEFTSHIFT RIGHTSHIFT
 %left PLUS MINUS
-%left TIMES
+%left TIMES DIVIDE MODULO
 %nonassoc UNARYOP
 
 (* Preprocessor shenanigans *)
@@ -128,6 +128,8 @@ unop:
   | PLUS { Plus }
   | MINUS { Minus }
   | TIMES { Multiply }
+  | DIVIDE { Divide }
+  | MODULO { Modulo }
   | EQUAL { Equal }
   | NEQUAL { NEqual }
   | GREATERTHAN { GT }
@@ -146,6 +148,8 @@ unop:
   | PLUSEQ { Plus }
   | MINUSEQ { Minus }
   | TIMESEQ { Multiply }
+  | DIVIDEEQ { Divide }
+  | MODULOEQ { Modulo }
   | LOGANDEQ { LogicalAnd }
   | LOGOREQ { LogicalOr }
   | BITOREQ { BitwiseOr }

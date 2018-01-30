@@ -311,6 +311,10 @@ let codegen_binop cg_ctx op e1 e2 ty ml b =
       | Ast.Plus -> build_add e1 e2 (make_name "addtmp" ml) b
       | Ast.Minus -> build_sub e1 e2 (make_name "subtmp" ml) b
       | Ast.Multiply -> build_mul e1 e2 (make_name "multmp" ml) b
+      | Ast.Divide when is_signed ty -> build_sdiv e1 e2 (make_name "sdivtmp" ml) b
+      | Ast.Divide -> build_udiv e1 e2 (make_name "udivtmp" ml) b
+      | Ast.Modulo when is_signed ty -> build_srem e1 e2 (make_name "sremtmp" ml) b
+      | Ast.Modulo -> build_urem e1 e2 (make_name "uremtmp" ml) b
       | Ast.Equal -> build_icmp Icmp.Eq e1 e2 (make_name "eqtmp" ml) b
       | Ast.NEqual -> build_icmp Icmp.Ne e1 e2 (make_name "neqtmp" ml) b
       | Ast.GT -> build_icmp Icmp.Ugt e1 e2 (make_name "gttmp" ml) b
