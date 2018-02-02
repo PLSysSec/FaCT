@@ -52,14 +52,14 @@ void wrapper() {
   }
 
   memset(out_fact, 0, 64);
-  fact_crypto_core_salsa20(out_fact, newin, key, 1);
+  fact_crypto_core_salsa20(out_fact, newin, key);
   memset(out_fact, 0, 64);
-  fact_crypto_core_salsa20(out_fact, nonce, key, 1);
+  fact_crypto_core_salsa20(out_fact, nonce, key);
   memset(out_fact, 0, 64);
-  fact_crypto_core_hsalsa20(out_fact, nonce, key, 1);
+  fact_crypto_core_hsalsa20(out_fact, nonce, key);
   memcpy(subkey, out_fact, 32);
   memset(out_fact, 0, 64);
-  fact_crypto_stream_salsa20_xor_ic(out_fact, BYTES_OF_INPUT, in, BYTES_OF_INPUT, &nonce[16], 0, subkey, 1);
+  fact_crypto_stream_salsa20_xor_ic(out_fact, BYTES_OF_INPUT, in, BYTES_OF_INPUT, &nonce[16], 0, subkey);
 }
 
 int main() {

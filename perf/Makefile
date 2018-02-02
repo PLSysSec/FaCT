@@ -9,7 +9,7 @@ runner: cond_sel_fact0.bin cond_sel_c0.bin cond_sel_fact1.bin cond_sel_fact2.bin
 	python run.py
 
 benchmark.o: benchmark.c
-	clang -c -O0 -o $@ $<
+	clang -c -O2 -o $@ $<
 
 # START CONDITIONAL SELECT
 cond_sel_fact0.o: cond_sel.fact
@@ -42,13 +42,16 @@ cond_sel_impl1.o: cond_sel_impl.c
 cond_sel_impl2.o: cond_sel_impl.c
 	clang -c -O2 -o $@ $<
 
-cond_sel_fact0.bin: benchmark.o cond_sel_fact0.o cond_sel_fact.o
+cond_sel.o: cond_sel.c
+	clang -c -O2 -o $@ $<
+
+cond_sel_fact0.bin: benchmark.o cond_sel_fact0.o cond_sel.o
 	clang -o $@ $^
 
-cond_sel_fact1.bin: benchmark.o cond_sel_fact1.o cond_sel_fact.o
+cond_sel_fact1.bin: benchmark.o cond_sel_fact1.o cond_sel.o
 	clang -o $@ $^
 
-cond_sel_fact2.bin: benchmark.o cond_sel_fact2.o cond_sel_fact.o
+cond_sel_fact2.bin: benchmark.o cond_sel_fact2.o cond_sel.o
 	clang -o $@ $^
 
 cond_sel_c0.bin: benchmark.o cond_sel_c0.o cond_sel_impl0.o
@@ -94,22 +97,25 @@ salsa_wrapper1.o: salsa_wrapper.c
 salsa_wrapper2.o: salsa_wrapper.c
 	clang -c -O2 -o $@ $<
 
+salsa_wrapper_fact.o: salsa_wrapper_fact.c
+	clang -c -O2 -o $@ $<
+
 salsa_fact0.bin: benchmark.o salsa_fact0.o salsa_wrapper_fact.o
-	clang -o $@ $^
+	clang -O0 -o $@ $^
 
 salsa_fact1.bin: benchmark.o salsa_fact1.o salsa_wrapper_fact.o
-	clang -o $@ $^
+	clang -O0 -o $@ $^
 
 salsa_fact2.bin: benchmark.o salsa_fact2.o salsa_wrapper_fact.o
-	clang -o $@ $^
+	clang -O0 -o $@ $^
 
 salsa_c0.bin: benchmark.o salsa_wrapper0.o c_salsa0.o
-	clang -o $@ $^
+	clang -O0 -o $@ $^
 
 salsa_c1.bin: benchmark.o salsa_wrapper1.o c_salsa1.o
-	clang -o $@ $^
+	clang -O0 -o $@ $^
 
 salsa_c2.bin: benchmark.o salsa_wrapper2.o c_salsa2.o
-	clang -o $@ $^
+	clang -O0 -o $@ $^
 
 # END SALSA
