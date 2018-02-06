@@ -1,6 +1,6 @@
 FROM ubuntu:16.04
 RUN apt-get -y update && \
-    apt-get -y install sudo ocaml llvm-3.8 opam m4 pkg-config
+    apt-get -y install sudo ocaml llvm-3.8 opam m4 pkg-config clang-3.8 clang llvm
 
 ####################################################
 # from https://gist.github.com/renzok/29c9e5744f1dffa392cf
@@ -25,6 +25,7 @@ ENTRYPOINT ["/user-mapping.sh"]
 USER ${USER}
 RUN mkdir /home/docker/FaCT && cd /home/docker/FaCT && \
     opam init --compiler=4.03.0 && \
-    opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir oasis ppx_deriving 
+    opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir oasis ppx_deriving ANSITerminal ocamlgraph
 
 USER root
+

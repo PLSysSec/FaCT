@@ -24,6 +24,12 @@ USER_HOME=${array[4]}
 sed -i -e "s/^${USER}:\([^:]*\):[0-9]*:[0-9]*/${USER}:\1:${USER_ID}:${USER_GID}/"  /etc/passwd
 sed -i -e "s/^${USER}:\([^:]*\):[0-9]*/${USER}:\1:${USER_GID}/"  /etc/group
 
+# for whatever reason recursively chowning the .opam directory takes forever; this is janky, but gets the job done
+cd /home/docker/
+cp -r .opam/ .opam-new
+rm -r .opam
+mv .opam-new/ .opam/
 chown -R ${USER_ID}:${USER_GID} ${USER_HOME}
 
 exec su - "${USER}"
+
