@@ -15,31 +15,17 @@ void _memcpy(
   /*secret*/ const uint8_t src[],
   /*public*/ uint32_t __src_len);
 
-/*secret*/
-uint8_t _crypto_verify_16(
-  /*secret*/ const uint8_t x[16],
-  /*secret*/ const uint8_t y[16]);
+/* _crypto_verify_16 is an inlined function */
 
-/*secret*/
-uint32_t _rotl32(
-  /*secret*/ uint32_t x,
-  /*public*/ int32_t b);
+/* _rotl32 is an inlined function */
 
-/*secret*/
-uint64_t _load64_le(
-  /*secret*/ const uint8_t src[8]);
+/* _load64_le is an inlined function */
 
-/*secret*/
-uint32_t _load32_le(
-  /*secret*/ const uint8_t src[4]);
+/* _load32_le is an inlined function */
 
-void _store64_le(
-  /*secret*/ uint8_t dst[8],
-  /*secret*/ uint64_t w);
+/* _store64_le is an inlined function */
 
-void _store32_le(
-  /*secret*/ uint8_t dst[4],
-  /*secret*/ uint32_t w);
+/* _store32_le is an inlined function */
 
 
 
