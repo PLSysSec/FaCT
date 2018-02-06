@@ -1,2 +1,3 @@
 *.bin
 perf.h
+salsa_fact*.h
