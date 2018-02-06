@@ -61,11 +61,12 @@ let gh_fdec fenv = xfunction
     let _,everhi = Env.find_var fenv f in
     if !everhi then
       Printf.sprintf "/* %s is not an exportable function */" f.data
+    else if ft.inline then
+      Printf.sprintf "/* %s is an inlined function */" f.data
     else
       let paramdecs = String.concat "," @@ List.map gh_param params in
         Printf.sprintf
-          "%s%s %s(%s);"
-          (if ft.inline then "inline " else "")
+          "%s %s(%s);"
           (gh_rty rt)
           f.data
           paramdecs

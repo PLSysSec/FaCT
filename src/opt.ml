@@ -171,6 +171,7 @@ let run_optimizations opt_level limit llmodule =
       Llvm_passmgr_builder.set_opt_level l pmb;
       let pm = Llvm.PassManager.create () in
       Llvm_passmgr_builder.populate_module_pass_manager pm pmb;
+      if l > 1 then add_always_inliner pm;
       begin match Llvm.PassManager.run_module llmodule pm with
         | true -> ()
         | false -> Log.info "Optimization pass had no effect..." end;
