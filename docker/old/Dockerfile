@@ -1,6 +1,6 @@
 FROM ubuntu:16.04
 RUN apt-get -y update && \
-    apt-get -y install sudo ocaml llvm-3.8 opam m4 pkg-config clang-3.8 clang llvm
+    apt-get -y install sudo ocaml llvm-3.8 opam m4 pkg-config clang-3.8 clang llvm ruby-full
 
 ####################################################
 # from https://gist.github.com/renzok/29c9e5744f1dffa392cf
