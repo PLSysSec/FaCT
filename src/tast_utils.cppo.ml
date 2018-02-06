@@ -152,6 +152,9 @@ let (<::) { data=ArrayAT(b1,lx1) } { data=ArrayAT(b2,lx2) } =
       | _ -> false in
     lxmatch && (b1 =: b2)
 
+let joinable_bt b1 b2 =
+  (b1 <: b2) or (b2 <: b1)
+
 let join_bt p { data=b1 } { data=b2 } =
   let b' =
     match b1,b2 with

@@ -103,21 +103,23 @@ let tc_binop_check p op b1 b2 =
     | Ast.Plus
     | Ast.Minus
     | Ast.Multiply
-    | Ast.Divide
-    | Ast.Modulo
-    | Ast.GT
-    | Ast.GTE
-    | Ast.LT
-    | Ast.LTE
     | Ast.BitwiseAnd
     | Ast.BitwiseOr
     | Ast.BitwiseXor
     | Ast.LeftShift
     | Ast.RightShift ->
-      if not (is_int b1) || not (is_int b2) then raise @@ err(p)
+      if not (is_int b1) || not (is_int b2) then raise @@ cerr("operands must be numeric", p)
+    | Ast.Divide
+    | Ast.Modulo
+    | Ast.GT
+    | Ast.GTE
+    | Ast.LT
+    | Ast.LTE ->
+      if not (is_int b1) || not (is_int b2) then raise @@ cerr("operands must be numeric", p);
+      if not (joinable_bt b1 b2) then raise @@ cerr("mismatched operands for binop", p)
     | Ast.LogicalAnd
     | Ast.LogicalOr ->
-      if not (is_bool b1) || not (is_bool b2) then raise @@ err(p)
+      if not (is_bool b1) || not (is_bool b2) then raise @@ cerr("operands must be boolean", p)
 
 let tc_binop' p op e1 e2 =
   let b1,ml1 = expr_to_types e1 in

@@ -292,7 +292,7 @@ let rec allocate_stack cg_ctx stms =
   let env,stms' = stms in
   ignore(List.map allocate_stack' stms')
 
-let codegen_binop cg_ctx op e1 e2 ty ml b =
+let codegen_binop cg_ctx op e1 e2 ty ety ml b =
   let e1_width = integer_bitwidth (type_of e1) in
   let e2_width = integer_bitwidth (type_of e2) in
   let e1,e2 =
@@ -312,15 +312,19 @@ let codegen_binop cg_ctx op e1 e2 ty ml b =
       | Ast.Minus -> build_sub e1 e2 (make_name "subtmp" ml) b
       | Ast.Multiply -> build_mul e1 e2 (make_name "multmp" ml) b
       | Ast.Divide when is_signed ty -> build_sdiv e1 e2 (make_name "sdivtmp" ml) b
-      | Ast.Divide -> build_udiv e1 e2 (make_name "udivtmp" ml) b
       | Ast.Modulo when is_signed ty -> build_srem e1 e2 (make_name "sremtmp" ml) b
+      | Ast.Divide -> build_udiv e1 e2 (make_name "udivtmp" ml) b
       | Ast.Modulo -> build_urem e1 e2 (make_name "uremtmp" ml) b
       | Ast.Equal -> build_icmp Icmp.Eq e1 e2 (make_name "eqtmp" ml) b
       | Ast.NEqual -> build_icmp Icmp.Ne e1 e2 (make_name "neqtmp" ml) b
-      | Ast.GT -> build_icmp Icmp.Ugt e1 e2 (make_name "gttmp" ml) b
-      | Ast.GTE -> build_icmp Icmp.Uge e1 e2 (make_name "gtetmp" ml) b
-      | Ast.LT -> build_icmp Icmp.Ult e1 e2 (make_name "lttmp" ml) b
-      | Ast.LTE -> build_icmp Icmp.Ule e1 e2 (make_name "ltetmp" ml) b
+      | Ast.GT when is_signed ety -> build_icmp Icmp.Sgt e1 e2 (make_name "sgttmp" ml) b
+      | Ast.GTE when is_signed ety -> build_icmp Icmp.Sge e1 e2 (make_name "sgtetmp" ml) b
+      | Ast.LT when is_signed ety -> build_icmp Icmp.Slt e1 e2 (make_name "slttmp" ml) b
+      | Ast.LTE when is_signed ety -> build_icmp Icmp.Sle e1 e2 (make_name "sltetmp" ml) b
+      | Ast.GT -> build_icmp Icmp.Ugt e1 e2 (make_name "ugttmp" ml) b
+      | Ast.GTE -> build_icmp Icmp.Uge e1 e2 (make_name "ugtetmp" ml) b
+      | Ast.LT -> build_icmp Icmp.Ult e1 e2 (make_name "ulttmp" ml) b
+      | Ast.LTE -> build_icmp Icmp.Ule e1 e2 (make_name "ultetmp" ml) b
       | Ast.LogicalAnd -> build_and e1 e2 (make_name "landtmp" ml) b
       | Ast.LogicalOr -> build_or e1 e2 (make_name "lortmp" ml) b
       | Ast.BitwiseAnd -> build_and e1 e2 (make_name "andtmp" ml) b
@@ -482,9 +486,14 @@ and codegen_expr cg_ctx = function
     let ty',ml = match ty with
       | BaseET(bt, ml) -> bt, ml
       | ArrayET _ -> raise CodegenError in
+    let b1 = Tast_utils.(expr_to_btype expr1) in
+    let b2 = Tast_utils.(expr_to_btype expr2) in
+      (* assigning ty' to ety is just a placeholder; it doesn't actually get used *)
+      (* I [scauligi] should probably be using an option type instead but I'm lazy and this is easier *)
+    let ety = Tast_utils.(if joinable_bt b1 b2 then join_bt expr1.pos b1 b2 else ty') in
     let e1 = codegen_expr cg_ctx expr1.data in
     let e2 = codegen_expr cg_ctx expr2.data in
-    codegen_binop cg_ctx op e1 e2 ty'.data ml cg_ctx.builder
+    codegen_binop cg_ctx op e1 e2 ty'.data ety.data ml cg_ctx.builder
   | TernOp(expr1,expr2,expr3), ty ->
     let e1 = codegen_expr cg_ctx expr1.data in
     let e1' = build_is_not_null e1 (make_name_et "condtmp" ty) cg_ctx.builder in
