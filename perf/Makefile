@@ -24,15 +24,6 @@ cond_sel_fact2.o: cond_sel.fact
 cond_sel.h: cond_sel_fact0.o
 	mv cond_sel_fact0.h $@
 
-cond_sel_c0.o: cond_sel.c
-	clang -c -O0 -o $@ $<
-
-cond_sel_c1.o: cond_sel.c
-	clang -c -O1 -o $@ $<
-
-cond_sel_c2.o: cond_sel.c
-	clang -c -O2 -o $@ $<
-
 cond_sel_impl0.o: cond_sel_impl.c
 	clang -c -O0 -o $@ $<
 
@@ -88,34 +79,25 @@ c_salsa1.o: ../port/crypto_secretbox/testing/c_salsa.c
 c_salsa2.o: ../port/crypto_secretbox/testing/c_salsa.c
 	clang -c -O2 -o $@ $<
 
-salsa_wrapper0.o: salsa_wrapper.c
-	clang -c -O0 -o $@ $<
-
-salsa_wrapper1.o: salsa_wrapper.c
-	clang -c -O1 -o $@ $<
-
-salsa_wrapper2.o: salsa_wrapper.c
+salsa_wrapper.o: salsa_wrapper.c
 	clang -c -O2 -o $@ $<
 
-salsa_wrapper_fact.o: salsa_wrapper_fact.c
-	clang -c -O2 -o $@ $<
-
-salsa_fact0.bin: benchmark.o salsa_fact0.o salsa_wrapper_fact.o
+salsa_fact0.bin: benchmark.o salsa_fact0.o salsa_wrapper.o
 	clang -O0 -o $@ $^
 
-salsa_fact1.bin: benchmark.o salsa_fact1.o salsa_wrapper_fact.o
+salsa_fact1.bin: benchmark.o salsa_fact1.o salsa_wrapper.o
 	clang -O0 -o $@ $^
 
-salsa_fact2.bin: benchmark.o salsa_fact2.o salsa_wrapper_fact.o
+salsa_fact2.bin: benchmark.o salsa_fact2.o salsa_wrapper.o
 	clang -O0 -o $@ $^
 
-salsa_c0.bin: benchmark.o salsa_wrapper0.o c_salsa0.o
+salsa_c0.bin: benchmark.o salsa_wrapper.o c_salsa0.o
 	clang -O0 -o $@ $^
 
-salsa_c1.bin: benchmark.o salsa_wrapper1.o c_salsa1.o
+salsa_c1.bin: benchmark.o salsa_wrapper.o c_salsa1.o
 	clang -O0 -o $@ $^
 
-salsa_c2.bin: benchmark.o salsa_wrapper2.o c_salsa2.o
+salsa_c2.bin: benchmark.o salsa_wrapper.o c_salsa2.o
 	clang -O0 -o $@ $^
 
 # END SALSA
