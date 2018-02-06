@@ -240,7 +240,7 @@ let ps_param { data=Param(x,vty) } =
   "\n    " ^ ps_vty vty ^ " " ^ x.data
 
 let ps_fdec = xfunction
-  | FunDec(f,rt,params,body) ->
+  | FunDec(f,ft,rt,params,body) ->
     let ps_ctx = { indent=0 } in
     let paramdecs = String.concat "," @@ List.map ps_param params in
       Printf.sprintf

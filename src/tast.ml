@@ -130,11 +130,12 @@ and param = param' pos_ast [@@deriving show]
 and params = param list [@@deriving show]
 
 and ret_type = expr_type option [@@deriving show]
+and fn_type = { inline : bool }
 
 and is_var_arg = bool
 
 and function_dec' =
-  | FunDec of fun_name * ret_type * params * block
+  | FunDec of fun_name * fn_type * ret_type * params * block
   | CExtern of fun_name * ret_type * params
   | DebugFunDec of fun_name * ret_type * params
 [@@deriving show]

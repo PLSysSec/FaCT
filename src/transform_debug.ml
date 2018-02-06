@@ -14,10 +14,10 @@ let xf_stm = function
 let xf_block (venv,stms) = venv, List.map xf_stm stms
 
 let xf_fdec mode = function
-  | FunDec(fn,rt,params,block) ->
+  | FunDec(fn,ft,rt,params,block) ->
     let venv,stms = xf_block block in
     let stms' = List.flatten stms in
-    FunDec(fn,rt,params,(venv,stms'))
+    FunDec(fn,ft,rt,params,(venv,stms'))
   | fd -> fd
 
 let xf_module mode mod' =

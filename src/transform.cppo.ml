@@ -43,7 +43,7 @@ let is_var_secret xf_ctx x =
 
 let fdec_has_secret_refs p (fdec,everhi) =
   match fdec.data with
-    | FunDec(_,_,params,_) -> (params_has_secret_refs params) && !everhi
+    | FunDec(_,_,_,params,_) -> (params_has_secret_refs params) && !everhi
     | CExtern(_,_,params) when !everhi -> raise @@ cerr("cannot call C extern from secret context", p)
     | _ -> false
 
@@ -289,7 +289,7 @@ and xf_block xf_ctx stms =
     (xf_ctx.venv, stms')
 
 let xf_fdec fenv everhi = pfunction
-    | FunDec(f,rt,params,block) ->
+    | FunDec(f,ft,rt,params,block) ->
       let (venv,stms) = block in
       let params' = if (params_has_secret_refs params) && !everhi
         then
@@ -318,9 +318,9 @@ let xf_fdec fenv everhi = pfunction
                 let rval_dec = mkpos BaseDec(rval, mkpos RefVT(bty, l, mkpos Const), mkpos (def_val,et)) in
                 let ret = mkpos Return (mkpos (Variable(rval), et)) in
                 let stms'' = if !(xf_ctx.rp) = Secret then stms'@[ret] else stms' in
-                  FunDec(f,rt,params',(venv,rval_dec::stms''))
+                  FunDec(f,ft,rt,params',(venv,rval_dec::stms''))
               | None ->
-                FunDec(f,rt,params',(venv,stms'))
+                FunDec(f,ft,rt,params',(venv,stms'))
           end
     | CExtern _ as fdec -> fdec
 
