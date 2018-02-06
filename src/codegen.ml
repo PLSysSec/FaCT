@@ -885,13 +885,14 @@ and declare_prototype cg_ctx llmodule builder fenv params ret name =
   ft'
 
 let codegen_fun llcontext llmodule builder fenv verify_llvm = function
-  | { data=FunDec(name,ret,params,body) } ->
+  | { data=FunDec(name,funattrs,ret,params,body) } ->
     Log.info "Generating function, %s" name.data;
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
     let vtenv = Env.new_env () in
     let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm } in
     let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
+      if funattrs.inline then add_function_attr ft Alwaysinline;
     let bb = append_block llcontext "entry" ft in
     position_at_end bb builder;
     (*declare_ct_verif verify_llvm llcontext llmodule ASSUME;

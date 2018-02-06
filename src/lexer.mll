@@ -51,6 +51,7 @@ let keywords = [
   ("arrcopy",ARRCOPY);
   ("arrview",ARRVIEW);
   ("extern",EXTERN);
+  ("inline",INLINE);
 ]
 let _ = List.map add_keyword keywords
 }

@@ -62,6 +62,9 @@ let refvt_conv = pfunction
     RefVT(bconv b, mlconv l, mconv m)
   | Ast.ArrayVT _ -> raise @@ cerr("expected non-array, got array instead", p)
 
+let fntype_conv ft =
+  { inline=ft.Ast.inline }
+
 
 
 (* Actual typechecking *)
@@ -334,7 +337,7 @@ and tc_expr tc_ctx = pfunction
       if rpc = Secret then everhi := true;
       begin
         match fdec.data with
-          | (FunDec(_,Some rty,params,_)) ->
+          | (FunDec(_,_,Some rty,params,_)) ->
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
             let earg_n = params_all_refs_above rpc params in
@@ -506,7 +509,7 @@ let rec tc_stm' tc_ctx = xfunction
       if rpc = Secret then everhi := true;
       begin
         match fdec.data with
-          | (FunDec(_,_,params,_)) ->
+          | (FunDec(_,_,_,params,_)) ->
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
             let earg_n = params_all_refs_above rpc params in
@@ -572,7 +575,8 @@ let tc_param' xf_param = xfunction
 let tc_param xf_param pa = List.map (make_ast pa.pos) (tc_param' xf_param pa)
 
 let tc_fdec' fpos fenv = function
-  | Ast.FunDec(f,rt,params,stms) ->
+  | Ast.FunDec(f,ft,rt,params,stms) ->
+    let ft' = fntype_conv ft in
     let rt' =
       match rt with
         | Some rty -> Some(etype_conv rty)
@@ -605,7 +609,7 @@ let tc_fdec' fpos fenv = function
         then stms @ [make_ast fpos Ast.VoidReturn]
         else stms
       in
-        FunDec(f,rt',params',tc_block tc_ctx stms')
+        FunDec(f,ft',rt',params',tc_block tc_ctx stms')
   | Ast.CExtern(f,rt,params) ->
     let rt' =
       match rt with
@@ -620,7 +624,7 @@ let tc_fdec' fpos fenv = function
         params';
       CExtern(f,rt',params')
 let tc_fdec fenv = xfunction
-  | Ast.FunDec(f,_,_,_)
+  | Ast.FunDec(f,_,_,_,_)
   | Ast.CExtern(f,_,_) as fdec ->
     let fdec' = mkpos tc_fdec' p fenv fdec in
       Env.add_var fenv f (fdec', ref false);

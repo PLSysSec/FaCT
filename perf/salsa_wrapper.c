@@ -3,25 +3,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "salsa_fact.h"
 #include "benchmark.h"
 
 #define BYTES_OF_INPUT 64
-
-void
-c_crypto_core_salsa(unsigned char *out, const unsigned char *in,
-  const unsigned char *k, const unsigned char *c,
-  const int rounds);
-
-int
-c_crypto_core_hsalsa20(unsigned char *out,
-     const unsigned char *in,
-     const unsigned char *k,
-     const unsigned char *c);
-
-int
-c_stream_ref_xor_ic(unsigned char *c, const unsigned char *m,
-  unsigned long long mlen, const unsigned char *n, uint64_t ic,
-  const unsigned char *k);
 
 static unsigned char subkey[32];
 
@@ -34,7 +19,7 @@ static unsigned char nonce[24] = { 0x69, 0x69, 0x6e, 0xe9, 0x55, 0xb6, 0x2b, 0x7
     0xcd, 0x62, 0xbd, 0xa8, 0x75, 0xfc, 0x73, 0xd6,
     0x82, 0x19, 0xe0, 0x03, 0x6b, 0x7a, 0x0b, 0x37 };
 
-static unsigned char out_c[168];
+static unsigned char out[168];
 
 static unsigned char in[131] = {
   0xbe, 0x07, 0x5f, 0xc5, 0x3c, 0x81, 0xf2, 0xd5,
@@ -66,15 +51,15 @@ void wrapper() {
     newin[i] = 0;
   }
 
-  memset(out_c, 0, 64);
-  c_crypto_core_salsa(out_c, newin, key, NULL, 20);
-  memset(out_c, 0, 64);
-  c_crypto_core_salsa(out_c, nonce, key, NULL, 20);
-  memset(out_c, 0, 64);
-  c_crypto_core_hsalsa20(out_c, nonce, key, NULL);
-  memcpy(subkey, out_c, 32);
-  memset(out_c, 0, 64);
-  c_stream_ref_xor_ic(out_c, in, BYTES_OF_INPUT, &nonce[16], 0, subkey);
+  memset(out, 0, 64);
+  crypto_core_salsa20(out, newin, key);
+  memset(out, 0, 64);
+  crypto_core_salsa20(out, nonce, key);
+  memset(out, 0, 64);
+  crypto_core_hsalsa20(out, nonce, key);
+  memcpy(subkey, out, 32);
+  memset(out, 0, 64);
+  crypto_stream_salsa20_xor_ic(out, BYTES_OF_INPUT, in, BYTES_OF_INPUT, &nonce[16], 0, subkey);
 }
 
 int main() {

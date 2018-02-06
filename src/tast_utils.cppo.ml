@@ -115,7 +115,7 @@ let argtype_of venv = xfunction
     mkpos ArrayVT(b,ml,mut)
 
 let fname_of = xfunction
-  | FunDec(fname,_,_,_)
+  | FunDec(fname,_,_,_,_)
   | CExtern(fname,_,_)
   | DebugFunDec(fname,_,_) -> fname
 
