@@ -138,7 +138,12 @@ let bt_to_llvm_ty cg_ctx = function
   | Int  size when size <= 32 -> i32_type cg_ctx.llcontext
   | Int  size when size <= 64 -> i64_type cg_ctx.llcontext
   | Bool                      -> i1_type cg_ctx.llcontext (* TODO: Double check this*)
-  | Num(i,b)                  -> i32_type cg_ctx.llcontext (* TODO: Double check semantics for `Num` *)
+  | Num(i,s)                  ->
+    let rec numbits = function
+      | n when n >= -255 && n <= 256 -> 8
+      | n -> 8 + (numbits (n / 256))
+    in
+      integer_type cg_ctx.llcontext (numbits i)
   | String -> pointer_type (i8_type cg_ctx.llcontext)
 
 let is_dynamic_sized_array = function
