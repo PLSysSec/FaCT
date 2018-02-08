@@ -31,14 +31,17 @@ type args_record = {
 let run_command c args =
   let process = Lwt_process.exec (c,args) in
   let handler = function
-    | Unix.WEXITED s -> Lwt.return_unit
+    | Unix.WEXITED s ->
+      Log.debug "Command exited. Code %d" s;
+      Lwt.return s
     | Unix.WSIGNALED s ->
       Log.debug "Command signaled to stop. Code %d" s;
-      Lwt.return_unit
+      Lwt.return s
     | Unix.WSTOPPED s ->
       Log.debug "Error occured on command. Code %d" s;
-      Lwt.return_unit in
-  Lwt_main.run (process >>= handler)
+      Lwt.return s in
+  let ret_code = Lwt_main.run (process >>= handler) in
+    if ret_code != 0 then raise @@ InternalCompilerError("error: " ^ (String.concat " " (Array.to_list args))); ()
 
 let generate_out_file out_dir out_file = out_dir ^ "/" ^ out_file
 
@@ -48,7 +51,7 @@ let output_ast ast_out out_file ast =
     | true ->
       let ast_out_file = out_file ^ ".ast.ml" in
         Log.debug "Outputting AST to %s" ast_out_file;
-        Core.Std.Out_channel.write_all ast_out_file
+        Core.Out_channel.write_all ast_out_file
           ~data:((Ast.show_fact_module ast)^"\n")
 
 let output_tast ast_out out_file tast =
@@ -57,7 +60,7 @@ let output_tast ast_out out_file tast =
     | true ->
       let tast_out_file = out_file ^ ".tast.ml" in
         Log.debug "Outputting TAST to %s" tast_out_file;
-        Core.Std.Out_channel.write_all tast_out_file
+        Core.Out_channel.write_all tast_out_file
           ~data:((Tast.show_fact_module tast)^"\n")
 
 let output_xftast xftast_out out_file tast =
