@@ -17,8 +17,6 @@ void _memcpy(
 
 /* _crypto_verify_16 is an inlined function */
 
-/* _rotl32 is an inlined function */
-
 /* _load64_le is an inlined function */
 
 /* _load32_le is an inlined function */

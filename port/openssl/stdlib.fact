@@ -25,11 +25,6 @@ inline secret bool _crypto_verify_16(secret uint8[16] x, secret uint8[16] y) {
   return true;
 }
 
-// this should be a language primitive
-inline secret uint32 _rotl32(secret uint32 x, public int32 b) {
-  return (x << b) | (x >> (32 - b));
-}
-
 // load a number from little endian format
 inline secret uint64 _load64_le(secret uint8[8] src) {
   secret mut uint64 w = (uint64) src[0];

@@ -1,7 +1,7 @@
 all: cond_sel.h salsa_fact.h cond_sel_fact0.bin cond_sel_c0.bin cond_sel_c0.bin cond_sel_fact1.bin cond_sel_fact2.bin cond_sel_c1.bin cond_sel_c2.bin salsa_c0.bin salsa_c1.bin salsa_c2.bin salsa_fact0.bin salsa_fact1.bin salsa_fact2.bin runner
 
 clean:
-	rm -f *.o *.s *.bc *.ll *.pseudo.fact *.bin cond_sel*.h salsa*.h fact*.h
+	rm -f *.o *.s *.bc *.ll *.pseudo.fact *.bin cond_sel*.h salsa*.h fact*.h *.ast.ml *.tast.ml
 
 .PHONY: all clean
 
