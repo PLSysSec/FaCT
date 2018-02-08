@@ -53,9 +53,13 @@ let mk_ctx llcontext llmodule builder venv fenv tenv vtenv verify_llvm =
 
 type intrinsic = 
   | Memcpy
+  | Rotl of int
+  | Rotr of int
 
 let string_of_intrinsic = function
   | Memcpy -> "llvm.memcpy.p0i8.p0i8.i64"
+  | Rotl n -> "__rotl" ^ (string_of_int n)
+  | Rotr n -> "__rotr" ^ (string_of_int n)
 
 let declare_intrinsic cg_ctx = function
   | Memcpy ->
@@ -66,7 +70,47 @@ let declare_intrinsic cg_ctx = function
     let arg_types = [| ptr_ty; ptr_ty; i64_ty; i32_ty; bool_ty |] in
     let vt = void_type cg_ctx.llcontext in
     let ft = function_type vt arg_types in
-    declare_function (string_of_intrinsic Memcpy) ft cg_ctx.llmodule
+      declare_function (string_of_intrinsic Memcpy) ft cg_ctx.llmodule
+  | Rotl n as rotl_sz->
+    (* we expect this function to get inlined and disappear at high optimization levels *)
+    let ity = integer_type cg_ctx.llcontext n in
+    let ft = function_type ity [| ity; ity |] in
+    let fn = declare_function (string_of_intrinsic rotl_sz) ft cg_ctx.llmodule in
+      add_function_attr fn Alwaysinline;
+      set_linkage Internal fn;
+    let bb = append_block cg_ctx.llcontext "entry" fn in
+    let b = builder cg_ctx.llcontext in
+      position_at_end bb b;
+      let e1 = param fn 0 in
+      let e2 = param fn 1 in
+        set_value_name "_secret_x" e1;
+        set_value_name "_secret_n" e2;
+      let lshift = build_shl e1 e2 "_secret_lshift" b in
+      let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
+      let lrshift = build_lshr e1 subtmp "_secret_lrshift" b in
+      let rotltmp = build_or lshift lrshift "_secret_rotltmp" b in
+        build_ret rotltmp b;
+        fn
+  | Rotr n as rotr_sz->
+    (* we expect this function to get inlined and disappear at high optimization levels *)
+    let ity = integer_type cg_ctx.llcontext n in
+    let ft = function_type ity [| ity; ity |] in
+    let fn = declare_function (string_of_intrinsic rotr_sz) ft cg_ctx.llmodule in
+      add_function_attr fn Alwaysinline;
+      set_linkage Internal fn;
+    let bb = append_block cg_ctx.llcontext "entry" fn in
+    let b = builder cg_ctx.llcontext in
+      position_at_end bb b;
+      let e1 = param fn 0 in
+      let e2 = param fn 1 in
+        set_value_name "_secret_x" e1;
+        set_value_name "_secret_n" e2;
+      let lrshift = build_lshr e1 e2 "_secret_lrshift" b in
+      let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
+      let lshift = build_shl e1 subtmp "_secret_lshift" b in
+      let rotrtmp = build_or lrshift lshift "_secret_rotrtmp" b in
+        build_ret rotrtmp b;
+        fn
 
 let get_intrinsic intrinsic cg_ctx =
   match lookup_function (string_of_intrinsic intrinsic) cg_ctx.llmodule with
@@ -94,7 +138,7 @@ let bt_to_llvm_ty cg_ctx = function
   | Int  size when size <= 32 -> i32_type cg_ctx.llcontext
   | Int  size when size <= 64 -> i64_type cg_ctx.llcontext
   | Bool                      -> i1_type cg_ctx.llcontext (* TODO: Double check this*)
-  | Num(i,b)                  -> i64_type cg_ctx.llcontext (* TODO: Double check semantics for `Num` *)
+  | Num(i,b)                  -> i32_type cg_ctx.llcontext (* TODO: Double check semantics for `Num` *)
   | String -> pointer_type (i8_type cg_ctx.llcontext)
 
 let is_dynamic_sized_array = function
@@ -333,7 +377,18 @@ let codegen_binop cg_ctx op e1 e2 ty ety ml b =
       | Ast.LeftShift -> build_shl e1 e2 (make_name "lshift" ml) b
       | Ast.RightShift when is_signed ty ->
         build_ashr e1 e2 (make_name "arshift" ml) b
-      | Ast.RightShift -> build_lshr e1 e2 (make_name "lrshift" ml) b in
+      | Ast.RightShift -> build_lshr e1 e2 (make_name "lrshift" ml) b
+      | Ast.LeftRotate ->
+        (* counting on the optimizer to optimize this into a single instruction *)
+        let UInt n = ty in
+        let rotl_fn = get_intrinsic (Rotl n) cg_ctx in
+          build_call rotl_fn [| e1; e2 |] "rotltmp" b
+      | Ast.RightRotate ->
+        (* counting on the optimizer to optimize this into a single instruction *)
+        let UInt n = ty in
+        let rotr_fn = get_intrinsic (Rotr n) cg_ctx in
+          build_call rotr_fn [| e1; e2 |] "rotrtmp" b
+  in
 
   let ret_ty = bt_to_llvm_ty cg_ctx ty in
   let ret_width = integer_bitwidth ret_ty in

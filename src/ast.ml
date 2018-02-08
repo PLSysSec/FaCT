@@ -94,6 +94,8 @@ and binop =
   | BitwiseXor
   | LeftShift
   | RightShift
+  | LeftRotate
+  | RightRotate
 [@@deriving show]
 
 and array_expr' =

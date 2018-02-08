@@ -107,7 +107,9 @@ let tc_binop_check p op b1 b2 =
     | Ast.BitwiseOr
     | Ast.BitwiseXor
     | Ast.LeftShift
-    | Ast.RightShift ->
+    | Ast.RightShift
+    | Ast.LeftRotate
+    | Ast.RightRotate ->
       if not (is_int b1) || not (is_int b2) then raise @@ cerr("operands must be numeric", p)
     | Ast.Divide
     | Ast.Modulo
@@ -130,22 +132,24 @@ let tc_binop' p op e1 e2 =
         let m = k2 * if s2 then -1 else 1 in
           begin
             match op with
-              | Ast.Plus       -> make_nlit p (n + m)
-              | Ast.Minus      -> make_nlit p (n - m)
-              | Ast.Multiply   -> make_nlit p (n * m)
-              | Ast.Divide     -> make_nlit p (n / m)
-              | Ast.Modulo     -> make_nlit p (n mod m)
-              | Ast.BitwiseOr  -> make_nlit p (n lor m)
-              | Ast.BitwiseXor -> make_nlit p (n lxor m)
-              | Ast.BitwiseAnd -> make_nlit p (n land m)
-              | Ast.Equal      -> make_blit p (n = m)
-              | Ast.NEqual     -> make_blit p (n != m)
-              | Ast.GT         -> make_blit p (n > m)
-              | Ast.GTE        -> make_blit p (n >= m)
-              | Ast.LT         -> make_blit p (n < m)
-              | Ast.LTE        -> make_blit p (n <= m)
-              | Ast.LeftShift  -> make_nlit p (n lsl m)
-              | Ast.RightShift -> make_nlit p (n asr m)
+              | Ast.Plus        -> make_nlit p (n + m)
+              | Ast.Minus       -> make_nlit p (n - m)
+              | Ast.Multiply    -> make_nlit p (n * m)
+              | Ast.Divide      -> make_nlit p (n / m)
+              | Ast.Modulo      -> make_nlit p (n mod m)
+              | Ast.BitwiseOr   -> make_nlit p (n lor m)
+              | Ast.BitwiseXor  -> make_nlit p (n lxor m)
+              | Ast.BitwiseAnd  -> make_nlit p (n land m)
+              | Ast.Equal       -> make_blit p (n = m)
+              | Ast.NEqual      -> make_blit p (n != m)
+              | Ast.GT          -> make_blit p (n > m)
+              | Ast.GTE         -> make_blit p (n >= m)
+              | Ast.LT          -> make_blit p (n < m)
+              | Ast.LTE         -> make_blit p (n <= m)
+              | Ast.LeftShift   -> make_nlit p (n lsl m)
+              | Ast.RightShift  -> make_nlit p (n asr m)
+              | Ast.LeftRotate
+              | Ast.RightRotate -> raise @@ cerr("can't bitwise rotate constants of unknown size", p)
           end
       | _ ->
         tc_binop_check p op b1 b2;
@@ -176,7 +180,9 @@ let tc_binop' p op e1 e2 =
             | Ast.LTE -> mkpos Bool
 
             | Ast.LeftShift
-            | Ast.RightShift -> { b1 with pos=p }
+            | Ast.RightShift
+            | Ast.LeftRotate
+            | Ast.RightRotate -> { b1 with pos=p }
         in
         let ml' = join_ml p ml1 ml2 in
           (BinOp(op, e1, e2), BaseET(b', ml'))
