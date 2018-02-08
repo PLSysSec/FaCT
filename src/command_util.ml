@@ -109,7 +109,7 @@ let output_object out_file =
   let out_file_o = out_file ^ ".o" in
   let out_file_fpic = out_file ^ ".fpic.o" in
   Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang" [|"clang"; "-c"; out_file_s|];
+  run_command "clang" [|"clang"; "-c"; out_file_s; "-o"; out_file_o|];
   run_command "clang" [|"clang"; "-fPIC"; "-c"; out_file_s; "-o"; out_file_fpic|]
 
 let verify_opt_pass llmod out_file llvm_out = function
