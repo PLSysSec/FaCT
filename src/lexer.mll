@@ -52,6 +52,7 @@ let keywords = [
   ("arrview",ARRVIEW);
   ("extern",EXTERN);
   ("inline",INLINE);
+  ("export",EXPORT);
 ]
 let _ = List.map add_keyword keywords
 }

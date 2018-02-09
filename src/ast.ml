@@ -147,7 +147,7 @@ and params = param list [@@deriving show]
 and body = statements [@@deriving show]
 
 and ret_type = expr_type option [@@deriving show]
-and fn_type = { inline : bool }
+and fn_type = { export : bool; inline_always : bool }
 
 and function_dec' =
   | FunDec of fun_name * fn_type * ret_type * params * body

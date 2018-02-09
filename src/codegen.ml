@@ -961,10 +961,13 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     let vtenv = Env.new_env () in
     let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm } in
     let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
-      if funattrs.inline then
+      if not funattrs.export then
+        begin
+          set_linkage Internal ft
+        end;
+      if funattrs.inline_always then
         begin
           add_function_attr ft Alwaysinline;
-          set_linkage Internal ft
         end;
     let bb = append_block llcontext "entry" ft in
     position_at_end bb builder;

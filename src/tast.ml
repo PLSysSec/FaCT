@@ -130,7 +130,7 @@ and param = param' pos_ast [@@deriving show]
 and params = param list [@@deriving show]
 
 and ret_type = expr_type option [@@deriving show]
-and fn_type = { inline : bool }
+and fn_type = { export : bool; inline_always : bool }
 
 and is_var_arg = bool
 

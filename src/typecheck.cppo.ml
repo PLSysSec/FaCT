@@ -63,7 +63,7 @@ let refvt_conv = pfunction
   | Ast.ArrayVT _ -> raise @@ cerr("expected non-array, got array instead", p)
 
 let fntype_conv ft =
-  { inline=ft.Ast.inline }
+  { export=ft.Ast.export; inline_always=ft.Ast.inline_always }
 
 
 
@@ -208,6 +208,8 @@ let rec lexprconv tc_ctx = pfunction
   | Ast.LExpression e ->
     let lenvt = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
     let e' = tc_expr tc_ctx e in
+    let Fixed ml = (expr_to_ml e').data in
+      if not (ml = Public) then raise @@ cerr("Array length expressions must be public", p);
     let len_var = mkpos (make_fresh "len") in
     let len = add_new_var tc_ctx.venv len_var lenvt in
       tc_ctx.add_stms := (BaseDec(len,lenvt,e')) :: !(tc_ctx.add_stms);
@@ -298,10 +300,12 @@ and tc_expr tc_ctx = pfunction
   | Ast.Variable x ->
     let x',xref = Env.find_var tc_ctx.venv x in
       (Variable x', refvt_to_etype' xref)
-  | Ast.ArrayGet(x,e) ->
+  | Ast.ArrayGet(x,n) ->
     let x',xref = Env.find_var tc_ctx.venv x in
-    let e' = tc_expr tc_ctx e in
-      (ArrayGet(x',e'), refvt_to_betype' xref)
+    let n' = tc_expr tc_ctx n in
+    let Fixed ml = (expr_to_ml n').data in
+      if not (ml = Public) then raise @@ cerr("Array indices must be public", p);
+      (ArrayGet(x',n'), refvt_to_betype' xref)
   | Ast.ArrayLen x ->
     (* XXX type should be size_t not uint32 *)
     let _,xref = Env.find_var tc_ctx.venv x in
@@ -345,7 +349,8 @@ and tc_expr tc_ctx = pfunction
       if rpc = Secret then everhi := true;
       begin
         match fdec.data with
-          | (FunDec(_,_,Some rty,params,_)) ->
+          | (FunDec(_,fty,Some rty,params,_)) ->
+            if (!everhi) && fty.export then raise @@ cerr("Cannot call exported function from a secret context", p);
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
             let earg_n = params_all_refs_above rpc params in
@@ -453,6 +458,8 @@ let rec tc_stm' tc_ctx = xfunction
 
   | Ast.ArrayAssign(x,n,e) ->
     let n' = tc_expr tc_ctx n in
+    let Fixed ml = (expr_to_ml n').data in
+      if not (ml = Public) then raise @@ cerr("Array indices must be public", p);
     let e' = tc_expr tc_ctx e in
     let x',vt = Env.find_var tc_ctx.venv x in
     let b,{data=Fixed l},m = refvt_type_out vt in
@@ -517,7 +524,8 @@ let rec tc_stm' tc_ctx = xfunction
       if rpc = Secret then everhi := true;
       begin
         match fdec.data with
-          | (FunDec(_,_,_,params,_)) ->
+          | (FunDec(_,fty,_,params,_)) ->
+            if (!everhi) && fty.export then raise @@ cerr("Cannot call exported function from a secret context", p);
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
             let earg_n = params_all_refs_above rpc params in

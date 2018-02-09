@@ -59,10 +59,10 @@ let gh_param { data=Param(x,vty) } =
 let gh_fdec fenv = xfunction
   | FunDec(f,ft,rt,params,_) ->
     let _,everhi = Env.find_var fenv f in
-    if !everhi then
+    if not ft.export then
+      Printf.sprintf "/* %s is an internal function */" f.data
+    else if !everhi then
       Printf.sprintf "/* %s is not an exportable function */" f.data
-    else if ft.inline then
-      Printf.sprintf "/* %s is an inlined function */" f.data
     else
       let paramdecs = String.concat "," @@ List.map gh_param params in
         Printf.sprintf
