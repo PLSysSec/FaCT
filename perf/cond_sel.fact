@@ -1,4 +1,4 @@
-secret int32 cond_sel(secret bool cond, public int32 x, public int32 y) {
+export secret int32 cond_sel(secret bool cond, public int32 x, public int32 y) {
   if (cond) {
     return x;
   }

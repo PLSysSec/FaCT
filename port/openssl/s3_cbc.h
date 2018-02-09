@@ -1,29 +1,21 @@
 #ifndef __S3_CBC_H
 #define __S3_CBC_H
 
-void _fact_memzero(
-  /*secret*/ uint8_t buf[],
-  /*public*/ uint32_t __buf_len);
+/* _fact_memzero is an internal function */
 
-void _fact_memzero64(
-  /*secret*/ uint64_t buf[],
-  /*public*/ uint32_t __buf_len);
+/* _fact_memzero64 is an internal function */
 
-void _memcpy(
-  /*secret*/ uint8_t dst[],
-  /*public*/ uint32_t __dst_len,
-  /*secret*/ const uint8_t src[],
-  /*public*/ uint32_t __src_len);
+/* _memcpy is an internal function */
 
-/* _crypto_verify_16 is an inlined function */
+/* _crypto_verify_16 is an internal function */
 
-/* _load64_le is an inlined function */
+/* _load64_le is an internal function */
 
-/* _load32_le is an inlined function */
+/* _load32_le is an internal function */
 
-/* _store64_le is an inlined function */
+/* _store64_le is an internal function */
 
-/* _store32_le is an inlined function */
+/* _store32_le is an internal function */
 
 
 

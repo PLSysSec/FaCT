@@ -1,4 +1,4 @@
-void crypto_core_salsa20( // crypto_core_salsa in core_salsa_ref.c
+export void crypto_core_salsa20( // crypto_core_salsa in core_salsa_ref.c
     secret mut uint8[64] out,
     secret uint8[16] in,
     secret uint8[32] k) {
@@ -96,7 +96,7 @@ void crypto_core_salsa20( // crypto_core_salsa in core_salsa_ref.c
 // NOTE: the original function has an additional parameter
 // `const unsigned char *c`, but the secretbox code passes
 // NULL in for this parameter so I'm just not using it
-void crypto_core_hsalsa20(
+export void crypto_core_hsalsa20(
     secret mut uint8[32] out,
     secret uint8[16] in,
     secret uint8[32] k) {
@@ -163,7 +163,7 @@ void crypto_core_hsalsa20(
   store32_le(ref arrview(out, 28, 4), x9);
 }
 
-public int32 crypto_stream_salsa20_xor_ic( // stream_ref_xor_ic in salsa20_ref.c
+export public int32 crypto_stream_salsa20_xor_ic( // stream_ref_xor_ic in salsa20_ref.c
     secret mut uint8[] c,
     secret uint8[] m,
     secret uint8[8] n,
