@@ -1,0 +1,24 @@
+#!/bin/bash
+set -ex
+
+OPTS="0 1 2"
+
+make benchmark.o
+
+for x in $OPTS; do
+  ../fact.byte -generate-header -llvm-out -opt O$x -o salsa_fact$x.o stdlib.fact fact_salsa.fact
+done
+mv salsa_fact0.h salsa_fact.h
+
+for x in $OPTS; do
+  clang -c -O$x -o c_salsa$x.o c_salsa.c
+done
+
+clang -c -O2 -o salsa_wrapper.o salsa_wrapper.c
+
+for x in $OPTS; do
+  clang -O0 -o salsa_fact$x.bin salsa_fact$x.o salsa_wrapper.o benchmark.o
+  clang -O0 -o salsa_c$x.bin salsa_wrapper.o benchmark.o c_salsa$x.o
+done
+
+python run.py --no-cond-sel
