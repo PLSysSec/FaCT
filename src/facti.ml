@@ -37,7 +37,7 @@ let expr_to_fun e =
   let fun_name = make_ast fake_pos name in
   count := !count + 1;
   let body = make_ast fake_pos (Ast.Return e) in
-    name, make_ast fake_pos (Ast.FunDec(fun_name, {export=true;inline_always=false}, (Some ret_type), [], [body]))
+    name, make_ast fake_pos (Ast.FunDec(fun_name, {export=true;inline=Default}, (Some ret_type), [], [body]))
 
 let texpr_to_fun (expr :Tast.top_level) (venv : (Tast.var_name * Tast.variable_type) Env.env) = match expr with
   | Tast.Expression expr ->
@@ -50,7 +50,7 @@ let texpr_to_fun (expr :Tast.top_level) (venv : (Tast.var_name * Tast.variable_t
         count := !count + 1;
         let body = make_ast fake_pos (Tast.Return expr) in
         let block = (venv, [body]) in
-          name, make_ast fake_pos (Tast.FunDec(fun_name, {export=true;inline_always=false}, (Some ret_ty), [], block))
+          name, make_ast fake_pos (Tast.FunDec(fun_name, {export=true;inline=Default}, (Some ret_ty), [], block))
     end
   | Tast.Statement s -> print_string "vbareiugblaosr"; raise REPL_Error
   | _ -> raise REPL_Error

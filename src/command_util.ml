@@ -104,16 +104,19 @@ let output_bitcode out_file llvm_mod =
 let output_shared out_file =
   let out_file' = out_file ^ ".bc" in
   let out_file_s = out_file ^ ".s" in
+  let out_file_fpic_s = out_file ^ ".fpic.s" in
   Log.debug "Creating .s file at %s" out_file_s;
-  run_command "llc" [|"llc"; out_file'|]
+  run_command "llc" [|"llc"; out_file'|];
+  run_command "llc" [|"llc"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
 
 let output_object out_file =
   let out_file_s = out_file ^ ".s" in
+  let out_file_fpic_s = out_file ^ ".fpic.s" in
   let out_file_o = out_file ^ ".o" in
   let out_file_fpic = out_file ^ ".fpic.o" in
   Log.debug "Creating object file at %s" out_file_o;
   run_command "clang" [|"clang"; "-c"; out_file_s; "-o"; out_file_o|];
-  run_command "clang" [|"clang"; "-fPIC"; "-c"; out_file_s; "-o"; out_file_fpic|]
+  run_command "clang" [|"clang"; "-c"; out_file_fpic_s; "-o"; out_file_fpic|]
 
 let verify_opt_pass llmod out_file llvm_out = function
   | None       -> Log.info "Not verifying opt passes"
@@ -192,6 +195,8 @@ let compile (in_files,out_file,out_dir) args =
         (fun (des,det) pass acc -> (pass ^ " -- " ^ des ^ " -- " ^ det)::acc)
         errors [] in
         Log.error "%s" (String.concat "\n" strings);
+        if args.debug then output_llvm args.llvm_out out_file' llvm_mod;
+        exit 1;
         () in
       Log.error "Insecure!";
       print_errors errors;

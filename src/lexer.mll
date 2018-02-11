@@ -53,6 +53,7 @@ let keywords = [
   ("extern",EXTERN);
   ("inline",INLINE);
   ("export",EXPORT);
+  ("noinline",NOINLINE);
 ]
 let _ = List.map add_keyword keywords
 }

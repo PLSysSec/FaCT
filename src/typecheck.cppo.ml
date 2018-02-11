@@ -62,8 +62,13 @@ let refvt_conv = pfunction
     RefVT(bconv b, mlconv l, mconv m)
   | Ast.ArrayVT _ -> raise @@ cerr("expected non-array, got array instead", p)
 
+let inline_conv = function
+  | Ast.Default -> Default
+  | Ast.Always -> Always
+  | Ast.Never -> Never
+
 let fntype_conv ft =
-  { export=ft.Ast.export; inline_always=ft.Ast.inline_always }
+  { export=ft.Ast.export; inline=inline_conv ft.Ast.inline }
 
 
 

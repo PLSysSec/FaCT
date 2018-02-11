@@ -238,6 +238,13 @@ let ps_rty = function
   | None -> "void"
   | Some ety -> ps_ety ety
 
+let ps_fnattr ft =
+  let ret = if ft.export then "export " else "" in
+  ret ^ (match ft.inline with
+          | Always -> "inline "
+          | Never -> "noinline "
+          | Default -> "")
+
 let ps_param { data=Param(x,vty) } =
   "\n    " ^ ps_vty vty ^ " " ^ x.data
 
@@ -246,7 +253,8 @@ let ps_fdec = xfunction
     let ps_ctx = { indent=0 } in
     let paramdecs = String.concat "," @@ List.map ps_param params in
       Printf.sprintf
-        "%s %s(%s) %s"
+        "%s%s %s(%s) %s"
+        (ps_fnattr ft)
         (ps_rty rt)
         f.data
         paramdecs

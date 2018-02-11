@@ -50,7 +50,7 @@ let to_type { data=t; pos=p } =
 %token SEMICOLON
 %token COMMA
 %token LEN RIGHTARROW
-%token EXTERN INLINE EXPORT
+%token EXTERN INLINE EXPORT NOINLINE
 
 %token FD_START ST_START EX_START EX_END
 
@@ -271,9 +271,11 @@ param:
 
 function_dec:
   | export=boption(EXPORT) r=ret_type fn=fun_name params=plist(param) body=block
-    { mkpos (FunDec(fn, {export; inline_always=false}, r, params, body)) }
+    { mkpos (FunDec(fn, {export; inline=Default}, r, params, body)) }
   | INLINE r=ret_type fn=fun_name params=plist(param) body=block
-    { mkpos (FunDec(fn, {export=false; inline_always=true}, r, params, body)) }
+    { mkpos (FunDec(fn, {export=false; inline=Always}, r, params, body)) }
+  | NOINLINE r=ret_type fn=fun_name params=plist(param) body=block
+    { mkpos (FunDec(fn, {export=false; inline=Never}, r, params, body)) }
   | EXTERN r=ret_type fn=fun_name params=plist(param) SEMICOLON
     { mkpos (CExtern(fn, r, params)) }
 
