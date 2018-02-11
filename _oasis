@@ -6,7 +6,7 @@ Authors:     Gary Soeller, Sunjay Cauligi, Brian Johannesmeyer, Ariana Mirian, Y
 Homepage:    https://github.com/PLSysSec/FaCT
 License:     MIT
 Plugins:     META (0.4), DevFiles (0.4)
-BuildDepends: llvm (3.8),
+BuildDepends: llvm,
               llvm.analysis,
               llvm.bitwriter,
               llvm.executionengine,
@@ -29,7 +29,7 @@ BuildDepends: llvm (3.8),
               lwt.ppx,
               ANSITerminal,
               str
-OCamlVersion: == 4.04.2
+OCamlVersion: = 4.04.2
 AlphaFeatures: ocamlbuild_more_args
 XOCamlbuildPluginTags: package(cppo_ocamlbuild)
 

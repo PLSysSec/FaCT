@@ -12,7 +12,7 @@ Many debugging options and intermediate data structures are available. Run ```./
 
 ## Set Up And Build On Local Machine
 
-FaCT is developed using Ocaml and LLVM 3.8. Make sure both of these are installed.
+FaCT is developed using OCaml (https://ocaml.org/) and LLVM 3.8 (http://releases.llvm.org/). Make sure both of these are installed.
 On OS X it can be done with brew.
 
 ```
@@ -20,7 +20,7 @@ brew install ocaml
 brew install llvm38
 ```
 
-We also need dependency management for Ocaml.
+We also need dependency management for Ocaml (https://opam.ocaml.org/).
 
 ```brew install opam```
 
