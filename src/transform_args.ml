@@ -29,11 +29,15 @@ let xf_params params =
 let xf_fdec = function
   | FunDec(fn,ft,rt,params,block) -> FunDec(fn,ft,rt,xf_params params,block)
   | CExtern(fn,rt,params) -> CExtern(fn,rt,xf_params params)
+  | StdlibFunDec(fn,ft,rt,params) -> StdlibFunDec(fn,ft,rt,xf_params params)
   | fd -> fd
 
 
 let xf_module = function
   | Module(env,fdecs) ->
-    Module(env, List.map
-                (fun {data=fdec; pos=p} ->
-                 {data=xf_fdec fdec; pos=p}) fdecs)
+    let fdecs' = List.map
+                   (fun {data=fdec; pos=p} ->
+                      {data=xf_fdec fdec; pos=p}) fdecs in
+    let env' = Env.map (fun ({data=fdec; pos=p},everhi) ->
+                         ({data=xf_fdec fdec; pos=p},everhi)) env in
+      Module(env',fdecs')

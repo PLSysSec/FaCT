@@ -159,14 +159,14 @@ let _ =
   let builder = Llvm.builder llcontext in
   let execution_engine = create mod' in
   add_module mod' execution_engine;
-  let fenv = Codegen.new_fenv () in
+  let fenv = Codegen.new_fenv (Env.new_env ()) in
   let venv = Env.new_env () in
   let tenv = Env.new_env () in
   let vtenv = Env.new_env () in
   let fenv_ty = Env.new_env () in
   let venv_ty = Env.new_env () in
   let arrenv = Env.new_env () in
-  let cg_fenv = Codegen.new_fenv () in
+  let cg_fenv = Codegen.new_fenv (Env.new_env ()) in
   let ll_venv = Env.new_env () in
   let type_envs = { type_fenv=fenv_ty; type_venv=venv_ty; type_arrenv=arrenv; type_vtenv=vtenv } in
   let ll_envs = { llvm_venv=ll_venv; llvm_fenv=cg_fenv } in

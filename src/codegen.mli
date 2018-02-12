@@ -25,7 +25,7 @@ val mk_ctx : llcontext
           -> bool
           -> codegen_ctx_record
 
-val new_fenv : unit -> fenv
+val new_fenv : (Tast.function_dec * bool ref) Env.env -> fenv
 
 val codegen : llcontext
            -> llmodule

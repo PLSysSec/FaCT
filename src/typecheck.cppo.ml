@@ -354,7 +354,8 @@ and tc_expr tc_ctx = pfunction
       if rpc = Secret then everhi := true;
       begin
         match fdec.data with
-          | (FunDec(_,fty,Some rty,params,_)) ->
+          | (FunDec(_,fty,Some rty,params,_))
+          | (StdlibFunDec(_,fty,Some rty,params)) ->
             if (!everhi) && fty.export then raise @@ cerr("Cannot call exported function from a secret context", p);
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
@@ -652,7 +653,9 @@ let tc_fdec fenv = xfunction
       fdec'
 
 let tc_module (Ast.Module fdecs) =
-  let dbgfenv = Debugfun.make_fenv () in
-  let fenv = Env.map (fun fdec -> (fdec, ref false)) dbgfenv in
+  let fenv = Env.new_env () in
+  let add_fenv = (fun (name,fdec) -> Env.add_var fenv name (fdec, ref false)) in
+    List.iter add_fenv Debugfun.functions;
+    List.iter add_fenv Stdlib.functions;
   let ret = Module (fenv, List.map (tc_fdec fenv) fdecs) in
     ret

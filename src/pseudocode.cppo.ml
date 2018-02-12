@@ -261,8 +261,30 @@ let ps_fdec = xfunction
         (ps_block ps_ctx body)
   | _ -> ""
 
+let ps_fdecl = xfunction
+  | FunDec(f,ft,rt,params,_)
+  | StdlibFunDec(f,ft,rt,params) ->
+    let ps_ctx = { indent=0 } in
+    let paramdecs = String.concat "," @@ List.map ps_param params in
+      Printf.sprintf
+        "%s%s %s(%s);"
+        (ps_fnattr ft)
+        (ps_rty rt)
+        f.data
+        paramdecs
+  | DebugFunDec(f,rt,params) ->
+    let ps_ctx = { indent=0 } in
+    let paramdecs = String.concat "," @@ List.map ps_param params in
+      Printf.sprintf
+        "%s %s(%s);"
+        (ps_rty rt)
+        f.data
+        paramdecs
+
 let ps_module (Module(fenv,fdecs)) =
-  String.concat "\n\n" @@ List.map ps_fdec fdecs
+  let decls = Env.fold (fun k (v,_) c -> c ^ "\n\n" ^ (ps_fdecl v)) fenv "" in
+  let bodies = String.concat "\n\n" @@ List.map ps_fdec fdecs in
+    decls ^ "\n\n\n" ^ bodies
 
 let generate_pseudo fname m =
   (ps_module m)

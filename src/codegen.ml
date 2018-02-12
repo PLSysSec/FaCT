@@ -27,12 +27,16 @@ let get_fn fenv f =
 
 let add_fn = Hashtbl.add
 
-let new_fenv () =
+let new_fenv oldfenv =
   let fenvs = Hashtbl.create 10 in
-  let add = function
-    | n, {data=DebugFunDec(_,ret_ty,args)} -> add_fn fenvs n.data {ret_ty; args}
-    | _ -> raise CodegenError in
-  List.map add Debugfun.functions |> ignore;
+  let add n (fdec,_) =
+    match fdec.data with
+      | FunDec(_,_,ret_ty,args,_)
+      | DebugFunDec(_,ret_ty,args)
+      | StdlibFunDec(_,_,ret_ty,args) ->
+        add_fn fenvs n {ret_ty; args}
+      | CExtern(_,ret_ty,args) -> () in
+  Env.iter add oldfenv;
   fenvs
 
 (* End env functionality *)
@@ -71,7 +75,7 @@ let declare_intrinsic cg_ctx = function
     let vt = void_type cg_ctx.llcontext in
     let ft = function_type vt arg_types in
       declare_function (string_of_intrinsic Memcpy) ft cg_ctx.llmodule
-  | Rotl n as rotl_sz->
+  | Rotl n as rotl_sz ->
     (* we expect this function to get inlined and disappear at high optimization levels *)
     let ity = integer_type cg_ctx.llcontext n in
     let ft = function_type ity [| ity; ity |] in
@@ -91,7 +95,7 @@ let declare_intrinsic cg_ctx = function
       let rotltmp = build_or lshift lrshift "_secret_rotltmp" b in
         build_ret rotltmp b;
         fn
-  | Rotr n as rotr_sz->
+  | Rotr n as rotr_sz ->
     (* we expect this function to get inlined and disappear at high optimization levels *)
     let ity = integer_type cg_ctx.llcontext n in
     let ft = function_type ity [| ity; ity |] in
@@ -565,7 +569,7 @@ and codegen_expr cg_ctx = function
     let fun_dec = get_fn cg_ctx.fenv fun_name in
     let callee = match lookup_function fun_name.data cg_ctx.llmodule with
       | Some fn -> fn
-      | None -> raise CodegenError in
+      | None -> Stdlib.get_stdlib fun_name.data cg_ctx.llcontext cg_ctx.llmodule in
     let codegen_arg' = codegen_arg cg_ctx in
     let args' = List.map2 codegen_arg' args fun_dec.args in
     let name = make_name_et "calltmp" ty in
@@ -949,8 +953,6 @@ and declare_prototype cg_ctx llmodule builder fenv params ret name =
       | None -> 
         declare_function name.data ft llmodule
       | Some f -> raise FunctionAlreadyDefined in
-  let fentry = { ret_ty=ret; args=params } in
-  Hashtbl.add fenv name.data fentry;
   ft'
 
 let codegen_fun llcontext llmodule builder fenv verify_llvm = function
@@ -1008,7 +1010,7 @@ let rec codegen_fdecs llcontext llmodule builder fenv verify = function
     codegen_fdecs llcontext llmodule builder fenv verify rest
 
 let rec codegen llcontext llmodule builder verify = function
-  | Module(_,fdecs) ->
+  | Module(oldfenv,fdecs) ->
     Log.info "Codegening module";
-    let fenv = new_fenv () in
+    let fenv = new_fenv oldfenv in
       codegen_fdecs llcontext llmodule builder fenv verify fdecs

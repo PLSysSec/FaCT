@@ -44,15 +44,6 @@ let codegen_print_int llcontext llmod =
   let printf_ty = var_arg_function_type (i32_type llcontext) [| pointer_type (i8_type llcontext); (i64_type llcontext) |] in
   declare_function "printf" printf_ty llmod
 
-let make_fenv () =
-  let env = Env.new_env () in
-  let print_name,print_proto = print_fun () in
-  let print_int_name,print_int_proto = print_int_fun () in
-    Env.add_var env print_name print_proto;
-    Env.add_var env print_int_name print_int_proto;
-    env
-
-
 let codegen_proto llcontext llmod var_name =
   match var_name.data with
     | "print" -> codegen_print llcontext llmod

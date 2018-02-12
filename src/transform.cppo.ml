@@ -324,17 +324,16 @@ let xf_fdec fenv everhi = pfunction
           end
     | CExtern _ as fdec -> fdec
 
-let rec xf_fdecs fenv xf_fenv = function
+let rec xf_fdecs fenv = function
   | [] -> []
   | (fdec::fdecs) ->
     let fname = fname_of fdec in
     let (_,everhi) = Env.find_var fenv fname in
-    let fdec' = xf_fdec xf_fenv everhi fdec in
-      Env.add_var xf_fenv fname (fdec', everhi);
-      fdec'::(xf_fdecs fenv xf_fenv fdecs)
+    let fdec' = xf_fdec fenv everhi fdec in
+      Env.replace_var fenv fname (fdec', everhi);
+      fdec'::(xf_fdecs fenv fdecs)
 
 let xf_module (Module(fenv,fdecs)) =
-  let xf_fenv = Env.new_env () in
-    Module(fenv, xf_fdecs fenv xf_fenv fdecs)
+  Module(fenv, xf_fdecs fenv fdecs)
 
 

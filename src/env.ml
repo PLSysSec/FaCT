@@ -51,10 +51,34 @@ let rec map f = function
       Hashtbl.iter (fun k v -> Hashtbl.add vtbl' k (f v)) vtbl;
       env'
 
+let rec iter f = function
+  | TopEnv vtbl ->
+    Hashtbl.iter f vtbl
+  | SubEnv(vtbl,env) ->
+    iter f env;
+    Hashtbl.iter f vtbl
+
+let rec fold f env init =
+  match env with
+    | TopEnv vtbl ->
+      Hashtbl.fold f vtbl init
+    | SubEnv(vtbl,env) ->
+      let init' = fold f env init in
+        Hashtbl.fold f vtbl init'
+
 let add_var env v lt =
   let vtbl = get_vtbl env in
     if Hashtbl.mem vtbl v.data then raise (errRedefVar v);
     Hashtbl.add vtbl v.data lt
+
+let replace_var env v lt =
+  let vtbl = get_vtbl env in
+    Hashtbl.replace vtbl v.data lt
+
+let add_raw env v lt =
+  let vtbl = get_vtbl env in
+    if Hashtbl.mem vtbl v then raise (InternalCompilerError "internal redefinition");
+    Hashtbl.add vtbl v lt
 
 let remove_var env v =
   let vtbl = get_vtbl env in

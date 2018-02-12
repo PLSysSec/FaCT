@@ -142,6 +142,7 @@ and function_dec' =
   | FunDec of fun_name * fn_type * ret_type * params * block
   | CExtern of fun_name * ret_type * params
   | DebugFunDec of fun_name * ret_type * params
+  | StdlibFunDec of fun_name * fn_type * ret_type * params
 [@@deriving show]
 and function_dec = function_dec' pos_ast [@@deriving show]
 
