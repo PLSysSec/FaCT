@@ -881,7 +881,7 @@ and codegen_stm cg_ctx ret_ty = function
     let fun_dec = get_fn cg_ctx.fenv fun_name in
     let callee = match lookup_function fun_name.data cg_ctx.llmodule with
       | Some fn -> fn
-      | None -> raise CodegenError in
+      | None -> Stdlib.get_stdlib fun_name.data cg_ctx.llcontext cg_ctx.llmodule in
     let codegen_arg' = codegen_arg cg_ctx in
     let args' = List.map2 codegen_arg' arg_exprs fun_dec.args in
     build_call callee (Array.of_list args') "" cg_ctx.builder |> ignore;

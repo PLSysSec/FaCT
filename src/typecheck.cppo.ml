@@ -530,7 +530,8 @@ let rec tc_stm' tc_ctx = xfunction
       if rpc = Secret then everhi := true;
       begin
         match fdec.data with
-          | (FunDec(_,fty,_,params,_)) ->
+          | (FunDec(_,fty,_,params,_))
+          | (StdlibFunDec(_,fty,_,params)) ->
             if (!everhi) && fty.export then raise @@ cerr("Cannot call exported function from a secret context", p);
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
