@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define NATIVE_LITTLE_ENDIAN
+
 static
 void sodium_memzero(void* buf, size_t len)
 {
@@ -49,14 +51,37 @@ rotl32(const uint32_t x, const int b)
 #define ROUNDS 20
 #define U32C(v) (v##U)
 
+uint32_t s32(uint8_t dst[4], uint32_t w) {
+#if 1
+    memcpy(dst, &w, sizeof w);
+#else
+    dst[0] = (uint8_t) w; w >>= 8;
+    dst[1] = (uint8_t) w; w >>= 8;
+    dst[2] = (uint8_t) w; w >>= 8;
+    dst[3] = (uint8_t) w;
+#endif
+}
+
+uint32_t rotcore(unsigned char *in) {
+  uint32_t x0 = LOAD32_LE(in + 0);
+  uint32_t x4 = LOAD32_LE(in + 4);
+  uint32_t x8 = LOAD32_LE(in + 8);
+  uint32_t x12 = LOAD32_LE(in + 12);
+  for (int i = 0; i < 10; i++) {
+    x4  ^= ROTL32(x0  + x12, 7);
+    x8  ^= ROTL32(x4  + x0, 9);
+    x12 ^= ROTL32(x8  + x4, 13);
+    x0  ^= ROTL32(x12 + x8, 18);
+  }
+  return x0;
+}
+
 void
 crypto_core_salsa20(unsigned char *out, const unsigned char *in,
                   const unsigned char *k)
 {
-    uint32_t x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14,
-        x15;
-    uint32_t j0, j1, j2, j3, j4, j5, j6, j7, j8, j9, j10, j11, j12, j13, j14,
-        j15;
+    uint32_t x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15;
+    uint32_t j0, j1, j2, j3, j4, j5, j6, j7, j8, j9, j10, j11, j12, j13, j14, j15;
     int i;
     int rounds = ROUNDS;
 

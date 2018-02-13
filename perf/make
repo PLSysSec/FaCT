@@ -6,19 +6,34 @@ OPTS="0 1 2"
 make benchmark.o
 
 for x in $OPTS; do
-  ../fact.byte -generate-header -llvm-out -opt O$x -o salsa_fact$x.o stdlib.fact fact_salsa.fact
+  ../fact.byte -generate-header -llvm-out -opt O$x -o salsa_fact$x.o stdlib.fact crypto_poly1305.fact crypto_secretbox.fact
+  #../fact.byte -generate-header -llvm-out -opt O$x -o salsa_fact$x.o stdlib.fact fact_salsa.fact
+  objdump -d salsa_fact$x.o >salsa_fact$x.obj.s
 done
-mv salsa_fact0.h salsa_fact.h
+cp salsa_fact0.h salsa_fact.h
+
+#rm salsa_fact2.s
+#rm salsa_fact2.bc
+#rm salsa_fact2.o
+#~/workspace/clang/llvm-toolchain-5.0-5.0/build/bin/opt -O1 -S salsa_fact2.ll | sponge salsa_fact2.ll
+#~/workspace/clang/llvm-toolchain-5.0-5.0/build/bin/llc -enable-misched -enable-post-misched salsa_fact2.ll
+#clang -c salsa_fact2.s -o salsa_fact2.o
 
 for x in $OPTS; do
+  gcc -S -O$x -o c_salsa$x.s c_salsa.c
+  clang -S -emit-llvm -O$x -o c_salsa$x.ll c_salsa.c
+  #gcc -c -O$x -o c_salsa$x.o c_salsa.c
   clang -c -O$x -o c_salsa$x.o c_salsa.c
+  objdump -d c_salsa$x.o >c_salsa$x.obj.s
 done
 
-clang -c -O2 -o salsa_wrapper.o salsa_wrapper.c
+clang -DFACT -c -O2 -o salsa_wrapper_fact.o salsa_wrapper.c
+clang -c -O2 -o salsa_wrapper_c.o salsa_wrapper.c
 
 for x in $OPTS; do
-  clang -O0 -o salsa_fact$x.bin salsa_fact$x.o salsa_wrapper.o benchmark.o
-  clang -O0 -o salsa_c$x.bin salsa_wrapper.o benchmark.o c_salsa$x.o
+  clang -O0 -o salsa_fact$x.bin salsa_fact$x.o salsa_wrapper_fact.o benchmark.o
+  #clang -O0 -o salsa_c$x.bin salsa_wrapper_c.o benchmark.o c_salsa$x.o
 done
+clang -O0 -o salsa_c2.bin salsa_wrapper_c.o benchmark.o libsodium.a
 
 python run.py --no-cond-sel
