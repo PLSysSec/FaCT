@@ -48,11 +48,14 @@ let load_le_codegen llcontext llmodule =
   let ft = function_type ity [| aty |] in
   let fn = declare_function "_load_le" ft llmodule in
     add_function_attr fn Alwaysinline;
+    add_function_attr fn Readonly;
     set_linkage Internal fn;
   let bb = append_block llcontext "entry" fn in
   let b = builder llcontext in
     position_at_end bb b;
     let arr = param fn 0 in
+      add_param_attr arr Noalias;
+      add_param_attr arr (Alignment 4);
     let cast = build_bitcast arr pty "_secret_cast" b in
     let load = build_load cast "_secret_load" b in
       build_ret load b;
