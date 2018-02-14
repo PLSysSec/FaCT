@@ -57,11 +57,13 @@ let mk_ctx llcontext llmodule builder venv fenv tenv vtenv verify_llvm =
 
 type intrinsic = 
   | Memcpy
+  | Memset
   | Rotl of int
   | Rotr of int
 
 let string_of_intrinsic = function
   | Memcpy -> "llvm.memcpy.p0i8.p0i8.i64"
+  | Memset -> "llvm.memset.p0i8.i64"
   | Rotl n -> "__rotl" ^ (string_of_int n)
   | Rotr n -> "__rotr" ^ (string_of_int n)
 
@@ -75,6 +77,16 @@ let declare_intrinsic cg_ctx = function
     let vt = void_type cg_ctx.llcontext in
     let ft = function_type vt arg_types in
       declare_function (string_of_intrinsic Memcpy) ft cg_ctx.llmodule
+  | Memset ->
+    let i8_ty = i8_type cg_ctx.llcontext in
+    let i32_ty = i32_type cg_ctx.llcontext in
+    let i64_ty = i64_type cg_ctx.llcontext in
+    let ptr_ty = pointer_type (i8_type cg_ctx.llcontext) in
+    let bool_ty = i1_type cg_ctx.llcontext in
+    let arg_types = [| ptr_ty; i8_ty; i64_ty; i32_ty; bool_ty |] in
+    let vt = void_type cg_ctx.llcontext in
+    let ft = function_type vt arg_types in
+      declare_function (string_of_intrinsic Memset) ft cg_ctx.llmodule
   | Rotl n as rotl_sz ->
     (* we expect this function to get inlined and disappear at high optimization levels *)
     let ity = integer_type cg_ctx.llcontext n in
@@ -646,13 +658,21 @@ and codegen_array_expr cg_ctx arr_name = function
         | LIntLiteral n ->
           let ty' = expr_ty_to_base_ty ty in
           let ll_ty = bt_to_llvm_ty cg_ctx ty' in
-          let zero = const_int ll_ty 0 in
-          let zeros = Array.make n zero in
           let arr_ty = array_type ll_ty n in
           let name = make_name_et "zerodarray" ty in
           let alloca = build_alloca arr_ty name cg_ctx.builder in
-          build_store (const_array ll_ty zeros) alloca cg_ctx.builder |> ignore;
-          alloca,false
+          let pointer_ty = pointer_type (i8_type cg_ctx.llcontext) in
+          let name = make_name_et "sourcecasted" ty in
+          let source_casted =
+            build_bitcast alloca pointer_ty name cg_ctx.builder in
+          let zero = const_int (i8_type cg_ctx.llcontext) 0 in
+          let sz = const_int (i64_type cg_ctx.llcontext) n in
+          let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
+          let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
+          let args = [| source_casted; zero; sz; alignment; volatility |] in
+          let memset = get_intrinsic Memset cg_ctx in
+            build_call memset args "" cg_ctx.builder;
+            alloca,false
         | LDynamic x -> raise CodegenError
     end
   | ArrayCopy var_name,ty ->
