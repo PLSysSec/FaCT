@@ -1,7 +1,5 @@
 void _fact_memzero(secret mut uint8[] buf) {
-  for (uint32 i = 0 to len buf) {
-    buf[i] = 0;
-  }
+  _memzero(ref buf);
 }
 
 void _fact_memzero64(secret mut uint64[] buf) {
@@ -32,14 +30,6 @@ secret uint64 _load64_le(secret uint8[8] src) {
   return w;
 }
 
-secret uint32 _load32_le(secret uint8[4] src) {
-  secret mut uint32 w = (uint32) src[0];
-  w |= ((uint32) src[1]) <<  8;
-  w |= ((uint32) src[2]) << 16;
-  w |= ((uint32) src[3]) << 24;
-  return w;
-}
-
 // store a number to little endian format
 void _store64_le(secret mut uint8[8] dst, secret uint64 w) {
   dst[0] = (uint8)(w);
@@ -50,11 +40,4 @@ void _store64_le(secret mut uint8[8] dst, secret uint64 w) {
   dst[5] = (uint8)(w >> 40);
   dst[6] = (uint8)(w >> 48);
   dst[7] = (uint8)(w >> 56);
-}
-
-void _store32_le(secret mut uint8[4] dst, secret uint32 w) {
-  dst[0] = (uint8)(w);
-  dst[1] = (uint8)(w >> 8);
-  dst[2] = (uint8)(w >> 16);
-  dst[3] = (uint8)(w >> 24);
 }
