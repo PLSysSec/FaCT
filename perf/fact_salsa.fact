@@ -198,7 +198,7 @@ export public int32 crypto_stream_salsa20_xor_ic( // stream_ref_xor_ic in salsa2
     ic >>= 8;
   }
   public uint32 mtimes = len m >> 6;
-  secret mut uint8[64] block = arrzeros(64);
+  secret mut uint8[64] block = noinit(64);
   for (uint32 j = 0 to mtimes) {
     _crypto_core_salsa20(ref block, in, kcopy);
     secret mut uint8[64] cview = arrview(c, j*64, 64);
@@ -233,7 +233,7 @@ public int32 crypto_stream_xsalsa20_xor_ic(
     public uint8[24] n,
     public uint64 ic,
     secret uint8[32] k) {
-  secret mut uint8[32] subkey = arrzeros(32);
+  secret mut uint8[32] subkey = noinit(32);
   crypto_core_hsalsa20(ref subkey, arrview(n, 0, 16), k);
   public uint8[8] tmp = arrview(n, 16, 8);
   public int32 ret = crypto_stream_salsa20_xor_ic(ref c, m, tmp, ic, subkey);

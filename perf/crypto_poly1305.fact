@@ -264,7 +264,7 @@ public bool _crypto_onetimeauth_poly1305_verify( // crypto_onetimeauth_poly1305_
     secret uint8[16] h,
     secret uint8[] in,
     secret uint8[32] k) {
-  secret mut uint8[16] correct = arrzeros(16);
+  secret mut uint8[16] correct = noinit(16);
   _crypto_onetimeauth_poly1305(ref correct, in, k);
   return declassify(_crypto_verify_16(h, correct));
 }
