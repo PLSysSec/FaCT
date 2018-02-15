@@ -71,6 +71,7 @@ void _poly1305_blocks(
   state_h[2] = h2;
 }
 
+export
 void _poly1305_init(
     secret mut uint64[3] state_r,
     secret mut uint64[3] state_h,
@@ -243,6 +244,7 @@ void _poly1305_finish(
   state_final = false;
 }
 
+export
 public int32 _crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna from poly1305_donna.c
     secret mut uint8[16] out,
     secret uint8[] m,

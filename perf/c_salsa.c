@@ -51,17 +51,6 @@ rotl32(const uint32_t x, const int b)
 #define ROUNDS 20
 #define U32C(v) (v##U)
 
-uint32_t s32(uint8_t dst[4], uint32_t w) {
-#if 1
-    memcpy(dst, &w, sizeof w);
-#else
-    dst[0] = (uint8_t) w; w >>= 8;
-    dst[1] = (uint8_t) w; w >>= 8;
-    dst[2] = (uint8_t) w; w >>= 8;
-    dst[3] = (uint8_t) w;
-#endif
-}
-
 uint32_t rotcore(unsigned char *in) {
   uint32_t x0 = LOAD32_LE(in + 0);
   uint32_t x4 = LOAD32_LE(in + 4);
