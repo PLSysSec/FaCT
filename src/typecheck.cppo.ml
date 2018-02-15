@@ -414,6 +414,11 @@ and tc_arrayexpr' tc_ctx = xfunction
     let e' = tc_expr tc_ctx e in
     let ae = ArrayET(mkpos ArrayAT(b', lexpr'), expr_to_ml e', mkpos Mut) in
       (ArrayComp(b',lexpr',x,e'), ae), true
+  | Ast.ArrayNoinit lexpr ->
+    let b = mkpos Num(0, false) in
+    let lexpr' = lexprconv tc_ctx lexpr in
+    let at' = mkpos ArrayAT(b, lexpr') in
+      (ArrayNoinit lexpr', ArrayET(at', mkpos Fixed Public, mkpos Const)), true
 and tc_arrayexpr tc_ctx pa =
   let ae', is_mem_new = tc_arrayexpr' tc_ctx pa in
     make_ast pa.pos ae', is_mem_new

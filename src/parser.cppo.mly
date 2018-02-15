@@ -46,7 +46,7 @@ let to_type { data=t; pos=p } =
 %token REF
 %token RETURN
 %token DECLASSIFY
-%token ARRZEROS ARRCOPY ARRVIEW
+%token ARRZEROS ARRCOPY ARRVIEW NOINIT
 %token SEMICOLON
 %token COMMA
 %token LEN RIGHTARROW
@@ -191,6 +191,7 @@ array_expr:
   | ARRZEROS l=paren(lexpr) { mkpos (ArrayZeros l) }
   | ARRCOPY a=paren(var_name) { mkpos (ArrayCopy a) }
   | ARRVIEW LPAREN a=var_name COMMA i=expr COMMA l=lexpr RPAREN { mkpos (ArrayView(a, i, l)) }
+  | NOINIT l=paren(lexpr) { mkpos (ArrayNoinit l) }
 
 base_variable_type:
   | b=base_type

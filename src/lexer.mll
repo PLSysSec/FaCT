@@ -50,6 +50,7 @@ let keywords = [
   ("arrzeros",ARRZEROS);
   ("arrcopy",ARRCOPY);
   ("arrview",ARRVIEW);
+  ("noinit",NOINIT);
   ("extern",EXTERN);
   ("inline",INLINE);
   ("export",EXPORT);

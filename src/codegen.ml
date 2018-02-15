@@ -752,6 +752,18 @@ and codegen_array_expr cg_ctx arr_name = function
     end in
     r
   | ArrayComp(bt,lexpr, var_name, expr),ty -> raise CodegenError
+  | ArrayNoinit lexpr,ty ->
+    begin
+      match lexpr.data with
+        | LIntLiteral n ->
+          let ty' = expr_ty_to_base_ty ty in
+          let ll_ty = bt_to_llvm_ty cg_ctx ty' in
+          let arr_ty = array_type ll_ty n in
+          let name = make_name_et "noinitarray" ty in
+          let alloca = build_alloca arr_ty name cg_ctx.builder in
+            alloca,false
+        | LDynamic x -> raise CodegenError
+    end
 
 and codegen_stm cg_ctx ret_ty = function
   | {data=BaseDec(var_name,var_type,expr)} ->

@@ -173,6 +173,10 @@ and ps_aexpr' ps_ctx = function
       (ps_expr ps_ctx n)
       (ps_lexpr lexpr)
   | ArrayComp _ -> "<arrcomp>"
+  | ArrayNoinit lexpr ->
+    Printf.sprintf
+      "noinit(%s)"
+      (ps_lexpr lexpr)
   | _ -> "<arrexpr>"
 and ps_aexpr ps_ctx {data=(ae,_)} = ps_aexpr' ps_ctx ae
 

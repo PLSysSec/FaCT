@@ -105,6 +105,7 @@ and array_expr' =
   | ArrayCopy of var_name
   | ArrayView of var_name * expr * lexpr
   | ArrayComp of base_type * lexpr * var_name * expr
+  | ArrayNoinit of lexpr
 [@@deriving show]
 and array_expr = array_expr' pos_ast [@@deriving show]
 

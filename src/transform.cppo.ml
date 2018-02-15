@@ -161,6 +161,7 @@ and xf_arrayexpr' xf_ctx { data; pos=p } =
       | ArrayLit exprs -> ArrayLit(List.map (xf_expr xf_ctx) exprs)
       | ArrayVar _
       | ArrayZeros _
+      | ArrayNoinit _
       | ArrayCopy _ -> ae
       | ArrayView(x,e,lexpr) -> ArrayView(x,xf_expr xf_ctx e,lexpr)
       | ArrayComp(b,lexpr,x,e) -> ArrayComp(b,lexpr,x,xf_expr xf_ctx e)
