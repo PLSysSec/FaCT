@@ -1,6 +1,3 @@
 [submodule "Unity"]
 	path = Unity
 	url = https://github.com/ThrowTheSwitch/Unity.git
-[submodule "verifying-constant-time"]
-	path = ct-verif/verifying-constant-time
-	url = https://github.com/bjohannesmeyer/verifying-constant-time.git
