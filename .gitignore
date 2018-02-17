@@ -53,8 +53,7 @@ test/testbin*
 *_runner.c
 test/testbin_sem
 !ct-verif/sort.ll
-!ct-verif/sort-3.9.ll
-!ct-verif/sort-3.8.ll
+!ct-verif/examples/*.ll
 setup.data
 setup.ml
 configure
