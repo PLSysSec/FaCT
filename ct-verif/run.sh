@@ -1,7 +1,7 @@
 #!/bin/bash
 
-if [ "$#" -ne 1 ] || [ ! -e $1 ]; then 
-    echo "Usage: $0 llvm3.8.ll" ; exit 1
+if [ "$#" -ne 2 ] || [ ! -e $1 ]; then 
+    echo "Usage: $0 llvm3.8.ll entrypoint" ; exit 1
 fi
 cp $1 tmp.ll
 
@@ -16,6 +16,9 @@ sed -i -e 's/smack_value\(.*\)) bitcast/smack_value\1)* bitcast/g' tmp.ll
 sed -i '/!0/d' tmp.ll
 
 # Copy into docker container and verify
+docker run -it -d --rm --name ctverif_cont bjohannesmeyer/ctverif /bin/bash
 docker cp tmp.ll ctverif_cont:/root/fact-verifs
-docker exec ctverif_cont /bin/bash -c 'cd /root/fact-verifs && ENTRYPOINTS=sort3_wrapper FACTLL=tmp.ll make && make clean && rm tmp.ll'
 rm tmp.ll
+docker exec ctverif_cont /bin/bash -c "cd /root/fact-verifs && ENTRYPOINTS=$2 FACTLL=tmp.ll make && make clean && rm tmp.ll"
+docker stop ctverif_cont
+
