@@ -33,9 +33,10 @@ let new_fenv oldfenv =
     match fdec.data with
       | FunDec(_,_,ret_ty,args,_)
       | DebugFunDec(_,ret_ty,args)
-      | StdlibFunDec(_,_,ret_ty,args) ->
+      | StdlibFunDec(_,_,ret_ty,args)
+      | CExtern(_,ret_ty,args) ->
         add_fn fenvs n {ret_ty; args}
-      | CExtern(_,ret_ty,args) -> () in
+  in
   Env.iter add oldfenv;
   fenvs
 
