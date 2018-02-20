@@ -30,12 +30,6 @@ def run(no_cond_sel=False):
   print('Running salsa tests...')
   print('Salsa\tFaCT\t\tC')
 
-  print('O1\t', end=''); sys.stdout.flush()
-  salsa_fact1 = run_command("./salsa_fact1.bin")
-  print(salsa_fact1 + '\t', end=''); sys.stdout.flush()
-  salsa_c1    = run_command("./salsa_c1.bin")
-  print(salsa_c1)
-
   print('O2\t', end=''); sys.stdout.flush()
   salsa_fact2 = run_command("./salsa_fact2.bin")
   print(salsa_fact2 + '\t', end=''); sys.stdout.flush()

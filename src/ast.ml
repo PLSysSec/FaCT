@@ -94,6 +94,8 @@ and binop =
   | BitwiseXor
   | LeftShift
   | RightShift
+  | LeftRotate
+  | RightRotate
 [@@deriving show]
 
 and array_expr' =
@@ -103,6 +105,7 @@ and array_expr' =
   | ArrayCopy of var_name
   | ArrayView of var_name * expr * lexpr
   | ArrayComp of base_type * lexpr * var_name * expr
+  | ArrayNoinit of lexpr
 [@@deriving show]
 and array_expr = array_expr' pos_ast [@@deriving show]
 
@@ -145,7 +148,11 @@ and params = param list [@@deriving show]
 and body = statements [@@deriving show]
 
 and ret_type = expr_type option [@@deriving show]
-and fn_type = { inline : bool }
+and fn_type = { export : bool; inline : inline }
+and inline =
+  | Default
+  | Always
+  | Never
 
 and function_dec' =
   | FunDec of fun_name * fn_type * ret_type * params * body

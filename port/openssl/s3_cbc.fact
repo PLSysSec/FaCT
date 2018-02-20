@@ -6,7 +6,7 @@ extern void _prints(secret uint64 bits);
 extern void _println();
 extern void _printx(secret uint8 b);
 
-void __ssl3_cbc_digest_record(
+export void __ssl3_cbc_digest_record(
     secret mut uint8[216] md_state,
     secret mut uint8[64] mac_out,
     secret mut uint8[128] hmac_pad, // `MAX_HASH_BLOCK_SIZE`

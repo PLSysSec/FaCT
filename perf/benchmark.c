@@ -12,7 +12,7 @@
 #include "benchmark.h"
 
 #define NUM_TRIALS 500
-#define NUM_ITRS 1000
+#define NUM_ITRS 500
 #define WARMUP_COUNT 7
 
 double test(benchmarkable f) {

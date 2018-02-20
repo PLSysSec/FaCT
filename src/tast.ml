@@ -86,6 +86,7 @@ and array_expr' =
   | ArrayCopy of var_name
   | ArrayView of var_name * expr * lexpr
   | ArrayComp of base_type * lexpr * var_name * expr
+  | ArrayNoinit of lexpr
 [@@deriving show]
 and array_expr = (array_expr' * expr_type') pos_ast [@@deriving show]
 
@@ -130,7 +131,11 @@ and param = param' pos_ast [@@deriving show]
 and params = param list [@@deriving show]
 
 and ret_type = expr_type option [@@deriving show]
-and fn_type = { inline : bool }
+and fn_type = { export : bool; inline : inline }
+and inline =
+  | Default
+  | Always
+  | Never
 
 and is_var_arg = bool
 
@@ -138,6 +143,7 @@ and function_dec' =
   | FunDec of fun_name * fn_type * ret_type * params * block
   | CExtern of fun_name * ret_type * params
   | DebugFunDec of fun_name * ret_type * params
+  | StdlibFunDec of fun_name * fn_type * ret_type * params
 [@@deriving show]
 and function_dec = function_dec' pos_ast [@@deriving show]
 

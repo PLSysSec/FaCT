@@ -50,8 +50,11 @@ let keywords = [
   ("arrzeros",ARRZEROS);
   ("arrcopy",ARRCOPY);
   ("arrview",ARRVIEW);
+  ("noinit",NOINIT);
   ("extern",EXTERN);
   ("inline",INLINE);
+  ("export",EXPORT);
+  ("noinline",NOINLINE);
 ]
 let _ = List.map add_keyword keywords
 }
@@ -115,9 +118,13 @@ rule token = parse
   | "^="           { BITXOREQ }
   | "|="           { BITOREQ }
   | "<<"           { LEFTSHIFT }
+  | "<<<"          { LEFTROTATE }
   | ">>"           { RIGHTSHIFT }
+  | ">>>"          { RIGHTROTATE }
   | "<<="          { LEFTSHIFTEQ }
+  | "<<<="         { LEFTROTATEEQ }
   | ">>="          { RIGHTSHIFTEQ }
+  | ">>>="         { RIGHTROTATEEQ }
   | "?"            { QUESTION }
   | ":"            { COLON }
   | '('            { LPAREN }

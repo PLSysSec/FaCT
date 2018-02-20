@@ -52,9 +52,8 @@ test/testbin*
 *.runner.c
 *_runner.c
 test/testbin_sem
-!ct-verif/tests/openssl-bc/out-3.5.ll
-!ct-verif/tests/openssl-bc/out-3.5-final.ll
-!ct-verif/example/sort.ll
+!ct-verif/sort.ll
+!ct-verif/examples/*.ll
 setup.data
 setup.ml
 configure

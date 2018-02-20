@@ -37,7 +37,7 @@ let expr_to_fun e =
   let fun_name = make_ast fake_pos name in
   count := !count + 1;
   let body = make_ast fake_pos (Ast.Return e) in
-    name, make_ast fake_pos (Ast.FunDec(fun_name, {inline=false}, (Some ret_type), [], [body]))
+    name, make_ast fake_pos (Ast.FunDec(fun_name, {export=true;inline=Default}, (Some ret_type), [], [body]))
 
 let texpr_to_fun (expr :Tast.top_level) (venv : (Tast.var_name * Tast.variable_type) Env.env) = match expr with
   | Tast.Expression expr ->
@@ -50,7 +50,7 @@ let texpr_to_fun (expr :Tast.top_level) (venv : (Tast.var_name * Tast.variable_t
         count := !count + 1;
         let body = make_ast fake_pos (Tast.Return expr) in
         let block = (venv, [body]) in
-          name, make_ast fake_pos (Tast.FunDec(fun_name, {inline=false}, (Some ret_ty), [], block))
+          name, make_ast fake_pos (Tast.FunDec(fun_name, {export=true;inline=Default}, (Some ret_ty), [], block))
     end
   | Tast.Statement s -> print_string "vbareiugblaosr"; raise REPL_Error
   | _ -> raise REPL_Error
@@ -159,14 +159,14 @@ let _ =
   let builder = Llvm.builder llcontext in
   let execution_engine = create mod' in
   add_module mod' execution_engine;
-  let fenv = Codegen.new_fenv () in
+  let fenv = Codegen.new_fenv (Env.new_env ()) in
   let venv = Env.new_env () in
   let tenv = Env.new_env () in
   let vtenv = Env.new_env () in
   let fenv_ty = Env.new_env () in
   let venv_ty = Env.new_env () in
   let arrenv = Env.new_env () in
-  let cg_fenv = Codegen.new_fenv () in
+  let cg_fenv = Codegen.new_fenv (Env.new_env ()) in
   let ll_venv = Env.new_env () in
   let type_envs = { type_fenv=fenv_ty; type_venv=venv_ty; type_arrenv=arrenv; type_vtenv=vtenv } in
   let ll_envs = { llvm_venv=ll_venv; llvm_fenv=cg_fenv } in

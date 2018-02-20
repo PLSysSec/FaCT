@@ -62,8 +62,13 @@ let refvt_conv = pfunction
     RefVT(bconv b, mlconv l, mconv m)
   | Ast.ArrayVT _ -> raise @@ cerr("expected non-array, got array instead", p)
 
+let inline_conv = function
+  | Ast.Default -> Default
+  | Ast.Always -> Always
+  | Ast.Never -> Never
+
 let fntype_conv ft =
-  { inline=ft.Ast.inline }
+  { export=ft.Ast.export; inline=inline_conv ft.Ast.inline }
 
 
 
@@ -107,7 +112,9 @@ let tc_binop_check p op b1 b2 =
     | Ast.BitwiseOr
     | Ast.BitwiseXor
     | Ast.LeftShift
-    | Ast.RightShift ->
+    | Ast.RightShift
+    | Ast.LeftRotate
+    | Ast.RightRotate ->
       if not (is_int b1) || not (is_int b2) then raise @@ cerr("operands must be numeric", p)
     | Ast.Divide
     | Ast.Modulo
@@ -130,22 +137,24 @@ let tc_binop' p op e1 e2 =
         let m = k2 * if s2 then -1 else 1 in
           begin
             match op with
-              | Ast.Plus       -> make_nlit p (n + m)
-              | Ast.Minus      -> make_nlit p (n - m)
-              | Ast.Multiply   -> make_nlit p (n * m)
-              | Ast.Divide     -> make_nlit p (n / m)
-              | Ast.Modulo     -> make_nlit p (n mod m)
-              | Ast.BitwiseOr  -> make_nlit p (n lor m)
-              | Ast.BitwiseXor -> make_nlit p (n lxor m)
-              | Ast.BitwiseAnd -> make_nlit p (n land m)
-              | Ast.Equal      -> make_blit p (n = m)
-              | Ast.NEqual     -> make_blit p (n != m)
-              | Ast.GT         -> make_blit p (n > m)
-              | Ast.GTE        -> make_blit p (n >= m)
-              | Ast.LT         -> make_blit p (n < m)
-              | Ast.LTE        -> make_blit p (n <= m)
-              | Ast.LeftShift  -> make_nlit p (n lsl m)
-              | Ast.RightShift -> make_nlit p (n asr m)
+              | Ast.Plus        -> make_nlit p (n + m)
+              | Ast.Minus       -> make_nlit p (n - m)
+              | Ast.Multiply    -> make_nlit p (n * m)
+              | Ast.Divide      -> make_nlit p (n / m)
+              | Ast.Modulo      -> make_nlit p (n mod m)
+              | Ast.BitwiseOr   -> make_nlit p (n lor m)
+              | Ast.BitwiseXor  -> make_nlit p (n lxor m)
+              | Ast.BitwiseAnd  -> make_nlit p (n land m)
+              | Ast.Equal       -> make_blit p (n = m)
+              | Ast.NEqual      -> make_blit p (n != m)
+              | Ast.GT          -> make_blit p (n > m)
+              | Ast.GTE         -> make_blit p (n >= m)
+              | Ast.LT          -> make_blit p (n < m)
+              | Ast.LTE         -> make_blit p (n <= m)
+              | Ast.LeftShift   -> make_nlit p (n lsl m)
+              | Ast.RightShift  -> make_nlit p (n asr m)
+              | Ast.LeftRotate
+              | Ast.RightRotate -> raise @@ cerr("can't bitwise rotate constants of unknown size", p)
           end
       | _ ->
         tc_binop_check p op b1 b2;
@@ -176,7 +185,9 @@ let tc_binop' p op e1 e2 =
             | Ast.LTE -> mkpos Bool
 
             | Ast.LeftShift
-            | Ast.RightShift -> { b1 with pos=p }
+            | Ast.RightShift
+            | Ast.LeftRotate
+            | Ast.RightRotate -> { b1 with pos=p }
         in
         let ml' = join_ml p ml1 ml2 in
           (BinOp(op, e1, e2), BaseET(b', ml'))
@@ -202,6 +213,8 @@ let rec lexprconv tc_ctx = pfunction
   | Ast.LExpression e ->
     let lenvt = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
     let e' = tc_expr tc_ctx e in
+    let Fixed ml = (expr_to_ml e').data in
+      if not (ml = Public) then raise @@ cerr("Array length expressions must be public", p);
     let len_var = mkpos (make_fresh "len") in
     let len = add_new_var tc_ctx.venv len_var lenvt in
       tc_ctx.add_stms := (BaseDec(len,lenvt,e')) :: !(tc_ctx.add_stms);
@@ -292,10 +305,12 @@ and tc_expr tc_ctx = pfunction
   | Ast.Variable x ->
     let x',xref = Env.find_var tc_ctx.venv x in
       (Variable x', refvt_to_etype' xref)
-  | Ast.ArrayGet(x,e) ->
+  | Ast.ArrayGet(x,n) ->
     let x',xref = Env.find_var tc_ctx.venv x in
-    let e' = tc_expr tc_ctx e in
-      (ArrayGet(x',e'), refvt_to_betype' xref)
+    let n' = tc_expr tc_ctx n in
+    let Fixed ml = (expr_to_ml n').data in
+      if not (ml = Public) then raise @@ cerr("Array indices must be public", p);
+      (ArrayGet(x',n'), refvt_to_betype' xref)
   | Ast.ArrayLen x ->
     (* XXX type should be size_t not uint32 *)
     let _,xref = Env.find_var tc_ctx.venv x in
@@ -339,7 +354,9 @@ and tc_expr tc_ctx = pfunction
       if rpc = Secret then everhi := true;
       begin
         match fdec.data with
-          | (FunDec(_,_,Some rty,params,_)) ->
+          | (FunDec(_,fty,Some rty,params,_))
+          | (StdlibFunDec(_,fty,Some rty,params)) ->
+            if (!everhi) && fty.export then raise @@ cerr("Cannot call exported function from a secret context", p);
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
             let earg_n = params_all_refs_above rpc params in
@@ -397,6 +414,11 @@ and tc_arrayexpr' tc_ctx = xfunction
     let e' = tc_expr tc_ctx e in
     let ae = ArrayET(mkpos ArrayAT(b', lexpr'), expr_to_ml e', mkpos Mut) in
       (ArrayComp(b',lexpr',x,e'), ae), true
+  | Ast.ArrayNoinit lexpr ->
+    let b = mkpos Num(0, false) in
+    let lexpr' = lexprconv tc_ctx lexpr in
+    let at' = mkpos ArrayAT(b, lexpr') in
+      (ArrayNoinit lexpr', ArrayET(at', mkpos Fixed Public, mkpos Const)), true
 and tc_arrayexpr tc_ctx pa =
   let ae', is_mem_new = tc_arrayexpr' tc_ctx pa in
     make_ast pa.pos ae', is_mem_new
@@ -447,6 +469,8 @@ let rec tc_stm' tc_ctx = xfunction
 
   | Ast.ArrayAssign(x,n,e) ->
     let n' = tc_expr tc_ctx n in
+    let Fixed ml = (expr_to_ml n').data in
+      if not (ml = Public) then raise @@ cerr("Array indices must be public", p);
     let e' = tc_expr tc_ctx e in
     let x',vt = Env.find_var tc_ctx.venv x in
     let b,{data=Fixed l},m = refvt_type_out vt in
@@ -511,7 +535,9 @@ let rec tc_stm' tc_ctx = xfunction
       if rpc = Secret then everhi := true;
       begin
         match fdec.data with
-          | (FunDec(_,_,_,params,_)) ->
+          | (FunDec(_,fty,_,params,_))
+          | (StdlibFunDec(_,fty,_,params)) ->
+            if (!everhi) && fty.export then raise @@ cerr("Cannot call exported function from a secret context", p);
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
             let earg_n = params_all_refs_above rpc params in
@@ -633,7 +659,9 @@ let tc_fdec fenv = xfunction
       fdec'
 
 let tc_module (Ast.Module fdecs) =
-  let dbgfenv = Debugfun.make_fenv () in
-  let fenv = Env.map (fun fdec -> (fdec, ref false)) dbgfenv in
+  let fenv = Env.new_env () in
+  let add_fenv = (fun (name,fdec) -> Env.add_var fenv name (fdec, ref false)) in
+    List.iter add_fenv Debugfun.functions;
+    List.iter add_fenv Stdlib.functions;
   let ret = Module (fenv, List.map (tc_fdec fenv) fdecs) in
     ret

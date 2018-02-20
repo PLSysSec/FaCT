@@ -36,7 +36,7 @@ testbin_%: test_%.o harness_%.c harness_%_runner.c
 	$(CC) $(CFLAGS) $(INCLUDE) $(UNITY_ROOT)/src/unity.c $^ -o $@
 
 run:
-	for x in testbin_*; do ./$$x; done
+	for x in testbin_*; do ./$$x || exit 1; done
 
 FAILURES_DIR=failures
 failure:

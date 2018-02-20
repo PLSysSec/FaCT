@@ -64,24 +64,26 @@ let ps_unop = function
   | Ast.BitwiseNot -> "~"
 
 let ps_binop = function
-  | Ast.Plus       -> "+"
-  | Ast.Minus      -> "-"
-  | Ast.Multiply   -> "*"
-  | Ast.Divide     -> "/"
-  | Ast.Modulo     -> "%"
-  | Ast.Equal      -> "=="
-  | Ast.NEqual     -> "!="
-  | Ast.GT         -> ">"
-  | Ast.GTE        -> ">="
-  | Ast.LT         -> "<"
-  | Ast.LTE        -> "<="
-  | Ast.LogicalAnd -> "&&"
-  | Ast.LogicalOr  -> "||"
-  | Ast.BitwiseAnd -> "&"
-  | Ast.BitwiseOr  -> "|"
-  | Ast.BitwiseXor -> "^"
-  | Ast.LeftShift  -> "<<"
-  | Ast.RightShift -> ">>"
+  | Ast.Plus        -> "+"
+  | Ast.Minus       -> "-"
+  | Ast.Multiply    -> "*"
+  | Ast.Divide      -> "/"
+  | Ast.Modulo      -> "%"
+  | Ast.Equal       -> "=="
+  | Ast.NEqual      -> "!="
+  | Ast.GT          -> ">"
+  | Ast.GTE         -> ">="
+  | Ast.LT          -> "<"
+  | Ast.LTE         -> "<="
+  | Ast.LogicalAnd  -> "&&"
+  | Ast.LogicalOr   -> "||"
+  | Ast.BitwiseAnd  -> "&"
+  | Ast.BitwiseOr   -> "|"
+  | Ast.BitwiseXor  -> "^"
+  | Ast.LeftShift   -> "<<"
+  | Ast.RightShift  -> ">>"
+  | Ast.LeftRotate  -> "<<<"
+  | Ast.RightRotate -> ">>>"
 
 let rec ps_arg ps_ctx = xfunction
   | ByValue e -> ps_expr ps_ctx e
@@ -171,6 +173,10 @@ and ps_aexpr' ps_ctx = function
       (ps_expr ps_ctx n)
       (ps_lexpr lexpr)
   | ArrayComp _ -> "<arrcomp>"
+  | ArrayNoinit lexpr ->
+    Printf.sprintf
+      "noinit(%s)"
+      (ps_lexpr lexpr)
   | _ -> "<arrexpr>"
 and ps_aexpr ps_ctx {data=(ae,_)} = ps_aexpr' ps_ctx ae
 
@@ -236,6 +242,13 @@ let ps_rty = function
   | None -> "void"
   | Some ety -> ps_ety ety
 
+let ps_fnattr ft =
+  let ret = if ft.export then "export " else "" in
+  ret ^ (match ft.inline with
+          | Always -> "inline "
+          | Never -> "noinline "
+          | Default -> "")
+
 let ps_param { data=Param(x,vty) } =
   "\n    " ^ ps_vty vty ^ " " ^ x.data
 
@@ -244,15 +257,39 @@ let ps_fdec = xfunction
     let ps_ctx = { indent=0 } in
     let paramdecs = String.concat "," @@ List.map ps_param params in
       Printf.sprintf
-        "%s %s(%s) %s"
+        "%s%s %s(%s) %s"
+        (ps_fnattr ft)
         (ps_rty rt)
         f.data
         paramdecs
         (ps_block ps_ctx body)
   | _ -> ""
 
+let ps_fdecl = xfunction
+  | FunDec(f,ft,rt,params,_)
+  | StdlibFunDec(f,ft,rt,params) ->
+    let ps_ctx = { indent=0 } in
+    let paramdecs = String.concat "," @@ List.map ps_param params in
+      Printf.sprintf
+        "%s%s %s(%s);"
+        (ps_fnattr ft)
+        (ps_rty rt)
+        f.data
+        paramdecs
+  | CExtern(f,rt,params) ->
+    let ps_ctx = { indent=0 } in
+    let paramdecs = String.concat "," @@ List.map ps_param params in
+      Printf.sprintf
+        "extern %s %s(%s);"
+        (ps_rty rt)
+        f.data
+        paramdecs
+  | DebugFunDec(f,rt,params) -> ""
+
 let ps_module (Module(fenv,fdecs)) =
-  String.concat "\n\n" @@ List.map ps_fdec fdecs
+  let decls = Env.fold (fun k (v,_) c -> c ^ "\n\n" ^ (ps_fdecl v)) fenv "" in
+  let bodies = String.concat "\n\n" @@ List.map ps_fdec fdecs in
+    decls ^ "\n\n\n" ^ bodies
 
 let generate_pseudo fname m =
   (ps_module m)

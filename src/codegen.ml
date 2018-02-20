@@ -27,12 +27,17 @@ let get_fn fenv f =
 
 let add_fn = Hashtbl.add
 
-let new_fenv () =
+let new_fenv oldfenv =
   let fenvs = Hashtbl.create 10 in
-  let add = function
-    | n, {data=DebugFunDec(_,ret_ty,args)} -> add_fn fenvs n.data {ret_ty; args}
-    | _ -> raise CodegenError in
-  List.map add Debugfun.functions |> ignore;
+  let add n (fdec,_) =
+    match fdec.data with
+      | FunDec(_,_,ret_ty,args,_)
+      | DebugFunDec(_,ret_ty,args)
+      | StdlibFunDec(_,_,ret_ty,args)
+      | CExtern(_,ret_ty,args) ->
+        add_fn fenvs n {ret_ty; args}
+  in
+  Env.iter add oldfenv;
   fenvs
 
 (* End env functionality *)
@@ -53,9 +58,15 @@ let mk_ctx llcontext llmodule builder venv fenv tenv vtenv verify_llvm =
 
 type intrinsic = 
   | Memcpy
+  | Memset
+  | Rotl of int
+  | Rotr of int
 
 let string_of_intrinsic = function
   | Memcpy -> "llvm.memcpy.p0i8.p0i8.i64"
+  | Memset -> "llvm.memset.p0i8.i64"
+  | Rotl n -> "__rotl" ^ (string_of_int n)
+  | Rotr n -> "__rotr" ^ (string_of_int n)
 
 let declare_intrinsic cg_ctx = function
   | Memcpy ->
@@ -66,7 +77,57 @@ let declare_intrinsic cg_ctx = function
     let arg_types = [| ptr_ty; ptr_ty; i64_ty; i32_ty; bool_ty |] in
     let vt = void_type cg_ctx.llcontext in
     let ft = function_type vt arg_types in
-    declare_function (string_of_intrinsic Memcpy) ft cg_ctx.llmodule
+      declare_function (string_of_intrinsic Memcpy) ft cg_ctx.llmodule
+  | Memset ->
+    let i8_ty = i8_type cg_ctx.llcontext in
+    let i32_ty = i32_type cg_ctx.llcontext in
+    let i64_ty = i64_type cg_ctx.llcontext in
+    let ptr_ty = pointer_type (i8_type cg_ctx.llcontext) in
+    let bool_ty = i1_type cg_ctx.llcontext in
+    let arg_types = [| ptr_ty; i8_ty; i64_ty; i32_ty; bool_ty |] in
+    let vt = void_type cg_ctx.llcontext in
+    let ft = function_type vt arg_types in
+      declare_function (string_of_intrinsic Memset) ft cg_ctx.llmodule
+  | Rotl n as rotl_sz ->
+    (* we expect this function to get inlined and disappear at high optimization levels *)
+    let ity = integer_type cg_ctx.llcontext n in
+    let ft = function_type ity [| ity; ity |] in
+    let fn = declare_function (string_of_intrinsic rotl_sz) ft cg_ctx.llmodule in
+      add_function_attr fn Alwaysinline;
+      set_linkage Internal fn;
+    let bb = append_block cg_ctx.llcontext "entry" fn in
+    let b = builder cg_ctx.llcontext in
+      position_at_end bb b;
+      let e1 = param fn 0 in
+      let e2 = param fn 1 in
+        set_value_name "_secret_x" e1;
+        set_value_name "_secret_n" e2;
+      let lshift = build_shl e1 e2 "_secret_lshift" b in
+      let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
+      let lrshift = build_lshr e1 subtmp "_secret_lrshift" b in
+      let rotltmp = build_or lshift lrshift "_secret_rotltmp" b in
+        build_ret rotltmp b;
+        fn
+  | Rotr n as rotr_sz ->
+    (* we expect this function to get inlined and disappear at high optimization levels *)
+    let ity = integer_type cg_ctx.llcontext n in
+    let ft = function_type ity [| ity; ity |] in
+    let fn = declare_function (string_of_intrinsic rotr_sz) ft cg_ctx.llmodule in
+      add_function_attr fn Alwaysinline;
+      set_linkage Internal fn;
+    let bb = append_block cg_ctx.llcontext "entry" fn in
+    let b = builder cg_ctx.llcontext in
+      position_at_end bb b;
+      let e1 = param fn 0 in
+      let e2 = param fn 1 in
+        set_value_name "_secret_x" e1;
+        set_value_name "_secret_n" e2;
+      let lrshift = build_lshr e1 e2 "_secret_lrshift" b in
+      let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
+      let lshift = build_shl e1 subtmp "_secret_lshift" b in
+      let rotrtmp = build_or lrshift lshift "_secret_rotrtmp" b in
+        build_ret rotrtmp b;
+        fn
 
 let get_intrinsic intrinsic cg_ctx =
   match lookup_function (string_of_intrinsic intrinsic) cg_ctx.llmodule with
@@ -94,7 +155,12 @@ let bt_to_llvm_ty cg_ctx = function
   | Int  size when size <= 32 -> i32_type cg_ctx.llcontext
   | Int  size when size <= 64 -> i64_type cg_ctx.llcontext
   | Bool                      -> i1_type cg_ctx.llcontext (* TODO: Double check this*)
-  | Num(i,b)                  -> i64_type cg_ctx.llcontext (* TODO: Double check semantics for `Num` *)
+  | Num(i,s)                  ->
+    let rec numbits = function
+      | n when n >= -255 && n <= 256 -> 8
+      | n -> 8 + (numbits (n / 256))
+    in
+      integer_type cg_ctx.llcontext (numbits i)
   | String -> pointer_type (i8_type cg_ctx.llcontext)
 
 let is_dynamic_sized_array = function
@@ -333,7 +399,18 @@ let codegen_binop cg_ctx op e1 e2 ty ety ml b =
       | Ast.LeftShift -> build_shl e1 e2 (make_name "lshift" ml) b
       | Ast.RightShift when is_signed ty ->
         build_ashr e1 e2 (make_name "arshift" ml) b
-      | Ast.RightShift -> build_lshr e1 e2 (make_name "lrshift" ml) b in
+      | Ast.RightShift -> build_lshr e1 e2 (make_name "lrshift" ml) b
+      | Ast.LeftRotate ->
+        (* counting on the optimizer to optimize this into a single instruction *)
+        let UInt n = ty in
+        let rotl_fn = get_intrinsic (Rotl n) cg_ctx in
+          build_call rotl_fn [| e1; e2 |] "rotltmp" b
+      | Ast.RightRotate ->
+        (* counting on the optimizer to optimize this into a single instruction *)
+        let UInt n = ty in
+        let rotr_fn = get_intrinsic (Rotr n) cg_ctx in
+          build_call rotr_fn [| e1; e2 |] "rotrtmp" b
+  in
 
   let ret_ty = bt_to_llvm_ty cg_ctx ty in
   let ret_width = integer_bitwidth ret_ty in
@@ -505,7 +582,7 @@ and codegen_expr cg_ctx = function
     let fun_dec = get_fn cg_ctx.fenv fun_name in
     let callee = match lookup_function fun_name.data cg_ctx.llmodule with
       | Some fn -> fn
-      | None -> raise CodegenError in
+      | None -> Stdlib.get_stdlib fun_name.data cg_ctx.llcontext cg_ctx.llmodule in
     let codegen_arg' = codegen_arg cg_ctx in
     let args' = List.map2 codegen_arg' args fun_dec.args in
     let name = make_name_et "calltmp" ty in
@@ -582,13 +659,21 @@ and codegen_array_expr cg_ctx arr_name = function
         | LIntLiteral n ->
           let ty' = expr_ty_to_base_ty ty in
           let ll_ty = bt_to_llvm_ty cg_ctx ty' in
-          let zero = const_int ll_ty 0 in
-          let zeros = Array.make n zero in
           let arr_ty = array_type ll_ty n in
           let name = make_name_et "zerodarray" ty in
           let alloca = build_alloca arr_ty name cg_ctx.builder in
-          build_store (const_array ll_ty zeros) alloca cg_ctx.builder |> ignore;
-          alloca,false
+          let pointer_ty = pointer_type (i8_type cg_ctx.llcontext) in
+          let name = make_name_et "sourcecasted" ty in
+          let source_casted =
+            build_bitcast alloca pointer_ty name cg_ctx.builder in
+          let zero = const_int (i8_type cg_ctx.llcontext) 0 in
+          let sz = const_int (i64_type cg_ctx.llcontext) n in
+          let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
+          let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
+          let args = [| source_casted; zero; sz; alignment; volatility |] in
+          let memset = get_intrinsic Memset cg_ctx in
+            build_call memset args "" cg_ctx.builder;
+            alloca,false
         | LDynamic x -> raise CodegenError
     end
   | ArrayCopy var_name,ty ->
@@ -668,6 +753,18 @@ and codegen_array_expr cg_ctx arr_name = function
     end in
     r
   | ArrayComp(bt,lexpr, var_name, expr),ty -> raise CodegenError
+  | ArrayNoinit lexpr,ty ->
+    begin
+      match lexpr.data with
+        | LIntLiteral n ->
+          let ty' = expr_ty_to_base_ty ty in
+          let ll_ty = bt_to_llvm_ty cg_ctx ty' in
+          let arr_ty = array_type ll_ty n in
+          let name = make_name_et "noinitarray" ty in
+          let alloca = build_alloca arr_ty name cg_ctx.builder in
+            alloca,false
+        | LDynamic x -> raise CodegenError
+    end
 
 and codegen_stm cg_ctx ret_ty = function
   | {data=BaseDec(var_name,var_type,expr)} ->
@@ -817,7 +914,7 @@ and codegen_stm cg_ctx ret_ty = function
     let fun_dec = get_fn cg_ctx.fenv fun_name in
     let callee = match lookup_function fun_name.data cg_ctx.llmodule with
       | Some fn -> fn
-      | None -> raise CodegenError in
+      | None -> Stdlib.get_stdlib fun_name.data cg_ctx.llcontext cg_ctx.llmodule in
     let codegen_arg' = codegen_arg cg_ctx in
     let args' = List.map2 codegen_arg' arg_exprs fun_dec.args in
     build_call callee (Array.of_list args') "" cg_ctx.builder |> ignore;
@@ -889,8 +986,6 @@ and declare_prototype cg_ctx llmodule builder fenv params ret name =
       | None -> 
         declare_function name.data ft llmodule
       | Some f -> raise FunctionAlreadyDefined in
-  let fentry = { ret_ty=ret; args=params } in
-  Hashtbl.add fenv name.data fentry;
   ft'
 
 let codegen_fun llcontext llmodule builder fenv verify_llvm = function
@@ -901,11 +996,14 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     let vtenv = Env.new_env () in
     let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm } in
     let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
-      if funattrs.inline then
-        begin
-          add_function_attr ft Alwaysinline;
-          set_linkage Internal ft
-        end;
+      if not funattrs.export then
+        set_linkage Internal ft;
+      (match funattrs.inline with
+        | Always ->
+          add_function_attr ft Alwaysinline
+        | Never ->
+          add_function_attr ft Noinline
+        | _ -> ());
     let bb = append_block llcontext "entry" ft in
     position_at_end bb builder;
     (*declare_ct_verif verify_llvm llcontext llmodule ASSUME;
@@ -945,7 +1043,7 @@ let rec codegen_fdecs llcontext llmodule builder fenv verify = function
     codegen_fdecs llcontext llmodule builder fenv verify rest
 
 let rec codegen llcontext llmodule builder verify = function
-  | Module(_,fdecs) ->
+  | Module(oldfenv,fdecs) ->
     Log.info "Codegening module";
-    let fenv = new_fenv () in
+    let fenv = new_fenv oldfenv in
       codegen_fdecs llcontext llmodule builder fenv verify fdecs

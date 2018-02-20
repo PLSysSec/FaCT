@@ -26,11 +26,11 @@ let to_type { data=t; pos=p } =
 %token PLUS MINUS TIMES DIVIDE MODULO
 %token EQUAL NEQUAL GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
 %token LOGNOT LOGAND LOGOR
-%token BITOR BITXOR BITAND LEFTSHIFT RIGHTSHIFT BITNOT
+%token BITOR BITXOR BITAND LEFTSHIFT LEFTROTATE RIGHTSHIFT RIGHTROTATE BITNOT
 %token ASSIGN
 %token PLUSEQ MINUSEQ TIMESEQ DIVIDEEQ MODULOEQ
 %token LOGANDEQ LOGOREQ
-%token BITOREQ BITXOREQ BITANDEQ LEFTSHIFTEQ RIGHTSHIFTEQ
+%token BITOREQ BITXOREQ BITANDEQ LEFTSHIFTEQ LEFTROTATEEQ RIGHTSHIFTEQ RIGHTROTATEEQ
 %token QUESTION COLON
 %token LPAREN RPAREN
 
@@ -46,11 +46,11 @@ let to_type { data=t; pos=p } =
 %token REF
 %token RETURN
 %token DECLASSIFY
-%token ARRZEROS ARRCOPY ARRVIEW
+%token ARRZEROS ARRCOPY ARRVIEW NOINIT
 %token SEMICOLON
 %token COMMA
 %token LEN RIGHTARROW
-%token EXTERN INLINE
+%token EXTERN INLINE EXPORT NOINLINE
 
 %token FD_START ST_START EX_START EX_END
 
@@ -66,7 +66,7 @@ let to_type { data=t; pos=p } =
 %left BITAND
 %left EQUAL NEQUAL
 %left GREATERTHAN GREATERTHANEQ LESSTHAN LESSTHANEQ
-%left LEFTSHIFT RIGHTSHIFT
+%left LEFTSHIFT RIGHTSHIFT LEFTROTATE RIGHTROTATE
 %left PLUS MINUS
 %left TIMES DIVIDE MODULO
 %nonassoc UNARYOP
@@ -143,6 +143,8 @@ unop:
   | BITAND { BitwiseAnd }
   | LEFTSHIFT { LeftShift }
   | RIGHTSHIFT { RightShift }
+  | LEFTROTATE { LeftRotate }
+  | RIGHTROTATE { RightRotate }
 
 %inline binopeq:
   | PLUSEQ { Plus }
@@ -157,6 +159,8 @@ unop:
   | BITANDEQ { BitwiseAnd }
   | LEFTSHIFTEQ { LeftShift }
   | RIGHTSHIFTEQ { RightShift }
+  | LEFTROTATEEQ { LeftRotate }
+  | RIGHTROTATEEQ { RightRotate }
 
 arg:
   | e=expr { mkpos (ByValue e) }
@@ -187,6 +191,7 @@ array_expr:
   | ARRZEROS l=paren(lexpr) { mkpos (ArrayZeros l) }
   | ARRCOPY a=paren(var_name) { mkpos (ArrayCopy a) }
   | ARRVIEW LPAREN a=var_name COMMA i=expr COMMA l=lexpr RPAREN { mkpos (ArrayView(a, i, l)) }
+  | NOINIT l=paren(lexpr) { mkpos (ArrayNoinit l) }
 
 base_variable_type:
   | b=base_type
@@ -266,8 +271,12 @@ param:
     { mkpos (Param(x, t)) }
 
 function_dec:
-  | inline=boption(INLINE) r=ret_type fn=fun_name params=plist(param) body=block
-    { mkpos (FunDec(fn, {inline}, r, params, body)) }
+  | export=boption(EXPORT) r=ret_type fn=fun_name params=plist(param) body=block
+    { mkpos (FunDec(fn, {export; inline=Default}, r, params, body)) }
+  | INLINE r=ret_type fn=fun_name params=plist(param) body=block
+    { mkpos (FunDec(fn, {export=false; inline=Always}, r, params, body)) }
+  | NOINLINE r=ret_type fn=fun_name params=plist(param) body=block
+    { mkpos (FunDec(fn, {export=false; inline=Never}, r, params, body)) }
   | EXTERN r=ret_type fn=fun_name params=plist(param) SEMICOLON
     { mkpos (CExtern(fn, r, params)) }
 

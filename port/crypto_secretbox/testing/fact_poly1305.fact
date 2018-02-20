@@ -231,7 +231,7 @@ void fact_poly1305_finish(
   state_final = false;
 }
 
-void fact_crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna from poly1305_donna.c
+export void fact_crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna from poly1305_donna.c
     public mut uint8[16] out,
     secret uint8[] m,
     secret uint8[32] key) {
