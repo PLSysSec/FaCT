@@ -1,6 +1,7 @@
 open Llvm
 open Tast
 open Pos
+open Codegen_utils
 
 exception CTVerifError
 
@@ -12,6 +13,7 @@ type t =
   | SMACK_VALUE
   | SMACK_VALUES
   | SMACK_RETURN_VALUE
+  | DISJOINT_REGIONS
 
 let string_of_ct_verif = function
   | ASSUME -> "__VERIFIER_assume"
@@ -21,6 +23,7 @@ let string_of_ct_verif = function
   | SMACK_VALUE -> "__SMACK_value"
   | SMACK_VALUES -> "__SMACK_values"
   | SMACK_RETURN_VALUE -> "__SMACK_return_value"
+  | DISJOINT_REGIONS -> "__disjoint_regions"
 
 let smack_ty = ref None
 
@@ -41,7 +44,7 @@ let get_smack_ty llctx llmod =
 
 (* Target dependent attributes. These are for x86-64. We need to explore
    this more if we want to support more architectures *)
-let set_attributes f = ()(*
+let set_attributes f =
   add_target_dependent_function_attr f "less-precise-fpmad" "false";
   add_target_dependent_function_attr f "no-frame-pointer-elim" "true";
   add_target_dependent_function_attr f "no-frame-pointer-elim-non-leaf" "";
@@ -52,7 +55,7 @@ let set_attributes f = ()(*
   add_target_dependent_function_attr f "target-features" "+fxsr,+mmx,+sse,+sse2";
   add_target_dependent_function_attr f "unsafe-fp-math" "false";
   add_target_dependent_function_attr f "use-soft-float" "false";
-  add_target_dependent_function_attr f "disable-tail-calls" "false"*)
+  add_target_dependent_function_attr f "disable-tail-calls" "false"
 
 let declare_ct_verif verify_llvm llctx llmod keyword =
   if not verify_llvm then () else
@@ -99,36 +102,43 @@ let declare_ct_verif verify_llvm llctx llmod keyword =
       let ft = function_type smack_ty [||] in
       let f = declare_function (string_of_ct_verif SMACK_RETURN_VALUE) ft llmod in
       set_attributes f
+    | DISJOINT_REGIONS -> raise CTVerifError
+      (*let f = declare_function (string_of_ct_verif DISJOINT_REGIONS) ft llmod in
+      set_attributes f*)
 
-
-let codegen_dec verify_llvm vt llvalue llctx llmod llbuilder =
+let codegen_dec cg_ctx vt llvalue =
+  let vt_to_et = function
+      | ArrayVT(at,lab,mut') -> ArrayET(at,lab,mut')
+      | _ -> raise CTVerifError
+  in
   let extract_label = function
-    | RefVT(_,{data=Fixed(label)},_) ->
-      let i32_ty = pointer_type (i32_type llctx) in
-      Some(label,i32_ty)
-    | ArrayVT(_,{data=Fixed(label)},_) ->
-      Log.info "ARRAY: %s" (show_label' label);
-      let ty = pointer_type (i32_type llctx) in
+    | RefVT(bt,{data=Fixed(label)},_) ->
+      let bt' = Codegen_utils.bt_to_llvm_ty cg_ctx bt.data in
+      Some(label,bt')
+    | ArrayVT(_,{data=Fixed(label)},_) as vt ->
+      let bt = expr_ty_to_base_ty (vt_to_et vt) in
+      let ty = pointer_type (bt_to_llvm_ty cg_ctx bt) in
       Some(label,ty)
     | _ -> None 
   in
-  if not verify_llvm then () else
+  
+  if not cg_ctx.verify_llvm then () else
   let label = extract_label vt.data in
   match label with
     | None -> ()
     | Some(Unknown,_) -> ()
     | Some(Secret,_) -> ()
     | Some(Public,ty) ->
-      let smack_ty = get_smack_ty llctx llmod in
+      let smack_ty = get_smack_ty cg_ctx.llcontext cg_ctx.llmodule in
       (* Bitcast the smack value *)
       let ret_ty = var_arg_function_type smack_ty [| ty; |] in
-      let f = match lookup_function (string_of_ct_verif SMACK_VALUE) llmod with
+      let f = match lookup_function (string_of_ct_verif SMACK_VALUE) cg_ctx.llmodule with
         | None -> raise CTVerifError
         | Some f' -> f' in
       let cast = const_bitcast f (pointer_type ret_ty) in
-      let v = build_call cast [|llvalue|] "" llbuilder in
+      let v = build_call cast [|llvalue|] "" cg_ctx.builder in
       (* Call ct-verifs @public_in function *)
-      let public_in = match lookup_function (string_of_ct_verif PUBLIC_IN) llmod with
+      let public_in = match lookup_function (string_of_ct_verif PUBLIC_IN) cg_ctx.llmodule with
         | None -> raise CTVerifError
         | Some public_in' -> public_in' in
-      build_call public_in [| v |] "" llbuilder |> ignore
+      build_call public_in [| v |] "" cg_ctx.builder |> ignore

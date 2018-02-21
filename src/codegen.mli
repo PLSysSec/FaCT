@@ -1,19 +1,8 @@
 open Llvm
+open Codegen_utils
 
 exception CodegenError
 
-type fentry
-type fenv
-type codegen_ctx_record = {
-  llcontext   : llcontext;
-  llmodule    : llmodule;
-  builder     : llbuilder;
-  venv        : llvalue Env.env;
-  fenv        : fenv;
-  tenv        : Tast.array_type Env.env;
-  vtenv       : Tast.variable_type Env.env;
-  verify_llvm : bool;
-}
 
 val mk_ctx : llcontext
           -> llmodule

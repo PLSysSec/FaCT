@@ -74,7 +74,7 @@ type type_envs = {
 *)
 type llvm_envs = {
   llvm_venv: Llvm.llvalue Env.env;
-  llvm_fenv: Codegen.fenv
+  llvm_fenv: Codegen_utils.fenv
 }
 
 let create_llvm_mod llcontext jit =
