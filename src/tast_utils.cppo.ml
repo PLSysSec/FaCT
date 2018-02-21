@@ -256,7 +256,13 @@ let can_be_passed_to { pos=p; data=argty} {data=paramty} =
           | LIntLiteral n, LIntLiteral m when n = m -> true
           | _ -> false
       in
-        (b1.data = b2.data) && lxmatch && (l1 <$ l2) && (m1.data = m2.data)
+        (b1.data = b2.data) &&
+        lxmatch &&
+        (match m1.data, m2.data with
+          | Const, Const -> l1 <$ l2
+          | Mut, Mut -> l1.data = l2.data
+          | _ -> false
+        )
 
 let (<:$*) (ty1,is_new_mem) ty2 =
   let ArrayET(a1,l1,m1) = ty1.data in

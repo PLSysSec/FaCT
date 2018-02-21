@@ -667,7 +667,7 @@ and codegen_array_expr cg_ctx arr_name = function
           let source_casted =
             build_bitcast alloca pointer_ty name cg_ctx.builder in
           let zero = const_int (i8_type cg_ctx.llcontext) 0 in
-          let sz = const_int (i64_type cg_ctx.llcontext) n in
+          let sz = const_int (i64_type cg_ctx.llcontext) (n * (byte_size_of_expr_ty ty)) in
           let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
           let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
           let args = [| source_casted; zero; sz; alignment; volatility |] in
