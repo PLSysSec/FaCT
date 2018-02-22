@@ -54,6 +54,7 @@ test/testbin*
 test/testbin_sem
 !ct-verif/sort.ll
 !ct-verif/examples/*.ll
+!ct-verif/examples/*.bc
 setup.data
 setup.ml
 configure
