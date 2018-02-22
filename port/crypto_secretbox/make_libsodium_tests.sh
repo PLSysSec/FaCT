@@ -5,12 +5,13 @@ set -e
 # also it assumes that you've already built the object files in port/crypto_secretbox
 
 LIBSODIUM=$PWD
-FACT_DIR=~/research/const/constc
+FACT_DIR=~/const/fact
 OBJ_DIR=$FACT_DIR/port/crypto_secretbox
 
 BENCHMARKS=
 NO_FACT=
-eval set -- $(getopt -- 'bn' "$@")
+TRACE_IMPL=
+eval set -- $(getopt -- 'bnt' "$@")
 while [[ $# > 0 ]]; do
   case "$1" in
     -b )
@@ -19,18 +20,38 @@ while [[ $# > 0 ]]; do
     -n )
       NO_FACT=yes
       shift 1;;
+    -t )
+      TRACE_IMPL=yes
+      shift 1;;
     -- )
       shift
       break;;
   esac
 done
 
+cd $LIBSODIUM/src/libsodium/include/sodium/private
+git checkout -- common.h
+git checkout -- ../export.h
+if [[ -n $TRACE_IMPL ]]; then
+  sed -i -e '/#define common_H/a#ifndef TRACE\n#define TRACE(s) { static int __ = 1; if (__) { puts(s); __ = 0; } }\n#endif' common.h
+  sed -i -e '/#define sodium_export_H/a#ifndef TRACE \n#define TRACE(s) { static int __ = 1; if (__) { puts(s); __ = 0; } }\n#endif' ../export.h
+else
+  sed -i -e '/#define common_H/a#ifndef TRACE \n#define TRACE(s) do { } while (0)\n#endif' common.h
+  sed -i -e '/#define sodium_export_H/a#ifndef TRACE \n#define TRACE(s) do { } while (0)\n#endif' ../export.h
+fi
+
+cd $LIBSODIUM
 echo > $LIBSODIUM/src/libsodium/include/sodium/fact_secretbox.h
 if [[ -z $NO_FACT ]]; then
   # (re)compile FaCT port
   cd $OBJ_DIR
-  make clean
-  make FFLAGS='-opt O2' crypto_secretbox.o
+  # using fifos to send commands to docker instance
+  # docker needs to be running `while true ; do bash < dock ; done`
+  echo make clean > dock
+  echo make "FFLAGS='-opt O2'" crypto_secretbox.o > dock
+  echo 'echo > dockout' > dock
+  echo "Waiting on docker..."
+  cat dockout
     # this is for doing custom builds off of modified .ll
     #   llc -O2 crypto_secretbox.ll
     #   clang -O2 -c crypto_secretbox.s
@@ -74,14 +95,18 @@ fi
 
 cd test/default
 for box in secretbox{,2,7,8}; do
-  cp cmptest.h.template cmptest.h
+  git checkout -- cmptest.h
   touch $box.c
   make $box.log
   cat $box.log
   if [[ -n $BENCHMARKS && $box != "secretbox7" && $box != "secretbox8" ]]; then
-    sed -e '4i#define BENCHMARKS' cmptest.h.template > cmptest.h
+    sed -i -e '/#define __CMPTEST_H__/a#define BENCHMARKS' cmptest.h
+    grep -q -e '#  define ITERATIONS 128' cmptest.h
+    sed -i -e 's/#  define ITERATIONS 128/#  define ITERATIONS (0x1000000)/' cmptest.h
+    sed -i -e '/int main(void)/istatic void prcomma(unsigned long long diff) \{\n  if (diff < 1000) \{\n    printf("%llu", diff);\n    return;\n  \}\n  prcomma(diff / 1000);\n  printf(",%03llu", diff % 1000);\n\}\n' cmptest.h
+    sed -i -e 's/.*printf.*ITERATIONS.*/    prcomma(1000000ULL * (ts_end - ts_start) \/ ITERATIONS);\n    printf("\\n");/' cmptest.h
     touch $box.c
     make $box.log >/dev/null
-    head -n1 $box.log
+    echo "Benchmark:" $(grep -E '^[[:digit:],]+$' $box.log) "picoseconds"
   fi
 done
