@@ -1,0 +1,6 @@
+alias m='make -j4 test TESTS="test_bad_dtls test_dtls_mtu"'
+alias t='LD_PRELOAD=./libcrypto.so.1.1:./libssl.so.1.1 ./test/bad_dtls_test'
+alias tt='LD_PRELOAD=./libcrypto.so.1.1:./libssl.so.1.1 ./test/dtls_mtu_test'
+alias f='cp ../fact/port/openssl/s3_cbc.s ssl/_s3_cbc.s'
+
+export LD_PRELOAD="$PWD/libcrypto.so.1.1:$PWD/libssl.so.1.1"
