@@ -9,14 +9,6 @@
 
 /* _crypto_verify_16 is an internal function */
 
-/* _load64_le is an internal function */
-
-/* _load32_le is an internal function */
-
-/* _store64_le is an internal function */
-
-/* _store32_le is an internal function */
-
 
 
 

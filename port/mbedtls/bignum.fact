@@ -1,0 +1,112 @@
+extern void _memset(public mut uint64[] array, public uint64 value, public uint64 length);
+extern void _mpi_mul_hlp(public uint64 i, public mut uint64[] s, public uint64 slen,
+                        public mut uint64[] d, public uint64 dlen,
+                        public uint64 b);
+extern int _mbedtls_mpi_cmp_abs(public uint64 s_x, public uint64 n_x, public uint64[] p_x, 
+                                public uint64 s_y, public uint64 n_y, public uint64[] p_y);
+extern int _mpi_sub_hlp(public uint64 n, public mut uint64[] s, public mut uint64[] d);
+/*
+  mbedtls/include/bignum.h
+  typedef  int64_t mbedtls_mpi_sint;
+  typedef uint64_t mbedtls_mpi_uint;
+*/
+
+/*
+  mbedtls/include/bignum.h:180
+  struct mbedtls_mpi
+    int s
+    size_t n
+    mbedtls_mpi_uint *p     //how should we handle the pointer here?
+                            //it looks like a pointer to an array
+*/
+
+void mpi_sub_hlp(
+  // n is len s and len d
+  public uint64 n, 
+  public mut uint64[] s, 
+  public mut uint64[] d) {
+
+  public uint64 i = 0;
+  public uint64 c = 0, z=0;
+  public uint64 d_ptr = 0;
+  public uint64 s_ptr = 0;
+
+  for(i = 0 to n) {
+    z = d[d_ptr] < c;
+    d[d_ptr] -= c;
+    c = d[d_ptr] < s[s_ptr];
+    d[d_ptr] -= s[s_ptr];
+    s_ptr += 1;
+    d_ptr += 1;
+  }
+
+  //XXX how to handle while loop? It seems like the only choice 
+  //is to move this function to c?
+}
+
+/* mbedtls/library/bignum.c:1559 */
+//currently just assign them all to public
+public int32 mpi_montmul(
+  //mbedtls_mpi *A
+  public mut int32 s_a,
+  public mut uint64 n_a,
+  public mut uint64[] p_a,
+  //const mbedtls_mpi *B
+  public int32 s_b,
+  public uint64 n_b,
+  public uint64[] p_b,
+  //const mbedtls_mpi *N
+  public int32 s_n,
+  public uint64 n_n,
+  public uint64[] p_n,
+  //const mbedtls_mpi *T
+  public int32 s_t,
+  public uint64 n_t,
+  public uint64[] p_t,
+  //
+  public uint64 mm) {
+
+  public mut uint64 i, n, m;
+  public mut uint64 u0, u1;
+  public mut uint64[] d;
+
+  //do the check in the c wrapper
+
+  public uint64 ciL = 8;
+  //XXX How to call memset?
+  _memset(p_t, 0, n_t * ciL);
+
+  //instead of d = T->p, just use d as an offset
+  d_ptr = 0;
+  n = n_n;
+  m = (n_b < n) ? b_n : n;
+
+  for(uint32 i = 0 to n) {
+    u0 = p_a[i];
+    u1 = (p_t[d_ptr] + u0 * p_b[0]) * m * m;    //is mm m*m?
+    
+    //XXX we need to pass d to the helper function
+    //not sure how to do that yet
+    _mpi_mul_hlp(m, p_b, d, u0);
+    _mpi_mul_hlp(n, p_n, d, u1);
+
+    p_t[d_ptr] = u0;
+    d_ptr += 1;
+    p_t[d_ptr + n + 1] = 0;
+  }
+
+    //XXX not sure how to handle d here
+    _memcpy(p_a, d, (n+1) * ciL);
+
+    //XXX add signature to the helper function
+    if(_mbedtls_mpi_cmp_abs(s_a, n_a, p_a, s_n, n_n, p_n) >= 0) {
+      mpi_sub_hlp(n, p_n, p_a);
+    } else {
+      mpi_sub_hlp(n, p_a, p_t);
+    }
+
+    return 0;
+}
+
+
+

@@ -276,14 +276,15 @@ let ps_fdecl = xfunction
         (ps_rty rt)
         f.data
         paramdecs
-  | DebugFunDec(f,rt,params) ->
+  | CExtern(f,rt,params) ->
     let ps_ctx = { indent=0 } in
     let paramdecs = String.concat "," @@ List.map ps_param params in
       Printf.sprintf
-        "%s %s(%s);"
+        "extern %s %s(%s);"
         (ps_rty rt)
         f.data
         paramdecs
+  | DebugFunDec(f,rt,params) -> ""
 
 let ps_module (Module(fenv,fdecs)) =
   let decls = Env.fold (fun k (v,_) c -> c ^ "\n\n" ^ (ps_fdecl v)) fenv "" in
