@@ -179,7 +179,7 @@ let compile (in_files,out_file,out_dir) args =
   verify_opt_pass llvm_mod out_file' args.llvm_out args.verify_opts;
 
   (* Verify all of the opt passes on the IR. This doesn't affect llvm_mod *)
-  verify_opt_passes llvm_mod args.verify_llvm;
+  verify_opt_passes (Llvm_transform_utils.clone_module llvm_mod) args.verify_llvm;
 
   (* Lets optimize the module *)
   let llvm_mod = Opt.run_optimizations args.opt_level args.opt_limit llvm_mod in
