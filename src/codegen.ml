@@ -1,7 +1,8 @@
 open Tast
 open Llvm
 open Pos
-(*open Ctverif*)
+open Ctverif
+open Codegen_utils
 
 exception CodegenError
 exception FunctionAlreadyDefined
@@ -11,11 +12,6 @@ let counter = ref 0
 let fake_pos = { file=""; line=0; lpos=0; rpos=0 }
 
 (* Start env functionality. This is here because of circular dependencies. TODO: move it out *)
-type fentry = { ret_ty:Tast.ret_type; args:Tast.params }
-[@@deriving show]
-
-type fenv = (string,fentry) Hashtbl.t [@printer Env.pp_hashtbl]
-[@@deriving show]
 
 let has_fn = Hashtbl.mem
 
@@ -42,16 +38,6 @@ let new_fenv oldfenv =
 
 (* End env functionality *)
 
-type codegen_ctx_record = {
-  llcontext   : llcontext;
-  llmodule    : llmodule;
-  builder     : llbuilder;
-  venv        : llvalue Env.env;
-  fenv        : fenv;
-  tenv        : array_type Env.env;
-  vtenv       : variable_type Env.env;
-  verify_llvm : bool;
-}
 
 let mk_ctx llcontext llmodule builder venv fenv tenv vtenv verify_llvm =
   { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm }
@@ -144,25 +130,6 @@ let get_size ctx = function
   | LIntLiteral s -> s
   | LDynamic var_name -> raise CodegenError
 
-let bt_to_llvm_ty cg_ctx = function
-  | UInt size when size <= 8  -> i8_type cg_ctx.llcontext
-  | UInt size when size <= 16 -> i16_type cg_ctx.llcontext
-  | UInt size when size <= 32 -> i32_type cg_ctx.llcontext
-  | UInt  size when size <= 64 -> i64_type cg_ctx.llcontext
-  | UInt  size when size <= 128 -> integer_type cg_ctx.llcontext 128
-  | Int  size when size <= 8  -> i8_type cg_ctx.llcontext
-  | Int  size when size <= 16 -> i16_type cg_ctx.llcontext
-  | Int  size when size <= 32 -> i32_type cg_ctx.llcontext
-  | Int  size when size <= 64 -> i64_type cg_ctx.llcontext
-  | Bool                      -> i1_type cg_ctx.llcontext (* TODO: Double check this*)
-  | Num(i,s)                  ->
-    let rec numbits = function
-      | n when n >= -255 && n <= 256 -> 8
-      | n -> 8 + (numbits (n / 256))
-    in
-      integer_type cg_ctx.llcontext (numbits i)
-  | String -> pointer_type (i8_type cg_ctx.llcontext)
-
 let is_dynamic_sized_array = function
   | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true
   | _ -> false
@@ -192,11 +159,6 @@ let param_to_type cg_ctx = function
           Hashtbl.add (Env.get_vtbl cg_ctx.tenv) var_name.data ty;
           pointer_type (bt_to_llvm_ty cg_ctx bt.data)
     end
-
-(* Used to get the base type for arrays *)
-let expr_ty_to_base_ty = function
-  | BaseET({data=base_type},_) -> base_type
-  | ArrayET({data=ArrayAT(bt,size)},_,_) -> bt.data
 
 let bitsize cg_ctx = function
   | BaseET({data=base_type},_) ->
@@ -263,12 +225,14 @@ let allocate_args cg_ctx args f =
     match var_type.data with
       | RefVT (bt,ml,{data=Mut}) ->
         let name = make_name var_name.data ml in
+        codegen_dec cg_ctx var_type ll_arg;
         Env.add_var cg_ctx.venv var_name ll_arg;
         set_value_name name ll_arg
       | RefVT (bt,ml,{data=Const}) ->
         let ty = param_to_type cg_ctx arg in
         let name = make_name var_name.data ml in
         let alloca = build_alloca ty name cg_ctx.builder in
+        codegen_dec cg_ctx var_type ll_arg;
         Env.add_var cg_ctx.venv var_name alloca;
         set_value_name name ll_arg;
         build_store ll_arg alloca cg_ctx.builder |> ignore
@@ -285,6 +249,7 @@ let allocate_args cg_ctx args f =
         let ty = pointer_type(bt_to_llvm_ty cg_ctx bt.data) in
         let name = make_name "arrarg" ml in
         let alloca = build_alloca ty name cg_ctx.builder in
+        codegen_dec cg_ctx var_type ll_arg;
         Env.add_var cg_ctx.venv var_name alloca;
         set_value_name name ll_arg;
         build_store ll_arg alloca cg_ctx.builder |> ignore in
@@ -667,7 +632,7 @@ and codegen_array_expr cg_ctx arr_name = function
           let source_casted =
             build_bitcast alloca pointer_ty name cg_ctx.builder in
           let zero = const_int (i8_type cg_ctx.llcontext) 0 in
-          let sz = const_int (i64_type cg_ctx.llcontext) n in
+          let sz = const_int (i64_type cg_ctx.llcontext) (n * (byte_size_of_expr_ty ty)) in
           let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
           let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
           let args = [| source_casted; zero; sz; alignment; volatility |] in
@@ -771,7 +736,7 @@ and codegen_stm cg_ctx ret_ty = function
     let v = Env.find_var cg_ctx.venv var_name in
     let expr' = codegen_ext cg_ctx (vt_to_llvm_ty cg_ctx var_type.data) expr in
     let s = build_store expr' v cg_ctx.builder in
-    (*codegen_dec cg_ctx.verify_llvm var_type v cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;*)
+    (*codegen_dec cg_ctx.verify_llvm var_type expr' cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;*)
     false
   | {data=ArrayDec(var_name,var_type,arr_expr)} ->
     let bt_of_vt = function
@@ -789,9 +754,9 @@ and codegen_stm cg_ctx ret_ty = function
     let arr_expr, _ = arr_expr.data in
     let left_ty = at_to_et var_type.data in
     let alloca,add_to_type_env = codegen_array_expr cg_ctx var_name (arr_expr, left_ty) in
-    (*let ct_verif_ty = bt_to_llvm_ty cg_ctx (bt_of_vt var_type.data).data in
+    let ct_verif_ty = bt_to_llvm_ty cg_ctx (bt_of_vt var_type.data).data in
     let ct_verif_ty' = pointer_type ct_verif_ty in
-    let alloca' = build_bitcast alloca ct_verif_ty' "ddd" cg_ctx.builder in
+    (*let alloca' = build_bitcast alloca ct_verif_ty' "ddd" cg_ctx.builder in
     codegen_dec cg_ctx.verify_llvm var_type alloca' cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;*)
     (*let zero = const_int (i32_type cg_ctx.llcontext) 0 in
     let ptr = build_gep alloca [| zero |] "arrptr" cg_ctx.builder in*)
@@ -996,7 +961,7 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     let vtenv = Env.new_env () in
     let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm } in
     let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
-      if not funattrs.export then
+      if not funattrs.export && not verify_llvm then
         set_linkage Internal ft;
       (match funattrs.inline with
         | Always ->
@@ -1006,13 +971,14 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
         | _ -> ());
     let bb = append_block llcontext "entry" ft in
     position_at_end bb builder;
-    (*declare_ct_verif verify_llvm llcontext llmodule ASSUME;
+
+    declare_ct_verif verify_llvm llcontext llmodule ASSUME;
     declare_ct_verif verify_llvm llcontext llmodule PUBLIC_IN;
     declare_ct_verif verify_llvm llcontext llmodule PUBLIC_OUT;
     declare_ct_verif verify_llvm llcontext llmodule DECLASSIFIED_OUT;
     declare_ct_verif verify_llvm llcontext llmodule SMACK_VALUE;
     declare_ct_verif verify_llvm llcontext llmodule SMACK_VALUES;
-    declare_ct_verif verify_llvm llcontext llmodule SMACK_RETURN_VALUE;*)
+    declare_ct_verif verify_llvm llcontext llmodule SMACK_RETURN_VALUE;
     allocate_args cg_ctx params ft;
     allocate_stack cg_ctx body;
     let returned = 
@@ -1035,6 +1001,7 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm } in
     declare_prototype cg_ctx llmodule builder fenv params ret_ty fun_name
   | { data=DebugFunDec _} -> raise CodegenError
+  | { data=StdlibFunDec _} -> raise CodegenError
 
 let rec codegen_fdecs llcontext llmodule builder fenv verify = function
   | [] -> ()

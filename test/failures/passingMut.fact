@@ -1,0 +1,7 @@
+void writesSecrets(secret mut uint8[4] buf, secret uint8 sval) {
+  buf[0] = sval;
+}
+
+void badCall(public mut uint8[4] buf) {
+  writesSecrets(ref buf, buf[3]);
+}
