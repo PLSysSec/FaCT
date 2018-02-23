@@ -1,0 +1,5 @@
+struct test_struct {
+  secret int32 a_field;
+}
+
+export public int32 dummy() { return 1; }

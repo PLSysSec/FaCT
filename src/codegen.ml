@@ -1010,7 +1010,7 @@ let rec codegen_fdecs llcontext llmodule builder fenv verify = function
     codegen_fdecs llcontext llmodule builder fenv verify rest
 
 let rec codegen llcontext llmodule builder verify = function
-  | Module(oldfenv,fdecs) ->
+  | Module(oldfenv,fdecs,sdecs) ->
     Log.info "Codegening module";
     let fenv = new_fenv oldfenv in
       codegen_fdecs llcontext llmodule builder fenv verify fdecs

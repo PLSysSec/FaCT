@@ -62,6 +62,18 @@ let refvt_conv = pfunction
     RefVT(bconv b, mlconv l, mconv m)
   | Ast.ArrayVT _ -> raise @@ cerr("expected non-array, got array instead", p)
 
+let fieldtype_conv = pfunction
+  | Ast.RefVT(b,l,m) ->
+    RefVT(bconv b, mlconv l, mconv m)
+  | Ast.ArrayVT(a,ml,m) ->
+    let aconv = pfunction
+      | Ast.ArrayAT(bt,le) ->
+        let leconv = pfunction
+          | Ast.LExpression ({data=Ast.IntLiteral n}) ->
+            LIntLiteral n in
+          ArrayAT(bconv bt, leconv le) in
+      ArrayVT(aconv a, mlconv ml, mconv m)
+
 let inline_conv = function
   | Ast.Default -> Default
   | Ast.Always -> Always
@@ -435,6 +447,19 @@ let rec tc_stm' tc_ctx = xfunction
       let x' = add_new_var tc_ctx.venv x vt' in
         [BaseDec(x',vt',e')]
 
+  | Ast.ArrayDec(x,vt,ae) ->
+    let ae',is_new_mem = tc_arrayexpr tc_ctx ae in
+    let aty = atype_of ae' in
+    (* if vt is LUnspecified then take it from aty *)
+    let ae_lexpr' = aetype_to_lexpr' aty in
+    let vt' = refvt_conv_fill tc_ctx ae_lexpr' vt in
+    let xty = refvt_to_etype vt' in
+      if not ((aty,is_new_mem) <:$* xty) then
+        raise @@ cerr("array of type `" ^ ps_ety aty ^ "` cannot be assigned to variable of type `" ^ ps_ety xty ^ "`", p);
+
+      let x' = add_new_var tc_ctx.venv x vt' in
+        [ArrayDec(x',vt',ae')]
+
   | Ast.BaseAssign(x,e) ->
     let e' = tc_expr tc_ctx e in
     let x',vt = Env.find_var tc_ctx.venv x in
@@ -453,19 +478,6 @@ let rec tc_stm' tc_ctx = xfunction
           raise @@ cerr("expression of type `" ^ ps_ety ety ^ "` cannot be assigned to variable of type `" ^ ps_ety xty ^ "`", p);
 
       [BaseAssign(x',e')]
-
-  | Ast.ArrayDec(x,vt,ae) ->
-    let ae',is_new_mem = tc_arrayexpr tc_ctx ae in
-    let aty = atype_of ae' in
-    (* if vt is LUnspecified then take it from aty *)
-    let ae_lexpr' = aetype_to_lexpr' aty in
-    let vt' = refvt_conv_fill tc_ctx ae_lexpr' vt in
-    let xty = refvt_to_etype vt' in
-      if not ((aty,is_new_mem) <:$* xty) then
-        raise @@ cerr("array of type `" ^ ps_ety aty ^ "` cannot be assigned to variable of type `" ^ ps_ety xty ^ "`", p);
-
-      let x' = add_new_var tc_ctx.venv x vt' in
-        [ArrayDec(x',vt',ae')]
 
   | Ast.ArrayAssign(x,n,e) ->
     let n' = tc_expr tc_ctx n in
@@ -602,7 +614,7 @@ let tc_param' xf_param = xfunction
                  | _ -> [])
 let tc_param xf_param pa = List.map (make_ast pa.pos) (tc_param' xf_param pa)
 
-let tc_fdec' fpos fenv = function
+let tc_fdec' fpos fenv sdecs = function
   | Ast.FunDec(f,ft,rt,params,stms) ->
     let ft' = fntype_conv ft in
     let rt' =
@@ -651,17 +663,28 @@ let tc_fdec' fpos fenv = function
                     Env.add_var venv name entry)
         params';
       CExtern(f,rt',params')
-let tc_fdec fenv = xfunction
+let tc_fdec fenv sdecs = xfunction
   | Ast.FunDec(f,_,_,_,_)
   | Ast.CExtern(f,_,_) as fdec ->
-    let fdec' = mkpos tc_fdec' p fenv fdec in
+    let fdec' = mkpos tc_fdec' p fenv sdecs fdec in
       Env.add_var fenv f (fdec', ref false);
       fdec'
 
-let tc_module (Ast.Module fdecs) =
+let tc_field = pfunction
+  | Ast.Field(x,vty) ->
+    let refvt = fieldtype_conv vty in
+      Field(x,refvt)
+
+let tc_sdec = xfunction
+  | Ast.Struct(s,fields) -> mkpos Struct(s,List.map tc_field fields)
+
+let tc_module (Ast.Module (fdecs,sdecs)) =
+  let sdecs' = List.map tc_sdec sdecs in
   let fenv = Env.new_env () in
   let add_fenv = (fun (name,fdec) -> Env.add_var fenv name (fdec, ref false)) in
     List.iter add_fenv Debugfun.functions;
     List.iter add_fenv Stdlib.functions;
-  let ret = Module (fenv, List.map (tc_fdec fenv) fdecs) in
-    ret
+    let ret = Module (fenv,
+                      List.map (tc_fdec fenv sdecs') fdecs,
+                      sdecs') in
+      ret

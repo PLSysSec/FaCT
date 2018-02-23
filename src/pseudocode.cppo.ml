@@ -286,10 +286,11 @@ let ps_fdecl = xfunction
         paramdecs
   | DebugFunDec(f,rt,params) -> ""
 
-let ps_module (Module(fenv,fdecs)) =
+let ps_module (Module(fenv,fdecs,sdecs)) =
   let decls = Env.fold (fun k (v,_) c -> c ^ "\n\n" ^ (ps_fdecl v)) fenv "" in
   let bodies = String.concat "\n\n" @@ List.map ps_fdec fdecs in
-    decls ^ "\n\n\n" ^ bodies
+  let structs = if sdecs = [] then "" else "[structs]\n\n" in
+    structs ^ decls ^ "\n\n\n" ^ bodies
 
 let generate_pseudo fname m =
   (ps_module m)

@@ -72,7 +72,7 @@ let gh_fdec fenv = xfunction
           paramdecs
   | _ -> ""
 
-let gh_module (Module(fenv,fdecs)) =
+let gh_module (Module(fenv,fdecs,sdecs)) =
   String.concat "\n\n" @@ List.map (gh_fdec fenv) fdecs
 
 let generate_header fname m =

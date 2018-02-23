@@ -141,7 +141,7 @@ and parse () =
 
 and tc_top_level type_envs = function
   | Ast.FunctionDec fd ->
-    let tast = Typecheck.tc_fdec type_envs.type_fenv fd in
+    let tast = Typecheck.tc_fdec type_envs.type_fenv [] fd in
     Tast.FunctionDec tast
   | Ast.Statement s ->
     let tc_ctx = Typecheck.{ rp=ref Tast.Public; pc=Tast.Public; venv=type_envs.type_venv; fenv=type_envs.type_fenv; add_stms=ref [] } in

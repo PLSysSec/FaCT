@@ -334,7 +334,7 @@ let rec xf_fdecs fenv = function
       Env.replace_var fenv fname (fdec', everhi);
       fdec'::(xf_fdecs fenv fdecs)
 
-let xf_module (Module(fenv,fdecs)) =
-  Module(fenv, xf_fdecs fenv fdecs)
+let xf_module (Module(fenv,fdecs,sdecs)) =
+  Module(fenv, xf_fdecs fenv fdecs, sdecs)
 
 

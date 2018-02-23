@@ -51,6 +51,7 @@ let to_type { data=t; pos=p } =
 %token COMMA
 %token LEN RIGHTARROW
 %token EXTERN INLINE EXPORT NOINLINE
+%token STRUCT DOT
 
 %token FD_START ST_START EX_START EX_END
 
@@ -103,6 +104,9 @@ var_name:
 
 fun_name:
   | f=IDENT { mkpos f }
+
+struct_name:
+  | s=IDENT { mkpos s }
 
 base_type:
   | t=TYPE { mkpos (to_type (mkpos t)) }
@@ -170,14 +174,18 @@ arg:
 lexpr:
   | e=expr { mkpos (LExpression e) }
 
+lvalue:
+  | x=var_name { mkpos (Base x) }
+  | l=lvalue e=brack(expr) { mkpos (ArrayEl(l, e)) }
+  | l=lvalue DOT f=var_name { mkpos (StructEl(l, f)) }
+
 expr:
   | e=paren(expr) { mkpos e.data }
   | b=BOOL { mkpos (if b then True else False) }
   | n=INT { mkpos (IntLiteral n) }
   | s=STRING {mkpos (StringLiteral s) }
-  | x=var_name { mkpos (Variable x) }
-  | a=var_name e=brack(expr) { mkpos (ArrayGet(a, e)) }
-  | LEN a=var_name { mkpos (ArrayLen a) }
+  | lval=lvalue { mkpos (Lvalue lval) }
+  | LEN lval=lvalue { mkpos (ArrayElLen lval) }
   | b=paren(base_type) e=expr { mkpos (IntCast(b, e)) }
   | op=unop e=expr %prec UNARYOP { mkpos (UnOp(op, e)) }
   | e1=expr op=binop e2=expr { mkpos (BinOp(op, e1, e2)) }
@@ -231,14 +239,10 @@ statement:
   | a=array_variable_type x=var_name ASSIGN n=var_name RIGHTARROW e=expr SEMICOLON
     { let { data=ArrayVT({ data=ArrayAT(b, l) }, _, _) } = a in
       mkpos (ArrayDec(x, a, mkposrange(n,e) (ArrayComp(b, l, n, e)))) }
-  | x=var_name ASSIGN e=expr SEMICOLON
-    { mkpos (BaseAssign(x, e)) }
-  | x=var_name op=binopeq e=expr SEMICOLON
-    { mkpos (BaseAssign(x, mkpos (BinOp(op, mkposof(x) (Variable x), e)))) }
-  | a=var_name i=brack(expr) ASSIGN e=expr SEMICOLON
-    { mkpos (ArrayAssign(a, i, e)) }
-  | a=var_name i=brack(expr) op=binopeq e=expr SEMICOLON
-    { mkpos (ArrayAssign(a, i, mkpos (BinOp(op, mkposrange(a,i) (ArrayGet(a, i)), e)))) }
+  | lval=lvalue ASSIGN e=expr SEMICOLON
+    { mkpos (Assign(lval, e)) }
+  | lval=lvalue op=binopeq e=expr SEMICOLON
+    { mkpos (Assign(lval, mkpos (BinOp(op, mkposof(lval) (Lvalue lval), e)))) }
   | iff=if_clause (* takes care of else ifs and elses too! *)
     { iff }
   | a=FOR LPAREN b=base_type i=var_name ASSIGN e1=expr TO e2=expr z=RPAREN stms=block
@@ -270,6 +274,10 @@ param:
   | t=param_type x=var_name
     { mkpos (Param(x, t)) }
 
+field:
+  | t=param_type x=var_name SEMICOLON
+    { mkpos (Field(x, t)) }
+
 function_dec:
   | export=boption(EXPORT) r=ret_type fn=fun_name params=plist(param) body=block
     { mkpos (FunDec(fn, {export; inline=Default}, r, params, body)) }
@@ -280,9 +288,21 @@ function_dec:
   | EXTERN r=ret_type fn=fun_name params=plist(param) SEMICOLON
     { mkpos (CExtern(fn, r, params)) }
 
+struct_dec:
+  | STRUCT s=struct_name fields=blist(field)
+    { mkpos (Struct(s, fields)) }
+
 fact_module:
-  | fdecs=nonempty_list(function_dec)
-    { Module fdecs }
+  | fdec=function_dec
+    { Module ([fdec], []) }
+  | sdec=struct_dec
+    { Module ([], [sdec]) }
+  | fdec=function_dec m=fact_module
+    { let Module(fdecs,sdecs) = m in
+        Module (fdec :: fdecs, sdecs) }
+  | sdec=struct_dec m=fact_module
+    { let Module(fdecs,sdecs) = m in
+        Module (fdecs, sdec :: sdecs) }
 
 top_level:
   | FD_START fd=function_dec       { FunctionDec fd }

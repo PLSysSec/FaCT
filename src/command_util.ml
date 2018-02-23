@@ -157,8 +157,9 @@ let compile (in_files,out_file,out_dir) args =
         ast
   in
   let asts = List.map lex_and_parse in_files in
-  let all_fdecs = List.fold_left (fun fdecs (Ast.Module more_fdecs) -> fdecs @ more_fdecs) [] asts in
-  let ast = Ast.Module all_fdecs in
+  let all_fdecs = List.fold_left (fun fdecs (Ast.Module (more_fdecs,_)) -> fdecs @ more_fdecs) [] asts in
+  let all_sdecs = List.fold_left (fun sdecs (Ast.Module (_,more_sdecs)) -> sdecs @ more_sdecs) [] asts in
+  let ast = Ast.Module (all_fdecs,all_sdecs) in
   output_ast args.ast_out out_file' ast;
   let tast' = Typecheck.tc_module ast in
   generate_header args.gen_header out_file' tast';

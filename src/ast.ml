@@ -8,6 +8,9 @@ and var_name = var_name' pos_ast [@@deriving show]
 type fun_name' = string [@@deriving show]
 and fun_name = fun_name' pos_ast [@@deriving show]
 
+type struct_name' = string [@@deriving show]
+and struct_name = struct_name' pos_ast [@@deriving show]
+
 type mutability' =
   | Const
   | Mut
@@ -49,17 +52,27 @@ and expr_type = expr_type' pos_ast [@@deriving show]
 and variable_type' =
   | RefVT of base_type * label * mutability
   | ArrayVT of array_type * label * mutability
+  | StructVT of struct_name * mutability
 [@@deriving show]
 and variable_type = variable_type' pos_ast [@@deriving show]
+
+and lvalue' =
+  | Base of var_name
+  | ArrayEl of lvalue * array_index
+  | StructEl of lvalue * var_name
+and lvalue = lvalue' pos_ast
 
 and expr' =
   | True
   | False
   | IntLiteral of int
   | StringLiteral of string
-  | Variable of var_name
-  | ArrayGet of var_name * expr
-  | ArrayLen of var_name
+  | Variable of var_name (* deprecated *)
+  | ArrayGet of var_name * expr (* deprecated *)
+  | ArrayLen of var_name (* deprecated *)
+  | Lvalue of lvalue
+  | ArrayElLen of lvalue
+  | Sizeof of struct_name (* to be implemented *)
   | IntCast of base_type * expr
   | UnOp of unop * expr
   | BinOp of binop * expr * expr
@@ -129,8 +142,9 @@ and high_expr = expr [@@deriving show]
 and statement' =
   | BaseDec of var_name * variable_type * expr
   | ArrayDec of var_name * variable_type * array_expr
-  | BaseAssign of var_name * expr
-  | ArrayAssign of var_name * array_index * expr
+  | BaseAssign of var_name * expr (* deprecated *)
+  | ArrayAssign of var_name * array_index * expr (* deprecated *)
+  | Assign of lvalue * expr
   | If of cond * thenstms * elsestms
   | For of var_name * base_type * low_expr * high_expr * statements
   | VoidFnCall of fun_name * arg_exprs
@@ -144,8 +158,14 @@ and param' =
 [@@deriving show]
 and param = param' pos_ast [@@deriving show]
 
+and field' =
+  | Field of var_name * variable_type
+[@@deriving show]
+and field = field' pos_ast [@@deriving show]
+
 and params = param list [@@deriving show]
 and body = statements [@@deriving show]
+and fields = field list [@@deriving show]
 
 and ret_type = expr_type option [@@deriving show]
 and fn_type = { export : bool; inline : inline }
@@ -163,8 +183,15 @@ and function_dec = function_dec' pos_ast [@@deriving show]
 and function_decs = function_dec list
 [@@deriving show]
 
+and struct_type' =
+  | Struct of struct_name * fields
+and struct_type = struct_type' pos_ast [@@deriving show]
+
+and structs = struct_type list
+[@@deriving show]
+
 and fact_module =
-  | Module of function_decs
+  | Module of function_decs * structs
 [@@deriving show]
 
 (* Used to parse a top level value in the REPL *)

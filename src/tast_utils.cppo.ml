@@ -119,6 +119,8 @@ let fname_of = xfunction
   | CExtern(fname,_,_)
   | DebugFunDec(fname,_,_) -> fname
 
+let sname_of = xfunction
+  | Struct(sname,_) -> sname
 
 (* Subtyping *)
 
