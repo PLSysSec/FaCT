@@ -31,6 +31,7 @@ val codegen_fun : llcontext
                -> llmodule
                -> llbuilder
                -> fenv
+               -> (string * lltype) list
                -> bool
                -> Tast.function_dec
                -> Llvm.llvalue

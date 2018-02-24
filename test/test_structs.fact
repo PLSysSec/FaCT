@@ -1,5 +1,11 @@
-struct test_struct {
+struct a_sample_thing {
   secret int32 a_field;
+  public uint8[4] _;
+  secret int32 b_field;
 }
 
-export public int32 dummy() { return 1; }
+export public int32 dummy(
+    secret int32 h,
+    struct a_sample_thing ss) {
+  return 1;
+}

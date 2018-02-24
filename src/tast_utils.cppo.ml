@@ -314,5 +314,8 @@ let refvt_update_mut' mut = xfunction
 
 (* Structs *)
 
+let has_struct sdecs s =
+  List.exists (fun {data=Struct(sn,_)} -> s.data = sn.data) sdecs
+
 let find_struct sdecs s =
   List.find (fun {data=Struct(sn,_)} -> s.data = sn.data) sdecs

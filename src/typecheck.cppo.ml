@@ -246,6 +246,7 @@ and refvt_conv_fill tc_ctx lexpr' = pfunction
   | Ast.ArrayVT(a,ml,m) ->
     ArrayVT(atype_conv_fill tc_ctx lexpr' a, mlconv ml, mconv m)
   | Ast.StructVT(s,m) ->
+    if not (has_struct tc_ctx.sdecs s) then raise @@ cerr("struct " ^ s.data ^ " does not exist", p);
     StructVT(s,mconv m)
 
 and tc_arg tc_ctx = pfunction
@@ -602,7 +603,7 @@ and tc_block tc_ctx stms =
   let stms' = List.flatten @@ List.map (tc_stm tc_ctx) stms in
     (tc_ctx.venv, stms')
 
-let tc_param' xf_param = xfunction
+let tc_param' sdecs xf_param = xfunction
   | Ast.Param(x,vty) ->
     let len = "__" ^ x.data ^ "_len" in
     let lexpr' = LDynamic(mkpos len) in
@@ -613,7 +614,7 @@ let tc_param' xf_param = xfunction
       pc=Public;
       venv=Env.new_env ();
       fenv=Env.new_env ();
-      sdecs=[];
+      sdecs=sdecs;
       add_stms=ref [];
     } in
     let refvt = refvt_conv_fill fake_hacky_useless_tc_ctx lexpr' vty in
@@ -624,7 +625,7 @@ let tc_param' xf_param = xfunction
                    let lenvt = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
                      [Param(len, lenvt)]
                  | _ -> [])
-let tc_param xf_param pa = List.map (make_ast pa.pos) (tc_param' xf_param pa)
+let tc_param sdecs xf_param pa = List.map (make_ast pa.pos) (tc_param' sdecs xf_param pa)
 
 let tc_fdec' fpos fenv sdecs = function
   | Ast.FunDec(f,ft,rt,params,stms) ->
@@ -634,7 +635,7 @@ let tc_fdec' fpos fenv sdecs = function
         | Some rty -> Some(etype_conv rty)
         | None -> None
     in
-    let params' = List.flatten @@ List.map (tc_param true) params in
+    let params' = List.flatten @@ List.map (tc_param sdecs true) params in
     let venv = Env.new_env () in
       List.iter (fun {data=Param(name,vty)} ->
                   let entry = (name,vty) in
@@ -675,7 +676,7 @@ let tc_fdec' fpos fenv sdecs = function
         | Some rty -> Some(etype_conv rty)
         | None -> None
     in
-    let params' = List.flatten @@ List.map (tc_param false) params in
+    let params' = List.flatten @@ List.map (tc_param sdecs false) params in
     let venv = Env.new_env () in
       List.iter (fun {data=Param(name,vty)} ->
                   let entry = (name,vty) in

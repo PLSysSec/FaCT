@@ -93,10 +93,11 @@ let gh_field = xfunction
 let gh_sdec = xfunction
   | Struct(sname,fields) ->
     Printf.sprintf
-"// Expecting:
+"struct %s;
 // struct %s {
 %s
 // };"
+      sname.data
       sname.data
       (String.concat "\n" @@ List.map gh_field fields)
 

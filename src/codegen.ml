@@ -40,7 +40,7 @@ let new_fenv oldfenv =
 
 
 let mk_ctx llcontext llmodule builder venv fenv tenv vtenv verify_llvm =
-  { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm }
+  { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm; sdecs=[] }
 
 type intrinsic = 
   | Memcpy
@@ -136,9 +136,9 @@ let is_dynamic_sized_array = function
 
 let vt_to_llvm_ty (cg_ctx : codegen_ctx_record) = function
   | RefVT({data=base_type},maybe_label,_) ->
-    bt_to_llvm_ty cg_ctx base_type
+    bt_to_llvm_ty cg_ctx.llcontext base_type
   | ArrayVT({data=ArrayAT(at,size)},maybe_label,_) ->
-    let arr_ty = bt_to_llvm_ty cg_ctx at.data in
+    let arr_ty = bt_to_llvm_ty cg_ctx.llcontext at.data in
     let size = get_size cg_ctx size.data in
     (* TODO: Should we be passing arrays as a * or **? *)
     array_type arr_ty size
@@ -146,31 +146,34 @@ let vt_to_llvm_ty (cg_ctx : codegen_ctx_record) = function
 let param_to_type cg_ctx = function
   | {data=Param(var_name,
     {data=RefVT({data=base_type},maybe_label,{data=Mut})})} ->
-    pointer_type(bt_to_llvm_ty cg_ctx base_type)
+    pointer_type(bt_to_llvm_ty cg_ctx.llcontext base_type)
   | {data=Param(var_name,
     {data=RefVT({data=base_type},maybe_label,{data=Const})})} ->
-    bt_to_llvm_ty cg_ctx base_type
+    bt_to_llvm_ty cg_ctx.llcontext base_type
   | {data=Param(var_name,{data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_)})} ->
     begin
       match size.data with
         | LIntLiteral s ->
-          pointer_type(array_type (bt_to_llvm_ty cg_ctx bt.data) s)
+          pointer_type(array_type (bt_to_llvm_ty cg_ctx.llcontext bt.data) s)
         | LDynamic _ ->
           Hashtbl.add (Env.get_vtbl cg_ctx.tenv) var_name.data ty;
-          pointer_type (bt_to_llvm_ty cg_ctx bt.data)
+          pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt.data)
     end
+  | {data=Param(var_name,{data=StructVT(s,_)})} ->
+    let struct_ty = List.assoc s.data cg_ctx.sdecs in
+      pointer_type struct_ty
 
 let bitsize cg_ctx = function
   | BaseET({data=base_type},_) ->
-    bt_to_llvm_ty cg_ctx base_type
+    bt_to_llvm_ty cg_ctx.llcontext base_type
   | ArrayET({data=ArrayAT(at,size)},_,_) ->
-    bt_to_llvm_ty cg_ctx at.data
+    bt_to_llvm_ty cg_ctx.llcontext at.data
 
 let expr_ty_to_llvm_ty cg_ctx = function
   | BaseET({data=base_type},_) ->
-    bt_to_llvm_ty cg_ctx base_type
+    bt_to_llvm_ty cg_ctx.llcontext base_type
   | ArrayET({data=ArrayAT(at,size)},_,_) ->
-    let arr_ty = bt_to_llvm_ty cg_ctx at.data in
+    let arr_ty = bt_to_llvm_ty cg_ctx.llcontext at.data in
     let size = get_size cg_ctx size.data in
     array_type arr_ty size (* TODO: Double check that this is not a pointer*)
 
@@ -246,13 +249,23 @@ let allocate_args cg_ctx args f =
       (* We cannot pass a static array to a function.
          Instead, it must be a dyn array *)
       | ArrayVT({data=ArrayAT(bt,{data=_(*LDynamic(var_name')*)})},ml,_) ->
-        let ty = pointer_type(bt_to_llvm_ty cg_ctx bt.data) in
+        let ty = pointer_type(bt_to_llvm_ty cg_ctx.llcontext bt.data) in
         let name = make_name "arrarg" ml in
         let alloca = build_alloca ty name cg_ctx.builder in
         codegen_dec cg_ctx var_type ll_arg;
         Env.add_var cg_ctx.venv var_name alloca;
         set_value_name name ll_arg;
-        build_store ll_arg alloca cg_ctx.builder |> ignore in
+        build_store ll_arg alloca cg_ctx.builder |> ignore
+      | StructVT(s,_) ->
+        let struct_ty = List.assoc s.data cg_ctx.sdecs in
+        let ty = pointer_type struct_ty in
+        let name = make_name "structarg" (make_ast fake_pos (Fixed Public)) in
+        let alloca = build_alloca ty name cg_ctx.builder in
+          (* XXX codegen_dec *)
+          Env.add_var cg_ctx.venv var_name alloca;
+          set_value_name name ll_arg;
+          build_store ll_arg alloca cg_ctx.builder |> ignore
+    in
 
     (*let llvm_ty = param_to_type cg_ctx arg in
     let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in*)
@@ -308,7 +321,7 @@ let rec allocate_stack cg_ctx stms =
     | {data=For(var_name,base_type,low,high,stms)} ->
       allocate_inject low;
       allocate_inject high;
-      let llvm_ty = bt_to_llvm_ty cg_ctx base_type.data in
+      let llvm_ty = bt_to_llvm_ty cg_ctx.llcontext base_type.data in
       let ml = make_ast fake_pos (Fixed Public) in
       let name = make_name var_name.data ml in
       let alloca = build_alloca llvm_ty name cg_ctx.builder in
@@ -379,7 +392,7 @@ let codegen_binop cg_ctx op e1 e2 ty ety ml b =
           build_call rotr_fn [| e1; e2 |] "rotrtmp" b
   in
 
-  let ret_ty = bt_to_llvm_ty cg_ctx ty in
+  let ret_ty = bt_to_llvm_ty cg_ctx.llcontext ty in
   let ret_width = integer_bitwidth ret_ty in
   let expr_width = integer_bitwidth (type_of res) in
   match ret_width,expr_width with
@@ -394,20 +407,20 @@ let codegen_unop builder value ml = function
   | Ast.LogicalNot -> build_not value (make_name "lnottmp" ml) builder
   | Ast.BitwiseNot -> build_not value (make_name "bnottmp" ml) builder
 
-let build_cast ty ctx b value = (* from, to *) function
+let build_cast ty cg_ctx value = (* from, to *) function
   | Bool ->
     let name = make_name_et "bcast" ty in
-    build_intcast value (bt_to_llvm_ty ctx Bool) name b
+    build_intcast value (bt_to_llvm_ty cg_ctx.llcontext Bool) name cg_ctx.builder
   | UInt(n) ->
     let name = make_name_et "ucast" ty in
     let m = integer_bitwidth (type_of value) in
       (if n > m then build_zext else build_trunc)
-        value (bt_to_llvm_ty ctx (UInt n)) name b
+        value (bt_to_llvm_ty cg_ctx.llcontext (UInt n)) name cg_ctx.builder
   | Int(n) ->
     let name = make_name_et "icast" ty in
     let m = integer_bitwidth (type_of value) in
       (if n > m then build_sext else build_trunc)
-        value (bt_to_llvm_ty ctx (Int n)) name b
+        value (bt_to_llvm_ty cg_ctx.llcontext (Int n)) name cg_ctx.builder
   | _ -> raise CodegenError (* TODO: How do we cast the Num type?? *)
 
 (*
@@ -465,7 +478,7 @@ let rec codegen_arg cg_ctx arg ty =
                   arr'
                 | LIntLiteral s,true ->
                   let arr',_ = codegen_array_expr cg_ctx name arr.data in
-                  let arr_type = array_type (bt_to_llvm_ty cg_ctx bt.data) s in
+                  let arr_type = array_type (bt_to_llvm_ty cg_ctx.llcontext bt.data) s in
                   let pt = pointer_type arr_type in
                   let name = make_name "dyntostaticarr" ml in
                   build_bitcast arr' pt name cg_ctx.builder
@@ -475,7 +488,7 @@ let rec codegen_arg cg_ctx arg ty =
                   build_load arr' name cg_ctx.builder
                 | LDynamic var_name,false ->
                   let arr',_ = codegen_array_expr cg_ctx name arr.data in
-                  let ll_ty = bt_to_llvm_ty cg_ctx bt.data in
+                  let ll_ty = bt_to_llvm_ty cg_ctx.llcontext bt.data in
                   let name = make_name "arrtoptr" ml in
                     build_bitcast arr' (pointer_type ll_ty) name cg_ctx.builder
             end in
@@ -522,7 +535,7 @@ and codegen_expr cg_ctx = function
       build_load cell (make_name_et "lval" ty) cg_ctx.builder
   | IntCast(base_ty,expr), ty ->
     let v = codegen_expr cg_ctx expr.data in
-    build_cast ty cg_ctx cg_ctx.builder v base_ty.data
+    build_cast ty cg_ctx v base_ty.data
   | UnOp(op,expr), ty ->
     let llty = expr_ty_to_llvm_ty cg_ctx ty in
     let expr' = codegen_ext cg_ctx llty expr in
@@ -629,7 +642,7 @@ and codegen_array_expr cg_ctx arr_name = function
       match lexpr.data with
         | LIntLiteral n ->
           let ty' = expr_ty_to_base_ty ty in
-          let ll_ty = bt_to_llvm_ty cg_ctx ty' in
+          let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
           let arr_ty = array_type ll_ty n in
           let name = make_name_et "zerodarray" ty in
           let alloca = build_alloca arr_ty name cg_ctx.builder in
@@ -698,14 +711,14 @@ and codegen_array_expr cg_ctx arr_name = function
             let name = make_name_et "source_gep" ty in
             let source_gep = build_in_bounds_gep ptr indices name cg_ctx.builder in
             let bt,at = bt_at_of_et ty in
-            let ty' = pointer_type (bt_to_llvm_ty cg_ctx bt.data) in
+            let ty' = pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt.data) in
             let name = make_name_et "arrviewdyn" ty in
             let alloca = build_alloca ty' name cg_ctx.builder in
               build_store source_gep alloca cg_ctx.builder |> ignore;
               alloca,true
           | _ ->
             let bt,at = bt_at_of_et ty in
-            let ty' = pointer_type (bt_to_llvm_ty cg_ctx bt.data) in
+            let ty' = pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt.data) in
             let name = make_name_et "arrview" ty in
             let alloca = build_alloca ty' name cg_ctx.builder in
             let zero = const_int (type_of index) 0 in
@@ -722,7 +735,7 @@ and codegen_array_expr cg_ctx arr_name = function
       match lexpr.data with
         | LIntLiteral n ->
           let ty' = expr_ty_to_base_ty ty in
-          let ll_ty = bt_to_llvm_ty cg_ctx ty' in
+          let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
           let arr_ty = array_type ll_ty n in
           let name = make_name_et "noinitarray" ty in
           let alloca = build_alloca arr_ty name cg_ctx.builder in
@@ -753,7 +766,7 @@ and codegen_stm cg_ctx ret_ty = function
     let arr_expr, _ = arr_expr.data in
     let left_ty = at_to_et var_type.data in
     let alloca,add_to_type_env = codegen_array_expr cg_ctx var_name (arr_expr, left_ty) in
-    let ct_verif_ty = bt_to_llvm_ty cg_ctx (bt_of_vt var_type.data).data in
+    let ct_verif_ty = bt_to_llvm_ty cg_ctx.llcontext (bt_of_vt var_type.data).data in
     let ct_verif_ty' = pointer_type ct_verif_ty in
     (*let alloca' = build_bitcast alloca ct_verif_ty' "ddd" cg_ctx.builder in
     codegen_dec cg_ctx.verify_llvm var_type alloca' cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;*)
@@ -828,7 +841,7 @@ and codegen_stm cg_ctx ret_ty = function
     let ml = make_ast fake_pos (Fixed Public) in
     let name_i = make_name var_name.data ml in
     set_value_name name_i i;
-    let bt = bt_to_llvm_ty cg_ctx base_type.data in
+    let bt = bt_to_llvm_ty cg_ctx.llcontext base_type.data in
     let low = codegen_ext cg_ctx bt low_expr in
     ignore(build_store low i cg_ctx.builder);
     ignore(build_br bb_check cg_ctx.builder);
@@ -844,7 +857,7 @@ and codegen_stm cg_ctx ret_ty = function
     position_at_end bb_body cg_ctx.builder;
     codegen_stms cg_ctx ret_ty statements |> ignore;
     let i'' = build_load i name_i cg_ctx.builder in
-    let one = (const_int (bt_to_llvm_ty cg_ctx base_type.data) 1) in
+    let one = (const_int (bt_to_llvm_ty cg_ctx.llcontext base_type.data) 1) in
     let name = make_name "loopincr" ml in
     let incr = build_add i'' one name cg_ctx.builder in
     ignore(build_store incr i cg_ctx.builder);
@@ -877,7 +890,7 @@ and codegen_stm cg_ctx ret_ty = function
     begin
       match ret_ty with
         | Some BaseET(bt,label) ->
-          let ty = (bt_to_llvm_ty cg_ctx bt.data) in
+          let ty = (bt_to_llvm_ty cg_ctx.llcontext bt.data) in
           let ret' = codegen_ext cg_ctx ty expr in
           ignore(build_ret ret' cg_ctx.builder)
         (* TODO: assert valid function here *)
@@ -934,13 +947,13 @@ and declare_prototype cg_ctx llmodule builder fenv params ret name =
       | Some f -> raise FunctionAlreadyDefined in
   ft'
 
-let codegen_fun llcontext llmodule builder fenv verify_llvm = function
+let codegen_fun llcontext llmodule builder fenv sdecs verify_llvm = function
   | { data=FunDec(name,funattrs,ret,params,body) } ->
     Log.info "Generating function, %s" name.data;
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
     let vtenv = Env.new_env () in
-    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm } in
+    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; sdecs; verify_llvm } in
     let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
       if not funattrs.export && not verify_llvm then
         set_linkage Internal ft;
@@ -979,19 +992,38 @@ let codegen_fun llcontext llmodule builder fenv verify_llvm = function
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
     let vtenv = Env.new_env () in
-    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm } in
+    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; sdecs; verify_llvm } in
     declare_prototype cg_ctx llmodule builder fenv params ret_ty fun_name
   | { data=DebugFunDec _} -> raise CodegenError
   | { data=StdlibFunDec _} -> raise CodegenError
 
-let rec codegen_fdecs llcontext llmodule builder fenv verify = function
+let rec codegen_fdecs llcontext llmodule builder fenv sdecs verify = function
   | [] -> ()
   | fd::rest ->
-    ignore(codegen_fun llcontext llmodule builder fenv verify fd);
-    codegen_fdecs llcontext llmodule builder fenv verify rest
+    ignore(codegen_fun llcontext llmodule builder fenv sdecs verify fd);
+    codegen_fdecs llcontext llmodule builder fenv sdecs verify rest
+
+let field_to_type llctx = function
+  | {data=Field(var_name,
+    {data=RefVT({data=base_type},maybe_label,_)})} ->
+    bt_to_llvm_ty llctx base_type
+  | {data=Field(var_name,{data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_)})} ->
+    begin
+      match size.data with
+        | LIntLiteral s ->
+          array_type (bt_to_llvm_ty llctx bt.data) s
+    end
+
+let codegen_sdec llctx {data=sdec} =
+  let Struct(s,fields) = sdec in
+  let field_tys = List.map (field_to_type llctx) fields |> Array.of_list in
+  let struct_ty = named_struct_type llctx s.data in
+    struct_set_body struct_ty field_tys true;
+    (s.data, struct_ty)
 
 let rec codegen llcontext llmodule builder verify = function
   | Module(oldfenv,fdecs,sdecs) ->
     Log.info "Codegening module";
+    let sdecs = List.map (codegen_sdec llcontext) sdecs in
     let fenv = new_fenv oldfenv in
-      codegen_fdecs llcontext llmodule builder fenv verify fdecs
+      codegen_fdecs llcontext llmodule builder fenv sdecs verify fdecs
