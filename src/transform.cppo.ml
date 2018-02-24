@@ -24,17 +24,43 @@ let new_temp_var =
   new_temp_var'
 
 type xf_ctx_record = {
-  rp   : label' ref;
-  pc   : label';
-  ms   : var_name list;
-  rt   : ret_type;
-  venv : (var_name * variable_type) Env.env;
-  fenv : (function_dec * bool ref) Env.env;
+  rp    : label' ref;
+  pc    : label';
+  ms    : var_name list;
+  rt    : ret_type;
+  venv  : (var_name * variable_type) Env.env;
+  fenv  : (function_dec * bool ref) Env.env;
+  sdecs : struct_type list;
 }
 
-let fdec_has_secret_refs p (fdec,everhi) =
+let rec struct_has_secrets xf_ctx s =
+  let sdec = find_struct xf_ctx.sdecs s in
+  let Struct(_,fields) = sdec.data in
+    List.exists
+      (fun {data=Field(_,vt)} ->
+         match vt.data with
+           | RefVT(_,{data=Fixed label},_) -> label = Secret
+           | ArrayVT(_,{data=Fixed label},_) -> label = Secret
+           | StructVT(sn,_) -> struct_has_secrets xf_ctx sn
+      )
+      fields
+
+let rec params_has_secret_refs xf_ctx = function
+  | [] -> false
+  | ({data=Param(_,{data=vty'});pos=p}::params) ->
+    begin
+      match vty' with
+        | RefVT(_,{data=Fixed label},{data=mut}) ->
+          (mut = Mut && label = Secret) || params_has_secret_refs xf_ctx params
+        | ArrayVT(_,{data=Fixed label},{data=mut}) ->
+          (mut = Mut && label = Secret) || params_has_secret_refs xf_ctx params
+        | StructVT(s,{data=mut}) ->
+          (mut = Mut && struct_has_secrets xf_ctx s) || params_has_secret_refs xf_ctx params
+    end
+
+let fdec_has_secret_refs xf_ctx p (fdec,everhi) =
   match fdec.data with
-    | FunDec(_,_,_,params,_) -> (params_has_secret_refs params) && !everhi
+    | FunDec(_,_,_,params,_) -> (params_has_secret_refs xf_ctx params) && !everhi
     | CExtern(_,_,params) when !everhi -> raise @@ cerr("cannot call C extern from secret context", p)
     | _ -> false
 
@@ -148,7 +174,7 @@ and xf_expr' xf_ctx { data; pos=p } =
       | FnCall(f,args) ->
         let args' = List.map (xf_arg xf_ctx) args in
         let fdec = Env.find_var xf_ctx.fenv f in
-          if fdec_has_secret_refs p fdec then
+          if fdec_has_secret_refs xf_ctx p fdec then
             let fctx = ctx in
               FnCall(f,args'@[mkpos ByValue fctx])
           else
@@ -230,7 +256,7 @@ and xf_stm' xf_ctx p = function
   | VoidFnCall(f,args) ->
     let args' = List.map (xf_arg xf_ctx) args in
     let fdec = Env.find_var xf_ctx.fenv f in
-      if fdec_has_secret_refs p fdec then
+      if fdec_has_secret_refs xf_ctx p fdec then
         let fctx = ctx in
           [VoidFnCall(f,args'@[mkpos ByValue fctx])]
       else
@@ -287,10 +313,19 @@ and xf_block xf_ctx stms =
   let stms' = List.flatten @@ List.map (xf_stm xf_ctx) stms in
     (xf_ctx.venv, stms')
 
-let xf_fdec fenv everhi = pfunction
+let xf_fdec fenv sdecs everhi = pfunction
     | FunDec(f,ft,rt,params,block) ->
       let (venv,stms) = block in
-      let params' = if (params_has_secret_refs params) && !everhi
+      let xf_ctx = {
+        rp=ref Public;
+        pc=Public;
+        rt;
+        fenv;
+        venv;
+        sdecs;
+        ms=[];
+      } in
+      let params' = if (params_has_secret_refs xf_ctx params) && !everhi
         then
           let fctx = mkpos "__fctx" in
           let fctx_vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
@@ -299,7 +334,6 @@ let xf_fdec fenv everhi = pfunction
             Env.add_var venv fctx entry;
             params @ [fctx_param]
         else params in
-      let xf_ctx = { rp=ref Public; pc=Public; rt; fenv; venv; ms=[] } in
       let venv,stms' = xf_block xf_ctx stms in
       let rnset = mkpos "__rnset" in
       let rnset_dec = mkpos BaseDec(rnset, mkpos svbool, sebool(True)) in
@@ -324,16 +358,16 @@ let xf_fdec fenv everhi = pfunction
           end
     | CExtern _ as fdec -> fdec
 
-let rec xf_fdecs fenv = function
+let rec xf_fdecs fenv sdecs = function
   | [] -> []
   | (fdec::fdecs) ->
     let fname = fname_of fdec in
     let (_,everhi) = Env.find_var fenv fname in
-    let fdec' = xf_fdec fenv everhi fdec in
+    let fdec' = xf_fdec fenv sdecs everhi fdec in
       Env.replace_var fenv fname (fdec', everhi);
-      fdec'::(xf_fdecs fenv fdecs)
+      fdec'::(xf_fdecs fenv sdecs fdecs)
 
 let xf_module (Module(fenv,fdecs,sdecs)) =
-  Module(fenv, xf_fdecs fenv fdecs, sdecs)
+  Module(fenv, xf_fdecs fenv sdecs fdecs, sdecs)
 
 

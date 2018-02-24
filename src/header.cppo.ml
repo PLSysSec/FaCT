@@ -25,7 +25,7 @@ let gh_label = xfunction
 
 let gh_mut = xfunction
   | Const -> ""
-  | Mut -> "*"
+  | Mut -> " *"
 
 let gh_amut = xfunction
   | Const -> "const "
@@ -48,6 +48,7 @@ let gh_ety = xfunction
 let gh_vty x = xfunction
   | RefVT(b,l,m) -> Printf.sprintf "%s %s%s %s" (gh_label l) (gh_bty b) (gh_mut m) x
   | ArrayVT(a,l,m) -> Printf.sprintf "%s %s%s %s%s" (gh_label l) (gh_amut m) (gh_aty a) x (gh_aty_post a)
+  | StructVT(s,m) -> Printf.sprintf "struct %s * %s%s" s.data (gh_amut m) x
 
 let gh_rty = function
   | None -> "void"
@@ -72,8 +73,36 @@ let gh_fdec fenv = xfunction
           paramdecs
   | _ -> ""
 
+let gh_field = xfunction
+  | Field(x,vty) ->
+    match vty.data with
+      | RefVT(b,l,m) ->
+        Printf.sprintf
+          "//   %s %s %s;"
+          (gh_label l)
+          (gh_bty b)
+          x.data
+      | ArrayVT(a,l,m) ->
+        Printf.sprintf
+          "//   %s %s %s%s;"
+          (gh_label l)
+          (gh_aty a)
+          x.data
+          (gh_aty_post a)
+
+let gh_sdec = xfunction
+  | Struct(sname,fields) ->
+    Printf.sprintf
+"// Expecting:
+// struct %s {
+%s
+// };"
+      sname.data
+      (String.concat "\n" @@ List.map gh_field fields)
+
+
 let gh_module (Module(fenv,fdecs,sdecs)) =
-  String.concat "\n\n" @@ List.map (gh_fdec fenv) fdecs
+  String.concat "\n\n" @@ (List.map gh_sdec sdecs @ List.map (gh_fdec fenv) fdecs)
 
 let generate_header fname m =
   let header_name = fname

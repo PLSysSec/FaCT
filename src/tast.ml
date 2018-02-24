@@ -60,7 +60,7 @@ and expr_type = expr_type' pos_ast [@@deriving show]
 and variable_type' =
   | RefVT of base_type * maybe_label * mutability
   | ArrayVT of array_type * maybe_label * mutability
-  | StructVT of struct_name
+  | StructVT of struct_name * mutability
 [@@deriving show]
 and variable_type = variable_type' pos_ast [@@deriving show]
 

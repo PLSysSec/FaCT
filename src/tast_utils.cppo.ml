@@ -102,6 +102,7 @@ let refvt_to_lexpr_option = xfunction
   | ArrayVT(a,ml,m) ->
     let ArrayAT(bt,lexpr) = a.data in
       Some lexpr.data
+  | StructVT _ -> None
 
 let refvt_to_etype' = xfunction
   | RefVT(b,ml,_) -> BaseET(b, ml)
@@ -294,17 +295,6 @@ let param_is_ldynamic = xfunction
         | _ -> false
     end
 
-let rec params_has_secret_refs = function
-  | [] -> false
-  | ({data=Param(_,{data=vty'})}::params) ->
-    begin
-      match vty' with
-        | RefVT(_,{data=Fixed label},{data=mut}) ->
-          (mut = Mut && label == Secret) || params_has_secret_refs params
-        | ArrayVT(_,{data=Fixed label},{data=mut}) ->
-          (mut = Mut && label == Secret) || params_has_secret_refs params
-    end
-
 
 (* Simple Manipulation *)
 
@@ -320,3 +310,9 @@ let aetype_update_mut' mut = function
 
 let refvt_update_mut' mut = xfunction
   | RefVT(b,ml,_) -> RefVT(b, ml, mut)
+
+
+(* Structs *)
+
+let find_struct sdecs s =
+  List.find (fun {data=Struct(sn,_)} -> s.data = sn.data) sdecs

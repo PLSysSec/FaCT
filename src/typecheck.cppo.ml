@@ -18,6 +18,7 @@ type tc_ctx_record = {
   pc       : label';
   venv     : (var_name * variable_type) Env.env;
   fenv     : (function_dec * bool ref) Env.env;
+  sdecs    : struct_type list;
   add_stms : statement' list ref;
 }
 
@@ -244,6 +245,8 @@ and refvt_conv_fill tc_ctx lexpr' = pfunction
     RefVT(bconv b, mlconv l, mconv m)
   | Ast.ArrayVT(a,ml,m) ->
     ArrayVT(atype_conv_fill tc_ctx lexpr' a, mlconv ml, mconv m)
+  | Ast.StructVT(s,m) ->
+    StructVT(s,mconv m)
 
 and tc_arg tc_ctx = pfunction
   | Ast.ByValue e ->
@@ -605,7 +608,14 @@ let tc_param' xf_param = xfunction
     let lexpr' = LDynamic(mkpos len) in
     (* the lexpr will only get used if vty is LUnspecified *)
       (* XXX the following line is a total hack *)
-      let fake_hacky_useless_tc_ctx = { rp=ref Public; pc=Public; venv=Env.new_env (); fenv=Env.new_env (); add_stms=ref [] } in
+    let fake_hacky_useless_tc_ctx = {
+      rp=ref Public;
+      pc=Public;
+      venv=Env.new_env ();
+      fenv=Env.new_env ();
+      sdecs=[];
+      add_stms=ref [];
+    } in
     let refvt = refvt_conv_fill fake_hacky_useless_tc_ctx lexpr' vty in
     let param = Param(x,refvt) in
     let lexpr = refvt_to_lexpr_option refvt in
@@ -630,7 +640,14 @@ let tc_fdec' fpos fenv sdecs = function
                   let entry = (name,vty) in
                     Env.add_var venv name entry)
         params';
-      let tc_ctx = { rp=ref Public; pc=Public; venv; fenv; add_stms=ref [] } in
+      let tc_ctx = {
+        rp=ref Public;
+        pc=Public;
+        venv;
+        fenv;
+        sdecs;
+        add_stms=ref [];
+      } in
       let rec final_stmt_rets stms =
         begin
           match List.rev stms with

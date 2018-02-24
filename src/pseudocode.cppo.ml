@@ -57,6 +57,7 @@ let ps_ety = xfunction
 let ps_vty = xfunction
   | RefVT(b,l,m) -> Printf.sprintf "%s %s%s" (ps_label l) (ps_mut m) (ps_bty b)
   | ArrayVT(a,l,m) -> Printf.sprintf "%s %s%s" (ps_label l) (ps_mut m) (ps_aty a)
+  | StructVT(s,m) -> Printf.sprintf "%sstruct %s" (ps_mut m) s.data
 
 let ps_unop = function
   | Ast.Neg        -> "-"

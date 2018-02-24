@@ -269,13 +269,25 @@ param_type:
     { mkpos (ArrayVT(a, l, mkpos Const)) }
   | l=label m=mutability a=array_type
     { mkpos (ArrayVT(a, l, m)) }
+  | STRUCT s=struct_name
+    { mkpos (StructVT(s, mkpos Const)) }
+  | m=mutability STRUCT s=struct_name
+    { mkpos (StructVT(s, m)) }
 
 param:
   | t=param_type x=var_name
     { mkpos (Param(x, t)) }
 
+field_type:
+  | l=label b=base_type
+    { mkpos (RefVT(b, l, mkpos Mut)) }
+  | l=label a=array_type
+    { mkpos (ArrayVT(a, l, mkpos Mut)) }
+  | STRUCT s=struct_name
+    { mkpos (StructVT(s, mkpos Mut)) }
+
 field:
-  | t=param_type x=var_name SEMICOLON
+  | t=field_type x=var_name SEMICOLON
     { mkpos (Field(x, t)) }
 
 function_dec:
