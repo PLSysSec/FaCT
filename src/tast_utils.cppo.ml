@@ -66,7 +66,7 @@ let expr_to_btype : (expr -> base_type) = xfunction
 let expr_to_ml : (expr -> maybe_label) = xfunction
   | (_,BaseET(_,ml)) -> ml
 
-let expr_to_types = xfunction
+let expr_to_types : (expr -> base_type * maybe_label) = xfunction
   | (_,BaseET(b,ml)) -> b,ml
 
 let atype_out = xfunction
@@ -82,6 +82,11 @@ let refvt_to_betype' = xfunction
     let ArrayAT(bt,lexpr) = a.data in
       BaseET(bt,ml)
 let refvt_to_betype = rebind refvt_to_betype'
+
+let arrayvt_to_refvt = pfunction
+  | ArrayVT(a,ml,m) ->
+    let ArrayAT(bt,lexpr) = a.data in
+      RefVT(bt,ml,m)
 
 let refvt_type_out = xfunction
   | RefVT(b,ml,m) -> b,ml,m
@@ -102,17 +107,6 @@ let refvt_to_etype' = xfunction
   | RefVT(b,ml,_) -> BaseET(b, ml)
   | ArrayVT(a,ml,m) -> ArrayET(a, ml, m)
 let refvt_to_etype = rebind refvt_to_etype'
-
-let argtype_of venv = xfunction
-  | ByValue e ->
-    let b,ml = expr_to_types e in
-      mkpos RefVT(b,ml,mkpos Const)
-  | ByRef x ->
-    let _,vt = Env.find_var venv x in
-      vt
-  | ByArray({data=(aexpr,aty)}, mut) ->
-    let b,ml = atype_out (mkpos aty) in
-    mkpos ArrayVT(b,ml,mut)
 
 let fname_of = xfunction
   | FunDec(fname,_,_,_,_)

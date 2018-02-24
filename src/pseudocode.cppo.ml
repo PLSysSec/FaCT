@@ -95,18 +95,27 @@ let rec ps_arg ps_ctx = xfunction
   | ByRef x ->
     Printf.sprintf
       "ref %s"
-      x.data
+      (ps_lval ps_ctx x)
+
+and ps_lval' ps_ctx = function
+  | Base x -> x.data
+  | ArrayEl(lval,n) ->
+    Printf.sprintf
+      "%s[%s]"
+      (ps_lval ps_ctx lval)
+      (ps_expr ps_ctx n)
+  | StructEl(lval,field) ->
+    Printf.sprintf
+      "%s.%s"
+      (ps_lval ps_ctx lval)
+      field.data
+and ps_lval ps_ctx {data=(lval,_)} = ps_lval' ps_ctx lval
 
 and ps_expr' ps_ctx = function
   | True -> "true"
   | False -> "false"
   | IntLiteral n -> string_of_int n
-  | Variable x -> x.data
-  | ArrayGet(x,n) ->
-    Printf.sprintf
-      "%s[%s]"
-      x.data
-      (ps_expr ps_ctx n)
+  | Lvalue x -> ps_lval ps_ctx x
   | IntCast(bty,e) ->
     Printf.sprintf
       "(%s)%s"
@@ -157,7 +166,7 @@ and ps_aexpr' ps_ctx = function
       "{ %s }"
       (String.concat ", "
          (List.map (ps_expr ps_ctx) es))
-  | ArrayVar x -> x.data
+  | ArrayVar x -> ps_lval ps_ctx x
   | ArrayZeros lexpr ->
     Printf.sprintf
       "arrzeros(%s)"
@@ -165,11 +174,11 @@ and ps_aexpr' ps_ctx = function
   | ArrayCopy x ->
     Printf.sprintf
       "arrcopy(%s)"
-      x.data
+      (ps_lval ps_ctx x)
   | ArrayView(x,n,lexpr) ->
     Printf.sprintf
       "arrview(%s, %s, %s)"
-      x.data
+      (ps_lval ps_ctx x)
       (ps_expr ps_ctx n)
       (ps_lexpr lexpr)
   | ArrayComp _ -> "<arrcomp>"
@@ -193,16 +202,10 @@ and ps_stm ps_ctx = xfunction
       (ps_vty aty)
       x.data
       (ps_aexpr ps_ctx ae)
-  | BaseAssign(x,e) ->
+  | Assign(lval,e) ->
     Printf.sprintf
       "%s = %s;"
-      x.data
-      (ps_expr ps_ctx e)
-  | ArrayAssign(x,n,e) ->
-    Printf.sprintf
-      "%s[%s] = %s;"
-      x.data
-      (ps_expr ps_ctx n)
+      (ps_lval ps_ctx lval)
       (ps_expr ps_ctx e)
   | If(e,tblock,fblock) ->
     Printf.sprintf

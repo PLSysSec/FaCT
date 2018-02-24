@@ -268,7 +268,7 @@ let allocate_args cg_ctx args f =
 let rec allocate_stack cg_ctx stms =
   let rec allocate_inject {data=(expr,_)} =
     match expr with
-      | ArrayGet(_,n) -> allocate_inject n
+      | Lvalue lv -> allocate_lval lv
       | IntCast(_,e) -> allocate_inject e
       | UnOp(_,e) -> allocate_inject e
       | BinOp(_,e1,e2) -> allocate_inject e1; allocate_inject e2
@@ -278,6 +278,11 @@ let rec allocate_stack cg_ctx stms =
       | Declassify e -> allocate_inject e
       | Inject(_,stms) -> List.iter allocate_stack' stms
       | _ -> ()
+  and allocate_lval {data=(lval,_)} =
+    match lval with
+      | Base _ -> ()
+      | ArrayEl(lv,n) -> allocate_lval lv; allocate_inject n
+      | StructEl(lv,_) -> allocate_lval lv
   and allocate_stack' = function
     | {data=BaseDec(var_name,var_type,expr)} ->
       allocate_inject expr;
@@ -293,10 +298,7 @@ let rec allocate_stack cg_ctx stms =
          So yea, fix dis *)
       (*let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
       add_var cg_ctx.venv var_name alloca*)
-    | {data=BaseAssign(var_name,expr)} -> allocate_inject expr
-    | {data=ArrayAssign(var_name,index,expr)} ->
-      allocate_inject index;
-      allocate_inject expr
+    | {data=Assign(lv,expr)} -> allocate_lval lv; allocate_inject expr
     | {data=Block(stms)} ->
       allocate_stack cg_ctx stms
     | {data=If(cond,thenstms,elsestms)} ->
@@ -422,9 +424,9 @@ let size_of_lexpr = function
   | LDynamic x -> raise CodegenError
 
 let rec codegen_arg cg_ctx arg ty =
-  let is_dynamic_array = function
+  (*let is_dynamic_array = function
     | ArrayView _,_ -> true
-    | ArrayVar var_name,_ ->
+    | ArrayVar lval,_ ->
       let some_arg =
         try Some(Env.find_var cg_ctx.tenv var_name) with
           | _ -> None in
@@ -435,8 +437,15 @@ let rec codegen_arg cg_ctx arg ty =
       end
     | _,ArrayET({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true
     | _,ArrayET({data=ArrayAT(_,{data=LIntLiteral _})},_,_) -> false
-    | _ -> raise CodegenError in
-  let vt = 
+    | _ -> raise CodegenError in*)
+  let is_dynamic_array arr =
+    let pty = type_of arr in
+    let base = element_type pty in
+    let kind = classify_type base in
+      match kind with
+        | TypeKind.Pointer -> true
+        | _ -> false in
+  let vt =
     match ty.data with
       | Param(_,vt) -> vt.data in
   match arg.data with
@@ -446,9 +455,10 @@ let rec codegen_arg cg_ctx arg ty =
       begin
         match ty.data with
           | Param(name,{data=ArrayVT({data=ArrayAT(bt,lexpr)},ml,_)}) ->
-            let arr = 
+            let arr',_ = codegen_array_expr cg_ctx name arr.data in
+            let arr =
             begin
-              match lexpr.data, is_dynamic_array arr.data with
+              match lexpr.data, is_dynamic_array arr' with
                 | LIntLiteral s,false ->
                   let arr',_ = codegen_array_expr cg_ctx name arr.data in
                   build_load arr' (make_name "arr" ml) cg_ctx.builder |> ignore;
@@ -474,7 +484,7 @@ let rec codegen_arg cg_ctx arg ty =
           | _-> raise CodegenError
       end;
     | ByRef r ->
-      let var = Env.find_var cg_ctx.venv r in
+      let var = codegen_lval cg_ctx r in
       match vt with
         | RefVT(_,ml,{data=Const})
         | ArrayVT(_,ml,{data=Const}) ->
@@ -482,38 +492,34 @@ let rec codegen_arg cg_ctx arg ty =
         | RefVT(_,_,{data=Mut})
         | ArrayVT(_,_,{data=Mut}) -> var
 
+and codegen_lval cg_ctx {data=(lval,vt);pos=p} =
+  match lval with
+    | Base var_name ->
+      Env.find_var cg_ctx.venv var_name
+    | ArrayEl(lv,expr) ->
+      let arr' = codegen_lval cg_ctx lv in
+      let index = codegen_expr cg_ctx expr.data in
+      let zero = const_int (type_of index) 0 in
+      let indices, arr =
+        begin
+          match arr' |> type_of |> element_type |> classify_type with
+            | TypeKind.Pointer ->
+              [| index |], build_load arr' (make_name_vt "dynload" vt) cg_ctx.builder
+            | _ -> [| zero; index |], arr'
+        end in
+        build_in_bounds_gep arr indices (make_name_vt "ptr" vt) cg_ctx.builder
+    | StructEl _ ->
+      raise CodegenError
+
 and codegen_expr cg_ctx = function
   | True, ty -> const_all_ones (expr_ty_to_llvm_ty cg_ctx ty)
   | False, ty -> const_null (expr_ty_to_llvm_ty cg_ctx ty)
   | IntLiteral i, ty -> const_int (expr_ty_to_llvm_ty cg_ctx ty) i
   | StringLiteral s, ty ->
     build_global_stringptr s (make_name_et "str" ty) cg_ctx.builder
-  | Variable var_name, ty ->
-    (* TODO: We should probably check the lltype of ty and compare it to the type_of of the
-             result? This would be a sanity check. Or maybe even better, we should cast
-             the result to ty. This should pass the typechecker so it should be safe no matter
-             what.*)
-    let store = Env.find_var cg_ctx.venv var_name in
-    build_load store (make_name_et var_name.data ty) cg_ctx.builder
-  | ArrayGet(var_name,expr), ty ->
-    let arr = Env.find_var cg_ctx.venv var_name in
-    let index = codegen_expr cg_ctx expr.data in
-    let some_arg =
-      try Some(Env.find_var cg_ctx.tenv var_name) with
-        | _ -> None in
-    let indices,ptr = match some_arg with
-      | None ->
-        let zero = const_int (type_of index) 0 in
-        let indices = [| zero; index |] in
-        indices,arr
-      | Some arg ->
-        let indices = [| index |] in
-        let ptr =
-          build_load arr (make_name_et "loadedarrptr" ty) cg_ctx.builder in
-        indices,ptr in
-    let p =
-      build_in_bounds_gep ptr indices (make_name_et "ptr" ty) cg_ctx.builder in
-    build_load p (make_name_et "arrget" ty) cg_ctx.builder
+  | Lvalue lval, ty ->
+    let cell = codegen_lval cg_ctx lval in
+      build_load cell (make_name_et "lval" ty) cg_ctx.builder
   | IntCast(base_ty,expr), ty ->
     let v = codegen_expr cg_ctx expr.data in
     build_cast ty cg_ctx cg_ctx.builder v base_ty.data
@@ -599,7 +605,7 @@ and vt_to_bt = function
 
 and codegen_array_expr cg_ctx arr_name = function
   (* XXX gary here too pls *)
-  | ArrayVar var_name,ty -> Env.find_var cg_ctx.venv var_name,false
+  | ArrayVar lval,ty -> codegen_lval cg_ctx lval,false
   | ArrayLit exprs,ty ->
     (* TODO: This needs optimization. We want this array to be global if
              all exprs are known at compile time. Side note -- this is
@@ -641,36 +647,32 @@ and codegen_array_expr cg_ctx arr_name = function
             alloca,false
         | LDynamic x -> raise CodegenError
     end
-  | ArrayCopy var_name,ty ->
+  | ArrayCopy lval,ty ->
     let ll_ty = expr_ty_to_llvm_ty cg_ctx ty in
     let name = make_name_et "copiedarray" ty in
     let alloca = build_alloca ll_ty name cg_ctx.builder in
-    let from = Env.find_var cg_ctx.venv var_name in
+    let from = codegen_lval cg_ctx lval in
     let cpy_len = array_length ll_ty in
     let num_bytes = (byte_size_of_expr_ty ty) * cpy_len in
     let ll_cpy_len = (const_int (i64_type cg_ctx.llcontext) num_bytes) in
     let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
     let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
-    let some_arg =
-      try Some(Env.find_var cg_ctx.tenv var_name) with
-        | _-> None in
-    let source_val, source_ty = 
+    let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
+    let source_val, source_ty =
       begin
-      match some_arg with
-        | None ->
-          let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
-          let name = make_name_et "sourcecasted" ty in
-          let source_casted =
-            build_bitcast from source_cast_ty name cg_ctx.builder in
-          source_casted, source_cast_ty
-        | Some arg ->
-          let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
-          let name = make_name_et "loadedtocopy" ty in
-          let source_casted = build_load from name cg_ctx.builder in
-          let name = make_name_et "sourcecasted" ty in
-          let source_casted' =
-            build_bitcast source_casted source_cast_ty name cg_ctx.builder in
-          source_casted', source_cast_ty
+        match from |> type_of |> element_type |> classify_type with
+          | TypeKind.Pointer ->
+            let name = make_name_et "loadedtocopy" ty in
+            let source_casted = build_load from name cg_ctx.builder in
+            let name = make_name_et "sourcecasted" ty in
+            let source_casted' =
+              build_bitcast source_casted source_cast_ty name cg_ctx.builder in
+              source_casted', source_cast_ty
+          | _ ->
+            let name = make_name_et "sourcecasted" ty in
+            let source_casted =
+              build_bitcast from source_cast_ty name cg_ctx.builder in
+              source_casted, source_cast_ty
       end in
     let name = make_name_et "destcast" ty in
     let dest_casted = build_bitcast alloca source_ty name cg_ctx.builder in
@@ -679,44 +681,41 @@ and codegen_array_expr cg_ctx arr_name = function
     build_call memcpy args "" cg_ctx.builder |> ignore;
     alloca,false
 
-  | ArrayView(var_name, expr, lexpr),ty ->
+  | ArrayView(lval, expr, lexpr),ty ->
     let index = codegen_expr cg_ctx expr.data in
-    let from = Env.find_var cg_ctx.venv var_name in
+    let from = codegen_lval cg_ctx lval in
     let bt_at_of_et = function
       | ArrayET({data=ArrayAT(bt,_)} as at,_,_) -> bt,at
       | _ -> raise CodegenError
-      in
-    let some_arg =
-      try Some(Env.find_var cg_ctx.tenv var_name) with
-        | _-> None in
-    let r = 
-    begin
-    match some_arg with
-      | None ->
-        let bt,at = bt_at_of_et ty in
-        let ty' = pointer_type (bt_to_llvm_ty cg_ctx bt.data) in
-        let name = make_name_et "arrview" ty in
-        let alloca = build_alloca ty' name cg_ctx.builder in
-        let zero = const_int (type_of index) 0 in
-        let indices = [| zero; index |] in
-        let name = make_name_et "source_gep" ty in
-        let source_gep = build_in_bounds_gep from indices name cg_ctx.builder in
-        build_store source_gep alloca cg_ctx.builder |> ignore;
-        alloca,true
-      | Some arg ->
-        let indices = [| index |] in
-        let name = make_name_et "loadedviewptr" ty in
-        let ptr = build_load from name cg_ctx.builder in
-        let name = make_name_et "source_gep" ty in
-        let source_gep = build_in_bounds_gep ptr indices name cg_ctx.builder in
-        let bt,at = bt_at_of_et ty in
-        let ty' = pointer_type (bt_to_llvm_ty cg_ctx bt.data) in
-        let name = make_name_et "arrviewdyn" ty in
-        let alloca = build_alloca ty' name cg_ctx.builder in
-        build_store source_gep alloca cg_ctx.builder |> ignore;
-        alloca,true
-    end in
-    r
+    in
+    let r =
+      begin
+        match from |> type_of |> element_type |> classify_type with
+          | TypeKind.Pointer ->
+            let indices = [| index |] in
+            let name = make_name_et "loadedviewptr" ty in
+            let ptr = build_load from name cg_ctx.builder in
+            let name = make_name_et "source_gep" ty in
+            let source_gep = build_in_bounds_gep ptr indices name cg_ctx.builder in
+            let bt,at = bt_at_of_et ty in
+            let ty' = pointer_type (bt_to_llvm_ty cg_ctx bt.data) in
+            let name = make_name_et "arrviewdyn" ty in
+            let alloca = build_alloca ty' name cg_ctx.builder in
+              build_store source_gep alloca cg_ctx.builder |> ignore;
+              alloca,true
+          | _ ->
+            let bt,at = bt_at_of_et ty in
+            let ty' = pointer_type (bt_to_llvm_ty cg_ctx bt.data) in
+            let name = make_name_et "arrview" ty in
+            let alloca = build_alloca ty' name cg_ctx.builder in
+            let zero = const_int (type_of index) 0 in
+            let indices = [| zero; index |] in
+            let name = make_name_et "source_gep" ty in
+            let source_gep = build_in_bounds_gep from indices name cg_ctx.builder in
+              build_store source_gep alloca cg_ctx.builder |> ignore;
+              alloca,true
+      end in
+      r
   | ArrayComp(bt,lexpr, var_name, expr),ty -> raise CodegenError
   | ArrayNoinit lexpr,ty ->
     begin
@@ -765,35 +764,13 @@ and codegen_stm cg_ctx ret_ty = function
     let bt,at = bt_at_of_et left_ty in
     if add_to_type_env then Env.add_var cg_ctx.tenv var_name at;
     false
-  | {data=BaseAssign(var_name,expr)} ->
-    let v = Env.find_var cg_ctx.venv var_name in
-    let vt = Env.find_var cg_ctx.vtenv var_name in
-    let vt' = vt_to_llvm_ty cg_ctx vt.data in
+  | {data=Assign(lval,expr)} ->
+    let v = codegen_lval cg_ctx lval in
+    let (_,vt) = lval.data in
+    let vt' = vt_to_llvm_ty cg_ctx vt in
     let expr' = codegen_ext cg_ctx vt' expr in
-    build_store expr' v cg_ctx.builder |> ignore;
-    false
-  | {data=ArrayAssign(var_name,array_index,expr)} ->
-    let v = Env.find_var cg_ctx.venv var_name in
-    let vt = Env.find_var cg_ctx.vtenv var_name in
-    let bt,ml = match vt.data with
-      | ArrayVT({data=ArrayAT(bt,_)},ml,_) -> bt.data, ml
-      | _ -> raise CodegenError in
-    let ll_ty = bt_to_llvm_ty cg_ctx bt in
-    let index = codegen_expr cg_ctx array_index.data in
-    let expr' = codegen_ext cg_ctx ll_ty expr in
-    let zero = const_int (i32_type cg_ctx.llcontext) 0 in
-    let some_arg =
-      try Some(Env.find_var cg_ctx.tenv var_name) with
-        | _-> None in
-    let indices,ptr = match some_arg with
-      | None -> [| zero; index |],v
-      | Some arg ->
-        let indices = [| index |] in
-        let ptr = build_load v (make_name "loadedassignptr" ml) cg_ctx.builder in
-        indices, ptr in
-    let p = build_gep ptr indices (make_name "ptr" ml) cg_ctx.builder in
-    build_store expr' p cg_ctx.builder |> ignore;
-    false
+      build_store expr' v cg_ctx.builder;
+      false
   | {data=Block(stms)} ->
     codegen_stms cg_ctx ret_ty stms
   | {data=If(cond,thenstms,elsestms)} ->
@@ -915,8 +892,7 @@ and codegen_stms cg_ctx ret_ty (stms : Tast.block) =
   List.fold_left (fun returned stm -> (cg stm) || returned) false stms'
 
 and declare_prototypes llcontext llmodule builder fenv = function
-  | ArrayGet(_,expr),_ ->
-    declare_prototypes llcontext llmodule builder fenv expr.data
+  | Lvalue lval,_ -> declare_lval_prototypes llcontext llmodule builder fenv lval.data
   | IntCast(_,expr),_ ->
     declare_prototypes llcontext llmodule builder fenv expr.data
   | BinOp(_,expr1,expr2),_ ->
@@ -933,6 +909,11 @@ and declare_prototypes llcontext llmodule builder fenv = function
     declare_prototype llcontext llmodule builder fenv args ret_ty fun_name |> ignore;
     ()
   | _ -> ()
+
+and declare_lval_prototypes cg_ctx llmodule builder fenv = function
+  | Base _,_ -> ()
+  | ArrayEl(_,expr),_ -> declare_prototypes cg_ctx llmodule builder fenv expr.data
+  | StructEl _,_ -> ()
 
 and declare_arg_prototypes cg_ctx llmodule builder fenv = function
     | ByValue expr ->

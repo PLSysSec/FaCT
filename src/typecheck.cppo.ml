@@ -249,13 +249,13 @@ and tc_arg tc_ctx = pfunction
   | Ast.ByValue e ->
     begin
       match e.data with
-        | Ast.Variable x ->
-          let _,vty = Env.find_var tc_ctx.venv x in
+        | Ast.Lvalue lval ->
+          let _,vty = (tc_lvalue tc_ctx lval).data in
             begin
-              match vty.data with
+              match vty with
                 | RefVT _ -> ByValue (tc_expr tc_ctx e)
                 | ArrayVT _ ->
-                  let ae',_ = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar x) in
+                  let ae',_ = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar lval) in
                   let (_,ArrayET(_,_,mut)) = ae'.data in
                     if not (mut.data <* Const) then raise @@ err(p);
                     ByArray(ae', mkpos Const)
@@ -263,14 +263,15 @@ and tc_arg tc_ctx = pfunction
         | _ -> ByValue (tc_expr tc_ctx e)
     end
   | Ast.ByRef x ->
-    let x',xref = Env.find_var tc_ctx.venv x in
+    let x' = tc_lvalue tc_ctx x in
+    let (_,xref) = x'.data in
       begin
-        match xref.data with
+        match xref with
           | RefVT _ -> ByRef x'
           | ArrayVT _ ->
             let ae',_ = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar x) in
             let (_,ArrayET(_,_,mut)) = ae'.data in
-              if not (mut.data <* Mut) then raise @@ cerr("variable `" ^ x.data ^ "` is not mut; ", p);
+              if not (mut.data <* Mut) then raise @@ cerr("variable is not mut; ", p);
               ByArray(ae', mkpos Mut)
       end
   | Ast.ByArray(arr_expr, mutability) ->
@@ -279,6 +280,17 @@ and tc_arg tc_ctx = pfunction
     let (_,ArrayET(_,_,mut)) = ae'.data in
     if not (mut.data <* m'.data) then raise @@ cerr("array expression is not proper mutability; ", p);
     ByArray(ae', m')
+
+and argtype_of tc_ctx = xfunction
+  | ByValue e ->
+    let b,ml = expr_to_types e in
+      mkpos RefVT(b,ml,mkpos Const)
+  | ByRef lval ->
+    let _,vt = lval.data in
+      mkpos vt
+  | ByArray({data=(aexpr,aty)}, mut) ->
+    let b,ml = atype_out (mkpos aty) in
+    mkpos ArrayVT(b,ml,mut)
 
 and tc_args ~xf_args tc_ctx p params args =
   match params,args with
@@ -298,12 +310,25 @@ and tc_args ~xf_args tc_ctx p params args =
               | LIntLiteral n ->
                 ByValue (mkpos (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public)))
               | LDynamic lx ->
-                ByValue (mkpos (Variable lx, BaseET(mkpos UInt 32, mkpos Fixed Public)))
+                let vt = RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
+                  ByValue (mkpos (Lvalue(mkpos (Base lx, vt)), BaseET(mkpos UInt 32, mkpos Fixed Public)))
           in
             arg' :: (mkpos len) :: tc_args ~xf_args tc_ctx p params args
         else
           arg' :: tc_args ~xf_args tc_ctx p params args
     | _ -> raise @@ cerr("mismatch in args vs params length", p)
+
+and tc_lvalue tc_ctx = pfunction
+  | Ast.Base x ->
+    let x',vt = Env.find_var tc_ctx.venv x in
+      Base(x'), vt.data
+  | Ast.ArrayEl(lval,n) ->
+    let lval' = tc_lvalue tc_ctx lval in
+    let (_,vt) = lval'.data in
+    let n' = tc_expr tc_ctx n in
+    let Fixed ml = (expr_to_ml n').data in
+      if not (ml = Public) then raise @@ cerr("Array indices must be public", p);
+      ArrayEl(lval', tc_expr tc_ctx n), (arrayvt_to_refvt (mkpos vt)).data
 
 and tc_expr tc_ctx = pfunction
   | Ast.True ->
@@ -314,25 +339,21 @@ and tc_expr tc_ctx = pfunction
     make_nlit p n
   | Ast.StringLiteral s ->
     (StringLiteral s, BaseET(mkpos String, mkpos Fixed Public))
-  | Ast.Variable x ->
-    let x',xref = Env.find_var tc_ctx.venv x in
-      (Variable x', refvt_to_etype' xref)
-  | Ast.ArrayGet(x,n) ->
-    let x',xref = Env.find_var tc_ctx.venv x in
-    let n' = tc_expr tc_ctx n in
-    let Fixed ml = (expr_to_ml n').data in
-      if not (ml = Public) then raise @@ cerr("Array indices must be public", p);
-      (ArrayGet(x',n'), refvt_to_betype' xref)
-  | Ast.ArrayLen x ->
+  | Ast.Lvalue lval ->
+    let lval' = tc_lvalue tc_ctx lval in
+    let (_,vt) = lval'.data in
+      (Lvalue lval', refvt_to_etype' (mkpos vt))
+  | Ast.ArrayElLen lval ->
     (* XXX type should be size_t not uint32 *)
-    let _,xref = Env.find_var tc_ctx.venv x in
-    let lexpr = refvt_to_lexpr xref in
+    let _,vt = (tc_lvalue tc_ctx lval).data in
+    let lexpr = refvt_to_lexpr (mkpos vt) in
       begin
         match lexpr.data with
           | LIntLiteral n ->
             (IntLiteral n, BaseET(mkpos Num(abs n,n < 0), mkpos Fixed Public))
           | LDynamic len ->
-            (Variable len, BaseET(mkpos UInt 32, mkpos Fixed Public))
+            let lenvt = RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
+              (Lvalue(mkpos (Base len,lenvt)), BaseET(mkpos UInt 32, mkpos Fixed Public))
       end
   | Ast.IntCast(b,e) ->
     let b' = bconv b in
@@ -402,22 +423,25 @@ and tc_arrayexpr' tc_ctx = xfunction
        ArrayET(at', mkpos Fixed Public (* XXX should be join of all exprs' *), mkpos Const)),
        true
   | Ast.ArrayVar x ->
-    let x',xref = Env.find_var tc_ctx.venv x in
-      (ArrayVar x', refvt_to_etype' xref), false
+    let x' = tc_lvalue tc_ctx x in
+    let (_,xref) = x'.data in
+      (ArrayVar x', refvt_to_etype' (mkpos xref)), false
   | Ast.ArrayZeros lexpr ->
     let b = mkpos Num(0, false) in
     let lexpr' = lexprconv tc_ctx lexpr in
     let at' = mkpos ArrayAT(b, lexpr') in
     (ArrayZeros lexpr', ArrayET(at', mkpos Fixed Public, mkpos Const)), true
   | Ast.ArrayCopy x ->
-    let x',vt = Env.find_var tc_ctx.venv x in
-    let ae' = refvt_to_etype' vt in
+    let x' = tc_lvalue tc_ctx x in
+    let (_,vt) = x'.data in
+    let ae' = refvt_to_etype' (mkpos vt) in
       (ArrayCopy x', aetype_update_mut' (mkpos Mut) ae'), true
   | Ast.ArrayView(x,e,lexpr) ->
     let e' = tc_expr tc_ctx e in
     let lexpr' = lexprconv tc_ctx lexpr in
-    let x',vt = Env.find_var tc_ctx.venv x in
-    let ae = refvt_to_etype vt in
+    let x' = tc_lvalue tc_ctx x in
+    let (_,vt) = x'.data in
+    let ae = refvt_to_etype (mkpos vt) in
     let ae' = aetype_update_lexpr' lexpr'.data ae in
       (ArrayView(x',e',lexpr'), ae'), false
   | Ast.ArrayComp(b,lexpr,x,e) ->
@@ -460,12 +484,13 @@ let rec tc_stm' tc_ctx = xfunction
       let x' = add_new_var tc_ctx.venv x vt' in
         [ArrayDec(x',vt',ae')]
 
-  | Ast.BaseAssign(x,e) ->
+  | Ast.Assign(lval,e) ->
+    let lval' = tc_lvalue tc_ctx lval in
+    let (_,vt) = lval'.data in
     let e' = tc_expr tc_ctx e in
-    let x',vt = Env.find_var tc_ctx.venv x in
-    let b,{data=Fixed l},m = refvt_type_out vt in
+    let b,{data=Fixed l},m = refvt_type_out (mkpos vt) in
       (* check that x is indeed mutable *)
-      if m.data <> Mut then raise @@ cerr("variable `" ^ x.data ^ "` is not mutable; ", p);
+      if m.data <> Mut then raise @@ cerr("variable is not mutable; ", p);
 
       (* check that rp U pc is <= label of x *)
       if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then
@@ -473,34 +498,11 @@ let rec tc_stm' tc_ctx = xfunction
 
       (* check that labeled type of e is <= labeled type of x *)
       let ety = type_of e' in
-      let xty = refvt_to_etype vt in
+      let xty = refvt_to_etype (mkpos vt) in
         if not (ety <:$ xty) then
           raise @@ cerr("expression of type `" ^ ps_ety ety ^ "` cannot be assigned to variable of type `" ^ ps_ety xty ^ "`", p);
 
-      [BaseAssign(x',e')]
-
-  | Ast.ArrayAssign(x,n,e) ->
-    let n' = tc_expr tc_ctx n in
-    let Fixed ml = (expr_to_ml n').data in
-      if not (ml = Public) then raise @@ cerr("Array indices must be public", p);
-    let e' = tc_expr tc_ctx e in
-    let x',vt = Env.find_var tc_ctx.venv x in
-    let b,{data=Fixed l},m = refvt_type_out vt in
-      (* check that x is indeed mutable *)
-      if m.data <> Mut then raise @@ cerr("array `" ^ x.data ^ "` is not mutable; ", p);
-
-      (* check that rp U pc is <= label of x *)
-      if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then
-        raise @@ cerr("cannot assign into " ^ ps_label' p l ^ " array when program context is " ^ ps_label' p (!(tc_ctx.rp) +$. tc_ctx.pc), p);
-
-      (* check that labeled type of e is <= labeled type of x *)
-      let ety = type_of e' in
-      let xty = refvt_to_betype vt in
-        if not (ety <:$ xty) then
-          raise @@ cerr("expression of type `" ^ ps_ety ety ^ "` cannot be assigned into array with elements of type `" ^ ps_ety xty ^ "`", p);
-
-      (* TODO check that n' won't be out-of-bounds *)
-      [ArrayAssign(x',n',e')]
+      [Assign(lval',e')]
 
   | Ast.If(cond,thenstms,elsestms) ->
     let cond' = tc_expr tc_ctx cond in

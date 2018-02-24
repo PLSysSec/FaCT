@@ -168,7 +168,7 @@ unop:
 
 arg:
   | e=expr { mkpos (ByValue e) }
-  | REF x=var_name { mkpos (ByRef x) }
+  | REF x=lvalue { mkpos (ByRef x) }
   | hasmut=boption(REF) a=array_expr { mkpos (ByArray(a,mkpos (if hasmut then Mut else Const))) }
 
 lexpr:
@@ -195,10 +195,10 @@ expr:
 
 array_expr:
   | es=alist(expr) { mkpos (ArrayLit es) }
-  | a=var_name { mkpos (ArrayVar a) }
+  | a=lvalue { mkpos (ArrayVar a) }
   | ARRZEROS l=paren(lexpr) { mkpos (ArrayZeros l) }
-  | ARRCOPY a=paren(var_name) { mkpos (ArrayCopy a) }
-  | ARRVIEW LPAREN a=var_name COMMA i=expr COMMA l=lexpr RPAREN { mkpos (ArrayView(a, i, l)) }
+  | ARRCOPY a=paren(lvalue) { mkpos (ArrayCopy a) }
+  | ARRVIEW LPAREN a=lvalue COMMA i=expr COMMA l=lexpr RPAREN { mkpos (ArrayView(a, i, l)) }
   | NOINIT l=paren(lexpr) { mkpos (ArrayNoinit l) }
 
 base_variable_type:

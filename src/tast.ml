@@ -60,7 +60,7 @@ and expr_type = expr_type' pos_ast [@@deriving show]
 and variable_type' =
   | RefVT of base_type * maybe_label * mutability
   | ArrayVT of array_type * maybe_label * mutability
-  | StructVT of struct_name * mutability
+  | StructVT of struct_name
 [@@deriving show]
 and variable_type = variable_type' pos_ast [@@deriving show]
 
@@ -68,15 +68,13 @@ and lvalue' =
   | Base of var_name
   | ArrayEl of lvalue * array_index
   | StructEl of lvalue * var_name
-and lvalue = lvalue' pos_ast
+and lvalue = (lvalue' * variable_type') pos_ast
 
 and expr' =
   | True
   | False
   | IntLiteral of int
   | StringLiteral of string
-  | Variable of var_name (* deprecated *)
-  | ArrayGet of var_name * expr (* deprecated *)
   | Lvalue of lvalue
   | IntCast of base_type * expr
   | UnOp of Ast.unop * expr
@@ -92,10 +90,10 @@ and expr = (expr' * expr_type') pos_ast [@@deriving show]
 
 and array_expr' =
   | ArrayLit of expr list
-  | ArrayVar of var_name
+  | ArrayVar of lvalue
   | ArrayZeros of lexpr
-  | ArrayCopy of var_name
-  | ArrayView of var_name * expr * lexpr
+  | ArrayCopy of lvalue
+  | ArrayView of lvalue * expr * lexpr
   | ArrayComp of base_type * lexpr * var_name * expr
   | ArrayNoinit of lexpr
 [@@deriving show]
@@ -106,7 +104,7 @@ and arg_exprs = arg_expr list [@@deriving show]
 and arg_expr' =
   | ByValue of expr
   | ByArray of array_expr * mutability
-  | ByRef of var_name
+  | ByRef of lvalue
 [@@deriving show]
 and arg_expr = arg_expr' pos_ast [@@deriving show]
 
@@ -122,8 +120,6 @@ and high_expr = expr [@@deriving show]
 and statement' =
   | BaseDec of var_name * variable_type * expr
   | ArrayDec of var_name * variable_type * array_expr
-  | BaseAssign of var_name * expr (* deprecated *)
-  | ArrayAssign of var_name * array_index * expr (* deprecated *)
   | Assign of lvalue * expr
   | If of cond * thenblock * elseblock
   | For of var_name * base_type * low_expr * high_expr * block

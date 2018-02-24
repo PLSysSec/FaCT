@@ -67,9 +67,6 @@ and expr' =
   | False
   | IntLiteral of int
   | StringLiteral of string
-  | Variable of var_name (* deprecated *)
-  | ArrayGet of var_name * expr (* deprecated *)
-  | ArrayLen of var_name (* deprecated *)
   | Lvalue of lvalue
   | ArrayElLen of lvalue
   | Sizeof of struct_name (* to be implemented *)
@@ -113,10 +110,10 @@ and binop =
 
 and array_expr' =
   | ArrayLit of expr list
-  | ArrayVar of var_name
+  | ArrayVar of lvalue
   | ArrayZeros of lexpr
-  | ArrayCopy of var_name
-  | ArrayView of var_name * expr * lexpr
+  | ArrayCopy of lvalue
+  | ArrayView of lvalue * expr * lexpr
   | ArrayComp of base_type * lexpr * var_name * expr
   | ArrayNoinit of lexpr
 [@@deriving show]
@@ -127,7 +124,7 @@ and arg_exprs = arg_expr list [@@deriving show]
 and arg_expr' =
   | ByValue of expr
   | ByArray of array_expr * mutability
-  | ByRef of var_name
+  | ByRef of lvalue
 [@@deriving show]
 and arg_expr = arg_expr' pos_ast [@@deriving show]
 
@@ -142,8 +139,6 @@ and high_expr = expr [@@deriving show]
 and statement' =
   | BaseDec of var_name * variable_type * expr
   | ArrayDec of var_name * variable_type * array_expr
-  | BaseAssign of var_name * expr (* deprecated *)
-  | ArrayAssign of var_name * array_index * expr (* deprecated *)
   | Assign of lvalue * expr
   | If of cond * thenstms * elsestms
   | For of var_name * base_type * low_expr * high_expr * statements
