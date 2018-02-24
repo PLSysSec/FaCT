@@ -92,6 +92,11 @@ let refvt_type_out = xfunction
   | RefVT(b,ml,m) -> b,ml,m
   | ArrayVT(a,ml,m) -> (atype_to_btype a),ml,m
 
+let refvt_mut_out' = function
+  | RefVT(_,_,m) -> m
+  | ArrayVT(_,_,m) -> m
+  | StructVT(_,m) -> m
+
 let refvt_to_lexpr = xfunction
   | ArrayVT(a,ml,m) ->
     let ArrayAT(bt,lexpr) = a.data in
@@ -310,6 +315,7 @@ let aetype_update_mut' mut = function
 
 let refvt_update_mut' mut = xfunction
   | RefVT(b,ml,_) -> RefVT(b, ml, mut)
+  | ArrayVT(a,ml,_) -> ArrayVT(a, ml, mut)
 
 
 (* Structs *)

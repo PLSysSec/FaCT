@@ -160,7 +160,7 @@ let param_to_type cg_ctx = function
           pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt.data)
     end
   | {data=Param(var_name,{data=StructVT(s,_)})} ->
-    let struct_ty = List.assoc s.data cg_ctx.sdecs in
+    let struct_ty,_ = List.assoc s.data cg_ctx.sdecs in
       pointer_type struct_ty
 
 let bitsize cg_ctx = function
@@ -257,7 +257,7 @@ let allocate_args cg_ctx args f =
         set_value_name name ll_arg;
         build_store ll_arg alloca cg_ctx.builder |> ignore
       | StructVT(s,_) ->
-        let struct_ty = List.assoc s.data cg_ctx.sdecs in
+        let struct_ty,_ = List.assoc s.data cg_ctx.sdecs in
         let ty = pointer_type struct_ty in
         let name = make_name "structarg" (make_ast fake_pos (Fixed Public)) in
         let alloca = build_alloca ty name cg_ctx.builder in
@@ -521,8 +521,15 @@ and codegen_lval cg_ctx {data=(lval,vt);pos=p} =
             | _ -> [| zero; index |], arr'
         end in
         build_in_bounds_gep arr indices (make_name_vt "ptr" vt) cg_ctx.builder
-    | StructEl _ ->
-      raise CodegenError
+    | StructEl(lv,field) ->
+      let (_,vt) = lv.data in
+      let StructVT(s,m) = vt in
+      let sty, Struct(_,fields) = List.assoc s.data cg_ctx.sdecs in
+      let fields' = List.mapi (fun i fld -> (i, fld.data)) fields in
+      let (fldi,Field(_,fvt)) = List.find (fun (i,Field(fn,_)) -> fn.data = field.data) fields' in
+      let st' = codegen_lval cg_ctx lv in
+      let st'' = build_load st' (make_name "structload" (make_ast fake_pos (Fixed Public))) cg_ctx.builder in
+        build_struct_gep st'' fldi (make_name_vt "structgep" fvt.data) cg_ctx.builder
 
 and codegen_expr cg_ctx = function
   | True, ty -> const_all_ones (expr_ty_to_llvm_ty cg_ctx ty)
@@ -1019,7 +1026,7 @@ let codegen_sdec llctx {data=sdec} =
   let field_tys = List.map (field_to_type llctx) fields |> Array.of_list in
   let struct_ty = named_struct_type llctx s.data in
     struct_set_body struct_ty field_tys true;
-    (s.data, struct_ty)
+    (s.data, (struct_ty, sdec))
 
 let rec codegen llcontext llmodule builder verify = function
   | Module(oldfenv,fdecs,sdecs) ->

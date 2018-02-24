@@ -15,7 +15,7 @@ type codegen_ctx_record = {
   fenv        : fenv;
   tenv        : array_type Env.env;
   vtenv       : variable_type Env.env;
-  sdecs       : (string * lltype) list;
+  sdecs       : (string * (lltype * struct_type')) list;
   verify_llvm : bool;
 }
 

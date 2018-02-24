@@ -4,8 +4,50 @@ struct a_sample_thing {
   secret int32 b_field;
 }
 
-export public int32 dummy(
+export public int32 recv_struct(
     secret int32 h,
     struct a_sample_thing ss) {
   return 1;
+}
+
+export secret int32 access_struct(
+    public bool n,
+    struct a_sample_thing ss) {
+  if (n) {
+    return ss.a_field;
+  } else {
+    return ss.b_field;
+  }
+}
+
+export secret int32 blitz_struct(
+    secret bool n,
+    struct a_sample_thing ss) {
+  if (n) {
+    return ss.a_field;
+  } else {
+    return ss.b_field;
+  }
+}
+
+export void set_struct(
+    public bool b,
+    secret int32 n,
+    mut struct a_sample_thing ss) {
+  if (b) {
+    ss.a_field = n;
+  } else {
+    ss.b_field = n;
+  }
+}
+
+export void set_blitz(
+    secret bool b,
+    secret int32 n,
+    mut struct a_sample_thing ss) {
+  if (b) {
+    ss.a_field = n;
+  } else {
+    ss.b_field = n;
+  }
 }

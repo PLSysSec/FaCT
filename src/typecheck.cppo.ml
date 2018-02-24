@@ -333,6 +333,14 @@ and tc_lvalue tc_ctx = pfunction
     let Fixed ml = (expr_to_ml n').data in
       if not (ml = Public) then raise @@ cerr("Array indices must be public", p);
       ArrayEl(lval', tc_expr tc_ctx n), (arrayvt_to_refvt (mkpos vt)).data
+  | Ast.StructEl(lval,field) ->
+    let lval' = tc_lvalue tc_ctx lval in
+    let (_,vt) = lval'.data in
+    let StructVT(s,m) = vt in
+    let Struct(_,fields) = (find_struct tc_ctx.sdecs s).data in
+    let Field(_,fvt) = (List.find (fun {data=Field(fn,_)} -> field.data = fn.data) fields).data in
+    let fvt' = refvt_update_mut' (refvt_mut_out' vt) fvt in
+      StructEl(lval', field), fvt'
 
 and tc_expr tc_ctx = pfunction
   | Ast.True ->

@@ -1,0 +1,17 @@
+struct a_sample_thing {
+  secret int32 a_field;
+  public uint8[4] _;
+  secret int32 b_field;
+}
+
+export void set_blitz(
+    secret bool b,
+    secret int32 n,
+    struct a_sample_thing ss) {
+  if (b) {
+    ss.a_field = n;
+  } else {
+    ss.b_field = n;
+  }
+}
+
