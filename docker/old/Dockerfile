@@ -28,4 +28,19 @@ RUN mkdir /home/docker/FaCT && cd /home/docker/FaCT && \
     opam install llvm.3.8 core ounit ctypes-foreign utop dolog menhir oasis ppx_deriving ANSITerminal ocamlgraph
 
 USER root
+RUN echo "root:root" | chpasswd
+RUN echo "docker:docker" | chpasswd
+RUN usermod -aG sudo docker
 
+USER root
+RUN apt-get update && \
+    apt-get -y install apt-transport-https ca-certificates curl gnupg2 software-properties-common && \
+    curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg > /tmp/dkey; apt-key add /tmp/dkey && \
+    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") $(lsb_release -cs) stable" && \
+    apt-get update && \
+    apt-get -y install docker-ce
+
+###############################
+
+COPY user-mapping-new.sh /user-mapping.sh
+RUN  chmod u+x /user-mapping.sh
