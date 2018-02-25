@@ -50,3 +50,9 @@ void test_assign_blitz(void) {
   TEST_ASSERT_EQUAL(0, ss.unused);
   TEST_ASSERT_EQUAL(6, ss.b_field);
 }
+
+void test_array_futzing(void) {
+  struct a_sample_thing ss = {0};
+  futz_with_subarrays(&ss);
+  TEST_ASSERT_EQUAL(7*256*256, ss.unused); // assuming little endian
+}

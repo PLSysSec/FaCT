@@ -1,6 +1,6 @@
 struct a_sample_thing {
   secret int32 a_field;
-  public uint8[4] _;
+  public uint8[4] kind_of_used;
   secret int32 b_field;
 }
 
@@ -50,4 +50,9 @@ export void set_blitz(
   } else {
     ss.b_field = n;
   }
+}
+
+export void futz_with_subarrays(
+    mut struct a_sample_thing ss) {
+  ss.kind_of_used[2] = 7;
 }
