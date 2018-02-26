@@ -157,13 +157,13 @@ let ctverify out_file llvm_mod = function
     Sys.command cp_str;
 
     let entrypoint = "foo" in (* TODO: THIS SHOULD CHANGE *)
-    let exec_str = String.concat "" ["\"cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make && make clean\""] in
     let exec_str = String.concat "" ["docker exec ctverif_cont /bin/bash -c 'cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make'"] in
     Log.debug "docker exec...";
     Sys.command exec_str;
 
     Log.debug "docker stop...";
     Sys.command "docker stop ctverif_cont";
+    Log.info "Verified by ctverif"
 
 let compile (in_files,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in
