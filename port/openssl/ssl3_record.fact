@@ -40,9 +40,12 @@ secret int32 _ssl3_cbc_copy_mac(
   secret mut uint64 rotate_offset = 0;
   //XXX function memset() -- use _fact_memzero
   //memset(rotated_mac, 0, md_size);
-  _fact_memzero(rotated_mac, md_size);
+  for(uint64 i = 0 to md_size){
+    rotated_mac[i] = 0;
+  }
+  //_fact_memzero(ref rotated_mac, md_size);
 
-  secret mut uint64 j = 0;
+  public mut uint64 j = 0;
   for(uint64 i = scan_start to rec_orig_len) {
     secret mut uint64 mac_started = i == mac_start ? 0xFFFFFFFF : 0;
     secret mut uint64 mac_ended = i < mac_end ? 0xFFFFFFFF : 0;
@@ -58,7 +61,10 @@ secret int32 _ssl3_cbc_copy_mac(
 
   //XXX function memset()
   //_memset(out, 0, md_size);
-  _fact_memzero(out, md_size);
+  //_fact_memzero(out, md_size);
+  for(uint64 i = 0 to md_size) {
+      out[i] = 0;
+  }
   rotate_offset = md_size - rotate_offset;
   rotate_offset &= rotate_offset < md_size ? 0xFFFFFFFF : 0;
   for(uint64 _i = 0 to md_size) {
