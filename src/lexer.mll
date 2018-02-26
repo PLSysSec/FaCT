@@ -55,6 +55,8 @@ let keywords = [
   ("inline",INLINE);
   ("export",EXPORT);
   ("noinline",NOINLINE);
+  ("struct",STRUCT);
+  ("embed",EMBED);
 ]
 let _ = List.map add_keyword keywords
 }
@@ -136,6 +138,7 @@ rule token = parse
   | "="            { ASSIGN }
   | ';'            { SEMICOLON }
   | ','            { COMMA }
+  | '.'            { DOT }
   | "=>"           { RIGHTARROW }
   | "/*"           { depth := !depth + 1; commented lexbuf }
   | "//"           { ignore_line lexbuf }

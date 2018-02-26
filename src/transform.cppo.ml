@@ -24,26 +24,43 @@ let new_temp_var =
   new_temp_var'
 
 type xf_ctx_record = {
-  rp   : label' ref;
-  pc   : label';
-  ms   : var_name list;
-  rt   : ret_type;
-  venv : (var_name * variable_type) Env.env;
-  fenv : (function_dec * bool ref) Env.env;
+  rp    : label' ref;
+  pc    : label';
+  ms    : var_name list;
+  rt    : ret_type;
+  venv  : (var_name * variable_type) Env.env;
+  fenv  : (function_dec * bool ref) Env.env;
+  sdecs : struct_type list;
 }
 
-let is_var_secret xf_ctx x =
-  let rpc = !(xf_ctx.rp) +$. xf_ctx.pc in
-  let _,vt = Env.find_var xf_ctx.venv x in
-    match vt.data with
-      | RefVT(_,ml,_)
-      | ArrayVT(_,ml,_) ->
-        let Fixed l = ml.data in
-          rpc = Secret && l = Secret
+let rec struct_has_secrets xf_ctx s =
+  let sdec = find_struct xf_ctx.sdecs s in
+  let Struct(_,fields) = sdec.data in
+    List.exists
+      (fun {data=Field(_,vt)} ->
+         match vt.data with
+           | RefVT(_,{data=Fixed label},_) -> label = Secret
+           | ArrayVT(_,{data=Fixed label},_) -> label = Secret
+           | StructVT(sn,_) -> struct_has_secrets xf_ctx sn
+      )
+      fields
 
-let fdec_has_secret_refs p (fdec,everhi) =
+let rec params_has_secret_refs xf_ctx = function
+  | [] -> false
+  | ({data=Param(_,{data=vty'});pos=p}::params) ->
+    begin
+      match vty' with
+        | RefVT(_,{data=Fixed label},{data=mut}) ->
+          (mut = Mut && label = Secret) || params_has_secret_refs xf_ctx params
+        | ArrayVT(_,{data=Fixed label},{data=mut}) ->
+          (mut = Mut && label = Secret) || params_has_secret_refs xf_ctx params
+        | StructVT(s,{data=mut}) ->
+          (mut = Mut && struct_has_secrets xf_ctx s) || params_has_secret_refs xf_ctx params
+    end
+
+let fdec_has_secret_refs xf_ctx p (fdec,everhi) =
   match fdec.data with
-    | FunDec(_,_,_,params,_) -> (params_has_secret_refs params) && !everhi
+    | FunDec(_,_,_,params,_) -> (params_has_secret_refs xf_ctx params) && !everhi
     | CExtern(_,_,params) when !everhi -> raise @@ cerr("cannot call C extern from secret context", p)
     | _ -> false
 
@@ -59,9 +76,10 @@ let b2rty l mut { data=BaseET(b,_); pos=p } =
 #define band(e1,e2) sebool(BinOp(Ast.LogicalAnd,e1,e2))
 #define bor(e1,e2) sebool(BinOp(Ast.LogicalOr,e1,e2))
 #define bnot(e1) sebool(UnOp(Ast.LogicalNot,e1))
-#define bvar(x) sebool(Variable x)
+#define blval(x) (mkpos (Base x,svbool))
+#define bvar(x) sebool(Lvalue(blval(x)))
 
-#define rctx sebool(Variable(mkpos "__rnset"))
+#define rctx sebool(Lvalue(mkpos (Base (mkpos "__rnset"),svbool)))
 #define bctx (List.fold_left (fun x y -> band(x,y)) sebool(True) \
                 (List.map (fun x -> bvar(x)) xf_ctx.ms))
 #define ctx (band(band(bctx,rctx), \
@@ -78,11 +96,24 @@ let rec xf_arg' xf_ctx { data; pos=p } =
     | ByValue e ->
       let e' = xf_expr xf_ctx e in
         ByValue e'
-    | ByRef _ -> data
+    | ByRef lval -> ByRef (xf_lvalue xf_ctx lval)
     | ByArray(ae,m) ->
       let ae' = xf_arrayexpr xf_ctx ae in
         ByArray(ae',m)
 and xf_arg xf_ctx pa = { pa with data=xf_arg' xf_ctx pa }
+
+and xf_lvalue' xf_ctx { data=(lval,_); pos=p } =
+  match lval with
+    | Base _ as data -> data
+    | ArrayEl(lval,e) ->
+      let lval' = xf_lvalue xf_ctx lval in
+      let e' = xf_expr xf_ctx e in
+        ArrayEl(lval',e')
+    | StructEl(lval,field) ->
+      let lval' = xf_lvalue xf_ctx lval in
+        StructEl(lval',field)
+and xf_lvalue xf_ctx ({ data=(lval,vt); pos=p } as pa) =
+  { pa with data=(xf_lvalue' xf_ctx pa, vt) }
 
 and xf_expr' xf_ctx { data; pos=p } =
   let (e, ety) = data in
@@ -90,11 +121,10 @@ and xf_expr' xf_ctx { data; pos=p } =
       | True
       | False
       | IntLiteral _
-      | Variable _
       | Select _ -> e
-      | ArrayGet(x,e) ->
-        let e' = xf_expr xf_ctx e in
-          ArrayGet(x,e')
+      | Lvalue lval ->
+        let lval' = xf_lvalue xf_ctx lval in
+          Lvalue lval'
       | IntCast(bt,e) ->
         let e' = xf_expr xf_ctx e in
           IntCast(bt,e')
@@ -133,8 +163,8 @@ and xf_expr' xf_ctx { data; pos=p } =
               Env.add_var xf_ctx.venv res entry;
             let stm =
               mkpos If(e1,
-                       (xf_ctx.venv,[mkpos BaseAssign(res, e2)]),
-                       (xf_ctx.venv,[mkpos BaseAssign(res, e3)])) in
+                       (xf_ctx.venv,[mkpos Assign(mkpos (Base res,resvt.data), e2)]),
+                       (xf_ctx.venv,[mkpos Assign(mkpos (Base res,resvt.data), e3)])) in
             let stm' = xf_stm xf_ctx stm in
               Inject(res, resdec :: stm')
           else
@@ -144,7 +174,7 @@ and xf_expr' xf_ctx { data; pos=p } =
       | FnCall(f,args) ->
         let args' = List.map (xf_arg xf_ctx) args in
         let fdec = Env.find_var xf_ctx.fenv f in
-          if fdec_has_secret_refs p fdec then
+          if fdec_has_secret_refs xf_ctx p fdec then
             let fctx = ctx in
               FnCall(f,args'@[mkpos ByValue fctx])
           else
@@ -173,30 +203,21 @@ and xf_stm' xf_ctx p = function
     let e' = xf_expr xf_ctx e in
       [BaseDec(x,vt,e')]
 
-  | BaseAssign(x,e) ->
-    if is_var_secret xf_ctx x then
-      let e' = xf_expr xf_ctx e in
-      let _,vt = Env.find_var xf_ctx.venv x in
-      let x' = mkpos (Variable x, r2bty vt) in
-      let xfe' = ctx_select(e',x') in
-        [BaseAssign(x,xfe')]
-    else
-      [BaseAssign(x,e)]
-
   | ArrayDec(x,vt,ae) ->
     let ae' = xf_arrayexpr xf_ctx ae in
       [ArrayDec(x,vt,ae')]
 
-  | ArrayAssign(x,n,e) ->
-    if is_var_secret xf_ctx x then
-      let n' = xf_expr xf_ctx n in
-      let e' = xf_expr xf_ctx e in
-      let _,vt = Env.find_var xf_ctx.venv x in
-      let x' = mkpos (ArrayGet(x,n'), a2bty vt) in
-      let xfe' = ctx_select(e',x') in
-        [ArrayAssign(x,n',xfe')]
-    else
-      [ArrayAssign(x,n,e)]
+  | Assign(lval,e) ->
+    let lval' = xf_lvalue xf_ctx lval in
+    let e' = xf_expr xf_ctx e in
+    let rpc = !(xf_ctx.rp) +$. xf_ctx.pc in
+      if rpc = Secret then
+        let _,vt = lval'.data in
+        let rval' = mkpos (Lvalue lval', r2bty (mkpos vt)) in
+        let xfe' = ctx_select(e',rval') in
+          [Assign(lval',xfe')]
+      else
+        [Assign(lval',e')]
 
   | If(cond,thenstms,elsestms) ->
     let xf_sub l ms =
@@ -216,7 +237,7 @@ and xf_stm' xf_ctx p = function
         let mdec = BaseDec(tname, vt, cond') in
         let entry = (tname, vt) in
           Env.add_var xf_ctx.venv tname entry;
-        let mnot = BaseAssign(tname, bnot(bvar(tname))) in
+        let mnot = Assign(mkpos (Base tname,vt.data), bnot(bvar(tname))) in
         let ms = tname::xf_ctx.ms in
         let thenstms', elsestms' = xf_sub Secret ms in
           [mdec; Block(thenstms'); mnot; Block(elsestms')]
@@ -235,7 +256,7 @@ and xf_stm' xf_ctx p = function
   | VoidFnCall(f,args) ->
     let args' = List.map (xf_arg xf_ctx) args in
     let fdec = Env.find_var xf_ctx.fenv f in
-      if fdec_has_secret_refs p fdec then
+      if fdec_has_secret_refs xf_ctx p fdec then
         let fctx = ctx in
           [VoidFnCall(f,args'@[mkpos ByValue fctx])]
       else
@@ -249,7 +270,10 @@ and xf_stm' xf_ctx p = function
       end in
     let e' = xf_expr xf_ctx e in
     let rval = mkpos "__rval" in
-    let rval' = mkpos (Variable rval, rt.data) in
+    let b,ml = type_out rt in
+    let vt = RefVT(b,ml,mkpos Const) in
+    let rval_lval = mkpos (Base rval,vt) in
+    let rval' = mkpos (Lvalue(rval_lval), rt.data) in
     let BaseET(_,rml) = rt.data in
 
     let rpc = !(xf_ctx.rp) +$. xf_ctx.pc in
@@ -261,14 +285,14 @@ and xf_stm' xf_ctx p = function
           if not (xfeml <$ rml) then
             raise @@ cerr(Printf.sprintf "cannot return a %s expression from a %s function" (ps_label xfeml) (ps_label rml), e'.pos);
           let rnset = mkpos "__rnset" in
-          let rnset' = sebool(Variable(rnset)) in
+          let rnset' = bvar(rnset) in
           let assigned = ctx_select(sebool(False),rnset') in
-            [ BaseAssign(rval,xfe'); BaseAssign(rnset,assigned) ]
+            [ Assign(rval_lval,xfe'); Assign(blval(rnset),assigned) ]
       else
         let eml = expr_to_ml e in
           if not (eml <$ rml) then
             raise @@ cerr(Printf.sprintf "cannot return a %s expression from a %s function" (ps_label eml) (ps_label rml), e'.pos);
-          [ BaseAssign(rval,e); Return rval' ]
+          [ Assign(rval_lval,e); Return rval' ]
 
   | VoidReturn ->
     xf_ctx.rp := !(xf_ctx.rp) +$. xf_ctx.pc;
@@ -276,9 +300,9 @@ and xf_stm' xf_ctx p = function
     let should_transform = (rpc = Secret) in
       if should_transform then
         let rnset = mkpos "__rnset" in
-        let rnset' = sebool(Variable(rnset)) in
+        let rnset' = bvar(rnset) in
         let assigned = ctx_select(sebool(False),rnset') in
-          [BaseAssign(rnset,assigned)]
+          [Assign(blval(rnset),assigned)]
       else
         [VoidReturn]
 
@@ -289,10 +313,19 @@ and xf_block xf_ctx stms =
   let stms' = List.flatten @@ List.map (xf_stm xf_ctx) stms in
     (xf_ctx.venv, stms')
 
-let xf_fdec fenv everhi = pfunction
+let xf_fdec fenv sdecs everhi = pfunction
     | FunDec(f,ft,rt,params,block) ->
       let (venv,stms) = block in
-      let params' = if (params_has_secret_refs params) && !everhi
+      let xf_ctx = {
+        rp=ref Public;
+        pc=Public;
+        rt;
+        fenv;
+        venv;
+        sdecs;
+        ms=[];
+      } in
+      let params' = if (params_has_secret_refs xf_ctx params) && !everhi
         then
           let fctx = mkpos "__fctx" in
           let fctx_vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
@@ -301,7 +334,6 @@ let xf_fdec fenv everhi = pfunction
             Env.add_var venv fctx entry;
             params @ [fctx_param]
         else params in
-      let xf_ctx = { rp=ref Public; pc=Public; rt; fenv; venv; ms=[] } in
       let venv,stms' = xf_block xf_ctx stms in
       let rnset = mkpos "__rnset" in
       let rnset_dec = mkpos BaseDec(rnset, mkpos svbool, sebool(True)) in
@@ -316,8 +348,9 @@ let xf_fdec fenv everhi = pfunction
                       | Bool -> False
                       | _ -> IntLiteral 0
                 in
-                let rval_dec = mkpos BaseDec(rval, mkpos RefVT(bty, l, mkpos Const), mkpos (def_val,et)) in
-                let ret = mkpos Return (mkpos (Variable(rval), et)) in
+                let rval_vt = mkpos RefVT(bty, l, mkpos Const) in
+                let rval_dec = mkpos BaseDec(rval, rval_vt, mkpos (def_val,et)) in
+                let ret = mkpos Return (mkpos (Lvalue(mkpos (Base rval, rval_vt.data)), et)) in
                 let stms'' = if !(xf_ctx.rp) = Secret then stms'@[ret] else stms' in
                   FunDec(f,ft,rt,params',(venv,rval_dec::stms''))
               | None ->
@@ -325,16 +358,16 @@ let xf_fdec fenv everhi = pfunction
           end
     | CExtern _ as fdec -> fdec
 
-let rec xf_fdecs fenv = function
+let rec xf_fdecs fenv sdecs = function
   | [] -> []
   | (fdec::fdecs) ->
     let fname = fname_of fdec in
     let (_,everhi) = Env.find_var fenv fname in
-    let fdec' = xf_fdec fenv everhi fdec in
+    let fdec' = xf_fdec fenv sdecs everhi fdec in
       Env.replace_var fenv fname (fdec', everhi);
-      fdec'::(xf_fdecs fenv fdecs)
+      fdec'::(xf_fdecs fenv sdecs fdecs)
 
-let xf_module (Module(fenv,fdecs)) =
-  Module(fenv, xf_fdecs fenv fdecs)
+let xf_module (Module(fenv,fdecs,sdecs)) =
+  Module(fenv, xf_fdecs fenv sdecs fdecs, sdecs)
 
 

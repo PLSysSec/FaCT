@@ -34,10 +34,10 @@ let xf_fdec = function
 
 
 let xf_module = function
-  | Module(env,fdecs) ->
+  | Module(env,fdecs,sdecs) ->
     let fdecs' = List.map
                    (fun {data=fdec; pos=p} ->
                       {data=xf_fdec fdec; pos=p}) fdecs in
     let env' = Env.map (fun ({data=fdec; pos=p},everhi) ->
                          ({data=xf_fdec fdec; pos=p},everhi)) env in
-      Module(env',fdecs')
+      Module(env',fdecs',sdecs)

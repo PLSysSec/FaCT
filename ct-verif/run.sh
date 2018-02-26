@@ -10,10 +10,12 @@ cp $1 tmp.ll
 # Find `getelementptr [2 x i32],`; replace with `getelementptr`
 # Find `smack_value* (i32*, ...) bitcast`; replace with `smack_value* (i32*, ...)* bitcast`
 # Remove lines with `!0`
+# Find `norecurse`; replace with ``
 sed -i -e 's/load[^,]*, /load /g' tmp.ll
 sed -i -e 's/getelementptr inbounds [^,]*, /getelementptr inbounds /g' tmp.ll 
 sed -i -e 's/smack_value\(.*\)) bitcast/smack_value\1)* bitcast/g' tmp.ll 
 sed -i '/!0/d' tmp.ll
+sed -i -e 's/norecurse//g' tmp.ll
 
 # Copy into docker container and verify
 docker run -it -d --rm --name ctverif_cont bjohannesmeyer/ctverif /bin/bash

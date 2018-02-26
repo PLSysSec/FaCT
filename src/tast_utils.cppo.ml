@@ -66,7 +66,7 @@ let expr_to_btype : (expr -> base_type) = xfunction
 let expr_to_ml : (expr -> maybe_label) = xfunction
   | (_,BaseET(_,ml)) -> ml
 
-let expr_to_types = xfunction
+let expr_to_types : (expr -> base_type * maybe_label) = xfunction
   | (_,BaseET(b,ml)) -> b,ml
 
 let atype_out = xfunction
@@ -83,9 +83,19 @@ let refvt_to_betype' = xfunction
       BaseET(bt,ml)
 let refvt_to_betype = rebind refvt_to_betype'
 
+let arrayvt_to_refvt = pfunction
+  | ArrayVT(a,ml,m) ->
+    let ArrayAT(bt,lexpr) = a.data in
+      RefVT(bt,ml,m)
+
 let refvt_type_out = xfunction
   | RefVT(b,ml,m) -> b,ml,m
   | ArrayVT(a,ml,m) -> (atype_to_btype a),ml,m
+
+let refvt_mut_out' = function
+  | RefVT(_,_,m) -> m
+  | ArrayVT(_,_,m) -> m
+  | StructVT(_,m) -> m
 
 let refvt_to_lexpr = xfunction
   | ArrayVT(a,ml,m) ->
@@ -97,28 +107,20 @@ let refvt_to_lexpr_option = xfunction
   | ArrayVT(a,ml,m) ->
     let ArrayAT(bt,lexpr) = a.data in
       Some lexpr.data
+  | StructVT _ -> None
 
 let refvt_to_etype' = xfunction
   | RefVT(b,ml,_) -> BaseET(b, ml)
   | ArrayVT(a,ml,m) -> ArrayET(a, ml, m)
 let refvt_to_etype = rebind refvt_to_etype'
 
-let argtype_of venv = xfunction
-  | ByValue e ->
-    let b,ml = expr_to_types e in
-      mkpos RefVT(b,ml,mkpos Const)
-  | ByRef x ->
-    let _,vt = Env.find_var venv x in
-      vt
-  | ByArray({data=(aexpr,aty)}, mut) ->
-    let b,ml = atype_out (mkpos aty) in
-    mkpos ArrayVT(b,ml,mut)
-
 let fname_of = xfunction
   | FunDec(fname,_,_,_,_)
   | CExtern(fname,_,_)
   | DebugFunDec(fname,_,_) -> fname
 
+let sname_of = xfunction
+  | Struct(sname,_) -> sname
 
 (* Subtyping *)
 
@@ -298,17 +300,6 @@ let param_is_ldynamic = xfunction
         | _ -> false
     end
 
-let rec params_has_secret_refs = function
-  | [] -> false
-  | ({data=Param(_,{data=vty'})}::params) ->
-    begin
-      match vty' with
-        | RefVT(_,{data=Fixed label},{data=mut}) ->
-          (mut = Mut && label == Secret) || params_has_secret_refs params
-        | ArrayVT(_,{data=Fixed label},{data=mut}) ->
-          (mut = Mut && label == Secret) || params_has_secret_refs params
-    end
-
 
 (* Simple Manipulation *)
 
@@ -324,3 +315,14 @@ let aetype_update_mut' mut = function
 
 let refvt_update_mut' mut = xfunction
   | RefVT(b,ml,_) -> RefVT(b, ml, mut)
+  | ArrayVT(a,ml,_) -> ArrayVT(a, ml, mut)
+  | StructVT(s,_) -> StructVT(s, mut)
+
+
+(* Structs *)
+
+let has_struct sdecs s =
+  List.exists (fun {data=Struct(sn,_)} -> s.data = sn.data) sdecs
+
+let find_struct sdecs s =
+  List.find (fun {data=Struct(sn,_)} -> s.data = sn.data) sdecs

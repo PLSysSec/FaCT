@@ -157,8 +157,9 @@ let compile (in_files,out_file,out_dir) args =
         ast
   in
   let asts = List.map lex_and_parse in_files in
-  let all_fdecs = List.fold_left (fun fdecs (Ast.Module more_fdecs) -> fdecs @ more_fdecs) [] asts in
-  let ast = Ast.Module all_fdecs in
+  let all_fdecs = List.fold_left (fun fdecs (Ast.Module (more_fdecs,_)) -> fdecs @ more_fdecs) [] asts in
+  let all_sdecs = List.fold_left (fun sdecs (Ast.Module (_,more_sdecs)) -> sdecs @ more_sdecs) [] asts in
+  let ast = Ast.Module (all_fdecs,all_sdecs) in
   output_ast args.ast_out out_file' ast;
   let tast' = Typecheck.tc_module ast in
   generate_header args.gen_header out_file' tast';
@@ -179,7 +180,7 @@ let compile (in_files,out_file,out_dir) args =
   verify_opt_pass llvm_mod out_file' args.llvm_out args.verify_opts;
 
   (* Verify all of the opt passes on the IR. This doesn't affect llvm_mod *)
-  verify_opt_passes llvm_mod args.verify_llvm;
+  verify_opt_passes (Llvm_transform_utils.clone_module llvm_mod) args.verify_llvm;
 
   (* Lets optimize the module *)
   let llvm_mod = Opt.run_optimizations args.opt_level args.opt_limit llvm_mod in

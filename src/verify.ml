@@ -1,10 +1,15 @@
 open Llvm
 open Llvm.Opcode
-open Tast
 
 open Llvm_ipo
 open Llvm_scalar_opts
 open Llvm_vectorize
+
+type label =
+  | Public
+  | Secret
+  | Declassify
+  | Unknown
 
 type opt_pass_name = string
 [@@deriving show]
@@ -63,6 +68,7 @@ let rec label_inference pass instr =
   match label_of_instr pass instr with
     | Public -> Public
     | Secret -> Secret
+    | Declassify -> Declassify
     | Unknown ->
       let label = iter_operands () in
       label
@@ -87,7 +93,7 @@ and label_of_instr pass instr =
   set_prefix "_secret_" Secret;
   set_prefix "_public_" Public;
   set_prefix "_unknown_" Unknown;
-  set_prefix "_declassified_" Public;
+  set_prefix "_declassified_" Declassify;
   match !prefix with
     | None -> Unknown
     | Some l -> l
@@ -127,6 +133,7 @@ let checker errors pass () instr =
       match label_inference pass instr with
         | Secret -> true
         | Unknown
+        | Declassify
         | Public -> false in
     let rec check_operands remaining instr acc =
       match remaining with
@@ -158,6 +165,7 @@ let checker errors pass () instr =
   let analyze_read instr =
     match label_inference pass instr with
       | Secret -> ()
+      | Declassify -> ()
       | Public ->
         begin
         match has_secret_operand instr with
@@ -187,6 +195,8 @@ let checker errors pass () instr =
       | Public, Public -> ()
       | Public, Secret -> ()
       | Public, Unknown -> ()
+      | Declassify, _ -> ()
+      | _, Declassify -> ()
       | Unknown, Public -> ()
       | Unknown, Secret -> ()
       | Unknown, Unknown -> () in

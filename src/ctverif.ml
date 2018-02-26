@@ -113,11 +113,11 @@ let codegen_dec cg_ctx vt llvalue =
   in
   let extract_label = function
     | RefVT(bt,{data=Fixed(label)},_) ->
-      let bt' = Codegen_utils.bt_to_llvm_ty cg_ctx bt.data in
+      let bt' = Codegen_utils.bt_to_llvm_ty cg_ctx.llcontext bt.data in
       Some(label,bt')
     | ArrayVT(_,{data=Fixed(label)},_) as vt ->
       let bt = expr_ty_to_base_ty (vt_to_et vt) in
-      let ty = pointer_type (bt_to_llvm_ty cg_ctx bt) in
+      let ty = pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt) in
       Some(label,ty)
     | _ -> None 
   in

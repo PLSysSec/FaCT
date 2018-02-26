@@ -90,7 +90,7 @@ let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
     print_string ((Tast.show_function_dec tast_fun) ^ "\n");
     Codegen.declare_prototypes ctx mod' builder cg_fenv expr.data;
     (* Generate LLVM *)
-    Codegen.codegen_fun ctx.llcontext mod' builder cg_fenv false tast_fun |> ignore;
+    Codegen.codegen_fun ctx.llcontext mod' builder cg_fenv [] false tast_fun |> ignore;
     (* JIT the function, returning a function pointer. *)
     run_static_ctors jit;
     let ty = Foreign.funptr (void @->returning int32_t) in
@@ -110,7 +110,7 @@ let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
     Codegen.codegen_stm cg_ctx None st |> ignore
   | Tast.FunctionDec fd  ->
     print_string ((Tast.show_function_dec fd) ^ "\n");
-    Codegen.codegen_fun ctx.llcontext mod' builder cg_fenv false fd |> ignore;
+    Codegen.codegen_fun ctx.llcontext mod' builder cg_fenv [] false fd |> ignore;
     Llvm.print_module "funi.ll" mod'
 
 let rec repl2 mod' ctx builder jit type_envs ll_envs cg_fenv =
@@ -141,14 +141,28 @@ and parse () =
 
 and tc_top_level type_envs = function
   | Ast.FunctionDec fd ->
-    let tast = Typecheck.tc_fdec type_envs.type_fenv fd in
+    let tast = Typecheck.tc_fdec type_envs.type_fenv [] fd in
     Tast.FunctionDec tast
   | Ast.Statement s ->
-    let tc_ctx = Typecheck.{ rp=ref Tast.Public; pc=Tast.Public; venv=type_envs.type_venv; fenv=type_envs.type_fenv; add_stms=ref [] } in
+    let tc_ctx = Typecheck.{
+                   rp=ref Tast.Public;
+                   pc=Tast.Public;
+                   venv=type_envs.type_venv;
+                   fenv=type_envs.type_fenv;
+                   sdecs=[];
+                   add_stms=ref [];
+                 } in
     let tast = List.hd @@ Typecheck.tc_stm tc_ctx s in
     Tast.Statement tast
   | Ast.Expression e ->
-    let tc_ctx = Typecheck.{ rp=ref Tast.Public; pc=Tast.Public; venv=type_envs.type_venv; fenv=type_envs.type_fenv; add_stms=ref [] } in
+    let tc_ctx = Typecheck.{
+                   rp=ref Tast.Public;
+                   pc=Tast.Public;
+                   venv=type_envs.type_venv;
+                   fenv=type_envs.type_fenv;
+                   sdecs=[];
+                   add_stms=ref [];
+                 } in
     let tast = Typecheck.tc_expr tc_ctx e in
     Tast.Expression tast
 

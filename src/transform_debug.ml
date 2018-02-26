@@ -23,7 +23,8 @@ let xf_fdec mode = function
 let xf_module mode mod' =
   match mode, mod' with
   | DEV, _ -> mod'
-  | PROD, Module(env,fdecs) ->
+  | PROD, Module(env,fdecs,sdecs) ->
     Module(env, List.map
-                (fun {data=fdec; pos=p} ->
-                 {data=xf_fdec mode fdec; pos=p}) fdecs)
+                  (fun {data=fdec; pos=p} ->
+                     {data=xf_fdec mode fdec; pos=p}) fdecs,
+           sdecs)

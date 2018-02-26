@@ -8,6 +8,9 @@ and var_name = var_name' pos_ast [@@deriving show]
 type fun_name' = string [@@deriving show]
 and fun_name = fun_name' pos_ast [@@deriving show]
 
+type struct_name' = string [@@deriving show]
+and struct_name = struct_name' pos_ast [@@deriving show]
+
 type mutability' =
   | Const
   | Mut
@@ -57,16 +60,22 @@ and expr_type = expr_type' pos_ast [@@deriving show]
 and variable_type' =
   | RefVT of base_type * maybe_label * mutability
   | ArrayVT of array_type * maybe_label * mutability
+  | StructVT of struct_name * mutability
 [@@deriving show]
 and variable_type = variable_type' pos_ast [@@deriving show]
+
+and lvalue' =
+  | Base of var_name
+  | ArrayEl of lvalue * array_index
+  | StructEl of lvalue * var_name
+and lvalue = (lvalue' * variable_type') pos_ast
 
 and expr' =
   | True
   | False
   | IntLiteral of int
   | StringLiteral of string
-  | Variable of var_name
-  | ArrayGet of var_name * expr
+  | Lvalue of lvalue
   | IntCast of base_type * expr
   | UnOp of Ast.unop * expr
   | BinOp of Ast.binop * expr * expr
@@ -81,10 +90,10 @@ and expr = (expr' * expr_type') pos_ast [@@deriving show]
 
 and array_expr' =
   | ArrayLit of expr list
-  | ArrayVar of var_name
+  | ArrayVar of lvalue
   | ArrayZeros of lexpr
-  | ArrayCopy of var_name
-  | ArrayView of var_name * expr * lexpr
+  | ArrayCopy of lvalue
+  | ArrayView of lvalue * expr * lexpr
   | ArrayComp of base_type * lexpr * var_name * expr
   | ArrayNoinit of lexpr
 [@@deriving show]
@@ -95,7 +104,7 @@ and arg_exprs = arg_expr list [@@deriving show]
 and arg_expr' =
   | ByValue of expr
   | ByArray of array_expr * mutability
-  | ByRef of var_name
+  | ByRef of lvalue
 [@@deriving show]
 and arg_expr = arg_expr' pos_ast [@@deriving show]
 
@@ -111,8 +120,7 @@ and high_expr = expr [@@deriving show]
 and statement' =
   | BaseDec of var_name * variable_type * expr
   | ArrayDec of var_name * variable_type * array_expr
-  | BaseAssign of var_name * expr
-  | ArrayAssign of var_name * array_index * expr
+  | Assign of lvalue * expr
   | If of cond * thenblock * elseblock
   | For of var_name * base_type * low_expr * high_expr * block
   | VoidFnCall of fun_name * arg_exprs
@@ -129,6 +137,13 @@ and param' =
 and param = param' pos_ast [@@deriving show]
 
 and params = param list [@@deriving show]
+
+and field' =
+  | Field of var_name * variable_type
+[@@deriving show]
+and field = field' pos_ast [@@deriving show]
+
+and fields = field list [@@deriving show]
 
 and ret_type = expr_type option [@@deriving show]
 and fn_type = { export : bool; inline : inline }
@@ -150,8 +165,15 @@ and function_dec = function_dec' pos_ast [@@deriving show]
 and function_decs = function_dec list
 [@@deriving show]
 
+and struct_type' =
+  | Struct of struct_name * fields
+and struct_type = struct_type' pos_ast [@@deriving show]
+
+and structs = struct_type list
+[@@deriving show]
+
 and fact_module =
-  | Module of (function_dec * bool ref) Env.env * function_decs
+  | Module of (function_dec * bool ref) Env.env * function_decs * structs
 [@@deriving show]
 
 (* Used to parse a top level value in the REPL *)
