@@ -89,6 +89,11 @@ let gh_field = xfunction
           (gh_aty a)
           x.data
           (gh_aty_post a)
+      | StructVT(s,m) ->
+        Printf.sprintf
+          "//   struct %s * %s;"
+          s.data
+          x.data
 
 let gh_sdec = xfunction
   | Struct(sname,fields) ->

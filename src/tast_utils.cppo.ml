@@ -316,6 +316,7 @@ let aetype_update_mut' mut = function
 let refvt_update_mut' mut = xfunction
   | RefVT(b,ml,_) -> RefVT(b, ml, mut)
   | ArrayVT(a,ml,_) -> ArrayVT(a, ml, mut)
+  | StructVT(s,_) -> StructVT(s, mut)
 
 
 (* Structs *)

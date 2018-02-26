@@ -206,6 +206,7 @@ let make_name_et str = function
 let make_name_vt str = function
   | RefVT(_,ml,_) -> make_name str ml
   | ArrayVT(_,ml,_) -> make_name str ml
+  | StructVT _ -> make_name str (make_ast fake_pos (Fixed Public))
 
 let make_name_ll str llvalue =
   let name = value_name llvalue in
@@ -1010,27 +1011,32 @@ let rec codegen_fdecs llcontext llmodule builder fenv sdecs verify = function
     ignore(codegen_fun llcontext llmodule builder fenv sdecs verify fd);
     codegen_fdecs llcontext llmodule builder fenv sdecs verify rest
 
-let field_to_type llctx = function
+let field_to_type llctx sdecs = function
   | {data=Field(var_name,
-    {data=RefVT({data=base_type},maybe_label,_)})} ->
+                {data=RefVT({data=base_type},maybe_label,_)})} ->
     bt_to_llvm_ty llctx base_type
-  | {data=Field(var_name,{data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_)})} ->
+  | {data=Field(var_name,
+                {data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_)})} ->
     begin
       match size.data with
         | LIntLiteral s ->
           array_type (bt_to_llvm_ty llctx bt.data) s
     end
+  | {data=Field(var_name,
+                {data=StructVT(s,_)})} ->
+    let struct_ty,_ = List.assoc s.data sdecs in
+      pointer_type struct_ty
 
-let codegen_sdec llctx {data=sdec} =
+let codegen_sdec llctx sdecs {data=sdec} =
   let Struct(s,fields) = sdec in
-  let field_tys = List.map (field_to_type llctx) fields |> Array.of_list in
+  let field_tys = List.map (field_to_type llctx sdecs) fields |> Array.of_list in
   let struct_ty = named_struct_type llctx s.data in
-    struct_set_body struct_ty field_tys true;
-    (s.data, (struct_ty, sdec))
+    struct_set_body struct_ty field_tys false;
+    (s.data, (struct_ty, sdec)) :: sdecs
 
 let rec codegen llcontext llmodule builder verify = function
   | Module(oldfenv,fdecs,sdecs) ->
     Log.info "Codegening module";
-    let sdecs = List.map (codegen_sdec llcontext) sdecs in
+    let sdecs' = List.rev @@ List.fold_left (codegen_sdec llcontext) [] sdecs in
     let fenv = new_fenv oldfenv in
-      codegen_fdecs llcontext llmodule builder fenv sdecs verify fdecs
+      codegen_fdecs llcontext llmodule builder fenv sdecs' verify fdecs

@@ -65,8 +65,10 @@ let refvt_conv = pfunction
 
 let fieldtype_conv = pfunction
   | Ast.RefVT(b,l,m) ->
+    if m.data = Ast.Const then raise @@ cerr("unimplemented", p);
     RefVT(bconv b, mlconv l, mconv m)
   | Ast.ArrayVT(a,ml,m) ->
+    if m.data = Ast.Const then raise @@ cerr("unimplemented", p);
     let aconv = pfunction
       | Ast.ArrayAT(bt,le) ->
         let leconv = pfunction
@@ -74,6 +76,9 @@ let fieldtype_conv = pfunction
             LIntLiteral n in
           ArrayAT(bconv bt, leconv le) in
       ArrayVT(aconv a, mlconv ml, mconv m)
+  | Ast.StructVT(s,m) ->
+    if m.data = Ast.Const then raise @@ cerr("unimplemented", p);
+    StructVT(s, mconv m)
 
 let inline_conv = function
   | Ast.Default -> Default
@@ -450,6 +455,8 @@ and tc_arrayexpr' tc_ctx = xfunction
       (ArrayCopy x', aetype_update_mut' (mkpos Mut) ae'), true
   | Ast.ArrayView(x,e,lexpr) ->
     let e' = tc_expr tc_ctx e in
+    let Fixed ml = (expr_to_ml e').data in
+      if not (ml = Public) then raise @@ cerr("arrayview index must be public", p);
     let lexpr' = lexprconv tc_ctx lexpr in
     let x' = tc_lvalue tc_ctx x in
     let (_,vt) = x'.data in

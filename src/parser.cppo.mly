@@ -51,7 +51,7 @@ let to_type { data=t; pos=p } =
 %token COMMA
 %token LEN RIGHTARROW
 %token EXTERN INLINE EXPORT NOINLINE
-%token STRUCT DOT
+%token STRUCT EMBED DOT
 
 %token FD_START ST_START EX_START EX_END
 
@@ -70,6 +70,7 @@ let to_type { data=t; pos=p } =
 %left LEFTSHIFT RIGHTSHIFT LEFTROTATE RIGHTROTATE
 %left PLUS MINUS
 %left TIMES DIVIDE MODULO
+%left DOT
 %nonassoc UNARYOP
 
 (* Preprocessor shenanigans *)
@@ -281,10 +282,16 @@ param:
 field_type:
   | l=label b=base_type
     { mkpos (RefVT(b, l, mkpos Mut)) }
+  | EMBED l=label b=base_type
+    { mkpos (RefVT(b, l, mkpos Const)) }
   | l=label a=array_type
     { mkpos (ArrayVT(a, l, mkpos Mut)) }
+  | EMBED l=label a=array_type
+    { mkpos (ArrayVT(a, l, mkpos Const)) }
   | STRUCT s=struct_name
     { mkpos (StructVT(s, mkpos Mut)) }
+  | EMBED STRUCT s=struct_name
+    { mkpos (StructVT(s, mkpos Const)) }
 
 field:
   | t=field_type x=var_name SEMICOLON
