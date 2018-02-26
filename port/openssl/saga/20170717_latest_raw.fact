@@ -72,10 +72,10 @@ struct EVP_AES_HMAC_SHA1 {
 }
 
 // # define EVP_MAX_IV_LENGTH               16
-struct EVP_CIPHER_CTX {
+struct evp_cipher_ctx_st {
     secret uint8[40] unused1;
     secret uint8[16] iv; // EVP_MAX_IV_LENGTH /* working iv */
-    secret uint8[56] unused2;
+    secret uint8[60] unused2;
     struct EVP_AES_HMAC_SHA1 key; /* per EVP data */
     // everything after is unused so we don't even bother
 }
@@ -85,6 +85,7 @@ void
 aesni_cbc_encrypt(
     secret uint8[] in,
     secret mut uint8[] out,
+    public uint64 length,
     secret uint32[60] key, // actually struct AES_KEY
     secret mut uint8[] iv,
     public int32 enc); // really a bool
@@ -93,7 +94,8 @@ extern
 void
 SHA1_Update( // sha1_update in e_aes_cbc_hmac_sha1.c
     secret mut uint32 c, // actually struct SHA_CTX
-    secret uint8[] data);
+    secret uint8[] data,
+    public uint64 length);
 
 extern
 void
@@ -127,6 +129,12 @@ bswap4(secret uint32 n) {
   return x1 | x2 | x3 | x4;
 }
 
+extern void __print(secret int32 bits);
+extern void __prints(secret int32 bits, public int32 chr);
+extern void __println();
+extern void __printx(secret uint8 b);
+extern void __printctx(secret mut uint32 c, public int32 chr); // actually struct SHA_CTX
+
 inline
 void
 pmac_oreq(
@@ -145,8 +153,8 @@ pmac_oreq(
 
 export
 secret int32
-aesni_cbc_hmac_sha1_cipher(
-    mut struct EVP_CIPHER_CTX ctx,
+_aesni_cbc_hmac_sha1_cipher(
+    mut struct evp_cipher_ctx_st ctx,
     secret mut uint8[] _out,
     secret uint8[] _in) {
 
@@ -173,7 +181,8 @@ aesni_cbc_hmac_sha1_cipher(
 
     secret mut int32 ret = 1;
 
-    public uint16 tls_ver = declassify((ctx.key.tls_aad[plen - 4] << 8) | (ctx.key.tls_aad[plen - 3]));
+    // XXX I'm assuming that these two bytes are a public version number
+    public uint16 tls_ver = declassify((((uint16)ctx.key.tls_aad[plen - 4]) << 8) | ((uint16)ctx.key.tls_aad[plen - 3]));
     if (tls_ver >= TLS1_1_VERSION) {
       if (_len < (AES_BLOCK_SIZE + SHA_DIGEST_LENGTH + 1)) {
         return 0;
@@ -192,13 +201,14 @@ aesni_cbc_hmac_sha1_cipher(
     aesni_cbc_encrypt(
         arrview(_in, inp, _len),
         ref arrview(_out, outp, _len),
+        _len,
         ctx.key.ks_rd_key,
         ref ctx.iv, 0);
 
     /* figure out payload length */
     secret mut uint32 pad = _out[len _out - 1];
     public mut uint32 maxpad = _len - (SHA_DIGEST_LENGTH + 1);
-    maxpad |= (255 - maxpad) >> (4 * 8 - 8); // the `4` is sizeof(maxpad)
+    maxpad |= (uint32)(((int32)(255 - maxpad)) >> (4 * 8 - 8)); // the `4` is sizeof(maxpad)
     maxpad &= 255;
 
     secret int32 mask = maxpad >= pad ? -1 : 0;
@@ -214,7 +224,7 @@ aesni_cbc_hmac_sha1_cipher(
     secret mut uint32 inp_len = _len - (SHA_DIGEST_LENGTH + pad + 1);
 
     ctx.key.tls_aad[plen - 2] = (uint8)(inp_len >> 8);
-    ctx.key.tls_aad[plen - 1] = (uint8)(inp_len >> 8);
+    ctx.key.tls_aad[plen - 1] = (uint8)(inp_len >> 0);
 
     /* calculate HMAC */
     ctx.key.md_h0 = ctx.key.head_h0;
@@ -226,14 +236,14 @@ aesni_cbc_hmac_sha1_cipher(
     ctx.key.md_Nh = ctx.key.head_Nh;
     memcpy(ref ctx.key.md_data, ctx.key.head_data);
     ctx.key.md_num = ctx.key.head_num;
-    SHA1_Update(ref ctx.key.md_h0, arrview(ctx.key.tls_aad, 0, plen));
+    SHA1_Update(ref ctx.key.md_h0, arrview(ctx.key.tls_aad, 0, plen), plen);
 
     /* begin post-lucky-13 section */
       _len -= SHA_DIGEST_LENGTH; /* amend mac */
       if (_len >= (256 + SHA_CBLOCK)) {
         public mut uint32 j = (_len - (256 + SHA_CBLOCK)) & (0 - SHA_CBLOCK);
         j += SHA_CBLOCK - ctx.key.md_num;
-        SHA1_Update(ref ctx.key.md_h0, arrview(_out, outp, j));
+        SHA1_Update(ref ctx.key.md_h0, arrview(_out, outp, j), j);
         outp += j;
         _len -= j;
         inp_len -= j;
@@ -244,12 +254,13 @@ aesni_cbc_hmac_sha1_cipher(
       bitlen = bswap4(bitlen);
 
       // NOTE: openssl spends extra time aligning this to a 32-byte boundary
-      secret mut uint8[20] pmac = arrzeros(20); // SHA_DIGEST_LENGTH
+      secret mut uint8[32] _pmac = arrzeros(32); // SHA_DIGEST_LENGTH
+      secret mut uint8[20] pmac = arrview(_pmac, 0, 20);
 
       public mut uint32 res = ctx.key.md_num;
       for (uint32 j = 0 to _len) {
         secret mut uint32 c = _out[outp + j];
-        secret mut uint32 mask = (j - inp_len) >> (4 * 8 - 8); // the `4` is sizeof(j)
+        secret mut uint32 mask = (uint32)(((int32)(j - inp_len)) >> (4 * 8 - 8)); // the `4` is sizeof(j)
         c &= mask;
         c |= 0x80 & (~mask) & ~((inp_len - j) >> (4 * 8 - 8)); // the `4` is sizeof(j)
         ctx.key.md_data[res] = (uint8)c;
@@ -317,7 +328,7 @@ aesni_cbc_hmac_sha1_cipher(
     ctx.key.md_Nh = ctx.key.tail_Nh;
     memcpy(ref ctx.key.md_data, ctx.key.tail_data);
     ctx.key.md_num = ctx.key.tail_num;
-    SHA1_Update(ref ctx.key.md_h0, pmac);
+    SHA1_Update(ref ctx.key.md_h0, pmac, len pmac);
     SHA1_Final(ref pmac, ref ctx.key.md_h0);
 
     // XXX note to self check out what outp and stuff actually would be at this point
@@ -332,10 +343,10 @@ aesni_cbc_hmac_sha1_cipher(
       secret mut uint32 _res = 0;
       secret mut uint32 i = 0;
       for (uint32 j = 0 to maxpad) {
-        secret uint32 c = _out[p_outp];
-        secret mut uint32 cmask = (uint32)((int32)(j - off - SHA_DIGEST_LENGTH)) >> (4 * 8 - 1); // the `4` is sizeof(int)
+        secret uint32 c = _out[p_outp + j];
+        secret mut uint32 cmask = (uint32)(((int32)(j - off - SHA_DIGEST_LENGTH)) >> (4 * 8 - 1)); // the `4` is sizeof(int)
         _res |= (c ^ pad) & ~cmask; /* ... and padding */
-        cmask &= (uint32)((int32)(off - 1 - j)) >> (4 * 8 - 1); // the `4` is sizeof(int)
+        cmask &= (uint32)(((int32)(off - 1 - j)) >> (4 * 8 - 1)); // the `4` is sizeof(int)
         _res |= (c ^ pmac[declassify(i)]) & cmask; // XXX okay (see below)
         i += 1 & cmask;
         /**
@@ -352,14 +363,14 @@ aesni_cbc_hmac_sha1_cipher(
       }
       maxpad -= SHA_DIGEST_LENGTH;
 
-      _res = 0 - ((0 - res) >> (4 * 8 - 1)); // the `4` is sizeof(res)
-      ret &= (int32)~res;
+      _res = (uint32)(0 - (((int32)(0 - (int32)_res)) >> (4 * 8 - 1))); // the `4` is sizeof(res)
+      ret &= (int32)~_res;
     /* end post-lucky-13 section */
     return ret;
   } else {
     /* decrypt HMAC|padding at once */
-    aesni_cbc_encrypt(_in, ref _out, ctx.key.ks_rd_key, ref ctx.iv, 0);
-    SHA1_Update(ref ctx.key.md_h0, _out);
+    aesni_cbc_encrypt(_in, ref _out, len _out, ctx.key.ks_rd_key, ref ctx.iv, 0);
+    SHA1_Update(ref ctx.key.md_h0, _out, len _out);
   }
 
   return 1;
