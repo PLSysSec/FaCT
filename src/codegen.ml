@@ -5,6 +5,7 @@ open Ctverif
 open Codegen_utils
 
 exception CodegenError
+exception CodegenErrorMsg of string
 exception FunctionAlreadyDefined
 
 let counter = ref 0
@@ -666,7 +667,7 @@ and codegen_array_expr cg_ctx arr_name = function
           let memset = get_intrinsic Memset cg_ctx in
             build_call memset args "" cg_ctx.builder;
             alloca,false
-        | LDynamic x -> raise CodegenError
+        | LDynamic x -> raise @@ CodegenErrorMsg (Err.("hi" << lexpr.pos))
     end
   | ArrayCopy lval,ty ->
     let ll_ty = expr_ty_to_llvm_ty cg_ctx ty in
