@@ -6,6 +6,8 @@ open Typecheck
 open Codegen
 open Debugfun
 open Opt
+open Jank
+open Sys
 
 (*
 open Cast
@@ -135,6 +137,34 @@ let verify_opt_passes llmod = function
       | true -> Log.error "An optimzation did not pass!"
       | false -> Log.info "All optimzations passed!"
 
+let ctverify out_file llvm_mod = function
+  | false -> Log.info "Not verifying with ctverif!"
+  | true  -> 
+    Log.info "Verifying with ctverif";
+    Log.debug "Converting 3.8 LLVM IR to 3.5 LLVM IR";
+    let ll = Jank.convert (Llvm.string_of_llmodule llvm_mod) in
+    let ctv_file = out_file ^ "-3.5.ll" in
+    Log.debug "Outputting 3.5 LLVM IR to %s" ctv_file;
+    Core_kernel.Out_channel.write_all ctv_file ~data:(ll);
+
+    (* Docker commands: 1) start container, 2) copy ll file into it, 3) run ctverif, 4) stop container *)
+    Log.debug "Running docker commands...";
+    Log.debug "docker run...";
+    Sys.command "docker run -it -d --rm --name ctverif_cont bjohannesmeyer/ctverif /bin/bash";
+
+    Log.debug "docker cp...";
+    let cp_str = String.concat "" ["docker cp ";  ctv_file;" ctverif_cont:/root/fact-verifs/tmp.ll"] in
+    Sys.command cp_str;
+
+    let entrypoint = "foo" in (* TODO: THIS SHOULD CHANGE *)
+    let exec_str = String.concat "" ["\"cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make && make clean\""] in
+    let exec_str = String.concat "" ["docker exec ctverif_cont /bin/bash -c 'cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make'"] in
+    Log.debug "docker exec...";
+    Sys.command exec_str;
+
+    Log.debug "docker stop...";
+    Sys.command "docker stop ctverif_cont";
+
 let compile (in_files,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in
   Log.debug "Compiling program in %s mode" (show_mode args.mode);
@@ -177,13 +207,15 @@ let compile (in_files,out_file,out_dir) args =
   let _ = codegen llvm_ctx llvm_mod llvm_builder args.verify_llvm xftast in
 
   (* Verify the opt passes via the command line. This doesn't affect llvm_mod *)
-  verify_opt_pass llvm_mod out_file' args.llvm_out args.verify_opts;
+  (* verify_opt_pass llvm_mod out_file' args.llvm_out args.verify_opts; *)
 
   (* Verify all of the opt passes on the IR. This doesn't affect llvm_mod *)
-  verify_opt_passes (Llvm_transform_utils.clone_module llvm_mod) args.verify_llvm;
+  (* verify_opt_passes (Llvm_transform_utils.clone_module llvm_mod) args.verify_llvm; *)
 
   (* Lets optimize the module *)
   let llvm_mod = Opt.run_optimizations args.opt_level args.opt_limit llvm_mod in
+
+  ctverify out_file' llvm_mod args.verify_llvm;
 
   (* Start verify final IR *)
   let errors = Hashtbl.create 100 in
