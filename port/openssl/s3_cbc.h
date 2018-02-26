@@ -21,7 +21,8 @@
 
 
 
-void __ssl3_cbc_digest_record(
+/*secret*/
+int32_t __ssl3_cbc_digest_record(
   /*secret*/ uint8_t md_state[216],
   /*secret*/ uint8_t mac_out[64],
   /*secret*/ uint8_t hmac_pad[128],
