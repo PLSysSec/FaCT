@@ -129,8 +129,8 @@ secret int32 tls1_cbc_remove_padding(
     secret mut uint8 padding_length = 0;
     public uint32 overhead = 1 + mac_size;
 
-    secret mut uint32 data_ptr = 0;
-    secret mut uint32 input_ptr = 0;
+    public mut uint32 data_ptr = 0;
+    public mut uint32 input_ptr = 0;
 
     secret mut int32 ret = 0;
 
