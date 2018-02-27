@@ -149,6 +149,7 @@ let checker errors pass () instr =
         let instr_str = string_of_llvalue instr in
         add_error errors (Error(pass, msg, instr_str))
       | Public -> ()
+      | Declassify -> ()
       | Unknown ->
         let msg = "Found an unknown conditional" in
         let instr_str = string_of_llvalue instr in
