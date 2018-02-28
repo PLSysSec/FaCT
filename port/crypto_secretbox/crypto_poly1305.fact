@@ -1,36 +1,29 @@
 // using 64-bit implementation (poly1305_donna64.h)
-/*
-#define poly1305_block_size 16
-typedef struct poly1305_state_internal_t {
-    unsigned long long r[3];
-    unsigned long long h[3];
-    unsigned long long pad[2];
-    unsigned long long leftover;
-    unsigned char      buffer[poly1305_block_size];
-    unsigned char      final;
-} poly1305_state_internal_t;
-*/
+// #define poly1305_block_size 16
+struct poly1305_state_internal_t {
+    secret uint64[3] r;
+    secret uint64[3] h;
+    secret uint64[2] pad;
+    public uint64 leftover;
+    secret uint8[16] buffer; // poly1305_block_size
+    secret uint8 final;
+}
 
 void _poly1305_blocks(
-    secret mut uint64[3] state_r,
-    secret mut uint64[3] state_h,
-    secret mut uint64[2] state_pad,
-    public mut uint64 state_leftover,
-    secret mut uint8[16] state_buffer,
-    secret mut bool state_final,
+    mut struct poly1305_state_internal_t state,
     secret uint8[] m) {
   public uint64 mask44 = 0xfffffffffff;
   public uint64 mask42 = 0x3ffffffffff;
 
-  secret uint64 hibit = state_final ? 0 : (((uint64)1) << 40);
+  secret uint64 hibit = (state.final != 0) ? 0 : (((uint64)1) << 40);
 
-  secret uint64 r0 = state_r[0];
-  secret uint64 r1 = state_r[1];
-  secret uint64 r2 = state_r[2];
+  secret uint64 r0 = state.r[0];
+  secret uint64 r1 = state.r[1];
+  secret uint64 r2 = state.r[2];
 
-  secret mut uint64 h0 = state_h[0];
-  secret mut uint64 h1 = state_h[1];
-  secret mut uint64 h2 = state_h[2];
+  secret mut uint64 h0 = state.h[0];
+  secret mut uint64 h1 = state.h[1];
+  secret mut uint64 h2 = state.h[2];
 
   secret uint64 s1 = r1 * (5 << 2);
   secret uint64 s2 = r2 * (5 << 2);
@@ -66,69 +59,59 @@ void _poly1305_blocks(
     h1 += c;
   }
 
-  state_h[0] = h0;
-  state_h[1] = h1;
-  state_h[2] = h2;
+  state.h[0] = h0;
+  state.h[1] = h1;
+  state.h[2] = h2;
 }
 
 export
 void _poly1305_init(
-    secret mut uint64[3] state_r,
-    secret mut uint64[3] state_h,
-    secret mut uint64[2] state_pad,
-    public mut uint64 state_leftover,
-    secret mut uint8[16] state_buffer,
-    secret mut bool state_final,
+    mut struct poly1305_state_internal_t state,
     secret uint8[32] key) {
   /* r &= 0xffffffc0ffffffc0ffffffc0fffffff */
   secret uint64 t0 = _load64_le(arrview(key, 0, 8));
   secret uint64 t1 = _load64_le(arrview(key, 8, 8));
 
   /* wiped after finalization */
-  state_r[0] = (t0) & 0xffc0fffffff;
-  state_r[1] = ((t0 >> 44) | (t1 << 20)) & 0xfffffc0ffff;
-  state_r[2] = ((t1 >> 24)) & 0x00ffffffc0f;
+  state.r[0] = (t0) & 0xffc0fffffff;
+  state.r[1] = ((t0 >> 44) | (t1 << 20)) & 0xfffffc0ffff;
+  state.r[2] = ((t1 >> 24)) & 0x00ffffffc0f;
 
   /* h = 0 */
-  state_h[0] = 0;
-  state_h[1] = 0;
-  state_h[2] = 0;
+  state.h[0] = 0;
+  state.h[1] = 0;
+  state.h[2] = 0;
 
   /* save pad for later */
-  state_pad[0] = _load64_le(arrview(key, 16, 8));
-  state_pad[1] = _load64_le(arrview(key, 24, 8));
+  state.pad[0] = _load64_le(arrview(key, 16, 8));
+  state.pad[1] = _load64_le(arrview(key, 24, 8));
 
-  state_leftover = 0;
-  state_final = false;
+  state.leftover = 0;
+  state.final = 0;
 }
 
 void _poly1305_update(
-    secret mut uint64[3] state_r,
-    secret mut uint64[3] state_h,
-    secret mut uint64[2] state_pad,
-    public mut uint64 state_leftover,
-    secret mut uint8[16] state_buffer,
-    secret mut bool state_final,
+    mut struct poly1305_state_internal_t state,
     secret uint8[] m) {
   public mut uint64 mindex = 0;
 
   /* handle leftover */
-  if (state_leftover != 0) {
-    public mut uint64 want = 16 - state_leftover;
+  if (state.leftover != 0) {
+    public mut uint64 want = 16 - state.leftover;
     if (want > len m) {
       want = len m;
     }
 
     for (uint64 i = 0 to want) {
-      state_buffer[state_leftover + i] = m[i];
+      state.buffer[state.leftover + i] = m[i];
     }
     mindex += want;
-    state_leftover += want;
-    if (state_leftover < 16) {
+    state.leftover += want;
+    if (state.leftover < 16) {
       return;
     }
-    _poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, state_buffer);
-    state_leftover = 0;
+    _poly1305_blocks(ref state, state.buffer);
+    state.leftover = 0;
   }
 
   /* process full blocks */
@@ -136,7 +119,7 @@ void _poly1305_update(
     public uint64 want = ((len m - mindex) & ~(16 - 1)); // XXX wat
 
     secret uint8[] mview = arrview(m, mindex, want);
-    _poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, mview);
+    _poly1305_blocks(ref state, mview);
     mindex += want;
   }
 
@@ -144,38 +127,33 @@ void _poly1305_update(
   if (mindex < len m) {
     public uint64 remaining = len m - mindex;
     for (uint64 i = 0 to remaining) {
-      state_buffer[state_leftover + i] = m[mindex + i];
+      state.buffer[state.leftover + i] = m[mindex + i];
     }
-    state_leftover += remaining;
+    state.leftover += remaining;
   }
 }
 
 void _poly1305_finish(
-    secret mut uint64[3] state_r,
-    secret mut uint64[3] state_h,
-    secret mut uint64[2] state_pad,
-    public mut uint64 state_leftover,
-    secret mut uint8[16] state_buffer,
-    secret mut bool state_final,
+    mut struct poly1305_state_internal_t state,
     secret mut uint8[16] mac) {
   /* process the remaining block */
-  if (state_leftover != 0) {
-    public uint64 start = state_leftover;
-    state_buffer[start] = 1;
+  if (state.leftover != 0) {
+    public uint64 start = state.leftover;
+    state.buffer[start] = 1;
     for (uint64 i = start + 1 to 16) {
-      state_buffer[i] = 0;
+      state.buffer[i] = 0;
     }
-    state_final = true;
-    _poly1305_blocks(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, state_buffer);
+    state.final = 1;
+    _poly1305_blocks(ref state, state.buffer);
   }
 
   public uint64 mask44 = 0xfffffffffff;
   public uint64 mask42 = 0x3ffffffffff;
 
   /* fully carry h */
-  secret mut uint64 h0 = state_h[0];
-  secret mut uint64 h1 = state_h[1];
-  secret mut uint64 h2 = state_h[2];
+  secret mut uint64 h0 = state.h[0];
+  secret mut uint64 h1 = state.h[1];
+  secret mut uint64 h2 = state.h[2];
 
   secret mut uint64 c = h1 >> 44;
   h1 &= mask44;
@@ -216,8 +194,8 @@ void _poly1305_finish(
   h2 = (h2 & c) | g2;
 
   /* h = (h + pad) */
-  secret uint64 t0 = state_pad[0];
-  secret uint64 t1 = state_pad[1];
+  secret uint64 t0 = state.pad[0];
+  secret uint64 t1 = state.pad[1];
 
   h0 += t0 & mask44;
   c = h0 >> 44;
@@ -236,12 +214,12 @@ void _poly1305_finish(
   _store64_le(ref arrview(mac, 8, 8), h1);
 
   /* zero out the state */
-  _fact_memzero64(ref state_r);
-  _fact_memzero64(ref state_h);
-  _fact_memzero64(ref state_pad);
-  state_leftover = 0;
-  _fact_memzero(ref state_buffer);
-  state_final = false;
+  _fact_memzero64(ref state.r);
+  _fact_memzero64(ref state.h);
+  _fact_memzero64(ref state.pad);
+  state.leftover = 0;
+  _fact_memzero(ref state.buffer);
+  state.final = 0;
 }
 
 export
@@ -249,16 +227,17 @@ public int32 _crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna 
     secret mut uint8[16] out,
     secret uint8[] m,
     secret uint8[32] key) {
-  secret mut uint64[3] state_r = arrzeros(3);
-  secret mut uint64[3] state_h = arrzeros(3);
-  secret mut uint64[2] state_pad = arrzeros(2);
-  public mut uint64 state_leftover = 0;
-  secret mut uint8[16] state_buffer = arrzeros(16);
-  secret mut bool state_final = false;
+  mut struct poly1305_state_internal_t state; // XXX this needs to be better
+  _fact_memzero64(ref state.r);
+  _fact_memzero64(ref state.h);
+  _fact_memzero64(ref state.pad);
+  state.leftover = 0;
+  _fact_memzero(ref state.buffer);
+  state.final = 0;
 
-  _poly1305_init(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, key);
-  _poly1305_update(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, m);
-  _poly1305_finish(ref state_r, ref state_h, ref state_pad, ref state_leftover, ref state_buffer, ref state_final, ref out);
+  _poly1305_init(ref state, key);
+  _poly1305_update(ref state, m);
+  _poly1305_finish(ref state, ref out);
   return 0;
 }
 
