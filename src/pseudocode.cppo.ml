@@ -203,6 +203,11 @@ and ps_stm ps_ctx = xfunction
       (ps_vty aty)
       x.data
       (ps_aexpr ps_ctx ae)
+  | StructDec(x,sty) ->
+    Printf.sprintf
+      "%s %s;"
+      (ps_vty sty)
+      x.data
   | Assign(lval,e) ->
     Printf.sprintf
       "%s = %s;"

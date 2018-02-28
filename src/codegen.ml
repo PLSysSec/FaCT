@@ -143,6 +143,9 @@ let vt_to_llvm_ty (cg_ctx : codegen_ctx_record) = function
     let size = get_size cg_ctx size.data in
     (* TODO: Should we be passing arrays as a * or **? *)
     array_type arr_ty size
+  | StructVT(s,_) ->
+    let sty,_ = List.assoc s.data cg_ctx.sdecs in
+    sty
 
 let param_to_type cg_ctx = function
   | {data=Param(var_name,
@@ -313,6 +316,15 @@ let rec allocate_stack cg_ctx stms =
          So yea, fix dis *)
       (*let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
       add_var cg_ctx.venv var_name alloca*)
+    | {data=StructDec(var_name,var_type)} ->
+      let llvm_ty = vt_to_llvm_ty cg_ctx var_type.data in
+      let ptr_ty = pointer_type llvm_ty in
+      let name = make_name_vt var_name.data var_type.data in
+      let alloca' = build_alloca llvm_ty name cg_ctx.builder in
+      let alloca = build_alloca ptr_ty name cg_ctx.builder in
+      build_store alloca' alloca cg_ctx.builder;
+      Env.add_var cg_ctx.venv var_name alloca;
+      Env.add_var cg_ctx.vtenv var_name var_type
     | {data=Assign(lv,expr)} -> allocate_lval lv; allocate_inject expr
     | {data=Block(stms)} ->
       allocate_stack cg_ctx stms
@@ -508,6 +520,8 @@ let rec codegen_arg cg_ctx arg ty =
           build_load var (make_name "argref" ml) cg_ctx.builder
         | RefVT(_,_,{data=Mut})
         | ArrayVT(_,_,{data=Mut}) -> var
+        | StructVT(_,{data=Mut}) ->
+          build_load var (make_name_vt "structload" vt) cg_ctx.builder
 
 and codegen_lval cg_ctx {data=(lval,vt);pos=p} =
   match lval with
@@ -790,6 +804,8 @@ and codegen_stm cg_ctx ret_ty = function
     Env.add_var cg_ctx.vtenv var_name var_type;
     let bt,at = bt_at_of_et left_ty in
     if add_to_type_env then Env.add_var cg_ctx.tenv var_name at;
+    false
+  | {data=StructDec(var_name,var_type)} ->
     false
   | {data=Assign(lval,expr)} ->
     let v = codegen_lval cg_ctx lval in

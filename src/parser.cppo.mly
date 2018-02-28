@@ -237,6 +237,8 @@ statement:
     { mkpos (BaseDec(x, b, e)) }
   | a=array_variable_type x=var_name ASSIGN ae=array_expr SEMICOLON
     { mkpos (ArrayDec(x, a, ae)) }
+  | MUT STRUCT s=struct_name x=var_name SEMICOLON (* XXX make this better *)
+    { mkpos (StructDec(x, s)) }
   | a=array_variable_type x=var_name ASSIGN n=var_name RIGHTARROW e=expr SEMICOLON
     { let { data=ArrayVT({ data=ArrayAT(b, l) }, _, _) } = a in
       mkpos (ArrayDec(x, a, mkposrange(n,e) (ArrayComp(b, l, n, e)))) }

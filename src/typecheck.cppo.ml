@@ -210,7 +210,7 @@ let tc_binop' p op e1 e2 =
         let ml' = join_ml p ml1 ml2 in
           (BinOp(op, e1, e2), BaseET(b', ml'))
 
-let params_all_refs_above rpc params =
+let params_all_refs_above tc_ctx rpc params =
   let rec checker n = function
     | [] -> -1
     | ({data=Param(_,{data=vty'}); pos=p}::params) ->
@@ -219,6 +219,10 @@ let params_all_refs_above rpc params =
           | RefVT(_,{data=Fixed l},{data=mut})
           | ArrayVT(_,{data=Fixed l},{data=mut}) ->
             if (mut != Mut) || (rpc <$. l)
+            then (checker (n+1) params)
+            else n
+          | StructVT(s,{data=mut}) ->
+            if (rpc = Public) || (mut != Mut) || (not @@ struct_has_secrets tc_ctx.sdecs s)
             then (checker (n+1) params)
             else n
       end
@@ -282,6 +286,7 @@ and tc_arg tc_ctx = pfunction
             let (_,ArrayET(_,_,mut)) = ae'.data in
               if not (mut.data <* Mut) then raise @@ cerr("variable is not mut; ", p);
               ByArray(ae', mkpos Mut)
+          | StructVT _ -> ByRef x'
       end
   | Ast.ByArray(arr_expr, mutability) ->
     let m' = mconv mutability in
@@ -409,7 +414,7 @@ and tc_expr tc_ctx = pfunction
             if (!everhi) && fty.export then raise @@ cerr("Cannot call exported function from a secret context", p);
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
-            let earg_n = params_all_refs_above rpc params in
+            let earg_n = params_all_refs_above tc_ctx rpc params in
               if earg_n >= 0 then
                 (let earg = List.nth args earg_n in
                    raise @@ err(earg.pos));
@@ -418,7 +423,7 @@ and tc_expr tc_ctx = pfunction
           | (CExtern(_,Some rty,params)) ->
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
-            let earg_n = params_all_refs_above rpc params in
+            let earg_n = params_all_refs_above tc_ctx rpc params in
               if earg_n >= 0 then
                 (let earg = List.nth args earg_n in
                    raise @@ err(earg.pos));
@@ -503,6 +508,11 @@ let rec tc_stm' tc_ctx = xfunction
       let x' = add_new_var tc_ctx.venv x vt' in
         [ArrayDec(x',vt',ae')]
 
+  | Ast.StructDec(x,s) -> (* XXX make this better *)
+    let svt = mkpos StructVT(s, mkpos Mut) in
+    let x' = add_new_var tc_ctx.venv x svt in
+      [StructDec(x',svt)]
+
   | Ast.Assign(lval,e) ->
     let lval' = tc_lvalue tc_ctx lval in
     let (_,vt) = lval'.data in
@@ -573,17 +583,17 @@ let rec tc_stm' tc_ctx = xfunction
             if (!everhi) && fty.export then raise @@ cerr("Cannot call exported function from a secret context", p);
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
-            let earg_n = params_all_refs_above rpc params in
+            let earg_n = params_all_refs_above tc_ctx rpc params in
               if earg_n >= 0 then
                 (let earg = List.nth args earg_n in
-                   raise @@ err(earg.pos));
+                   raise @@ cerr("public mutable arg in a secret context", earg.pos));
 
               let args' = tc_args ~xf_args:true tc_ctx p params args in
                 [VoidFnCall(f,args')]
           | (CExtern(_,_,params)) ->
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
-            let earg_n = params_all_refs_above rpc params in
+            let earg_n = params_all_refs_above tc_ctx rpc params in
               if earg_n >= 0 then
                 (let earg = List.nth args earg_n in
                    raise @@ err(earg.pos));

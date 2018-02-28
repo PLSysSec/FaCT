@@ -33,18 +33,6 @@ type xf_ctx_record = {
   sdecs : struct_type list;
 }
 
-let rec struct_has_secrets xf_ctx s =
-  let sdec = find_struct xf_ctx.sdecs s in
-  let Struct(_,fields) = sdec.data in
-    List.exists
-      (fun {data=Field(_,vt)} ->
-         match vt.data with
-           | RefVT(_,{data=Fixed label},_) -> label = Secret
-           | ArrayVT(_,{data=Fixed label},_) -> label = Secret
-           | StructVT(sn,_) -> struct_has_secrets xf_ctx sn
-      )
-      fields
-
 let rec params_has_secret_refs xf_ctx = function
   | [] -> false
   | ({data=Param(_,{data=vty'});pos=p}::params) ->
@@ -55,7 +43,7 @@ let rec params_has_secret_refs xf_ctx = function
         | ArrayVT(_,{data=Fixed label},{data=mut}) ->
           (mut = Mut && label = Secret) || params_has_secret_refs xf_ctx params
         | StructVT(s,{data=mut}) ->
-          (mut = Mut && struct_has_secrets xf_ctx s) || params_has_secret_refs xf_ctx params
+          (mut = Mut && struct_has_secrets xf_ctx.sdecs s) || params_has_secret_refs xf_ctx params
     end
 
 let fdec_has_secret_refs xf_ctx p (fdec,everhi) =
@@ -206,6 +194,9 @@ and xf_stm' xf_ctx p = function
   | ArrayDec(x,vt,ae) ->
     let ae' = xf_arrayexpr xf_ctx ae in
       [ArrayDec(x,vt,ae')]
+
+  | StructDec(x,vt) ->
+    [StructDec(x,vt)]
 
   | Assign(lval,e) ->
     let lval' = xf_lvalue xf_ctx lval in
