@@ -139,6 +139,7 @@ and high_expr = expr [@@deriving show]
 and statement' =
   | BaseDec of var_name * variable_type * expr
   | ArrayDec of var_name * variable_type * array_expr
+  | StructDec of var_name * struct_name
   | Assign of lvalue * expr
   | If of cond * thenstms * elsestms
   | For of var_name * base_type * low_expr * high_expr * statements

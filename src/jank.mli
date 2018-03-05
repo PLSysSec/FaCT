@@ -1,0 +1,2 @@
+val convert : string -> string
+

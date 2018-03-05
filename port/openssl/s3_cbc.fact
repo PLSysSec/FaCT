@@ -6,7 +6,7 @@ extern void _prints(secret uint64 bits);
 extern void _println();
 extern void _printx(secret uint8 b);
 
-export void __ssl3_cbc_digest_record(
+export secret int32 __ssl3_cbc_digest_record(
     secret mut uint8[216] md_state,
     secret mut uint8[64] mac_out,
     secret mut uint8[128] hmac_pad, // `MAX_HASH_BLOCK_SIZE`
@@ -18,7 +18,7 @@ export void __ssl3_cbc_digest_record(
     public bool length_is_big_endian,
     public int32 sha_type,
     /* ~~~ */
-    secret uint8[13] header,
+    secret uint8[13] header, // XXX except... not actually 13 if is_sslv3 (see header_length below)
     secret uint8[] data,
     // `data_plus_mac_plus_padding_size` is len data
     secret uint64 data_plus_mac_size,
@@ -53,13 +53,13 @@ export void __ssl3_cbc_digest_record(
     k = md_block_size * num_starting_blocks;
   }
 
-  secret mut uint8[128] first_block = arrzeros(128); // `MAX_HASH_BLOCK_SIZE`
+  secret mut uint8[128] first_block = noinit(128); // `MAX_HASH_BLOCK_SIZE`
 
   secret mut uint64 bits = 8 * mac_end_offset;
   if (!is_sslv3) {
     bits += 8 * md_block_size;
     if (len mac_secret > MAX_HASH_BLOCK_SIZE) {
-      return;
+      return 0;
     }
     _memcpy(ref hmac_pad, mac_secret);
     for (uint64 i = 0 to md_block_size) {
@@ -80,6 +80,32 @@ export void __ssl3_cbc_digest_record(
     length_bytes[md_length_size - 6] = (uint8)(bits >> 16);
     length_bytes[md_length_size - 7] = (uint8)(bits >> 8);
     length_bytes[md_length_size - 8] = (uint8)bits;
+  }
+
+  if (k > 0) {
+    if (is_sslv3) {
+      if (header_length <= md_block_size) {
+        // "Should never happen"
+        return 0;
+      }
+      public uint64 overhang = header_length - md_block_size;
+      _md_transform(sha_type, ref md_state, header);
+      _memcpy(ref first_block, arrview(header, md_block_size, overhang));
+      _memcpy(ref arrview(first_block, overhang, md_block_size - overhang),
+          arrview(data, 0, md_block_size - overhang));
+      _md_transform(sha_type, ref md_state, first_block);
+      for (uint64 i = 1 to k / md_block_size - 1) {
+        _md_transform(sha_type, ref md_state, arrview(data, md_block_size * i - overhang, md_block_size));
+      }
+    } else {
+      _memcpy(ref first_block, arrview(header, 0, 13));
+      _memcpy(ref arrview(first_block, 13, md_block_size - 13),
+          arrview(data, 0, md_block_size - 13));
+      _md_transform(sha_type, ref md_state, first_block);
+      for (uint64 i = 1 to k / md_block_size) {
+        _md_transform(sha_type, ref md_state, arrview(data, md_block_size * i - 13, md_block_size));
+      }
+    }
   }
 
   for (uint64 i = num_starting_blocks to num_starting_blocks + variance_blocks + 1) {
@@ -122,5 +148,7 @@ export void __ssl3_cbc_digest_record(
         _println();
       }
     }
+    _println();
   }
+  return 1;
 }

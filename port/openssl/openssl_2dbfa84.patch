@@ -1,8 +1,8 @@
 diff --git a/apps/s_server.c b/apps/s_server.c
-index c772069a7c..96bb29bd7f 100644
+index b22f083..3ce2d84 100644
 --- a/apps/s_server.c
 +++ b/apps/s_server.c
-@@ -2096,8 +2096,8 @@ int s_server_main(int argc, char *argv[])
+@@ -2085,8 +2085,8 @@ int s_server_main(int argc, char *argv[])
      if (max_early_data >= 0)
          SSL_CTX_set_max_early_data(ctx, max_early_data);
  
@@ -13,7 +13,7 @@ index c772069a7c..96bb29bd7f 100644
      if (rev)
          server_cb = rev_body;
      else if (www)
-@@ -2674,9 +2674,9 @@ static int sv_body(int s, int stype, int prot, unsigned char *context)
+@@ -2654,9 +2654,9 @@ static int sv_body(int s, int stype, int prot, unsigned char *context)
      }
      BIO_printf(bio_s_out, "CONNECTION CLOSED\n");
      OPENSSL_clear_free(buf, bufsize);
@@ -23,10 +23,10 @@ index c772069a7c..96bb29bd7f 100644
 +    //if (ret >= 0)
 +        //BIO_printf(bio_s_out, "ACCEPT\n");
 +    //(void)BIO_flush(bio_s_out);
-     return ret;
+     return (ret);
  }
  
-@@ -3285,8 +3285,8 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
+@@ -3259,8 +3259,8 @@ static int www_body(int s, int stype, int prot, unsigned char *context)
      SSL_set_shutdown(con, SSL_SENT_SHUTDOWN | SSL_RECEIVED_SHUTDOWN);
  
   err:
@@ -36,12 +36,12 @@ index c772069a7c..96bb29bd7f 100644
 +        //BIO_printf(bio_s_out, "ACCEPT\n");
      OPENSSL_free(buf);
      BIO_free_all(io);
-     return ret;
+     return (ret);
 diff --git a/apps/s_time.c b/apps/s_time.c
-index 149107c554..bef72f5a30 100644
+index 7e24988..4fe8ac1 100644
 --- a/apps/s_time.c
 +++ b/apps/s_time.c
-@@ -264,8 +264,8 @@ int s_time_main(int argc, char **argv)
+@@ -263,8 +263,8 @@ int s_time_main(int argc, char **argv)
              else
                  ver = '*';
          }
@@ -52,7 +52,7 @@ index 149107c554..bef72f5a30 100644
  
          SSL_free(scon);
          scon = NULL;
-@@ -356,8 +356,8 @@ int s_time_main(int argc, char **argv)
+@@ -355,8 +355,8 @@ int s_time_main(int argc, char **argv)
              else
                  ver = '*';
          }
@@ -64,7 +64,7 @@ index 149107c554..bef72f5a30 100644
      totalTime += tm_Time_F(STOP); /* Add the time for this iteration */
  
 diff --git a/ssl/build.info b/ssl/build.info
-index bb2f1deb53..f9de1ff318 100644
+index bb2f1de..f9de1ff 100644
 --- a/ssl/build.info
 +++ b/ssl/build.info
 @@ -3,7 +3,7 @@ SOURCE[../libssl]=\
@@ -77,7 +77,7 @@ index bb2f1deb53..f9de1ff318 100644
          d1_lib.c  record/rec_layer_d1.c d1_msg.c \
          statem/statem_dtls.c d1_srtp.c \
 diff --git a/ssl/s3_cbc.c b/ssl/s3_cbc.c
-index 7d9c377697..42412037d7 100644
+index 7d9c377..b86b476 100644
 --- a/ssl/s3_cbc.c
 +++ b/ssl/s3_cbc.c
 @@ -13,6 +13,7 @@
@@ -129,7 +129,7 @@ index 7d9c377697..42412037d7 100644
          md_length_size = 16;
          break;
      default:
-@@ -239,6 +244,33 @@ int ssl3_cbc_digest_record(const EVP_MD_CTX *ctx,
+@@ -239,6 +244,35 @@ int ssl3_cbc_digest_record(const EVP_MD_CTX *ctx,
              || !ossl_assert(md_size <= EVP_MAX_MD_SIZE))
          return 0;
  
@@ -138,7 +138,7 @@ index 7d9c377697..42412037d7 100644
 +    memset(mac_out, 0, sizeof(mac_out));
 +    memset(hmac_pad, 0, md_block_size);
 +
-+    __ssl3_cbc_digest_record(
++    ret = __ssl3_cbc_digest_record(
 +        // outputs
 +            md_state.c,
 +            mac_out,
@@ -159,13 +159,33 @@ index 7d9c377697..42412037d7 100644
 +            mac_secret,
 +            mac_secret_length,
 +            is_sslv3);
++    if (ret == 0)
++      return 0; // "Should never happen"
 +#else
      header_length = 13;
      if (is_sslv3) {
          header_length = mac_secret_length + sslv3_pad_length + 8 /* sequence
-@@ -450,6 +482,9 @@ int ssl3_cbc_digest_record(const EVP_MD_CTX *ctx,
-         for (j = 0; j < md_size; j++)
+@@ -403,6 +437,8 @@ int ssl3_cbc_digest_record(const EVP_MD_CTX *ctx,
+         unsigned char block[MAX_HASH_BLOCK_SIZE];
+         unsigned char is_block_a = constant_time_eq_8_s(i, index_a);
+         unsigned char is_block_b = constant_time_eq_8_s(i, index_b);
++            _print(i);
++            _print(num_starting_blocks + variance_blocks);
+         for (j = 0; j < md_block_size; j++) {
+             unsigned char b = 0, is_past_c, is_past_cp1;
+             if (k < header_length)
+@@ -447,9 +483,17 @@ int ssl3_cbc_digest_record(const EVP_MD_CTX *ctx,
+         md_transform(md_state.c, block);
+         md_final_raw(md_state.c, block);
+         /* If this is index_b, copy the hash value to |mac_out|. */
+-        for (j = 0; j < md_size; j++)
++        for (j = 0; j < md_size; j++) {
              mac_out[j] |= block[j] & is_block_b;
++            _printx(mac_out[j]);
++            if ((j & 7) == 7)
++              _println();
++        }
++        _println();
      }
 +#endif
 +    final = OPENSSL_rdtsc();

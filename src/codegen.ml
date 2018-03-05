@@ -5,6 +5,7 @@ open Ctverif
 open Codegen_utils
 
 exception CodegenError
+exception CodegenErrorMsg of string
 exception FunctionAlreadyDefined
 
 let counter = ref 0
@@ -142,6 +143,9 @@ let vt_to_llvm_ty (cg_ctx : codegen_ctx_record) = function
     let size = get_size cg_ctx size.data in
     (* TODO: Should we be passing arrays as a * or **? *)
     array_type arr_ty size
+  | StructVT(s,_) ->
+    let sty,_ = List.assoc s.data cg_ctx.sdecs in
+    sty
 
 let param_to_type cg_ctx = function
   | {data=Param(var_name,
@@ -312,6 +316,15 @@ let rec allocate_stack cg_ctx stms =
          So yea, fix dis *)
       (*let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
       add_var cg_ctx.venv var_name alloca*)
+    | {data=StructDec(var_name,var_type)} ->
+      let llvm_ty = vt_to_llvm_ty cg_ctx var_type.data in
+      let ptr_ty = pointer_type llvm_ty in
+      let name = make_name_vt var_name.data var_type.data in
+      let alloca' = build_alloca llvm_ty name cg_ctx.builder in
+      let alloca = build_alloca ptr_ty name cg_ctx.builder in
+      build_store alloca' alloca cg_ctx.builder;
+      Env.add_var cg_ctx.venv var_name alloca;
+      Env.add_var cg_ctx.vtenv var_name var_type
     | {data=Assign(lv,expr)} -> allocate_lval lv; allocate_inject expr
     | {data=Block(stms)} ->
       allocate_stack cg_ctx stms
@@ -339,18 +352,20 @@ let rec allocate_stack cg_ctx stms =
   let env,stms' = stms in
   ignore(List.map allocate_stack' stms')
 
-let codegen_binop cg_ctx op e1 e2 ty ety ml b =
+let codegen_binop cg_ctx op e1 e2 ty ety b1 b2 ml b =
   let e1_width = integer_bitwidth (type_of e1) in
   let e2_width = integer_bitwidth (type_of e2) in
   let e1,e2 =
     match e1_width,e2_width with
       | w1,w2 when w1 < w2 ->
         let name = make_name "lhssext" ml in
-        let e1' = (build_sext e1 (type_of e2)) name cg_ctx.builder in
+        let build_ext = if is_signed b1.data then build_sext else build_zext in
+        let e1' = (build_ext e1 (type_of e2)) name cg_ctx.builder in
         e1',e2
       | w1,w2 when w1 > w2 -> 
         let name = make_name "rhssext" ml in
-        let e2' = (build_sext e2 (type_of e1)) name cg_ctx.builder in
+        let build_ext = if is_signed b2.data then build_sext else build_zext in
+        let e2' = (build_ext e2 (type_of e1)) name cg_ctx.builder in
         e1,e2'
       | w1,w2 -> e1,e2 in
   let res = 
@@ -408,19 +423,19 @@ let codegen_unop builder value ml = function
   | Ast.LogicalNot -> build_not value (make_name "lnottmp" ml) builder
   | Ast.BitwiseNot -> build_not value (make_name "bnottmp" ml) builder
 
-let build_cast ty cg_ctx value = (* from, to *) function
+let build_cast ty cg_ctx issigned value = (* from, to *) function
   | Bool ->
     let name = make_name_et "bcast" ty in
     build_intcast value (bt_to_llvm_ty cg_ctx.llcontext Bool) name cg_ctx.builder
   | UInt(n) ->
     let name = make_name_et "ucast" ty in
     let m = integer_bitwidth (type_of value) in
-      (if n > m then build_zext else build_trunc)
+      (if n > m then (if issigned then build_sext else build_zext) else build_trunc)
         value (bt_to_llvm_ty cg_ctx.llcontext (UInt n)) name cg_ctx.builder
   | Int(n) ->
     let name = make_name_et "icast" ty in
     let m = integer_bitwidth (type_of value) in
-      (if n > m then build_sext else build_trunc)
+      (if n > m then (if issigned then build_sext else build_zext) else build_trunc)
         value (bt_to_llvm_ty cg_ctx.llcontext (Int n)) name cg_ctx.builder
   | _ -> raise CodegenError (* TODO: How do we cast the Num type?? *)
 
@@ -505,6 +520,8 @@ let rec codegen_arg cg_ctx arg ty =
           build_load var (make_name "argref" ml) cg_ctx.builder
         | RefVT(_,_,{data=Mut})
         | ArrayVT(_,_,{data=Mut}) -> var
+        | StructVT(_,{data=Mut}) ->
+          build_load var (make_name_vt "structload" vt) cg_ctx.builder
 
 and codegen_lval cg_ctx {data=(lval,vt);pos=p} =
   match lval with
@@ -543,7 +560,8 @@ and codegen_expr cg_ctx = function
       build_load cell (make_name_et "lval" ty) cg_ctx.builder
   | IntCast(base_ty,expr), ty ->
     let v = codegen_expr cg_ctx expr.data in
-    build_cast ty cg_ctx v base_ty.data
+    let bty = Tast_utils.expr_to_btype expr in
+    build_cast ty cg_ctx (is_signed bty.data) v base_ty.data
   | UnOp(op,expr), ty ->
     let llty = expr_ty_to_llvm_ty cg_ctx ty in
     let expr' = codegen_ext cg_ctx llty expr in
@@ -562,7 +580,7 @@ and codegen_expr cg_ctx = function
     let ety = Tast_utils.(if joinable_bt b1 b2 then join_bt expr1.pos b1 b2 else ty') in
     let e1 = codegen_expr cg_ctx expr1.data in
     let e2 = codegen_expr cg_ctx expr2.data in
-    codegen_binop cg_ctx op e1 e2 ty'.data ety.data ml cg_ctx.builder
+    codegen_binop cg_ctx op e1 e2 ty'.data ety.data b1 b2 ml cg_ctx.builder
   | TernOp(expr1,expr2,expr3), ty ->
     let e1 = codegen_expr cg_ctx expr1.data in
     let e1' = build_is_not_null e1 (make_name_et "condtmp" ty) cg_ctx.builder in
@@ -617,7 +635,9 @@ and codegen_ext cg_ctx dest (expr : expr) =
       begin
         match classify_type dest with
           | TypeKind.Pointer -> expr'
-          | _ -> extend_to cg_ctx cg_ctx.builder true dest ty' expr'
+          | _ ->
+            let signed = is_signed (Tast_utils.expr_to_btype expr).data in
+              extend_to cg_ctx cg_ctx.builder signed dest ty' expr'
       end
 
 and vt_to_bt = function
@@ -666,7 +686,7 @@ and codegen_array_expr cg_ctx arr_name = function
           let memset = get_intrinsic Memset cg_ctx in
             build_call memset args "" cg_ctx.builder;
             alloca,false
-        | LDynamic x -> raise CodegenError
+        | LDynamic x -> raise @@ CodegenErrorMsg (Err.("hi" << lexpr.pos))
     end
   | ArrayCopy lval,ty ->
     let ll_ty = expr_ty_to_llvm_ty cg_ctx ty in
@@ -784,6 +804,8 @@ and codegen_stm cg_ctx ret_ty = function
     Env.add_var cg_ctx.vtenv var_name var_type;
     let bt,at = bt_at_of_et left_ty in
     if add_to_type_env then Env.add_var cg_ctx.tenv var_name at;
+    false
+  | {data=StructDec(var_name,var_type)} ->
     false
   | {data=Assign(lval,expr)} ->
     let v = codegen_lval cg_ctx lval in

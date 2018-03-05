@@ -32,7 +32,7 @@ let bt_to_llvm_ty llctx = function
   | Bool                      -> i1_type llctx (* TODO: Double check this*)
   | Num(i,s)                  ->
     let rec numbits = function
-      | n when n >= -255 && n <= 256 -> 8
+      | n when n >= -128 && n <= 127 -> 8
       | n -> 8 + (numbits (n / 256))
     in
       integer_type llctx (numbits i)

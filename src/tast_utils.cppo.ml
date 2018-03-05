@@ -265,6 +265,7 @@ let can_be_passed_to { pos=p; data=argty} {data=paramty} =
           | Mut, Mut -> l1.data = l2.data
           | _ -> false
         )
+    | StructVT _, StructVT _ -> true (* XXX fix this later *)
 
 let (<:$*) (ty1,is_new_mem) ty2 =
   let ArrayET(a1,l1,m1) = ty1.data in
@@ -326,3 +327,16 @@ let has_struct sdecs s =
 
 let find_struct sdecs s =
   List.find (fun {data=Struct(sn,_)} -> s.data = sn.data) sdecs
+
+let rec struct_has_secrets sdecs s =
+  let sdec = find_struct sdecs s in
+  let Struct(_,fields) = sdec.data in
+    List.exists
+      (fun {data=Field(_,vt)} ->
+         match vt.data with
+           | RefVT(_,{data=Fixed label},_) -> label = Secret
+           | ArrayVT(_,{data=Fixed label},_) -> label = Secret
+           | StructVT(sn,_) -> struct_has_secrets sdecs sn
+      )
+      fields
+
