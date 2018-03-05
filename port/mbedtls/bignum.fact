@@ -62,11 +62,11 @@ public int32 mpi_montmul(
     //XXX we need to pass d to the helper function
     //not sure how to do that yet
     //update: maybe use an extra loop to manually copy
-    public uint64 d_len = T_n - T_p_ptr;
-    public mut uint64[d_len] d = arrzeros(d_len);
-    _partial64_copy(T_p, ref d, T_p_ptr);
-    _mpi_mul_hlp(m, B_p, ref d, u0);
-    _mpi_mul_hlp(n, N_p, ref d, u1);
+    //public uint64 d_len = T_n - T_p_ptr;
+    //public mut uint64[d_len] d = arrzeros(d_len);
+    //_partial64_copy(T_p, ref d, T_p_ptr);
+    _mpi_mul_hlp(m, B_p, ref arrview(T_p, T_p_ptr, T_n - T_p_ptr), u0);
+    _mpi_mul_hlp(n, N_p, ref arrview(T_p, T_p_ptr, T_n - T_p_ptr), u1);
 
     T_p[T_p_ptr] = u0;
     T_p_ptr += 1;
@@ -74,11 +74,12 @@ public int32 mpi_montmul(
   }
 
     //XXX not sure how to handle d here, manually copy for now
-    public uint64 d_len = T_n - T_p_ptr;
-    public mut uint64[d_len] d = arrzeros(d_len);
-    _partial64_copy(T_p, ref d, T_p_ptr);
+    //public uint64 d_len = T_n - T_p_ptr;
+    //public mut uint64[d_len] d = arrzeros(d_len);
+    //_partial64_copy(T_p, ref d, T_p_ptr);
     //XXX how to copy n+1 * ciL bytes from d to A_p
     //what is the size of A_p, what is the size of d?
+    
     public uint64 ciL = 8;
     for(uint64 i = 0 to (n+1) * ciL) {
       A_p[i] = d[i];

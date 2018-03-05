@@ -19,8 +19,7 @@ secret int32 _ssl3_cbc_copy_mac(
 
   public uint64 EVP_MAX_MD_SIZE = 64;
   //CBC_MAC_ROTATE_IN_PLACE is currently not defined
-  secret mut uint8[EVP_MAX_MD_SIZE] rotated_mac =
-  arrzeros(EVP_MAX_MD_SIZE);
+  secret mut uint8[64] rotated_mac = arrzeros(64);
 
   secret uint64 mac_end = rec_length;
   secret uint64 mac_start = mac_end - md_size;

@@ -39,9 +39,9 @@ inline secret bool _crypto_verify_16(secret uint8[16] x, secret uint8[16] y) {
   return true;
 }
 
-inline void _partial64_copy(public uint64[] src, public mut uint64[] dst, 
-                              public uint64 offset) {
-  for(uint64 i = 0 to len dst) {
-    dst[i] = src[offset + i];
-  }
-}
+//inline void _partial64_copy(public uint64[] src, public mut uint64[] dst, 
+//                              public uint64 offset) {
+//  for(uint64 i = 0 to len dst) {
+//    dst[i] = src[offset + i];
+//  }
+//}

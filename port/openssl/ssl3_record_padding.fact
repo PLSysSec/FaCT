@@ -151,7 +151,7 @@ secret int32 tls1_cbc_remove_padding(
         return 0;
     }
 
-    padding_length = rec_data[data_ptr + rec_length - 1];
+    padding_length = rec_data[data_ptr + length - 1];
 
     if((s_evp_cipher_flags & EVP_CIPH_FLAG_AEAD_CIPHER) != 0) {
         rec_length -= padding_length + 1;
@@ -167,7 +167,7 @@ secret int32 tls1_cbc_remove_padding(
 
     for(uint32 i = 0 to to_check) {
         secret uint8 mask = padding_length > i ? 0xFF : 0x00;
-        secret uint8 b = rec_data[data_ptr + rec_length - 1 - i];
+        secret uint8 b = rec_data[data_ptr + length - 1 - i];
         good &= ~((uint32)mask & (padding_length & (uint32)b)); 
     }
 
@@ -200,8 +200,8 @@ secret int32 tls1_cbc_remove_padding_simple(
     secret mut uint8 padding_length = 0;
     public uint32 overhead = 1 + mac_size;
 
-    secret mut uint32 data_ptr = 0;
-    secret mut uint32 input_ptr = 0;
+    public mut uint32 data_ptr = 0;
+    public mut uint32 input_ptr = 0;
 
     secret mut int32 ret = 0;
 
@@ -222,7 +222,7 @@ secret int32 tls1_cbc_remove_padding_simple(
         return 0;
     }
 
-    padding_length = rec_data[data_ptr + rec_length - 1];
+    padding_length = rec_data[data_ptr + length - 1];
 
     if((s_evp_cipher_flags & EVP_CIPH_FLAG_AEAD_CIPHER) != 0) {
         rec_length -= padding_length + 1;
@@ -238,7 +238,7 @@ secret int32 tls1_cbc_remove_padding_simple(
 
     for(uint32 i = 0 to to_check) {
       if(i < padding_length) {
-        secret uint8 b = rec_data[data_ptr + rec_length - 1 - i];
+        secret uint8 b = rec_data[data_ptr + length - 1 - i];
         if(b != (uint8)padding_length) {
           good = 0;
         }
