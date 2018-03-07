@@ -17,6 +17,7 @@ let mode_doc = "mode The mode to compile with (dev or prod)"
 let opt_level_doc = "level The level of optimization to run (O0, 01, 02, or OF)"
 let opt_limit_doc = "seconds The number of seconds to run the optimizer at OF before quitting and picking the best pipeline"
 let verify_opt_doc = "opt Comma separated list of optimzations to verify on the FaCT program. They are run in the order in which they are provided"
+let json_opt_doc = "Create a JSON response"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -110,6 +111,7 @@ let compile_command =
       flag "-opt" (optional string) ~doc:opt_level_doc +>
       flag "-limit" (optional int) ~doc:opt_limit_doc +>
       flag "-verify-opt" (optional string) ~doc:verify_opt_doc +>
+      flag "-json" no_arg ~doc:json_opt_doc +>
       anon (sequence ("filename" %: file)))
     (fun
       out_file
@@ -124,6 +126,7 @@ let compile_command =
       opt_level
       opt_limit
       verify_opts
+      json
       in_files () ->
       let mode = match mode with
         | Some "dev" -> DEV
@@ -137,6 +140,19 @@ let compile_command =
         | Some "OF" -> OF
         | Some o -> error_exit ("Unknown optimization level: " ^ o ^ ". Expected O0, O1, O2, or OF")
         | None -> O0 in
+      match json, in_files with
+        | true, (f::r) ->
+          let json = Yojson.Basic.from_string "{\"types\":{},\"status\":\"error\",\"errors\":[{ \"message\" : \"This is an example error\"
+          , \"start\"   : { \"line\" : 1, \"col\" : 1 } 
+          , \"stop\"    : { \"line\" : 1, \"col\" : 2 } 
+          }]}" in
+          let str : string = (Yojson.Basic.to_string json) in
+          let dir = (Filename.dirname f) ^ "/.fact/" in
+          let json_file = dir ^ (Filename.basename f) ^ ".json" in
+          Printf.fprintf Pervasives.stderr "%s\n" str;
+          Core.Out_channel.write_all json_file ~data:str;
+          List.iter print_endline in_files
+        | _ ->
       let args = { in_files; out_file; debug;
                    ast_out; core_ir_out; pseudo_out;
                    llvm_out; gen_header; verify_llvm; mode; opt_level;
