@@ -15,5 +15,6 @@ PKG ocamlgraph
 PKG lwt
 PKG ANSITerminal
 PKG str
+PKG yojson
 
 EXT lwt
