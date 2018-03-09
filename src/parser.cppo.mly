@@ -232,6 +232,12 @@ else_clause:
   | elses=block
     { elses }
 
+for_loop_update:
+  | lval=lvalue ASSIGN e=expr
+    { mkpos (Assign(lval, e)) }
+  | lval=lvalue op=binopeq e=expr
+    { mkpos (Assign(lval, mkpos (BinOp(op, mkposof(lval) (Lvalue lval), e)))) }
+
 statement:
   | b=base_variable_type x=var_name ASSIGN e=expr SEMICOLON
     { mkpos (BaseDec(x, b, e)) }
@@ -242,14 +248,21 @@ statement:
   | a=array_variable_type x=var_name ASSIGN n=var_name RIGHTARROW e=expr SEMICOLON
     { let { data=ArrayVT({ data=ArrayAT(b, l) }, _, _) } = a in
       mkpos (ArrayDec(x, a, mkposrange(n,e) (ArrayComp(b, l, n, e)))) }
-  | lval=lvalue ASSIGN e=expr SEMICOLON
-    { mkpos (Assign(lval, e)) }
-  | lval=lvalue op=binopeq e=expr SEMICOLON
-    { mkpos (Assign(lval, mkpos (BinOp(op, mkposof(lval) (Lvalue lval), e)))) }
+  | stmt=for_loop_update SEMICOLON
+    { stmt }
   | iff=if_clause (* takes care of else ifs and elses too! *)
     { iff }
   | a=FOR LPAREN b=base_type i=var_name ASSIGN e1=expr TO e2=expr z=RPAREN stms=block
-    { mkposrange(a,z) (For(i, b, e1, e2, stms)) }
+    { warn @@ InternalCompilerError ("warning: deprecated for loop syntax" << (to_pos $startpos(a) $endpos(z)));
+      let one = mkposrange(e1,e2) (IntLiteral 1) in
+      let lval = mkposof(i) (Base i) in
+      let lvale = mkposof(i) (Lvalue lval) in
+      let cond = mkposof(e2) (BinOp(LT, lvale, e2)) in
+      let incr = mkposrange(e1,e2) (BinOp(Plus, lvale, one)) in
+      let upd = mkposrange(i,e2) (Assign(lval, incr)) in
+      mkposrange(a,z) (For(i, b, e1, cond, upd, stms)) }
+  | a=FOR LPAREN b=base_type i=var_name ASSIGN e1=expr SEMICOLON e2=expr SEMICOLON upd=for_loop_update z=RPAREN stms=block
+    { mkposrange(a,z) (For(i, b, e1, e2, upd, stms)) }
   | fn=fun_name args=plist(arg) SEMICOLON
     { mkpos (VoidFnCall(fn, args)) }
   | RETURN e=expr SEMICOLON

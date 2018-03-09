@@ -23,8 +23,8 @@ let ( << ) s p = Pos.pos_string p ^ ": " ^ s
 
 let warn (InternalCompilerError s) =
   let ss = Str.bounded_split (Str.regexp_string " ") s 3 in
-    ANSITerminal.(eprintf [white]         "%s  " (List.nth ss 0));
-    ANSITerminal.(eprintf [Bold; magenta] "%s  " (List.nth ss 1));
+    ANSITerminal.(eprintf [white]         "%s " (List.nth ss 0));
+    ANSITerminal.(eprintf [Bold; magenta] "%s " (List.nth ss 1));
     Printf.eprintf                        "%s\n" (List.nth ss 2)
 
 let errParseType p t =
