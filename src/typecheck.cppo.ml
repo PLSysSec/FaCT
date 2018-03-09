@@ -553,13 +553,10 @@ let rec tc_stm' tc_ctx = xfunction
 
   | Ast.For(i,ity,init,cond,upd_stmt,stms) ->
     let ity' = bconv ity in
-    let init' = tc_expr tc_ctx init in
 
     let venv' = Env.sub_env tc_ctx.venv in
     let i' = add_new_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const)) in
     let tc_ctx' = { tc_ctx with venv=venv' } in
-
-    let cond' = tc_expr tc_ctx' cond in
 
     (* special tc_ctx'' so that typechecker doesn't barf on the assignment to a "const" *)
     let venv'' = Env.sub_env tc_ctx.venv in
@@ -568,6 +565,19 @@ let rec tc_stm' tc_ctx = xfunction
       Env.add_var venv'' i entry'';
       Env.add_var venv'' i' entry'';
     let tc_ctx'' = { tc_ctx with venv=venv'' } in
+
+    (* hacky way of checking that init is okay *)
+    let assign = make_ast init.pos @@ Ast.Assign(make_ast i.pos @@ Ast.Base i, init) in
+      tc_stm tc_ctx'' assign;
+
+    let init' = tc_expr tc_ctx init in
+    let cond' = tc_expr tc_ctx' cond in
+
+    (* check that labeled type of cond is <= public bool *)
+    let condty = type_of cond' in
+    let ifty = mkpos BaseET(mkpos Bool, mkpos Fixed Public) in
+      if not (condty <:$ ifty) then
+        raise @@ cerr("expression of type `" ^ ps_ety condty ^ "` cannot be used as a conditional", p);
 
     let upd_stmt' = tc_stm tc_ctx'' upd_stmt in
     let upd' =
