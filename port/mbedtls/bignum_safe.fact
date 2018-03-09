@@ -9,10 +9,12 @@
 struct mbedtls_mpi {
     secret mut int32 s;
     public mut uint64 n; //it's ok to leak the size
-    secret mut uint64[n] p;
+    secret mut uint64[n] p; //XXX: n is not working here, 
+                            //but i couldn't find an alternative way
 }
 /* right now handle mbedtls_mpi_grow() in c wrapper */
-secret mpi_safe_cond_assign(
+secret void
+mpi_safe_cond_assign(
     mut struct mbedtls_mpi X,
     struct mbedtls_mpi Y,
     secret uint8 assign){
