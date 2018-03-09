@@ -114,8 +114,8 @@ and thenblock = block [@@deriving show]
 and elseblock = block [@@deriving show]
 and block = (var_name * variable_type) Env.env * statements [@@deriving show]
 and statements = statement list [@@deriving show]
-and low_expr = expr [@@deriving show]
-and high_expr = expr [@@deriving show]
+and init_expr = expr [@@deriving show]
+and upd_expr = expr [@@deriving show]
 
 and statement' =
   | BaseDec of var_name * variable_type * expr
@@ -123,7 +123,7 @@ and statement' =
   | StructDec of var_name * variable_type
   | Assign of lvalue * expr
   | If of cond * thenblock * elseblock
-  | For of var_name * base_type * low_expr * high_expr * block
+  | For of var_name * base_type * init_expr * cond * upd_expr * block
   | VoidFnCall of fun_name * arg_exprs
   | DebugVoidFnCall of fun_name * arg_exprs
   | Return of expr

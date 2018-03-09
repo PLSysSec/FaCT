@@ -551,26 +551,39 @@ let rec tc_stm' tc_ctx = xfunction
       tc_ctx.rp := !(tc_ctx1.rp) +$. !(tc_ctx2.rp);
       [If(cond',thenstms',elsestms')]
 
-  | Ast.For(i,ity,lo,hi,stms) ->
+  | Ast.For(i,ity,init,cond,upd_stmt,stms) ->
     let ity' = bconv ity in
-    let lo' = tc_expr tc_ctx lo in
-    let hi' = tc_expr tc_ctx hi in
+    let init' = tc_expr tc_ctx init in
 
-    (* check that types are numbers and loop bounds are public *)
-    let lob,{data=Fixed lol} = expr_to_types lo' in
-    let hib,{data=Fixed hil} = expr_to_types hi' in
-      if not (is_int ity' && is_int lob && is_int hib) then
-        raise @@ cerr("loop bounds and iterator must have numeric types", p);
-      if not (lob <: ity' && hib <: ity') then
-        raise @@ cerr("loop iterator must be assignable from loop bounds", p);
-      if not (lol = Public && hil = Public) then
-        raise @@ cerr("loop bounds must be public", p);
+    let venv' = Env.sub_env tc_ctx.venv in
+    let i' = add_new_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const)) in
+    let tc_ctx' = { tc_ctx with venv=venv' } in
 
-      let venv' = Env.sub_env tc_ctx.venv in
-      let i' = add_new_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const)) in
-      let tc_ctx' = { tc_ctx with venv=venv' } in
-      let stms' = tc_block tc_ctx' stms in
-        [For(i',ity',lo',hi',stms')]
+    let cond' = tc_expr tc_ctx' cond in
+
+    (* special tc_ctx'' so that typechecker doesn't barf on the assignment to a "const" *)
+    let venv'' = Env.sub_env tc_ctx.venv in
+    let vt'' = (mkpos RefVT(ity',mkpos Fixed Public,mkpos Mut)) in
+    let entry'' = (i', vt'') in
+      Env.add_var venv'' i entry'';
+      Env.add_var venv'' i' entry'';
+    let tc_ctx'' = { tc_ctx with venv=venv'' } in
+
+    let upd_stmt' = tc_stm tc_ctx'' upd_stmt in
+    let upd' =
+      match upd_stmt' with
+        | [{data=Assign(lval, expr)}] ->
+          begin match lval.data with
+            | Base x,_ ->
+              if x.data <> i'.data then raise @@ cerr("for loop update must use loop iteration variable", upd_stmt.pos);
+              expr
+            | _ -> raise @@ cerr("for loop update must use loop iteration variable", upd_stmt.pos)
+          end
+        | _ -> raise @@ cerr("for loop update can be simple assignment only", upd_stmt.pos)
+    in
+
+    let stms' = tc_block tc_ctx' stms in (* yes, this needs tc_ctx' and not tc_ctx'' *)
+      [For(i',ity',init',cond',upd',stms')]
 
   | Ast.VoidFnCall(f,args) ->
     let rpc = !(tc_ctx.rp) +$. tc_ctx.pc in
@@ -683,7 +696,7 @@ let tc_fdec' fpos fenv sdecs = function
                 match s.data with
                   | Ast.Return _
                   | Ast.VoidReturn -> true
-                  | Ast.For(_,_,_,_,fstms) ->
+                  | Ast.For(_,_,_,_,_,fstms) ->
                     final_stmt_rets fstms
                   | Ast.If(_,tstms,fstms) ->
                     (final_stmt_rets tstms) && (final_stmt_rets fstms)

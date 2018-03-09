@@ -219,13 +219,15 @@ and ps_stm ps_ctx = xfunction
       (ps_expr ps_ctx e)
       (ps_block inc tblock)
       (ps_block inc fblock)
-  | For(i,bty,lo,hi,block) ->
+  | For(i,bty,init,cond,upd,block) ->
     Printf.sprintf
-      "for (%s %s = %s to %s) %s"
+      "for (%s %s = %s; %s; %s = %s) %s"
       (ps_bty bty)
       i.data
-      (ps_expr ps_ctx lo)
-      (ps_expr ps_ctx hi)
+      (ps_expr ps_ctx init)
+      (ps_expr ps_ctx cond)
+      i.data
+      (ps_expr ps_ctx upd)
       (ps_block inc block)
   | VoidFnCall(f,args) ->
     Printf.sprintf

@@ -332,9 +332,10 @@ let rec allocate_stack cg_ctx stms =
       allocate_inject cond;
       allocate_stack cg_ctx thenstms;
       allocate_stack cg_ctx elsestms
-    | {data=For(var_name,base_type,low,high,stms)} ->
-      allocate_inject low;
-      allocate_inject high;
+    | {data=For(var_name,base_type,init,cond,upd,stms)} ->
+      allocate_inject init;
+      allocate_inject cond;
+      allocate_inject upd;
       let llvm_ty = bt_to_llvm_ty cg_ctx.llcontext base_type.data in
       let ml = make_ast fake_pos (Fixed Public) in
       let name = make_name var_name.data ml in
@@ -861,7 +862,7 @@ and codegen_stm cg_ctx ret_ty = function
         end;
         false)
     else true
-  | {data=For(var_name,base_type,low_expr,high_expr,statements)} ->
+  | {data=For(var_name,base_type,init_expr,cond_expr,upd_expr,statements)} ->
     let preheader = insertion_block cg_ctx.builder in
     let parent_function = block_parent preheader in
     let bb_check = append_block cg_ctx.llcontext "loop_check" parent_function in
@@ -872,24 +873,16 @@ and codegen_stm cg_ctx ret_ty = function
     let name_i = make_name var_name.data ml in
     set_value_name name_i i;
     let bt = bt_to_llvm_ty cg_ctx.llcontext base_type.data in
-    let low = codegen_ext cg_ctx bt low_expr in
-    ignore(build_store low i cg_ctx.builder);
+    let init = codegen_ext cg_ctx bt init_expr in
+    ignore(build_store init i cg_ctx.builder);
     ignore(build_br bb_check cg_ctx.builder);
     position_at_end bb_check cg_ctx.builder;
-    let ml = make_ast fake_pos (Fixed Public) in
-    let name = make_name var_name.data ml in
-    let i' = build_load i name cg_ctx.builder in
-    let high = codegen_ext cg_ctx bt high_expr in
-    let cmp = if is_signed base_type.data then Icmp.Slt else Icmp.Ult in
     let name = make_name "loopcond" ml in
-    let cond = build_icmp cmp i' high name cg_ctx.builder in
+    let cond = codegen_expr cg_ctx cond_expr.data in
     ignore(build_cond_br cond bb_body bb_end cg_ctx.builder);
     position_at_end bb_body cg_ctx.builder;
     codegen_stms cg_ctx ret_ty statements |> ignore;
-    let i'' = build_load i name_i cg_ctx.builder in
-    let one = (const_int (bt_to_llvm_ty cg_ctx.llcontext base_type.data) 1) in
-    let name = make_name "loopincr" ml in
-    let incr = build_add i'' one name cg_ctx.builder in
+    let incr = codegen_ext cg_ctx bt upd_expr in
     ignore(build_store incr i cg_ctx.builder);
     ignore(build_br bb_check cg_ctx.builder);
     position_at_end bb_end cg_ctx.builder;
