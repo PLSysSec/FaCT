@@ -39,8 +39,39 @@ let set_log_level debug =
     | true -> Log.set_log_level Log.DEBUG
     | false -> Log.set_log_level Log.ERROR
 
+let split_err_str s =
+  Str.bounded_split (Str.regexp_string " ") s 3
+
+let make_json json in_files s = 
+  match json, in_files with
+    | true, (f::r) ->
+      Log.debug "Making JSON";
+      (* Make JSON string *)
+      let ss = split_err_str s in
+      let sss = Str.bounded_split (Str.regexp_string ":") (List.nth ss 0) 4 in
+      let row = List.nth sss 1 in
+      let cols = Str.bounded_split (Str.regexp_string "-") (List.nth sss 2) 2 in
+      let col_start = List.nth cols 0 in
+      let col_end = List.nth cols 1 in
+      let msg = List.nth ss 2 in
+      let json = Yojson.Basic.from_string 
+        ("{\"types\":{},\"status\":\"error\",\"errors\":[
+            { \"message\" : \"" ^ msg ^ "\"
+            , \"start\"   : { \"column\":" ^ col_start ^ ", \"line\":" ^ row ^ "} 
+            , \"stop\"    : { \"column\":" ^ col_end   ^ ", \"line\":" ^ row ^ "} 
+        }]}") in
+      (* Write to JSON file and stderr *)
+      let str : string = (Yojson.Basic.to_string json) in
+      let dir = (Filename.dirname f) ^ "/.fact/" in
+      (* let dir = (Filename.dirname f) ^ "/" in *)
+      let json_file = dir ^ (Filename.basename f) ^ ".json" in
+      Printf.fprintf Pervasives.stderr "%s\n" str;
+      Core.Out_channel.write_all json_file ~data:str;
+      List.iter print_endline in_files
+    | _ -> Log.debug "Not making JSON"
+
 let error_exit s =
-  let ss = Str.bounded_split (Str.regexp_string " ") s 3 in
+  let ss = split_err_str s in
     ANSITerminal.eprintf [ANSITerminal.white] "%s "  (List.nth ss 0);
     ANSITerminal.eprintf [ANSITerminal.red]   "%s "  (List.nth ss 1);
     Printf.eprintf                            "%s\n" (List.nth ss 2);
@@ -50,14 +81,15 @@ let runner prep args =
   try compile prep args with
     | (Err.VariableNotDefined s)
     | (Err.InternalCompilerError s) ->
-      begin match args.debug with
+     begin match args.debug with
         | false -> ()
         | true  ->
           let backtrace = Printexc.get_backtrace () in
           let lines = Str.split (Str.regexp_string "\n") backtrace in
           let rlines = List.rev lines in
           List.iter (fun s -> Printf.eprintf "%s\n" s) rlines end;
-      error_exit s
+      make_json args.json args.in_files s;
+      error_exit s 
 
 let test_graph () =
   (*let g = Graphf.create_graph () in
@@ -140,23 +172,10 @@ let compile_command =
         | Some "OF" -> OF
         | Some o -> error_exit ("Unknown optimization level: " ^ o ^ ". Expected O0, O1, O2, or OF")
         | None -> O0 in
-      match json, in_files with
-        | true, (f::r) ->
-          let json = Yojson.Basic.from_string "{\"types\":{},\"status\":\"error\",\"errors\":[{ \"message\" : \"This is an example error\"
-          , \"start\"   : { \"line\" : 1, \"col\" : 1 } 
-          , \"stop\"    : { \"line\" : 1, \"col\" : 2 } 
-          }]}" in
-          let str : string = (Yojson.Basic.to_string json) in
-          let dir = (Filename.dirname f) ^ "/.fact/" in
-          let json_file = dir ^ (Filename.basename f) ^ ".json" in
-          Printf.fprintf Pervasives.stderr "%s\n" str;
-          Core.Out_channel.write_all json_file ~data:str;
-          List.iter print_endline in_files
-        | _ ->
       let args = { in_files; out_file; debug;
                    ast_out; core_ir_out; pseudo_out;
                    llvm_out; gen_header; verify_llvm; mode; opt_level;
-                   opt_limit; verify_opts } in
+                   opt_limit; verify_opts; json } in
         set_log_level debug;
         let prep = prepare_compile out_file in_files () in
           runner prep args)
