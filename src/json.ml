@@ -4,7 +4,6 @@ let json_out json f =
   (* Write to JSON file and stderr *)
   let str : string = (Yojson.Basic.to_string json) in
   let dir = (Filename.dirname f) ^ "/.fact/" in
-  (* let dir = (Filename.dirname f) ^ "/" in *)
   let json_file = dir ^ (Filename.basename f) ^ ".json" in
   Printf.fprintf Pervasives.stderr "%s\n" str;
   Core.Out_channel.write_all json_file ~data:str
