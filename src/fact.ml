@@ -42,10 +42,19 @@ let set_log_level debug =
 let split_err_str s =
   Str.bounded_split (Str.regexp_string " ") s 3
 
-let make_json json in_files s = 
-  match json, in_files with
-    | true, (f::r) ->
-      Log.debug "Making JSON";
+let json_out json f =
+  (* Write to JSON file and stderr *)
+  let str : string = (Yojson.Basic.to_string json) in
+  (* let dir = (Filename.dirname f) ^ "/.fact/" in *)
+  let dir = (Filename.dirname f) ^ "/" in
+  let json_file = dir ^ (Filename.basename f) ^ ".json" in
+  Printf.fprintf Pervasives.stderr "%s\n" str;
+  Core.Out_channel.write_all json_file ~data:str
+
+let make_json json in_files s err = 
+  match json, in_files, err with
+    | true, (f::r), true ->
+      Log.debug "Making JSON for program error";
       (* Make JSON string *)
       let ss = split_err_str s in
       let sss = Str.bounded_split (Str.regexp_string ":") (List.nth ss 0) 4 in
@@ -60,14 +69,12 @@ let make_json json in_files s =
             , \"start\"   : { \"column\":" ^ col_start ^ ", \"line\":" ^ row ^ "} 
             , \"stop\"    : { \"column\":" ^ col_end   ^ ", \"line\":" ^ row ^ "} 
         }]}") in
-      (* Write to JSON file and stderr *)
-      let str : string = (Yojson.Basic.to_string json) in
-      let dir = (Filename.dirname f) ^ "/.fact/" in
-      (* let dir = (Filename.dirname f) ^ "/" in *)
-      let json_file = dir ^ (Filename.basename f) ^ ".json" in
-      Printf.fprintf Pervasives.stderr "%s\n" str;
-      Core.Out_channel.write_all json_file ~data:str;
-      List.iter print_endline in_files
+      json_out json f
+   | true, (f::r), false ->
+      Log.debug "Making JSON for program success";
+      let json = Yojson.Basic.from_string 
+        ("{\"types\":{},\"status\":\"safe\",\"errors\":[]}") in
+      json_out json f
     | _ -> Log.debug "Not making JSON"
 
 let error_exit s =
@@ -78,7 +85,10 @@ let error_exit s =
     exit 1
 
 let runner prep args =
-  try compile prep args with
+  try 
+    compile prep args;
+    make_json args.json args.in_files "" false
+  with
     | (Err.VariableNotDefined s)
     | (Err.InternalCompilerError s) ->
      begin match args.debug with
@@ -88,9 +98,9 @@ let runner prep args =
           let lines = Str.split (Str.regexp_string "\n") backtrace in
           let rlines = List.rev lines in
           List.iter (fun s -> Printf.eprintf "%s\n" s) rlines end;
-      make_json args.json args.in_files s;
-      error_exit s 
-
+      make_json args.json args.in_files s true;
+      error_exit s
+   
 let test_graph () =
   (*let g = Graphf.create_graph () in
   let v1 = Graphf.create_vertex Optf.AggressiveDCE in
@@ -176,9 +186,10 @@ let compile_command =
                    ast_out; core_ir_out; pseudo_out;
                    llvm_out; gen_header; verify_llvm; mode; opt_level;
                    opt_limit; verify_opts; json } in
-        set_log_level debug;
-        let prep = prepare_compile out_file in_files () in
-          runner prep args)
+      set_log_level debug;
+      let prep = prepare_compile out_file in_files () in
+      runner prep args
+    )
 
 let () =
   Core.Command.run ~version:"0.1" ~build_info:"FaCT Compiler" compile_command
