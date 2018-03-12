@@ -21,6 +21,11 @@ type args_record = {
 (** Compile a constantc program. *)
 val compile : (string list * string * string) -> args_record -> unit
 
+val run_command : string
+               -> string array
+               -> ?out:Lwt_process.redirection
+               -> unit
+               -> unit
 (*
 val run : unit -> unit
 val link : unit -> unit

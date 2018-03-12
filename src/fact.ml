@@ -2,6 +2,8 @@ open Command_util
 open Debugfun
 open Opt
 open Json
+open Lwt
+open Lwt_process
 
 let summary = "Compile the given const file."
 let readme = "Compile a const file. Pass the relative path to the file " ^
@@ -44,14 +46,31 @@ let error_exit s =
   let ss = Str.bounded_split (Str.regexp_string " ") s 3 in
     ANSITerminal.eprintf [ANSITerminal.white] "%s "  (List.nth ss 0);
     ANSITerminal.eprintf [ANSITerminal.red]   "%s "  (List.nth ss 1);
-    Printf.eprintf                            "%s\n" (List.nth ss 2);
+    (*Printf.eprintf                            "%s\n" (List.nth ss 2);*)
     exit 1
 
 let runner prep args =
   try 
     compile prep args;
-    Json.make_json args.json args.in_files "" false
+    let f = List.hd args.in_files in
+    let dir = Filename.dirname f in
+    let f' = (Filename.chop_extension f) ^ ".o" in
+    let time = string_of_float (Unix.time ()) in
+    (* Update to object file on server *)
+    let harness = "/Users/garysoeller/dev/src/FaCT/harness_meh.o" in
+    let f'' = dir ^ "/" ^ time in
+    Command_util.run_command "clang" [| "clang"; "-o"; f''; harness; f'|] ();
+    let f''' = f'' ^ "-tmp-channel" in
+    let redirect = Unix.openfile f''' [Unix.O_RDWR; Unix.O_CREAT] 0o655 in
+    let redirect' = `FD_move redirect in
+    Command_util.run_command f'' [| f''; "" |] ~out:redirect' ();
+    let ch = open_in f''' in
+    let l = Core.In_channel.input_all ch in
+    Core.In_channel.close ch;
+    Json.make_json args.json args.in_files "" false l;
+    ()
   with
+    | Err.TypeError s
     | (Err.VariableNotDefined s)
     | (Err.InternalCompilerError s) ->
      begin match args.debug with
@@ -61,7 +80,7 @@ let runner prep args =
           let lines = Str.split (Str.regexp_string "\n") backtrace in
           let rlines = List.rev lines in
           List.iter (fun s -> Printf.eprintf "%s\n" s) rlines end;
-      Json.make_json args.json args.in_files s true;
+      Json.make_json args.json args.in_files s true "";
       error_exit s
    
 let test_graph () =
