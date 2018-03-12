@@ -31,8 +31,8 @@ type args_record = {
   json        : bool;
 }
 
-let run_command c args =
-  let process = Lwt_process.exec (c,args) in
+let run_command c args ?out:(out=`Keep) () =
+  let process = Lwt_process.exec ~stdout:out (c,args) in
   let handler = function
     | Unix.WEXITED s ->
       Log.debug "Command exited. Code %d" s;
@@ -109,8 +109,8 @@ let output_shared out_file =
   let out_file_s = out_file ^ ".s" in
   let out_file_fpic_s = out_file ^ ".fpic.s" in
   Log.debug "Creating .s file at %s" out_file_s;
-  run_command "llc" [|"llc"; out_file'|];
-  run_command "llc" [|"llc"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
+  run_command "llc" [|"llc"; out_file'|] ();
+  run_command "llc" [|"llc"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|] ()
 
 let output_object out_file =
   let out_file_s = out_file ^ ".s" in
@@ -118,8 +118,8 @@ let output_object out_file =
   let out_file_o = out_file ^ ".o" in
   let out_file_fpic = out_file ^ ".fpic.o" in
   Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang" [|"clang"; "-c"; out_file_s; "-o"; out_file_o|];
-  run_command "clang" [|"clang"; "-c"; out_file_fpic_s; "-o"; out_file_fpic|]
+  run_command "clang" [|"clang"; "-c"; out_file_s; "-o"; out_file_o|] ();
+  run_command "clang" [|"clang"; "-c"; out_file_fpic_s; "-o"; out_file_fpic|] ()
 
 let verify_opt_pass llmod out_file llvm_out = function
   | None       -> Log.info "Not verifying opt passes"

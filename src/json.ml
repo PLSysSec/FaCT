@@ -5,10 +5,10 @@ let json_out json f =
   let str : string = (Yojson.Basic.to_string json) in
   let dir = (Filename.dirname f) ^ "/.fact/" in
   let json_file = dir ^ (Filename.basename f) ^ ".json" in
-  Printf.fprintf Pervasives.stderr "%s\n" str;
+  (*Printf.fprintf Pervasives.stderr "%s\n" str;*)
   Core.Out_channel.write_all json_file ~data:str
 
-let make_json json in_files s err =
+let make_json json in_files s err unit_tests =
   match json, in_files, err with
     | true, (f::r), true ->
       Log.debug "Making JSON for program error";
@@ -20,9 +20,10 @@ let make_json json in_files s err =
       let col_start = List.nth cols 0 in
       let col_end = List.nth cols 1 in
       let msg = List.nth ss 2 in
+      let msg' = String.concat " " ss in
       let json = Yojson.Basic.from_string
         ("{\"types\":{},\"status\":\"error\",\"errors\":[
-            { \"message\" : \"" ^ msg ^ "\"
+            { \"message\" : \"" ^ msg' ^ "\"
             , \"start\"   : { \"column\":" ^ col_start ^ ", \"line\":" ^ row ^ "} 
             , \"stop\"    : { \"column\":" ^ col_end   ^ ", \"line\":" ^ row ^ "} 
         }]}") in
@@ -30,6 +31,8 @@ let make_json json in_files s err =
    | true, (f::r), false ->
       Log.debug "Making JSON for program success";
       let json = Yojson.Basic.from_string
-        ("{\"types\":{},\"status\":\"safe\",\"errors\":[]}") in
+        ("{\"types\":{},\"status\":\"safe\",\"errors\":[],
+           \"unit_test\": \"" ^ unit_tests ^ "\"
+          }") in
       json_out json f
     | _ -> Log.debug "Not making JSON"
