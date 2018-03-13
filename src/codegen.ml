@@ -80,8 +80,8 @@ let declare_intrinsic cg_ctx = function
     let ity = integer_type cg_ctx.llcontext n in
     let ft = function_type ity [| ity; ity |] in
     let fn = declare_function (string_of_intrinsic rotl_sz) ft cg_ctx.llmodule in
-      add_function_attr fn Alwaysinline;
-      set_linkage Internal fn;
+      (* FIXME: add_function_attr fn Alwaysinline;
+      set_linkage Internal fn;*)
     let bb = append_block cg_ctx.llcontext "entry" fn in
     let b = builder cg_ctx.llcontext in
       position_at_end bb b;
@@ -100,8 +100,8 @@ let declare_intrinsic cg_ctx = function
     let ity = integer_type cg_ctx.llcontext n in
     let ft = function_type ity [| ity; ity |] in
     let fn = declare_function (string_of_intrinsic rotr_sz) ft cg_ctx.llmodule in
-      add_function_attr fn Alwaysinline;
-      set_linkage Internal fn;
+      (* FIXME: add_function_attr fn Alwaysinline;
+      set_linkage Internal fn;*)
     let bb = append_block cg_ctx.llcontext "entry" fn in
     let b = builder cg_ctx.llcontext in
       position_at_end bb b;
@@ -981,10 +981,10 @@ let codegen_fun llcontext llmodule builder fenv sdecs verify_llvm = function
       if not funattrs.export && not verify_llvm then
         set_linkage Internal ft;
       (match funattrs.inline with
-        | Always ->
-          add_function_attr ft Alwaysinline
-        | Never ->
-          add_function_attr ft Noinline
+        | Always -> ()
+          (* FIXME: add_function_attr ft Alwaysinline*)
+        | Never -> ()
+          (* FIXME: add_function_attr ft Noinline*)
         | _ -> ());
     let bb = append_block llcontext "entry" ft in
     position_at_end bb builder;

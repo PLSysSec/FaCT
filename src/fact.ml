@@ -21,10 +21,7 @@ let opt_level_doc = "level The level of optimization to run (O0, 01, 02, or OF)"
 let opt_limit_doc = "seconds The number of seconds to run the optimizer at OF before quitting and picking the best pipeline"
 let verify_opt_doc = "opt Comma separated list of optimzations to verify on the FaCT program. They are run in the order in which they are provided"
 let json_opt_doc = "Create a JSON response"
-<<<<<<< HEAD
 let harness_doc = "Harness to execute compiled fact code"
-=======
->>>>>>> 02002b565ccc05b751cdec6bbac4754cec32f210
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
