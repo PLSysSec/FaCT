@@ -21,6 +21,7 @@ let opt_level_doc = "level The level of optimization to run (O0, 01, 02, or OF)"
 let opt_limit_doc = "seconds The number of seconds to run the optimizer at OF before quitting and picking the best pipeline"
 let verify_opt_doc = "opt Comma separated list of optimzations to verify on the FaCT program. They are run in the order in which they are provided"
 let json_opt_doc = "Create a JSON response"
+let harness_doc = "Harness to execute compiled fact code"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -49,17 +50,17 @@ let error_exit s =
     (*Printf.eprintf                            "%s\n" (List.nth ss 2);*)
     exit 1
 
-let runner prep args =
+let runner prep args harness =
   try 
     compile prep args;
     let f = List.hd args.in_files in
+    let Some harness = harness in
+    let harness' = "/Users/garysoeller/dev/src/FaCT/" ^ harness in
     let dir = Filename.dirname f in
     let f' = (Filename.chop_extension f) ^ ".o" in
     let time = string_of_float (Unix.time ()) in
-    (* Update to object file on server *)
-    let harness = "/Users/garysoeller/dev/src/FaCT/harness_meh.o" in
     let f'' = dir ^ "/" ^ time in
-    Command_util.run_command "clang" [| "clang"; "-o"; f''; harness; f'|] ();
+    Command_util.run_command "clang" [| "clang"; "-o"; f''; harness'; f'|] ();
     let f''' = f'' ^ "-tmp-channel" in
     let redirect = Unix.openfile f''' [Unix.O_RDWR; Unix.O_CREAT] 0o655 in
     let redirect' = `FD_move redirect in
@@ -82,7 +83,7 @@ let runner prep args =
           List.iter (fun s -> Printf.eprintf "%s\n" s) rlines end;
       Json.make_json args.json args.in_files s true "";
       error_exit s
-   
+
 let test_graph () =
   (*let g = Graphf.create_graph () in
   let v1 = Graphf.create_vertex Optf.AggressiveDCE in
@@ -136,6 +137,7 @@ let compile_command =
       flag "-limit" (optional int) ~doc:opt_limit_doc +>
       flag "-verify-opt" (optional string) ~doc:verify_opt_doc +>
       flag "-json" no_arg ~doc:json_opt_doc +>
+      flag "-harness" (optional string) ~doc:harness_doc +>
       anon (sequence ("filename" %: file)))
     (fun
       out_file
@@ -151,6 +153,7 @@ let compile_command =
       opt_limit
       verify_opts
       json
+      harness
       in_files () ->
       let mode = match mode with
         | Some "dev" -> DEV
@@ -170,7 +173,7 @@ let compile_command =
                    opt_limit; verify_opts; json } in
       set_log_level debug;
       let prep = prepare_compile out_file in_files () in
-      runner prep args
+      runner prep args harness
     )
 
 let () =
