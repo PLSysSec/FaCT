@@ -1,0 +1,3 @@
+void not_a_valued_fn() {
+  return 5;
+}

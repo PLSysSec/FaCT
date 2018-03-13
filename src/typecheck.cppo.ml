@@ -16,6 +16,7 @@ open Pseudocode
 type tc_ctx_record = {
   rp       : label' ref;
   pc       : label';
+  rt       : ret_type;
   venv     : (var_name * variable_type) Env.env;
   fenv     : (function_dec * bool ref) Env.env;
   sdecs    : struct_type list;
@@ -603,7 +604,7 @@ let rec tc_stm' tc_ctx = xfunction
         match fdec.data with
           | (FunDec(_,fty,_,params,_))
           | (StdlibFunDec(_,fty,_,params)) ->
-            if (!everhi) && fty.export then raise @@ cerr("Cannot call exported function from a secret context", p);
+            if (!everhi) && fty.export then raise @@ cerr("cannot call exported function from a secret context", p);
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
             let earg_n = params_all_refs_above tc_ctx rpc params in
@@ -630,12 +631,19 @@ let rec tc_stm' tc_ctx = xfunction
 
   | Ast.Return e ->
     let e' = tc_expr tc_ctx e in
-      (* TODO check type *)
+    let ety = type_of e' in
+      begin
+        match tc_ctx.rt with
+          | None -> raise @@ cerr("cannot return value from a void function", p)
+          | Some rty ->
+            if not (ety <:$ rty) then
+              raise @@ cerr("expression of type `" ^ ps_ety ety ^ "` cannot be returned from function of type `" ^ ps_ety rty ^ "`", p)
+      end;
       tc_ctx.rp := !(tc_ctx.rp) +$. tc_ctx.pc;
       [Return e']
 
   | Ast.VoidReturn ->
-    (* TODO check that fn is indeed void *)
+    if tc_ctx.rt <> None then raise @@ cerr("function must return a value", p);
     tc_ctx.rp := !(tc_ctx.rp) +$. tc_ctx.pc;
     [VoidReturn]
 
@@ -660,6 +668,7 @@ let tc_param' sdecs xf_param = xfunction
     let fake_hacky_useless_tc_ctx = {
       rp=ref Public;
       pc=Public;
+      rt=None;
       venv=Env.new_env ();
       fenv=Env.new_env ();
       sdecs=sdecs;
@@ -692,6 +701,7 @@ let tc_fdec' fpos fenv sdecs = function
       let tc_ctx = {
         rp=ref Public;
         pc=Public;
+        rt=rt';
         venv;
         fenv;
         sdecs;
