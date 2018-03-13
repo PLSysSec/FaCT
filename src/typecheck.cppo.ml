@@ -49,7 +49,7 @@ let bconv = pfunction
 let mlconv = pfunction
   | Ast.Public -> Fixed Public
   | Ast.Secret -> Fixed Secret
-  | Ast.Unknown -> raise (LabelError("Label inference not yet implemented!" << p))
+  | Ast.Unknown -> raise @@ cerr("must specify label for variable", p)
 
 let mconv = pfunction
   | Ast.Const -> Const
@@ -285,7 +285,7 @@ and tc_arg tc_ctx = pfunction
           | ArrayVT _ ->
             let ae',_ = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar x) in
             let (_,ArrayET(_,_,mut)) = ae'.data in
-              if not (mut.data <* Mut) then raise @@ cerr("variable is not mut; ", p);
+              if not (mut.data <* Mut) then raise @@ cerr("variable is not mut", p);
               ByArray(ae', mkpos Mut)
           | StructVT _ -> ByRef x'
       end
@@ -293,7 +293,7 @@ and tc_arg tc_ctx = pfunction
     let m' = mconv mutability in
     let ae',_ = tc_arrayexpr tc_ctx arr_expr in
     let (_,ArrayET(_,_,mut)) = ae'.data in
-    if not (mut.data <* m'.data) then raise @@ cerr("array expression is not proper mutability; ", p);
+    if not (mut.data <* m'.data) then raise @@ cerr("array expression is not proper mutability", p);
     ByArray(ae', m')
 
 and argtype_of tc_ctx = xfunction
@@ -520,7 +520,7 @@ let rec tc_stm' tc_ctx = xfunction
     let e' = tc_expr tc_ctx e in
     let b,{data=Fixed l},m = refvt_type_out (mkpos vt) in
       (* check that x is indeed mutable *)
-      if m.data <> Mut then raise @@ cerr("variable is not mutable; ", p);
+      if m.data <> Mut then raise @@ cerr("variable is not mutable", p);
 
       (* check that rp U pc is <= label of x *)
       if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then
