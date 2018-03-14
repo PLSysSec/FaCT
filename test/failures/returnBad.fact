@@ -1,0 +1,3 @@
+public int32 not_a_void_fn() {
+  return;
+}

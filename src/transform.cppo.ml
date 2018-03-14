@@ -236,13 +236,14 @@ and xf_stm' xf_ctx p = function
         let thenstms', elsestms' = xf_sub Public xf_ctx.ms in
           [If(cond',thenstms',elsestms')]
 
-  | For(i,ity,lo,hi,stms) ->
-    let lo' = xf_expr xf_ctx lo in
-    let hi' = xf_expr xf_ctx hi in
+  | For(i,ity,init,cond,upd,stms) ->
+    let init' = xf_expr xf_ctx init in
+    let cond' = xf_expr xf_ctx cond in
+    let upd' = xf_expr xf_ctx upd in
     let (venv,ss) = stms in
     let xf_ctx' = { xf_ctx with venv; } in
     let stms' = xf_block xf_ctx' ss in
-      [For(i,ity,lo',hi',stms')]
+      [For(i,ity,init',cond',upd',stms')]
 
   | VoidFnCall(f,args) ->
     let args' = List.map (xf_arg xf_ctx) args in

@@ -16,6 +16,7 @@ open Pseudocode
 type tc_ctx_record = {
   rp       : label' ref;
   pc       : label';
+  rt       : ret_type;
   venv     : (var_name * variable_type) Env.env;
   fenv     : (function_dec * bool ref) Env.env;
   sdecs    : struct_type list;
@@ -48,7 +49,7 @@ let bconv = pfunction
 let mlconv = pfunction
   | Ast.Public -> Fixed Public
   | Ast.Secret -> Fixed Secret
-  | Ast.Unknown -> raise (LabelError("Label inference not yet implemented!" << p))
+  | Ast.Unknown -> raise @@ cerr("must specify label for variable", p)
 
 let mconv = pfunction
   | Ast.Const -> Const
@@ -284,7 +285,7 @@ and tc_arg tc_ctx = pfunction
           | ArrayVT _ ->
             let ae',_ = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar x) in
             let (_,ArrayET(_,_,mut)) = ae'.data in
-              if not (mut.data <* Mut) then raise @@ cerr("variable is not mut; ", p);
+              if not (mut.data <* Mut) then raise @@ cerr("variable is not mut", p);
               ByArray(ae', mkpos Mut)
           | StructVT _ -> ByRef x'
       end
@@ -292,7 +293,7 @@ and tc_arg tc_ctx = pfunction
     let m' = mconv mutability in
     let ae',_ = tc_arrayexpr tc_ctx arr_expr in
     let (_,ArrayET(_,_,mut)) = ae'.data in
-    if not (mut.data <* m'.data) then raise @@ cerr("array expression is not proper mutability; ", p);
+    if not (mut.data <* m'.data) then raise @@ cerr("array expression is not proper mutability", p);
     ByArray(ae', m')
 
 and argtype_of tc_ctx = xfunction
@@ -519,7 +520,7 @@ let rec tc_stm' tc_ctx = xfunction
     let e' = tc_expr tc_ctx e in
     let b,{data=Fixed l},m = refvt_type_out (mkpos vt) in
       (* check that x is indeed mutable *)
-      if m.data <> Mut then raise @@ cerr("variable is not mutable; ", p);
+      if m.data <> Mut then raise @@ cerr("variable is not mutable", p);
 
       (* check that rp U pc is <= label of x *)
       if not ((!(tc_ctx.rp) +$. tc_ctx.pc) <$. l) then
@@ -551,26 +552,49 @@ let rec tc_stm' tc_ctx = xfunction
       tc_ctx.rp := !(tc_ctx1.rp) +$. !(tc_ctx2.rp);
       [If(cond',thenstms',elsestms')]
 
-  | Ast.For(i,ity,lo,hi,stms) ->
+  | Ast.For(i,ity,init,cond,upd_stmt,stms) ->
     let ity' = bconv ity in
-    let lo' = tc_expr tc_ctx lo in
-    let hi' = tc_expr tc_ctx hi in
 
-    (* check that types are numbers and loop bounds are public *)
-    let lob,{data=Fixed lol} = expr_to_types lo' in
-    let hib,{data=Fixed hil} = expr_to_types hi' in
-      if not (is_int ity' && is_int lob && is_int hib) then
-        raise @@ cerr("loop bounds and iterator must have numeric types", p);
-      if not (lob <: ity' && hib <: ity') then
-        raise @@ cerr("loop iterator must be assignable from loop bounds", p);
-      if not (lol = Public && hil = Public) then
-        raise @@ cerr("loop bounds must be public", p);
+    let venv' = Env.sub_env tc_ctx.venv in
+    let i' = add_new_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const)) in
+    let tc_ctx' = { tc_ctx with venv=venv' } in
 
-      let venv' = Env.sub_env tc_ctx.venv in
-      let i' = add_new_var venv' i (mkpos RefVT(ity',mkpos Fixed Public,mkpos Const)) in
-      let tc_ctx' = { tc_ctx with venv=venv' } in
-      let stms' = tc_block tc_ctx' stms in
-        [For(i',ity',lo',hi',stms')]
+    (* special tc_ctx'' so that typechecker doesn't barf on the assignment to a "const" *)
+    let venv'' = Env.sub_env tc_ctx.venv in
+    let vt'' = (mkpos RefVT(ity',mkpos Fixed Public,mkpos Mut)) in
+    let entry'' = (i', vt'') in
+      Env.add_var venv'' i entry'';
+      Env.add_var venv'' i' entry'';
+    let tc_ctx'' = { tc_ctx with venv=venv'' } in
+
+    (* hacky way of checking that init is okay *)
+    let assign = make_ast init.pos @@ Ast.Assign(make_ast i.pos @@ Ast.Base i, init) in
+      tc_stm tc_ctx'' assign;
+
+    let init' = tc_expr tc_ctx init in
+    let cond' = tc_expr tc_ctx' cond in
+
+    (* check that labeled type of cond is <= public bool *)
+    let condty = type_of cond' in
+    let ifty = mkpos BaseET(mkpos Bool, mkpos Fixed Public) in
+      if not (condty <:$ ifty) then
+        raise @@ cerr("expression of type `" ^ ps_ety condty ^ "` cannot be used as a conditional", p);
+
+    let upd_stmt' = tc_stm tc_ctx'' upd_stmt in
+    let upd' =
+      match upd_stmt' with
+        | [{data=Assign(lval, expr)}] ->
+          begin match lval.data with
+            | Base x,_ ->
+              if x.data <> i'.data then raise @@ cerr("for loop update must use loop iteration variable", upd_stmt.pos);
+              expr
+            | _ -> raise @@ cerr("for loop update must use loop iteration variable", upd_stmt.pos)
+          end
+        | _ -> raise @@ cerr("for loop update can be simple assignment only", upd_stmt.pos)
+    in
+
+    let stms' = tc_block tc_ctx' stms in (* yes, this needs tc_ctx' and not tc_ctx'' *)
+      [For(i',ity',init',cond',upd',stms')]
 
   | Ast.VoidFnCall(f,args) ->
     let rpc = !(tc_ctx.rp) +$. tc_ctx.pc in
@@ -580,7 +604,7 @@ let rec tc_stm' tc_ctx = xfunction
         match fdec.data with
           | (FunDec(_,fty,_,params,_))
           | (StdlibFunDec(_,fty,_,params)) ->
-            if (!everhi) && fty.export then raise @@ cerr("Cannot call exported function from a secret context", p);
+            if (!everhi) && fty.export then raise @@ cerr("cannot call exported function from a secret context", p);
             (* ensure no mut args lower than rp U pc *)
             (* e.g. fcall with public mut arg in a block where pc is Secret *)
             let earg_n = params_all_refs_above tc_ctx rpc params in
@@ -607,12 +631,19 @@ let rec tc_stm' tc_ctx = xfunction
 
   | Ast.Return e ->
     let e' = tc_expr tc_ctx e in
-      (* TODO check type *)
+    let ety = type_of e' in
+      begin
+        match tc_ctx.rt with
+          | None -> raise @@ cerr("cannot return value from a void function", p)
+          | Some rty ->
+            if not (ety <:$ rty) then
+              raise @@ cerr("expression of type `" ^ ps_ety ety ^ "` cannot be returned from function of type `" ^ ps_ety rty ^ "`", p)
+      end;
       tc_ctx.rp := !(tc_ctx.rp) +$. tc_ctx.pc;
       [Return e']
 
   | Ast.VoidReturn ->
-    (* TODO check that fn is indeed void *)
+    if tc_ctx.rt <> None then raise @@ cerr("function must return a value", p);
     tc_ctx.rp := !(tc_ctx.rp) +$. tc_ctx.pc;
     [VoidReturn]
 
@@ -637,6 +668,7 @@ let tc_param' sdecs xf_param = xfunction
     let fake_hacky_useless_tc_ctx = {
       rp=ref Public;
       pc=Public;
+      rt=None;
       venv=Env.new_env ();
       fenv=Env.new_env ();
       sdecs=sdecs;
@@ -669,6 +701,7 @@ let tc_fdec' fpos fenv sdecs = function
       let tc_ctx = {
         rp=ref Public;
         pc=Public;
+        rt=rt';
         venv;
         fenv;
         sdecs;
@@ -683,7 +716,7 @@ let tc_fdec' fpos fenv sdecs = function
                 match s.data with
                   | Ast.Return _
                   | Ast.VoidReturn -> true
-                  | Ast.For(_,_,_,_,fstms) ->
+                  | Ast.For(_,_,_,_,_,fstms) ->
                     final_stmt_rets fstms
                   | Ast.If(_,tstms,fstms) ->
                     (final_stmt_rets tstms) && (final_stmt_rets fstms)

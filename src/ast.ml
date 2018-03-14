@@ -133,8 +133,8 @@ and cond = expr [@@deriving show]
 and thenstms = statements [@@deriving show]
 and elsestms = statements [@@deriving show]
 and statements = statement list [@@deriving show]
-and low_expr = expr [@@deriving show]
-and high_expr = expr [@@deriving show]
+and init_expr = expr [@@deriving show]
+and upd_stmt = statement [@@deriving show]
 
 and statement' =
   | BaseDec of var_name * variable_type * expr
@@ -142,7 +142,7 @@ and statement' =
   | StructDec of var_name * struct_name
   | Assign of lvalue * expr
   | If of cond * thenstms * elsestms
-  | For of var_name * base_type * low_expr * high_expr * statements
+  | For of var_name * base_type * init_expr * cond * upd_stmt * statements
   | VoidFnCall of fun_name * arg_exprs
   | Return of expr
   | VoidReturn

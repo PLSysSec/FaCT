@@ -1,0 +1,3 @@
+secret int32 not_a_valued_fn() {
+  return true;
+}

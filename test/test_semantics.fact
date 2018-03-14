@@ -94,7 +94,7 @@ export public int32 simpleLoop() {
 
 export secret int32 loopAcc() {
   secret mut int32 acc = 0;
-  for (uint32 i = 0 to 5) {
+  for (uint32 i = 0; i < 5; i += 1) {
     acc = acc + 1;
   }
   return acc;
