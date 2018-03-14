@@ -55,7 +55,7 @@ let runner prep args harness =
     compile prep args;
     let f = List.hd args.in_files in
     let Some harness = harness in
-    let harness' = "/Users/garysoeller/dev/src/FaCT/" ^ harness in
+    let harness' = "/home/gsoeller/web/FaCT/" ^ harness in
     let dir = Filename.dirname f in
     let f' = (Filename.chop_extension f) ^ ".o" in
     let time = string_of_float (Unix.time ()) in
