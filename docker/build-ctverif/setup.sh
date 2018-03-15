@@ -1,3 +1,3 @@
-#!/bin/bash 
+#/bin/bash 
 
 docker build -t ctverif_img .
