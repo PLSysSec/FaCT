@@ -1,0 +1,8 @@
+export
+void conditional_swap(secret mut uint32 x, secret mut uint32 y, secret bool cond) {
+  if (cond) {
+    secret uint32 tmp = x;
+    x = y;
+    y = tmp;
+  }
+}
