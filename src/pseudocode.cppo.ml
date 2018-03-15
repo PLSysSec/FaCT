@@ -35,6 +35,10 @@ let ps_label = xfunction
   | Fixed l -> ps_label' p l
   | Guess _ -> raise @@ err(p)
 
+let ps_mut_full = xfunction
+  | Const -> "const"
+  | Mut -> "mut"
+
 let ps_mut = xfunction
   | Const -> ""
   | Mut -> "mut "
@@ -42,6 +46,10 @@ let ps_mut = xfunction
 let ps_ref = xfunction
   | Const -> ""
   | Mut -> "ref "
+
+let ps_lexpr_for_err = xfunction
+  | LIntLiteral n -> string_of_int n
+  | LDynamic x -> "[unknown]"
 
 let ps_lexpr = xfunction
   | LIntLiteral n -> string_of_int n
