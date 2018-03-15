@@ -635,8 +635,12 @@ let rec tc_stm' tc_ctx = xfunction
         match tc_ctx.rt with
           | None -> raise @@ cerr("cannot return value from a void function", p)
           | Some rty ->
-            if not (ety <:$ rty) then
-              raise @@ cerr("expression of type `" ^ ps_ety ety ^ "` cannot be returned from function of type `" ^ ps_ety rty ^ "`", p)
+            let BaseET(bty1,l1) = ety.data in
+            let BaseET(bty2,l2) = rty.data in
+            if not (bty1 <: bty2) then
+              raise @@ cerr("expression of type `" ^ ps_bty bty1 ^ "` cannot be returned from function with return type `" ^ ps_bty bty2 ^ "`", p);
+            if not (l1 <$ l2) then
+              raise @@ cerr("expression with label `" ^ ps_label l1 ^ "` cannot be returned from function with label `" ^ ps_label l2 ^ "`", p);
       end;
       tc_ctx.rp := !(tc_ctx.rp) +$. tc_ctx.pc;
       [Return e']
