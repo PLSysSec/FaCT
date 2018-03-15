@@ -93,3 +93,35 @@ void poorly_constructed_hash_fn(
     out[i] = local[i];
   }
 }
+
+
+/* More "real" functions */
+
+public int32 conditional_assign(
+    secret mut uint8[] x,
+    secret uint8[] y,
+    secret bool assign) {
+  // public branch
+  if (len x != len y) {
+    return -1;
+  }
+
+  // secret branch
+  if (assign) {
+    for (uint32 i = 0; i < len x; i += 1) {
+      x[i] = y[i];
+    }
+  }
+
+  return 0;
+}
+
+// assuming lengths are public and are equal
+secret int32 safe_memcmp(secret uint8[] x, secret uint8[] y) {
+  for (uint32 i = 0; i < len x; i += 1) {
+    if (x[i] != y[i]) {
+      return (int32)(x[i] - y[i]);
+    }
+  }
+  return 0;
+}
