@@ -565,7 +565,7 @@ let rec tc_stm' tc_ctx = xfunction
     let entry'' = (i', vt'') in
       Env.add_var venv'' i entry'';
       Env.add_var venv'' i' entry'';
-    let tc_ctx'' = { tc_ctx with venv=venv'' } in
+      let tc_ctx'' = { tc_ctx with venv=venv''; pc=Public } in
 
     (* hacky way of checking that init is okay *)
     let assign = make_ast init.pos @@ Ast.Assign(make_ast i.pos @@ Ast.Base i, init) in
