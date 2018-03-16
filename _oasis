@@ -14,9 +14,5 @@ XOCamlbuildPluginTags: package(cppo_ocamlbuild)
 Executable fact
   Path:       src
   BuildTools: ocamlbuild
+  CompiledObject: native
   MainIs:     fact.ml
-
-Executable facti
-  Path:       src
-  BuildTools: ocamlbuild
-  MainIs:     facti.ml
