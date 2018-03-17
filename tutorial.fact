@@ -125,3 +125,34 @@ secret int32 safe_memcmp(secret uint8[] x, secret uint8[] y) {
   }
   return 0;
 }
+
+void use_secret_index(secret uint8[] buf, secret uint32 index) {
+  for (uint32 i = 0; i < len buf; i += 1) {
+    if (i == index) {
+      // ... do something with buf[i] ...
+    }
+  }
+}
+
+secret bool contains_17(secret int32[] arr) {
+  for (uint32 i = 0; i < len arr; i += 1) {
+    if (arr[i] == 17) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void selecting_things(secret bool cond) {
+  // mut because we reassign later
+  secret mut int32 x = 0;
+
+  if (cond) {
+    x = 42;
+  } else {
+    x = 137;
+  }
+
+  // or even more succinctly (and without mut)...
+  secret int32 y = cond ? 42 : 137;
+}
