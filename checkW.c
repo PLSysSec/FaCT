@@ -2,14 +2,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-int hello_world();
+int add5(int num);
 
-int check() {
-  return hello_world();
+int check(int num) {
+  if (num+5 == add5(num)) {
+    return 0;
+  }
+  return 1;
 }
 
 int main() {
-  if (check())   goto fail;
+  if (check(0))   goto fail;
   goto ok;
 fail:
   printf("Failed correctness test\n");

@@ -1,8 +1,8 @@
 #include "/root/verifying-constant-time/examples/ct-verif.h"
 #include <stdlib.h>
 
-void hello_world();
+void add5(int num);
 
-void wrapper() {
-        hello_world();
+void wrapper(int num) {
+        add5(num);
 }
