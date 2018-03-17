@@ -49,8 +49,6 @@ final
 *.z3
 test/test_*.h
 test/testbin*
-*.runner.c
-*_runner.c
 test/testbin_sem
 !ct-verif/sort.ll
 !ct-verif/examples/*.ll

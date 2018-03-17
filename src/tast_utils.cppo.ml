@@ -1,6 +1,7 @@
 open Pos
 open Err
 open Tast
+open Pseudocode
 
 #define cerr(msg, p) InternalCompilerError("error: " ^ msg << p)
 #define err(p) cerr("internal compiler error", p)
@@ -62,6 +63,7 @@ let type_out = xfunction
 
 let expr_to_btype : (expr -> base_type) = xfunction
   | (_,BaseET(b,_)) -> b
+  | (_,ArrayET _) -> raise @@ cerr("expected a base type, got an array instead", p)
 
 let expr_to_ml : (expr -> maybe_label) = xfunction
   | (_,BaseET(_,ml)) -> ml
@@ -245,11 +247,29 @@ let (<*) m1 m2 =
     | Const, Mut -> false (* can't alias a const as a mut *)
     | _ -> true
 
-let can_be_passed_to { pos=p; data=argty} {data=paramty} =
+let check_can_be_passed_to { pos=p; data=argty} {data=paramty} =
   match argty, paramty with
-    | RefVT(_,_,m1), RefVT(_,_,m2) when m1.data <> m2.data -> false
+    | RefVT(_,_,m1), RefVT(_,_,m2)
+      when m1.data <> m2.data ->
+      raise @@ cerr(Printf.sprintf
+                      "cannot pass %s to %s%s"
+                      (ps_mut_full m1)
+                      (ps_mut_full m2)
+                      (if m2.data = Mut then
+                        " (did you forget a `ref`?)"
+                      else ""), p)
     | RefVT(b1,l1,_), RefVT(b2,l2,_) ->
-      (b1 <: b2) && (l1 <$ l2)
+      if not (b1 <: b2) then
+        raise @@ cerr(Printf.sprintf
+                        "cannot pass %s to %s"
+                        (ps_bty b1)
+                        (ps_bty b2), p);
+      if not (l1 <$ l2) then
+        raise @@ cerr(Printf.sprintf
+                        "cannot pass %s to %s"
+                        (ps_label l1)
+                        (ps_label l2), p);
+      ()
     | ArrayVT(a1,l1,m1), ArrayVT(a2,l2,m2) ->
       let ArrayAT(b1,lx1), ArrayAT(b2,lx2) = a1.data, a2.data in
       let lxmatch =
@@ -258,14 +278,39 @@ let can_be_passed_to { pos=p; data=argty} {data=paramty} =
           | LIntLiteral n, LIntLiteral m when n = m -> true
           | _ -> false
       in
-        (b1.data = b2.data) &&
-        lxmatch &&
-        (match m1.data, m2.data with
-          | Const, Const -> l1 <$ l2
-          | Mut, Mut -> l1.data = l2.data
-          | _ -> false
-        )
-    | StructVT _, StructVT _ -> true (* XXX fix this later *)
+        if b1.data <> b2.data then
+          raise @@ cerr(Printf.sprintf
+                          "incompatible array base types: %s vs %s"
+                          (ps_bty b1)
+                          (ps_bty b2), p);
+        if not lxmatch then raise @@ cerr(Printf.sprintf
+                                            "incompatible lengths: %s vs %s"
+                                            (ps_lexpr_for_err lx1)
+                                            (ps_lexpr_for_err lx2), p);
+        begin
+          match m1.data, m2.data with
+            | Const, Const ->
+              if not (l1 <$ l2) then
+                raise @@ cerr(Printf.sprintf
+                                "cannot pass %s to %s"
+                                (ps_label l1)
+                                (ps_label l2), p)
+            | Mut, Mut ->
+              if not (l1.data = l2.data) then
+                raise @@ cerr(Printf.sprintf
+                                "cannot pass mut %s to mut %s"
+                                (ps_label l1)
+                                (ps_label l2), p)
+            | _ -> raise @@ cerr(Printf.sprintf
+                                   "cannot pass %s to %s%s"
+                                   (ps_mut_full m1)
+                                   (ps_mut_full m2)
+                                   (if m2.data = Mut then
+                                     " (did you forget a `ref`?)"
+                                   else ""), p)
+        end
+    | StructVT _, StructVT _ -> () (* XXX fix this later *)
+    | _ -> raise @@ cerr("attempting to pass incompatible type", p)
 
 let (<:$*) (ty1,is_new_mem) ty2 =
   let ArrayET(a1,l1,m1) = ty1.data in

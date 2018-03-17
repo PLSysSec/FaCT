@@ -80,3 +80,5 @@ true: annot, bin_annot
 "test": not_hygienic
 "tmp": -traverse
 "tmp": not_hygienic
+"hello_world": -traverse
+"hello_world": not_hygienic

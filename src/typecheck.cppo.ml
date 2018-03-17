@@ -98,11 +98,11 @@ let tc_unop' p op e =
     begin
       match op with
         | Ast.Neg ->
-          if not (is_int b) then raise @@ err(p);
+          if not (is_int b) then raise @@ cerr("operator expects an integer type", p);
         | Ast.BitwiseNot ->
-          if not (is_int b) then raise @@ err(p);
+          if not (is_int b) then raise @@ cerr("operator expects an integer type", p);
         | Ast.LogicalNot ->
-          if not (is_bool b) then raise @@ err(p);
+          if not (is_bool b) then raise @@ cerr("operator expects a boolean type", p);
     end;
     begin
       match b.data with
@@ -123,7 +123,7 @@ let tc_binop_check p op b1 b2 =
     | Ast.NEqual ->
       if (is_bool b1 && not (is_bool b2))
       || (is_bool b2 && not (is_bool b1))
-      then raise @@ err(p)
+      then raise @@ cerr("cannot compare boolean and integer", p)
     | Ast.Plus
     | Ast.Minus
     | Ast.Multiply
@@ -142,7 +142,10 @@ let tc_binop_check p op b1 b2 =
     | Ast.LT
     | Ast.LTE ->
       if not (is_int b1) || not (is_int b2) then raise @@ cerr("operands must be numeric", p);
-      if not (joinable_bt b1 b2) then raise @@ cerr("mismatched operands for binop", p)
+      if not (joinable_bt b1 b2) then raise @@ cerr(Printf.sprintf
+                                                      "types are not compatible: %s and %s"
+                                                      (ps_bty b1)
+                                                      (ps_bty b2), p)
     | Ast.LogicalAnd
     | Ast.LogicalOr ->
       if not (is_bool b1) || not (is_bool b2) then raise @@ cerr("operands must be boolean", p)
@@ -190,7 +193,7 @@ let tc_binop' p op e1 e2 =
             | Ast.Divide
             | Ast.Modulo ->
               if (ml1.data = Fixed Secret) or (ml2.data = Fixed Secret) then
-                raise @@ err(p)
+                raise @@ cerr("cannot use secrets in division/modulo", p)
               else
                 join_bt p b1 b2
 
@@ -242,7 +245,7 @@ let rec lexprconv tc_ctx = pfunction
     let len = add_new_var tc_ctx.venv len_var lenvt in
       tc_ctx.add_stms := (BaseDec(len,lenvt,e')) :: !(tc_ctx.add_stms);
       LDynamic len
-  | Ast.LUnspecified -> raise @@ err(p)
+  | Ast.LUnspecified -> raise @@ err(p) (* should never get here *)
 
 and atype_conv_fill tc_ctx lexpr' = pfunction
   | Ast.ArrayAT(bt,{data=LUnspecified}) ->
@@ -270,8 +273,6 @@ and tc_arg tc_ctx = pfunction
                 | RefVT _ -> ByValue (tc_expr tc_ctx e)
                 | ArrayVT _ ->
                   let ae',_ = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar lval) in
-                  let (_,ArrayET(_,_,mut)) = ae'.data in
-                    if not (mut.data <* Const) then raise @@ err(p);
                     ByArray(ae', mkpos Const)
             end
         | _ -> ByValue (tc_expr tc_ctx e)
@@ -314,8 +315,7 @@ and tc_args ~xf_args tc_ctx p params args =
       let arg' = tc_arg tc_ctx arg in
       let argref = argtype_of tc_ctx.venv arg' in
       let Param(_,paramvt) = param.data in
-        if not @@ can_be_passed_to argref paramvt then raise
-          @@ cerr(Printf.sprintf "cannot pass %s to %s" (ps_vty argref) (ps_vty paramvt), p);
+        check_can_be_passed_to argref paramvt;
         if param_is_ldynamic param && xf_args then
           let _::params = params in
           let ByArray({data=(_,atype')},_) = arg'.data in
@@ -380,9 +380,9 @@ and tc_expr tc_ctx = pfunction
       end
   | Ast.IntCast(b,e) ->
     let b' = bconv b in
-      if not (is_int b') then raise @@ err(b'.pos);
+      if not (is_int b') then raise @@ cerr("only integer casts are allowed", b'.pos);
     let e' = tc_expr tc_ctx e in
-      if not (is_int (expr_to_btype e')) then raise @@ err(e'.pos);
+      if not (is_int (expr_to_btype e')) then raise @@ cerr("only integers can be casted", e'.pos);
     let ml = expr_to_ml e' in
       (IntCast(b',e'), BaseET(b',ml))
   | Ast.Declassify e ->
@@ -397,7 +397,7 @@ and tc_expr tc_ctx = pfunction
       tc_binop' p op e1' e2'
   | Ast.TernOp(e1,e2,e3) ->
     let e1' = tc_expr tc_ctx e1 in
-      if not (is_bool (expr_to_btype e1')) then raise @@ err(e1'.pos);
+      if not (is_bool (expr_to_btype e1')) then raise @@ cerr("expected a boolean", e1'.pos);
     let ml1 = expr_to_ml e1' in
     let e2' = tc_expr tc_ctx e2 in
     let e3' = tc_expr tc_ctx e3 in
@@ -418,7 +418,7 @@ and tc_expr tc_ctx = pfunction
             let earg_n = params_all_refs_above tc_ctx rpc params in
               if earg_n >= 0 then
                 (let earg = List.nth args earg_n in
-                   raise @@ err(earg.pos));
+                   raise @@ cerr("cannot call function with public mutable arg while in a secret context", earg.pos));
               let args' = tc_args ~xf_args:true tc_ctx p params args in
                 (FnCall(f,args'), rty.data)
           | (CExtern(_,Some rty,params)) ->
@@ -427,7 +427,7 @@ and tc_expr tc_ctx = pfunction
             let earg_n = params_all_refs_above tc_ctx rpc params in
               if earg_n >= 0 then
                 (let earg = List.nth args earg_n in
-                   raise @@ err(earg.pos));
+                   raise @@ cerr("cannot call function with public mutable arg while in a secret context", earg.pos));
               let args' = tc_args ~xf_args:false tc_ctx p params args in
                 (FnCall(f,args'), rty.data)
           | (DebugFunDec(_,Some rty,params)) ->
@@ -565,7 +565,7 @@ let rec tc_stm' tc_ctx = xfunction
     let entry'' = (i', vt'') in
       Env.add_var venv'' i entry'';
       Env.add_var venv'' i' entry'';
-    let tc_ctx'' = { tc_ctx with venv=venv'' } in
+      let tc_ctx'' = { tc_ctx with venv=venv''; pc=Public } in
 
     (* hacky way of checking that init is okay *)
     let assign = make_ast init.pos @@ Ast.Assign(make_ast i.pos @@ Ast.Base i, init) in
@@ -610,7 +610,7 @@ let rec tc_stm' tc_ctx = xfunction
             let earg_n = params_all_refs_above tc_ctx rpc params in
               if earg_n >= 0 then
                 (let earg = List.nth args earg_n in
-                   raise @@ cerr("public mutable arg in a secret context", earg.pos));
+                   raise @@ cerr("cannot call function with public mutable arg while in a secret context", earg.pos));
 
               let args' = tc_args ~xf_args:true tc_ctx p params args in
                 [VoidFnCall(f,args')]
@@ -620,8 +620,7 @@ let rec tc_stm' tc_ctx = xfunction
             let earg_n = params_all_refs_above tc_ctx rpc params in
               if earg_n >= 0 then
                 (let earg = List.nth args earg_n in
-                   raise @@ err(earg.pos));
-
+                   raise @@ cerr("cannot call function with public mutable arg while in a secret context", earg.pos));
               let args' = tc_args ~xf_args:false tc_ctx p params args in
                 [VoidFnCall(f,args')]
           | (DebugFunDec(_,_,params)) ->
@@ -636,8 +635,12 @@ let rec tc_stm' tc_ctx = xfunction
         match tc_ctx.rt with
           | None -> raise @@ cerr("cannot return value from a void function", p)
           | Some rty ->
-            if not (ety <:$ rty) then
-              raise @@ cerr("expression of type `" ^ ps_ety ety ^ "` cannot be returned from function of type `" ^ ps_ety rty ^ "`", p)
+            let BaseET(bty1,l1) = ety.data in
+            let BaseET(bty2,l2) = rty.data in
+            if not (bty1 <: bty2) then
+              raise @@ cerr("expression of type `" ^ ps_bty bty1 ^ "` cannot be returned from function with return type `" ^ ps_bty bty2 ^ "`", p);
+            if not (l1 <$ l2) then
+              raise @@ cerr("expression with label `" ^ ps_label l1 ^ "` cannot be returned from function with label `" ^ ps_label l2 ^ "`", p);
       end;
       tc_ctx.rp := !(tc_ctx.rp) +$. tc_ctx.pc;
       [Return e']
