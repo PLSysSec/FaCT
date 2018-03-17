@@ -3,10 +3,10 @@
 #include <string.h>
 #include <stdint.h>
 
-int remove_pkcs7_padding(unsigned char *buf, size_t public_size);
+int remove_pkcs7_padding(uint8_t *buf, uint32_t public_size);
 
-int check_good(size_t buflen, uint8_t padlen) {
-  unsigned char * buf = malloc(buflen);
+int check_good(uint32_t buflen, uint8_t padlen) {
+  uint8_t * buf = malloc(buflen);
   memset(buf, 0x5c, buflen);
   for (uint8_t i = 0; i < padlen; i++) {
     buf[buflen - i - 1] = padlen;
@@ -16,7 +16,7 @@ int check_good(size_t buflen, uint8_t padlen) {
   if (ret != buflen - padlen)
     return 1;
 
-  for (size_t i = 0; i < buflen - padlen; i++) {
+  for (uint32_t i = 0; i < buflen - padlen; i++) {
     if (buf[i] == 0x00) {
       return 1;
     }
@@ -24,7 +24,7 @@ int check_good(size_t buflen, uint8_t padlen) {
       return 1;
     }
   }
-  for (size_t i = buflen - padlen; i < buflen; i++) {
+  for (uint32_t i = buflen - padlen; i < buflen; i++) {
     if (buf[i] == padlen) {
       return 1;
     }
@@ -34,8 +34,8 @@ int check_good(size_t buflen, uint8_t padlen) {
   }
 }
 
-int check_bad1(size_t buflen, uint8_t padlen) {
-  unsigned char * buf = malloc(buflen);
+int check_bad1(uint32_t buflen, uint8_t padlen) {
+  uint8_t * buf = malloc(buflen);
   memset(buf, 0x5c, buflen);
   for (uint8_t i = 0; i < padlen - 1; i++) {
     buf[buflen - i - 1] = padlen;
@@ -46,8 +46,8 @@ int check_bad1(size_t buflen, uint8_t padlen) {
     return 1;
 }
 
-int check_bad2(size_t buflen, uint8_t padlen) {
-  unsigned char * buf = malloc(buflen);
+int check_bad2(uint32_t buflen, uint8_t padlen) {
+  uint8_t * buf = malloc(buflen);
   memset(buf, 0x5c, buflen);
   for (uint8_t i = 0; i < padlen - 1; i++) {
     buf[buflen - i - 1] = padlen;

@@ -2,13 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-void remove_secret_padding(unsigned char *p, size_t public_size, size_t secret_len);
+void remove_secret_padding(uint8_t char *p, uint32_t public_size, uint32_t secret_len);
 
-int check(size_t secret_len, size_t public_size) {
-  unsigned char * p = malloc(public_size);
+int check(uint32_t secret_len, uint32_t public_size) {
+  uint8_t * p = malloc(public_size);
   memset(p, 0x5c, public_size);
   remove_secret_padding(p, public_size, secret_len);
-  for (size_t i = 0; i < secret_len; i++) {
+  for (uint32_t i = 0; i < secret_len; i++) {
     if (p[i] == 0x00) {
       return 1;
     }
@@ -16,7 +16,7 @@ int check(size_t secret_len, size_t public_size) {
       return 1;
     }
   }
-  for (size_t i = secret_len; i < public_size; i++) {
+  for (uint32_t i = secret_len; i < public_size; i++) {
     if (p[i] == 0x5c) {
       return 1;
     }
