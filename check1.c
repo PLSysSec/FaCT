@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-void remove_secret_padding(uint8_t char *p, uint32_t public_size, uint32_t secret_len);
+void remove_secret_padding(uint8_t *p, uint32_t public_size, uint32_t secret_len);
 
 int check(uint32_t secret_len, uint32_t public_size) {
   uint8_t * p = malloc(public_size);

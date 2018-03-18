@@ -32,6 +32,7 @@ int check_good(uint32_t buflen, uint8_t padlen) {
       return 1;
     }
   }
+  return 0;
 }
 
 int check_bad1(uint32_t buflen, uint8_t padlen) {
@@ -44,6 +45,7 @@ int check_bad1(uint32_t buflen, uint8_t padlen) {
   int ret = remove_pkcs7_padding(buf, buflen);
   if (ret != -1)
     return 1;
+  return 0;
 }
 
 int check_bad2(uint32_t buflen, uint8_t padlen) {
@@ -57,6 +59,7 @@ int check_bad2(uint32_t buflen, uint8_t padlen) {
   int ret = remove_pkcs7_padding(buf, buflen);
   if (ret != -1)
     return 1;
+  return 0;
 }
 
 int main() {
