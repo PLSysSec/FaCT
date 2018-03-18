@@ -1,0 +1,71 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+int remove_pkcs7_padding(uint8_t *buf, uint32_t public_size);
+
+int check_good(uint32_t buflen, uint8_t padlen) {
+  uint8_t * buf = malloc(buflen);
+  memset(buf, 0x5c, buflen);
+  for (uint8_t i = 0; i < padlen; i++) {
+    buf[buflen - i - 1] = padlen;
+  }
+
+  int ret = remove_pkcs7_padding(buf, buflen);
+  if (ret != buflen - padlen)
+    return 1;
+
+  for (uint32_t i = 0; i < buflen - padlen; i++) {
+    if (buf[i] != 0x5c) {
+      return 1;
+    }
+  }
+  for (uint32_t i = buflen - padlen; i < buflen; i++) {
+    if (buf[i] != padlen) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+int check_bad1(uint32_t buflen, uint8_t padlen) {
+  uint8_t * buf = malloc(buflen);
+  memset(buf, 0x5c, buflen);
+  for (uint8_t i = 0; i < padlen - 1; i++) {
+    buf[buflen - i - 1] = padlen;
+  }
+
+  int ret = remove_pkcs7_padding(buf, buflen);
+  if (ret != -1)
+    return 1;
+  return 0;
+}
+
+int check_bad2(uint32_t buflen, uint8_t padlen) {
+  uint8_t * buf = malloc(buflen);
+  memset(buf, 0x5c, buflen);
+  for (uint8_t i = 0; i < padlen - 1; i++) {
+    buf[buflen - i - 1] = padlen;
+  }
+  buf[buflen - 1] = 0xfe;
+
+  int ret = remove_pkcs7_padding(buf, buflen);
+  if (ret != -1)
+    return 1;
+  return 0;
+}
+
+int main() {
+  if (check_good(20, 5))       goto fail;
+  if (check_good(21, 1))       goto fail;
+  if (check_good(22, 21))      goto fail;
+  if (check_bad1(20, 5))       goto fail;
+  if (check_bad2(20, 5))       goto fail;
+  if (check_good(0x120, 0x13)) goto fail;
+  goto ok;
+fail:
+  printf("Failed correctness test\n");
+ok:
+  return 0;
+}
