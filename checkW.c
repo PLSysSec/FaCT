@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdint.h>
 
-uint32_t sum_array(const uint8_t *arr, uint32_t arr_len);
+uint32_t sum_array(uint8_t *arr, uint32_t arr_len);
 
 int check(int num) {
   uint8_t *arr = malloc(num);
@@ -13,7 +14,7 @@ int check(int num) {
     arr[i] = b;
     sum += b;
   }
-  if sum != sum_array(arr, num)
+  if(sum != sum_array(arr, num))
     return 1;
   return 0;
 }
