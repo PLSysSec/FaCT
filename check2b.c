@@ -109,7 +109,6 @@ int main() {
   goto ok;
 fail:
   printf("\nFailed correctness test\n");
-  return -1;
 ok:
   printf("\nSucces\n");
   return 0;
