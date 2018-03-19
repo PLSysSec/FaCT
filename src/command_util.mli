@@ -25,7 +25,7 @@ val run_command : string
                -> string array
                -> ?out:Lwt_process.redirection
                -> unit
-               -> unit
+               -> int
 (*
 val run : unit -> unit
 val link : unit -> unit

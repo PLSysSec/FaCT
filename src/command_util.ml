@@ -43,8 +43,8 @@ let run_command c args ?out:(out=`Keep) () =
     | Unix.WSTOPPED s ->
       Log.debug "Error occured on command. Code %d" s;
       Lwt.return s in
-  let ret_code = Lwt_main.run (process >>= handler) in
-    if ret_code != 0 then raise @@ InternalCompilerError("error: " ^ (String.concat " " (Array.to_list args))); ()
+  Lwt_main.run (process >>= handler)
+    (*raise @@ InternalCompilerError("error: " ^ (String.concat " " (Array.to_list args))); end ()*)
 
 let generate_out_file out_dir out_file = out_dir ^ "/" ^ out_file
 
@@ -251,7 +251,7 @@ let compile (in_files,out_file,out_dir) args =
   output_llvm args.llvm_out out_file' llvm_mod;
   output_bitcode out_file' llvm_mod;
   output_shared out_file';
-  output_object out_file'
+  output_object out_file' |> ignore
   (*let core_ir = transform tast in
   Log.debug "Core IR transform complete";
   output_core_ir core_ir_out out_file' core_ir;

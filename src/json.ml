@@ -11,7 +11,7 @@ let json_out json f =
 let make_json json in_files s err unit_tests =
   match json, in_files, err with
     | true, (f::r), true ->
-      Log.debug "Making JSON for program error";
+      Log.debug "Making JSON for program error\n%s" s;
       (* Make JSON string *)
       let ss = Str.bounded_split (Str.regexp_string " ") s 3 in
       let sss = Str.bounded_split (Str.regexp_string ":") (List.nth ss 0) 4 in
@@ -36,3 +36,30 @@ let make_json json in_files s err unit_tests =
           }") in
       json_out json f
     | _ -> Log.debug "Not making JSON"
+
+let segfault (f::r) =
+  let msg' = "Unit tests segfaulted" in
+  let col_start = (string_of_int 0) in
+  let col_end = (string_of_int 1) in
+  let row = (string_of_int 0) in
+  let json = Yojson.Basic.from_string
+        ("{\"types\":{},\"status\":\"error\",\"errors\":[
+            { \"message\" : \"" ^ msg' ^ "\"
+            , \"start\"   : { \"column\":" ^ col_start ^ ", \"line\":" ^ row ^ "} 
+            , \"stop\"    : { \"column\":" ^ col_end   ^ ", \"line\":" ^ row ^ "} 
+        }]}") in
+      json_out json f |> ignore
+
+
+let make_unknown (f::r) err =
+  let msg' = "Error code " ^ (string_of_int err) ^ "returned by unit tests" in
+  let col_start = (string_of_int 0) in
+  let col_end = (string_of_int 1) in
+  let row = (string_of_int 0) in
+  let json = Yojson.Basic.from_string
+        ("{\"types\":{},\"status\":\"error\",\"errors\":[
+            { \"message\" : \"" ^ msg' ^ "\"
+            , \"start\"   : { \"column\":" ^ col_start ^ ", \"line\":" ^ row ^ "} 
+            , \"stop\"    : { \"column\":" ^ col_end   ^ ", \"line\":" ^ row ^ "} 
+        }]}") in
+      json_out json f |> ignore
