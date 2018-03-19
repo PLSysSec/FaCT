@@ -98,19 +98,26 @@ int check_bad2(uint32_t buflen, uint8_t padlen) {
 }
 
 int main() {
+  int i = 0;
   if (check_good(20, 5))       goto fail;
+  printf("Test %d passed\n", ++i);
   if (check_good(21, 1))       goto fail;
+  printf("Test %d passed\n", ++i);
   if (check_good(22, 21))      goto fail;
+  printf("Test %d passed\n", ++i);
   if (check_good2(20, 5))       goto fail;
+  printf("Test %d passed\n", ++i);
   if (check_good2(21, 1))       goto fail;
+  printf("Test %d passed\n", ++i);
   if (check_bad1(20, 5))       goto fail;
+  printf("Test %d passed\n", ++i);
   if (check_bad2(20, 5))       goto fail;
+  printf("Test %d passed\n", ++i);
   if (check_good(0x120, 0x13)) goto fail;
+  printf("Test %d passed\n", ++i);
   goto ok;
 fail:
   printf("\nFailed correctness test\n");
-  return 0;
 ok:
-  printf("\nSucces\n");
   return 0;
 }

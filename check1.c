@@ -41,16 +41,20 @@ int check(uint32_t secret_len, uint32_t public_size) {
 }
 
 int main() {
+  int i = 0;
   if (check(2, 5))   goto fail;
+  printf("Test %d passed\n", ++i);
   if (check(14, 32)) goto fail;
+  printf("Test %d passed\n", ++i);
   if (check(11, 25)) goto fail;
+  printf("Test %d passed\n", ++i);
   if (check(0, 23))  goto fail;
+  printf("Test %d passed\n", ++i);
   if (check(19, 19)) goto fail;
+  printf("Test %d passed\n", ++i);
   goto ok;
 fail:
   printf("\nFailed correctness test\n");
-  return 0;
 ok:
-  printf("\nSucces\n");
   return 0;
 }

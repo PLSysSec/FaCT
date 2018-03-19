@@ -33,15 +33,15 @@ int check(int num) {
 
 int main() {
   srand(time(NULL));
+  int j = 0;
   for (uint32_t i = 0; i < 20; i++) {
     uint32_t sz = rand() % 4096;
     if (check(sz)) goto fail;
+    printf("Test %d passed\n", ++j);
   }
   goto ok;
 fail:
   printf("\nFailed correctness test\n");
-  return 0;
 ok:
-  printf("\nSucces\n");
   return 0;
 }
