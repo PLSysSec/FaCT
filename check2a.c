@@ -108,9 +108,9 @@ int main() {
   if (check_good(0x120, 0x13)) goto fail;
   goto ok;
 fail:
-  printf("Failed correctness test\n");
+  printf("\nFailed correctness test\n");
   return -1;
 ok:
-  printf("Succes\n");
+  printf("\nSucces\n");
   return 0;
 }

@@ -39,9 +39,9 @@ int main() {
   }
   goto ok;
 fail:
-  printf("Failed correctness test\n");
+  printf("\nFailed correctness test\n");
   return -1;
 ok:
-  printf("Succes\n");
+  printf("\nSucces\n");
   return 0;
 }
