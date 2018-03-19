@@ -52,7 +52,6 @@ let error_exit s =
 
 let runner prep args harness =
   try 
-    Log.error "Here";
     let f = List.hd args.in_files in
     let Some harness = harness in
     let harness' = "/home/gsoeller/web/FaCT/" ^ harness in
@@ -60,17 +59,12 @@ let runner prep args harness =
     let f' = (Filename.chop_extension f) ^ ".o" in
     let time = string_of_float (Unix.time ()) in
     let f'' = dir ^ "/" ^ time in
-    Log.error "compiling";
     compile prep args;
-    Log.error "compiled";
     Command_util.run_command "clang" [| "clang"; "-o"; f''; harness'; f'|] ();
-    Log.error "clanging";
     let f''' = f'' ^ "-tmp-channel" in
     let redirect = Unix.openfile f''' [Unix.O_RDWR; Unix.O_CREAT] 0o655 in
     let redirect' = `FD_move redirect in
-    Log.error "clanging2";
     let err_code =  Command_util.run_command f'' [| f''; "" |] ~out:redirect' () in
-    Log.error "clanging3";
     let ch = open_in f''' in
     let l = Core.In_channel.input_all ch in
     Core.In_channel.close ch;
