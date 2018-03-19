@@ -52,7 +52,7 @@ int check_good2(uint32_t buflen, uint8_t padlen) {
   if (ret != buflen - padlen)
     return 1;
 
-  for (uint32_t i = 0; i < buflen - padlen; i++) {
+  for (uint32_t i = 0; i < buflen - padlen - 2; i++) {
     if (buf[i] != 0x5c) {
       return 1;
     }

@@ -15,7 +15,7 @@ void printi32(int32_t n) {
   printf("%08x (%d)\n", n, n);
 }
 
-int check_pkcs7_padding(uint8_t *buf, uint32_t public_size);
+int check_pkcs7_padding(const uint8_t *buf, uint32_t public_size);
 
 int check_good(uint32_t buflen, uint8_t padlen) {
   uint8_t * buf = malloc(buflen);
