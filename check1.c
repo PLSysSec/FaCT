@@ -4,15 +4,15 @@
 #include <stdint.h>
 
 void printu8(uint8_t n) {
-  printf("%02x (%u)\n", n, n);
+  printf("0x%02x (%u)\n", n, n);
 }
 
 void printu32(uint32_t n) {
-  printf("%08x (%u)\n", n, n);
+  printf("0x%08x (%u)\n", n, n);
 }
 
 void printi32(int32_t n) {
-  printf("%08x (%d)\n", n, n);
+  printf("0x%08x (%d)\n", n, n);
 }
 
 void remove_secret_padding(uint8_t *p, uint32_t public_size, uint32_t secret_len);
