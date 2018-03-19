@@ -3,7 +3,19 @@
 #include <string.h>
 #include <stdint.h>
 
-int remove_pkcs7_padding(uint8_t *buf, uint32_t public_size);
+void printu8(uint8_t n) {
+  printf("%02x (%u)\n", n, n);
+}
+
+void printu32(uint32_t n) {
+  printf("%08x (%u)\n", n, n);
+}
+
+void printi32(int32_t n) {
+  printf("%08x (%d)\n", n, n);
+}
+
+int check_pkcs7_padding(uint8_t *buf, uint32_t public_size);
 
 int check_good(uint32_t buflen, uint8_t padlen) {
   uint8_t * buf = malloc(buflen);
@@ -12,7 +24,7 @@ int check_good(uint32_t buflen, uint8_t padlen) {
     buf[buflen - i - 1] = padlen;
   }
 
-  int ret = remove_pkcs7_padding(buf, buflen);
+  int ret = check_pkcs7_padding(buf, buflen);
   if (ret != buflen - padlen)
     return 1;
 
@@ -36,7 +48,7 @@ int check_good2(uint32_t buflen, uint8_t padlen) {
     buf[buflen - i - 1] = padlen;
   }
 
-  int ret = remove_pkcs7_padding(buf, buflen);
+  int ret = check_pkcs7_padding(buf, buflen);
   if (ret != buflen - padlen)
     return 1;
 
@@ -65,7 +77,7 @@ int check_bad1(uint32_t buflen, uint8_t padlen) {
     buf[buflen - i - 1] = padlen;
   }
 
-  int ret = remove_pkcs7_padding(buf, buflen);
+  int ret = check_pkcs7_padding(buf, buflen);
   if (ret != -1)
     return 1;
   return 0;
@@ -79,7 +91,7 @@ int check_bad2(uint32_t buflen, uint8_t padlen) {
   }
   buf[buflen - 1] = 0xfe;
 
-  int ret = remove_pkcs7_padding(buf, buflen);
+  int ret = check_pkcs7_padding(buf, buflen);
   if (ret != -1)
     return 1;
   return 0;

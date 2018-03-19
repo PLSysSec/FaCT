@@ -4,6 +4,18 @@
 #include <time.h>
 #include <stdint.h>
 
+void printu8(uint8_t n) {
+  printf("%02x (%u)\n", n, n);
+}
+
+void printu32(uint32_t n) {
+  printf("%08x (%u)\n", n, n);
+}
+
+void printi32(int32_t n) {
+  printf("%08x (%d)\n", n, n);
+}
+
 uint32_t sum_array(uint8_t *arr, uint32_t arr_len);
 
 int check(int num) {
