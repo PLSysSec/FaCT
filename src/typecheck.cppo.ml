@@ -529,8 +529,12 @@ let rec tc_stm' tc_ctx = xfunction
       (* check that labeled type of e is <= labeled type of x *)
       let ety = type_of e' in
       let xty = refvt_to_etype (mkpos vt) in
-        if not (ety <:$ xty) then
-          raise @@ cerr("expression of type `" ^ ps_ety ety ^ "` cannot be assigned to variable of type `" ^ ps_ety xty ^ "`", p);
+      let BaseET(bty1,l1) = ety.data in
+      let BaseET(bty2,l2) = xty.data in
+        if not (bty1 <: bty2) then
+          raise @@ cerr("expression of type `" ^ ps_bty bty1 ^ "` cannot be assigned to variable of type `" ^ ps_bty bty2 ^ "`", p);
+        if not (l1 <$ l2) then
+          raise @@ cerr("expression with label `" ^ ps_label l1 ^ "` cannot be assigned to variable with label`" ^ ps_label l2 ^ "`", p);
 
       [Assign(lval',e')]
 
@@ -565,7 +569,7 @@ let rec tc_stm' tc_ctx = xfunction
     let entry'' = (i', vt'') in
       Env.add_var venv'' i entry'';
       Env.add_var venv'' i' entry'';
-      let tc_ctx'' = { tc_ctx with venv=venv''; pc=Public } in
+      let tc_ctx'' = { tc_ctx with venv=venv''; rp=ref Public; pc=Public } in
 
     (* hacky way of checking that init is okay *)
     let assign = make_ast init.pos @@ Ast.Assign(make_ast i.pos @@ Ast.Base i, init) in
