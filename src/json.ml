@@ -41,7 +41,7 @@ let segfault (f::r) =
   let msg' = "Unit tests segfaulted" in
   let col_start = (string_of_int 0) in
   let col_end = (string_of_int 1) in
-  let row = (string_of_int 0) in
+  let row = (string_of_int 1) in
   let json = Yojson.Basic.from_string
         ("{\"types\":{},\"status\":\"error\",\"errors\":[
             { \"message\" : \"" ^ msg' ^ "\"
@@ -55,7 +55,7 @@ let make_unknown (f::r) err =
   let msg' = "Error code " ^ (string_of_int err) ^ "returned by unit tests" in
   let col_start = (string_of_int 0) in
   let col_end = (string_of_int 1) in
-  let row = (string_of_int 0) in
+  let row = (string_of_int 1) in
   let json = Yojson.Basic.from_string
         ("{\"types\":{},\"status\":\"error\",\"errors\":[
             { \"message\" : \"" ^ msg' ^ "\"
