@@ -17,18 +17,12 @@ int check_good(uint32_t buflen, uint8_t padlen) {
     return 1;
 
   for (uint32_t i = 0; i < buflen - padlen; i++) {
-    if (buf[i] == 0x00) {
-      return 1;
-    }
-    else if (buf[i] != 0x5c) {
+    if (buf[i] != 0x5c) {
       return 1;
     }
   }
   for (uint32_t i = buflen - padlen; i < buflen; i++) {
-    if (buf[i] == padlen) {
-      return 1;
-    }
-    else if (buf[i] != 0x00) {
+    if (buf[i] != 0x00) {
       return 1;
     }
   }
@@ -51,8 +45,13 @@ int check_good2(uint32_t buflen, uint8_t padlen) {
       return 1;
     }
   }
-  for (uint32_t i = buflen - padlen; i < buflen; i++) {
+  for (uint32_t i = buflen - padlen - 2; i < buflen - padlen; i++) {
     if (buf[i] != padlen) {
+      return 1;
+    }
+  }
+  for (uint32_t i = buflen - padlen; i < buflen; i++) {
+    if (buf[i] != 0x00) {
       return 1;
     }
   }
