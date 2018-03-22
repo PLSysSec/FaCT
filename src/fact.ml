@@ -10,6 +10,7 @@ let debug_doc = " Debug"
 let ast_doc = " Output AST to file"
 let core_ir_doc = " Output Core IR to file"
 let pseudo_doc = " Output transformed pseudocode to file"
+let smack_doc = " Output LLVM for Smack verification to file"
 let llvm_doc = " Output LLVM to file"
 let header_doc = " Output C header to file"
 let verify_llvm_doc = "Verify LLVM IR with ct-verif"
@@ -103,6 +104,7 @@ let compile_command =
       flag "-ast-out" no_arg ~doc:ast_doc +>
       flag "-core-ir-out" no_arg ~doc:core_ir_doc +>
       flag "-pseudocode" no_arg ~doc:pseudo_doc +>
+      flag "-smack-out" no_arg ~doc:smack_doc +>
       flag "-llvm-out" no_arg ~doc:llvm_doc +>
       flag "-generate-header" no_arg ~doc:header_doc +>
       flag "-verify-llvm" no_arg ~doc:verify_llvm_doc +>
@@ -117,6 +119,7 @@ let compile_command =
       ast_out
       core_ir_out
       pseudo_out
+      smack_out
       llvm_out
       gen_header
       verify_llvm
@@ -138,7 +141,7 @@ let compile_command =
         | Some o -> error_exit ("Unknown optimization level: " ^ o ^ ". Expected O0, O1, O2, or OF")
         | None -> O0 in
       let args = { in_files; out_file; debug;
-                   ast_out; core_ir_out; pseudo_out;
+                   ast_out; core_ir_out; pseudo_out; smack_out;
                    llvm_out; gen_header; verify_llvm; mode; opt_level;
                    opt_limit; verify_opts } in
         set_log_level debug;

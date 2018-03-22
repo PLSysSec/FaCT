@@ -119,7 +119,7 @@ and ps_lval' ps_ctx = function
       (ps_lval ps_ctx lval)
       field.data
   | CheckedLval(stms, lval) ->
-    ps_lval ps_ctx lval
+    "checked " ^ (ps_lval ps_ctx lval)
 and ps_lval ps_ctx {data=(lval,_)} = ps_lval' ps_ctx lval
 
 and ps_expr' ps_ctx = function
@@ -198,7 +198,7 @@ and ps_aexpr' ps_ctx = function
       "noinit(%s)"
       (ps_lexpr lexpr)
   | CheckedArrayExpr(stms, aexpr) ->
-    ps_aexpr ps_ctx aexpr
+    "checked " ^ (ps_aexpr ps_ctx aexpr)
   | _ -> "<arrexpr>"
 and ps_aexpr ps_ctx {data=(ae,_)} = ps_aexpr' ps_ctx ae
 

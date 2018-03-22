@@ -21,6 +21,7 @@ type args_record = {
   ast_out     : bool;
   core_ir_out : bool;
   pseudo_out  : bool;
+  smack_out   : bool;
   llvm_out    : bool;
   gen_header  : bool;
   verify_llvm : bool;
@@ -95,6 +96,33 @@ let output_llvm llvm_out out_file llvm_mod =
       let out_file' = out_file ^ ".ll" in
       Log.debug "Outputting LLVM IR to %s" out_file';
       Llvm.print_module out_file' llvm_mod
+
+let generate_smack args out_file xftast =
+  if args.smack_out then
+    let out_file' = out_file ^ ".smack" in
+      Log.debug "Generating Smack output";
+      let smacktast = Smack.transform xftast in
+        generate_pseudo args.pseudo_out out_file' smacktast;
+        let llvm_ctx = Llvm.create_context () in
+        let llvm_mod = Llvm.create_module llvm_ctx "SmackModule" in
+        let llvm_builder = Llvm.builder llvm_ctx in
+          codegen llvm_ctx llvm_mod llvm_builder false smacktast;
+          output_llvm true out_file' llvm_mod;
+          let lines = ref [] in
+          let chan = open_in (out_file' ^ ".ll") in
+            begin
+              try
+                while true; do
+                  lines := input_line chan :: !lines
+                done
+              with End_of_file ->
+                close_in chan
+            end;
+            lines := List.rev !lines;
+            lines := "; verify with: smack --bit-precise --entry-point=[...]" :: !lines;
+            let outfile = open_out (out_file' ^ ".ll") in
+              output_string outfile @@ String.concat "\n" !lines;
+              close_out outfile
 
 let output_bitcode out_file llvm_mod =
   let out_file' = out_file ^ ".bc" in
@@ -201,6 +229,7 @@ let compile (in_files,out_file,out_dir) args =
   let xftast = Transform_debug.xf_module args.mode xftast in
   output_xftast args.core_ir_out out_file' xftast;
   generate_pseudo args.pseudo_out out_file' xftast;
+  generate_smack args out_file' xftast;
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let llvm_builder = Llvm.builder llvm_ctx in

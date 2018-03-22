@@ -550,6 +550,9 @@ and codegen_lval cg_ctx {data=(lval,vt);pos=p} =
       let st' = codegen_lval cg_ctx lv in
       let st'' = build_load st' (make_name "structload" (make_ast fake_pos (Fixed Public))) cg_ctx.builder in
         build_struct_gep st'' fldi (make_name_vt "structgep" fvt.data) cg_ctx.builder
+    | CheckedLval(stms, lval) ->
+      List.map (codegen_stm cg_ctx None) stms;
+      codegen_lval cg_ctx lval
 
 and codegen_expr cg_ctx = function
   | True, ty -> const_all_ones (expr_ty_to_llvm_ty cg_ctx ty)
@@ -772,6 +775,9 @@ and codegen_array_expr cg_ctx arr_name = function
             alloca,false
         | LDynamic x -> raise CodegenError
     end
+  | CheckedArrayExpr(stms,ae),_ ->
+    List.map (codegen_stm cg_ctx None) stms;
+    codegen_array_expr cg_ctx arr_name ae.data
 
 and codegen_stm cg_ctx ret_ty = function
   | {data=BaseDec(var_name,var_type,expr)} ->

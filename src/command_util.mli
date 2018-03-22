@@ -8,6 +8,7 @@ type args_record = {
   ast_out     : bool;
   core_ir_out : bool;
   pseudo_out  : bool;
+  smack_out   : bool;
   llvm_out    : bool;
   gen_header  : bool;
   verify_llvm : bool;
