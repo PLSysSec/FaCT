@@ -168,6 +168,8 @@ and ps_expr' ps_ctx = function
     Printf.sprintf
       "%s <- %s" x.data
       (ps_block inc (Env.new_env(), stms))
+  | CheckedExpr(stms,e) ->
+    "checked " ^ (ps_expr ps_ctx e)
   | _ -> "<expr>"
 and ps_expr ps_ctx {data=(e,_)} = ps_expr' ps_ctx e
 

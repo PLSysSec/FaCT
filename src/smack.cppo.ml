@@ -133,6 +133,26 @@ class smack_visitor =
             mkpos (CheckedArrayExpr(stms, super#aexpr ae_), ety)
         | _ -> super#aexpr ae_
 
+    method expr expr_ =
+      let p = expr_.pos in
+      let e,ety = expr_.data in
+        match e with
+          | BinOp(op, e1, e2) ->
+            begin
+              match op with
+                | LeftShift
+                | RightShift
+                | LeftRotate
+                | RightRotate ->
+                  let (_,BaseET(bty,_)) = e1.data in
+                  let bitlen = mkpos (IntLiteral (Tast_utils.numbits bty), BaseET(mkpos Int 64, mkpos Fixed Public)) in
+                  let e2cast = mkpos (IntCast(mkpos Int 64, e2), BaseET(mkpos Int 64, mkpos Fixed Public)) in
+                  let stms = [call_assert(binop Ast.LT e2cast bitlen)] in
+                    mkpos (CheckedExpr(stms, super#expr expr_), ety)
+                | _ -> super#expr expr_
+            end
+          | _ -> super#expr expr_
+
     method stm stm_ =
       let p = stm_.pos in
       let stm' =

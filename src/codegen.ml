@@ -295,6 +295,7 @@ let rec allocate_stack cg_ctx stms =
       | FnCall(f,args) -> () (* XXX descend into the exprs in args *)
       | Declassify e -> allocate_inject e
       | Inject(_,stms) -> List.iter allocate_stack' stms
+      | CheckedExpr(_,e) -> allocate_inject e
       | _ -> ()
   and allocate_lval {data=(lval,_)} =
     match lval with
@@ -619,6 +620,9 @@ and codegen_expr cg_ctx = function
     ignore(List.map (codegen_stm cg_ctx ret_ty) stms);
     let store = Env.find_var cg_ctx.venv var_name in
     build_load store (make_name_et var_name.data ty) cg_ctx.builder
+  | CheckedExpr(stms,e),_ ->
+    List.map (codegen_stm cg_ctx None) stms;
+    codegen_expr cg_ctx e.data
 
 and extend_to ctx builder signed dest et v =
   let llvm_et = expr_ty_to_llvm_ty ctx et in

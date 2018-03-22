@@ -36,6 +36,17 @@ let is_signed = xfunction
   | Num(_,s) -> s
   | Bool -> false
 
+let numbits = xfunction
+  | UInt n
+  | Int n -> n
+  | Bool -> 1
+  | Num(i,s) ->
+    let rec numbits' = function
+      | n when n >= -128 && n <= 127 -> 8
+      | n -> 8 + (numbits' (n / 256))
+    in
+      numbits' i
+
 let is_bool = xfunction
   | Bool -> true
   | _ -> false

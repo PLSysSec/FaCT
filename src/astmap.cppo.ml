@@ -52,7 +52,7 @@ class ast_visitor =
         let cond' = visit#expr cond in
         let tblock' = visit#block tblock in
         let fblock' = visit#block fblock in
-          If(cond,tblock',fblock')
+          If(cond',tblock',fblock')
       | For(i,bty,init,cond,upd,block) ->
         let init' = visit#expr init in
         let cond' = visit#expr cond in
