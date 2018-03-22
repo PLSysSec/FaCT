@@ -301,6 +301,7 @@ let rec allocate_stack cg_ctx stms =
       | Base _ -> ()
       | ArrayEl(lv,n) -> allocate_lval lv; allocate_inject n
       | StructEl(lv,_) -> allocate_lval lv
+      | CheckedLval(_,lv) -> allocate_lval lv
   and allocate_stack' = function
     | {data=BaseDec(var_name,var_type,expr)} ->
       allocate_inject expr;
