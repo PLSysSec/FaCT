@@ -60,18 +60,21 @@ let runner prep args harness =
     let time = string_of_float (Unix.time ()) in
     let f'' = dir ^ "/" ^ time in
     compile prep args;
-    Command_util.run_command "clang" [| "clang"; "-o"; f''; harness'; f'|] ();
+    let err_code = Command_util.run_command "clang" [| "clang"; "-o"; f''; harness'; f'|] () in
     let f''' = f'' ^ "-tmp-channel" in
     let redirect = Unix.openfile f''' [Unix.O_RDWR; Unix.O_CREAT] 0o655 in
     let redirect' = `FD_move redirect in
-    let err_code =  Command_util.run_command f'' [| f''; "" |] ~out:redirect' () in
+    let err_code =  try Some (Command_util.run_command f'' [| f''; "" |] ~out:redirect' ~timeout:(Some 10.) ())
+      with | Lwt_unix.Timeout -> None
+    in
     let ch = open_in f''' in
     let l = Core.In_channel.input_all ch in
     Core.In_channel.close ch;
     match err_code with
-      | 0 -> Json.make_json args.json args.in_files "" false l
-      | -10 -> Json.segfault args.in_files
-      | n -> Json.make_unknown args.in_files n;
+      | Some 0 -> Json.make_json args.json args.in_files "" false l
+      | Some -10 -> Json.segfault args.in_files
+      | Some n -> Json.make_unknown args.in_files n;
+      | None -> Json.make_timeout args.in_files;
     ()
   with
     | Err.TypeError s

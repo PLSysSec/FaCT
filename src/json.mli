@@ -11,3 +11,6 @@ val segfault : string list
 val make_unknown : string list
                 -> int
                 -> unit
+
+val make_timeout : string list
+                -> unit

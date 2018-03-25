@@ -24,6 +24,7 @@ val compile : (string list * string * string) -> args_record -> unit
 val run_command : string
                -> string array
                -> ?out:Lwt_process.redirection
+               -> ?timeout:float option
                -> unit
                -> int
 (*

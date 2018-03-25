@@ -63,3 +63,17 @@ let make_unknown (f::r) err =
             , \"stop\"    : { \"column\":" ^ col_end   ^ ", \"line\":" ^ row ^ "} 
         }]}") in
       json_out json f |> ignore
+
+
+let make_timeout (f::r) =
+  let msg' = "Error: Program timed out" in
+  let col_start = (string_of_int 0) in
+  let col_end = (string_of_int 1) in
+  let row = (string_of_int 1) in
+  let json = Yojson.Basic.from_string
+        ("{\"types\":{},\"status\":\"error\",\"errors\":[
+            { \"message\" : \"" ^ msg' ^ "\"
+            , \"start\"   : { \"column\":" ^ col_start ^ ", \"line\":" ^ row ^ "} 
+            , \"stop\"    : { \"column\":" ^ col_end   ^ ", \"line\":" ^ row ^ "} 
+        }]}") in
+      json_out json f |> ignore

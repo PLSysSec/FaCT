@@ -31,15 +31,17 @@ type args_record = {
   json        : bool;
 }
 
-let run_command c args ?out:(out=`Keep) () =
-  let process = Lwt_process.exec ~stdout:out (c,args) in
+let run_command c args ?out:(out=`Keep) ?timeout:(timeout=None) () =
+  let process = match timeout with
+    | None -> Lwt_process.exec ~stdout:out (c,args)
+    | Some t -> Lwt_process.exec ~timeout:t ~stdout:out (c,args) in
   let handler = function
     | Unix.WEXITED s ->
       Log.debug "Command exited. Code %d" s;
       Lwt.return s
     | Unix.WSIGNALED s ->
       Log.debug "Command signaled to stop. Code %d" s;
-      Lwt.return s
+      raise Lwt_unix.Timeout
     | Unix.WSTOPPED s ->
       Log.debug "Error occured on command. Code %d" s;
       Lwt.return s in
