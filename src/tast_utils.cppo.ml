@@ -81,6 +81,7 @@ let expr_to_ml : (expr -> maybe_label) = xfunction
 
 let expr_to_types : (expr -> base_type * maybe_label) = xfunction
   | (_,BaseET(b,ml)) -> b,ml
+  | (_,ArrayET _) -> raise @@ cerr("expected a base type, got an array instead", p)
 
 let atype_out = xfunction
   | ArrayET(a,ml,_) -> a,ml
