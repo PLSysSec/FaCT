@@ -71,9 +71,6 @@ let make_timeout (f::r) =
   let col_end = (string_of_int 1) in
   let row = (string_of_int 1) in
   let json = Yojson.Basic.from_string
-        ("{\"types\":{},\"status\":\"error\",\"errors\":[
-            { \"message\" : \"" ^ msg' ^ "\"
-            , \"start\"   : { \"column\":" ^ col_start ^ ", \"line\":" ^ row ^ "} 
-            , \"stop\"    : { \"column\":" ^ col_end   ^ ", \"line\":" ^ row ^ "} 
-        }]}") in
+        ("{\"types\":{},\"status\":\"safe\",\"errors\":[],
+           \"unit_test\": \"" ^ msg' ^ "\"}") in
       json_out json f |> ignore
