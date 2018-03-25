@@ -5,15 +5,15 @@
 #include <stdint.h>
 
 void printu8(uint8_t n) {
-  printf("%02x (%u)\n", n, n);
+  printf("0x%02x (%u)\n", n, n);
 }
 
 void printu32(uint32_t n) {
-  printf("%08x (%u)\n", n, n);
+  printf("0x%08x (%u)\n", n, n);
 }
 
 void printi32(int32_t n) {
-  printf("%08x (%d)\n", n, n);
+  printf("0x%08x (%d)\n", n, n);
 }
 
 uint32_t sum_array(uint8_t *arr, uint32_t arr_len);
@@ -39,7 +39,9 @@ int main() {
   }
   goto ok;
 fail:
-  printf("Failed correctness test\n");
+  printf("\nFailed correctness test\n");
+  return 0;
 ok:
+  printf("\nSucces\n");
   return 0;
 }
