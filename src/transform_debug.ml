@@ -3,15 +3,24 @@ open Pos
 open Debugfun
 
 (*
-  
-
+  This module transforms the AST to remove debug functions for production mode.
 *)
 
-let xf_stm = function
-  | {data=DebugVoidFnCall(_,stms)} as stm -> []
+let rec xf_stm = function
+  | {data=DebugVoidFnCall(_,stms)} -> []
+  | {data=If(cond,then',else'); pos=p} ->
+    let venv,stms = xf_block then' in
+    let venv',stms' = xf_block else' in
+    let stms'' = List.flatten stms in
+    let stms''' = List.flatten stms' in
+    [{data=If(cond,(venv,stms''), (venv',stms''')); pos=p}]
+  | {data=For(n,bt,init,cond,upexpr,b); pos=p} ->
+    let venv,stms = xf_block b in
+    let stms' = List.flatten stms in
+    [{data=For(n,bt,init,cond,upexpr,(venv,stms')); pos=p}]
   | stm -> [stm]
 
-let xf_block (venv,stms) = venv, List.map xf_stm stms
+and xf_block (venv,stms) = venv, List.map xf_stm stms
 
 let xf_fdec mode = function
   | FunDec(fn,ft,rt,params,block) ->
