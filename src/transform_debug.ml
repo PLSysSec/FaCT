@@ -18,6 +18,10 @@ let rec xf_stm = function
     let venv,stms = xf_block b in
     let stms' = List.flatten stms in
     [{data=For(n,bt,init,cond,upexpr,(venv,stms')); pos=p}]
+  | {data=Block b; pos=p} ->
+    let venv,stms = xf_block b in
+    let stms' = List.flatten stms in
+    [{data=Block(venv,stms'); pos=p}]
   | stm -> [stm]
 
 and xf_block (venv,stms) = venv, List.map xf_stm stms

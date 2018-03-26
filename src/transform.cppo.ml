@@ -359,7 +359,8 @@ let rec xf_fdecs fenv sdecs = function
       Env.replace_var fenv fname (fdec', everhi);
       fdec'::(xf_fdecs fenv sdecs fdecs)
 
-let xf_module (Module(fenv,fdecs,sdecs)) =
-  Module(fenv, xf_fdecs fenv sdecs fdecs, sdecs)
+let xf_module (Module(fenv,fdecs,sdecs)) = function
+  | Debugfun.DEV -> Module(fenv,fdecs,sdecs)
+  | Debugfun.PROD -> Module(fenv, xf_fdecs fenv sdecs fdecs, sdecs)
 
 

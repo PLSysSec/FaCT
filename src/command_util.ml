@@ -224,7 +224,7 @@ let compile (in_files,out_file,out_dir) args =
   let tast = Transform_args.xf_module tast' in
   output_tast args.ast_out out_file' tast;
   Log.debug "Typecheck complete";
-  let xftast = Transform.xf_module tast in
+  let xftast = Transform.xf_module tast args.mode in
   Log.debug "Tast transform complete";
   let xftast = Transform_debug.xf_module args.mode xftast in
   output_xftast args.core_ir_out out_file' xftast;
@@ -257,8 +257,14 @@ let compile (in_files,out_file,out_dir) args =
         (fun (des,det) pass acc -> (pass ^ " -- " ^ des ^ " -- " ^ det)::acc)
         errors [] in
         Log.error "%s" (String.concat "\n" strings);
-        if args.debug then output_llvm args.llvm_out out_file' llvm_mod;
-        exit 1;
+        begin match args.mode with
+        | Debugfun.DEV ->
+          output_llvm args.llvm_out out_file' llvm_mod;
+          output_bitcode out_file' llvm_mod;
+          output_shared out_file';
+          output_object out_file'
+        | Debugfun.PROD -> () end;
+        exit 1 |> ignore;
         () in
       Log.error "Insecure!";
       print_errors errors;
