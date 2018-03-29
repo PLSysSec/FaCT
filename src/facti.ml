@@ -4,6 +4,7 @@ open Llvm_target
 open Typecheck
 open Pos
 open Ctypes
+open Codegen_utils
 
 (*
   This is the FaCT REPL. It is executed by building FaCT and executing
@@ -77,14 +78,15 @@ type llvm_envs = {
   llvm_fenv: Codegen_utils.fenv
 }
 
-let create_llvm_mod llcontext jit =
+let create_llvm_mod llcontext jit mod' =
   let m = "Fact REPL " ^ (string_of_int !count) in
-  let mod' = create_module llcontext m in
-  add_module mod' jit;
-  mod'
+  let mod'' = create_module llcontext m in
+  add_module mod'' jit;
+  mod''
 
 let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
   | Tast.Expression expr as tast ->
+    Llvm.print_module "funi.ll" mod';
     (* We need to transform the expr into a function so it can be JITed *)
     let name,tast_fun = texpr_to_fun tast type_envs.type_venv in
     print_string ((Tast.show_function_dec tast_fun) ^ "\n");
@@ -108,10 +110,14 @@ let jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv = function
     let block = type_envs.type_venv, [st] in
     Codegen.allocate_stack cg_ctx block;
     Codegen.codegen_stm cg_ctx None st |> ignore
-  | Tast.FunctionDec fd  ->
-    print_string ((Tast.show_function_dec fd) ^ "\n");
+  | Tast.FunctionDec
+      ({data=Tast.FunDec(fun_name, fn_type, ret_type, params, block)} as fd) ->
+    (*print_string ((Tast.show_function_dec fd) ^ "\n");*)
+    let fentry = {ret_ty=ret_type; args=params } in
+    Hashtbl.add cg_fenv fun_name.data fentry;
     Codegen.codegen_fun ctx.llcontext mod' builder cg_fenv [] false fd |> ignore;
     Llvm.print_module "funi.ll" mod'
+  | Tast.FunctionDec _ -> raise REPL_Error
 
 let rec repl2 mod' ctx builder jit type_envs ll_envs cg_fenv =
   (* Set the prompt *)
@@ -127,7 +133,7 @@ let rec repl2 mod' ctx builder jit type_envs ll_envs cg_fenv =
       (* Now lets JIT according to the type *)
       jit_tast type_envs ll_envs ctx mod' builder jit cg_fenv tast
   end;
-  let mod'' = create_llvm_mod ctx.llcontext jit in
+  let mod'' = create_llvm_mod ctx.llcontext jit mod' in
   repl2 mod'' ctx builder jit type_envs ll_envs cg_fenv
 
 and parse () =
