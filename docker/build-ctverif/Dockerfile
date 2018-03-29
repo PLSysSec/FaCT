@@ -6,6 +6,7 @@ RUN cd /root/verifying-constant-time/bin && make local-tools
 
 RUN mkdir /root/fact-verifs
 COPY Makefile-ll /root/fact-verifs/Makefile
+COPY disjointregs.c /root/fact-verifs/disjointregs.c
 
 RUN mkdir /root/c-verifs
 COPY Makefile-c /root/c-verifs/Makefile
