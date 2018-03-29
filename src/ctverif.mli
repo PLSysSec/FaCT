@@ -27,6 +27,11 @@ val codegen_dec : Codegen_utils.codegen_ctx_record
                -> llvalue
                -> unit
 
-val generate_disjoint_regions : (Llvm.llvalue * Tast.lexpr') list
+val generate_disjoint_regions : bool
+                             -> (Llvm.llvalue * Tast.lexpr') list
                              -> Codegen_utils.codegen_ctx_record
                              -> unit
+
+val declassify : Codegen_utils.codegen_ctx_record
+              -> llvalue
+              -> unit

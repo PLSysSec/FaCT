@@ -165,7 +165,8 @@ let rec generate_combinations regions combinations =
         generate_combinations' region1 (region2::r) [] in
       generate_combinations (region2::r) (combinations'::combinations)
 
-let generate_disjoint_regions regions cg_ctx =
+let generate_disjoint_regions verify_llvm regions cg_ctx =
+  if not verify_llvm then () else
   let combinations = generate_combinations regions [] in
   let generate_len = function
     | LIntLiteral n -> const_int (i64_type cg_ctx.llcontext) n
@@ -191,3 +192,19 @@ let generate_disjoint_regions regions cg_ctx =
     build_call callee args "" cg_ctx.builder |> ignore
     in
   List.iter generate_disjoint_regions' combinations
+
+let declassify cg_ctx llval =
+  if not cg_ctx.verify_llvm then () else
+  let smack_ty = get_smack_ty cg_ctx.llcontext cg_ctx.llmodule in
+  let ret_ty = var_arg_function_type smack_ty [| (type_of llval); |] in
+  let f = match lookup_function (string_of_ct_verif SMACK_VALUE) cg_ctx.llmodule with
+    | None -> raise CTVerifError
+    | Some f' -> f' in
+  let cast = const_bitcast f (pointer_type ret_ty) in
+  let v = build_call cast [|llval|] "" cg_ctx.builder in
+  let fname = string_of_ct_verif DECLASSIFIED_OUT in
+  let declassify_out =
+    match lookup_function fname cg_ctx.llmodule with
+      | None -> raise CTVerifError
+      | Some declassified_out -> declassified_out in
+  build_call declassify_out [| v |] "" cg_ctx.builder |> ignore

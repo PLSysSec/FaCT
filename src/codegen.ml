@@ -40,8 +40,10 @@ let new_fenv oldfenv =
 (* End env functionality *)
 
 
-let mk_ctx llcontext llmodule builder venv fenv tenv vtenv verify_llvm =
-  { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm; sdecs=[] }
+let mk_ctx
+  llcontext llmodule builder venv fenv tenv vtenv verify_llvm =
+  { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm;
+    sdecs=[]; }
 
 type intrinsic = 
   | Memcpy
@@ -612,7 +614,10 @@ and codegen_expr cg_ctx = function
   | Declassify(expr), ty ->
     let e = codegen_expr cg_ctx expr.data in
     let n = value_name e in
-      set_value_name ("_declassified_" ^ n) e; e
+    set_value_name ("_declassified_" ^ n) e;
+    let ast = make_ast fake_pos (value_name e) in
+    declassify cg_ctx e;
+    e
   | Select(expr1,expr2,expr3), ty ->
     let e1 = codegen_expr cg_ctx expr1.data in
     let e1' = build_is_not_null e1 (make_name_et "condtmp" ty) cg_ctx.builder in
@@ -626,7 +631,7 @@ and codegen_expr cg_ctx = function
     let store = Env.find_var cg_ctx.venv var_name in
     build_load store (make_name_et var_name.data ty) cg_ctx.builder
   | CheckedExpr(stms,e),_ ->
-    List.map (codegen_stm cg_ctx None) stms;
+    List.map (codegen_stm cg_ctx None) stms |> ignore;
     codegen_expr cg_ctx e.data
 
 and extend_to ctx builder signed dest et v =
@@ -698,8 +703,8 @@ and codegen_array_expr cg_ctx arr_name = function
           let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
           let args = [| source_casted; zero; sz; alignment; volatility |] in
           let memset = get_intrinsic Memset cg_ctx in
-            build_call memset args "" cg_ctx.builder;
-            alloca,false
+          build_call memset args "" cg_ctx.builder |> ignore;
+          alloca,false
         | LDynamic x -> raise @@ CodegenErrorMsg (Err.("hi" << lexpr.pos))
     end
   | ArrayCopy lval,ty ->
@@ -756,8 +761,8 @@ and codegen_array_expr cg_ctx arr_name = function
             let ty' = pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt.data) in
             let name = make_name_et "arrviewdyn" ty in
             let alloca = build_alloca ty' name cg_ctx.builder in
-              build_store source_gep alloca cg_ctx.builder |> ignore;
-              alloca,true
+            build_store source_gep alloca cg_ctx.builder |> ignore;
+            alloca,true
           | _ ->
             let bt,at = bt_at_of_et ty in
             let ty' = pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt.data) in
@@ -767,8 +772,8 @@ and codegen_array_expr cg_ctx arr_name = function
             let indices = [| zero; index |] in
             let name = make_name_et "source_gep" ty in
             let source_gep = build_in_bounds_gep from indices name cg_ctx.builder in
-              build_store source_gep alloca cg_ctx.builder |> ignore;
-              alloca,true
+            build_store source_gep alloca cg_ctx.builder |> ignore;
+            alloca,true
       end in
       r
   | ArrayComp(bt,lexpr, var_name, expr),ty -> raise CodegenError
@@ -992,7 +997,8 @@ let codegen_fun llcontext llmodule builder fenv sdecs verify_llvm = function
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
     let vtenv = Env.new_env () in
-    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; sdecs; verify_llvm } in
+    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv;
+      sdecs; verify_llvm; } in
     let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
       if not funattrs.export && not verify_llvm then
         set_linkage Internal ft;
@@ -1015,8 +1021,8 @@ let codegen_fun llcontext llmodule builder fenv sdecs verify_llvm = function
     declare_ct_verif verify_llvm llcontext llmodule DISJOINT_REGIONS;
     let regions = allocate_args cg_ctx params ft in
     allocate_stack cg_ctx body;
-    generate_disjoint_regions regions cg_ctx;
-    let returned = 
+    generate_disjoint_regions verify_llvm regions cg_ctx;
+    let returned =
       begin
         match ret with
           | None -> codegen_stms cg_ctx None body
@@ -1033,7 +1039,8 @@ let codegen_fun llcontext llmodule builder fenv sdecs verify_llvm = function
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
     let vtenv = Env.new_env () in
-    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; sdecs; verify_llvm } in
+    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv;
+      sdecs; verify_llvm; } in
     declare_prototype cg_ctx llmodule builder fenv params ret_ty fun_name
   | { data=DebugFunDec _} -> raise CodegenError
   | { data=StdlibFunDec _} -> raise CodegenError
