@@ -165,17 +165,23 @@ let rec generate_combinations regions combinations =
         generate_combinations' region1 (region2::r) [] in
       generate_combinations (region2::r) (combinations'::combinations)
 
-let generate_disjoint_regions verify_llvm regions cg_ctx =
+let generate_disjoint_regions verify_llvm regions cg_ctx arr_env =
   if not verify_llvm then () else
   let combinations = generate_combinations regions [] in
-  let generate_len = function
+  let generate_len vn = function
     | LIntLiteral n -> const_int (i64_type cg_ctx.llcontext) n
+    | LDynamic {data=""} ->
+      let (vn : Tast.var_name),var = Env.find_var arr_env vn in
+      let size = begin match var.data with
+        | ArrayVT({data=ArrayAT(_,({data=LIntLiteral s}))},_,_) -> s
+        | _ -> raise CTVerifError end in
+        const_int (i64_type cg_ctx.llcontext) size
     | LDynamic var_name ->
       let var = Env.find_var cg_ctx.venv var_name in
       build_load var "len" cg_ctx.builder in
-  let generate_disjoint_regions' ((r1,lvar1),(r2,lvar2)) =
-    let l1 = generate_len lvar1 in
-    let l2 = generate_len lvar2 in
+  let generate_disjoint_regions' ((r1,lvar1,vn),(r2,lvar2,vn')) =
+    let l1 = generate_len vn lvar1 in
+    let l2 = generate_len vn' lvar2 in
     let r1' = build_load r1 "r1" cg_ctx.builder in
     let r2' = build_load r2 "r2" cg_ctx.builder in
     let ty = pointer_type (i8_type cg_ctx.llcontext) in

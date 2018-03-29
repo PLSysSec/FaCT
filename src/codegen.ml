@@ -265,7 +265,7 @@ let allocate_args cg_ctx args f =
         Env.add_var cg_ctx.venv var_name alloca;
         set_value_name name ll_arg;
         build_store ll_arg alloca cg_ctx.builder |> ignore;
-        (alloca, lvar)::acc
+        (alloca, lvar, var_name)::acc
       | StructVT(s,_) ->
         let struct_ty,_ = List.assoc s.data cg_ctx.sdecs in
         let ty = pointer_type struct_ty in
@@ -1021,7 +1021,8 @@ let codegen_fun llcontext llmodule builder fenv sdecs verify_llvm = function
     declare_ct_verif verify_llvm llcontext llmodule DISJOINT_REGIONS;
     let regions = allocate_args cg_ctx params ft in
     allocate_stack cg_ctx body;
-    generate_disjoint_regions verify_llvm regions cg_ctx;
+    let arr_env,_ = body in
+    generate_disjoint_regions verify_llvm regions cg_ctx arr_env;
     let returned =
       begin
         match ret with
