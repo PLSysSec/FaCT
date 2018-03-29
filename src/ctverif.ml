@@ -23,7 +23,7 @@ let string_of_ct_verif = function
   | SMACK_VALUE -> "__SMACK_value"
   | SMACK_VALUES -> "__SMACK_values"
   | SMACK_RETURN_VALUE -> "__SMACK_return_value"
-  | DISJOINT_REGIONS -> "__disjoint_regions"
+  | DISJOINT_REGIONS -> "disjoint_regs"
 
 let smack_ty = ref None
 
@@ -102,9 +102,12 @@ let declare_ct_verif verify_llvm llctx llmod keyword =
       let ft = function_type smack_ty [||] in
       let f = declare_function (string_of_ct_verif SMACK_RETURN_VALUE) ft llmod in
       set_attributes f
-    | DISJOINT_REGIONS -> raise CTVerifError
-      (*let f = declare_function (string_of_ct_verif DISJOINT_REGIONS) ft llmod in
-      set_attributes f*)
+    | DISJOINT_REGIONS ->
+      let pt = pointer_type (i8_type llctx) in
+      let st = i64_type llctx in
+      let ft = function_type (void_type llctx) [| pt; st; pt; st |] in
+      let f = declare_function (string_of_ct_verif DISJOINT_REGIONS) ft llmod in
+      set_attributes f
 
 let codegen_dec cg_ctx vt llvalue =
   let vt_to_et = function
@@ -121,15 +124,9 @@ let codegen_dec cg_ctx vt llvalue =
       Some(label,ty)
     | _ -> None 
   in
-  
-  if not cg_ctx.verify_llvm then () else
-  let label = extract_label vt.data in
-  match label with
-    | None -> ()
-    | Some(Unknown,_) -> ()
-    | Some(Secret,_) -> ()
-    | Some(Public,ty) ->
-      let smack_ty = get_smack_ty cg_ctx.llcontext cg_ctx.llmodule in
+
+  let public_in ty =
+    let smack_ty = get_smack_ty cg_ctx.llcontext cg_ctx.llmodule in
       (* Bitcast the smack value *)
       let ret_ty = var_arg_function_type smack_ty [| ty; |] in
       let f = match lookup_function (string_of_ct_verif SMACK_VALUE) cg_ctx.llmodule with
@@ -142,3 +139,55 @@ let codegen_dec cg_ctx vt llvalue =
         | None -> raise CTVerifError
         | Some public_in' -> public_in' in
       build_call public_in [| v |] "" cg_ctx.builder |> ignore
+  in
+  
+  if not cg_ctx.verify_llvm then () else
+  let label = extract_label vt.data in
+  match label with
+    | None -> ()
+    | Some(Unknown,_) -> ()
+    | Some(Secret,ty) ->
+      begin match classify_type ty with
+        | Llvm.TypeKind.Pointer ->  public_in ty
+        | _ -> () end
+    | Some(Public,ty) -> public_in ty
+
+let rec generate_combinations regions combinations =
+  let rec generate_combinations' r rs acc = 
+    match rs with
+      | [] -> acc
+      | first::rest -> generate_combinations' r rest ((r, first)::acc) in
+  match regions with
+    | [] -> List.flatten combinations
+    | [r] -> List.flatten combinations
+    | region1::region2::r ->
+      let combinations' =
+        generate_combinations' region1 (region2::r) [] in
+      generate_combinations (region2::r) (combinations'::combinations)
+
+let generate_disjoint_regions regions cg_ctx =
+  let combinations = generate_combinations regions [] in
+  let generate_len = function
+    | LIntLiteral n -> const_int (i64_type cg_ctx.llcontext) n
+    | LDynamic var_name ->
+      let var = Env.find_var cg_ctx.venv var_name in
+      build_load var "len" cg_ctx.builder in
+  let generate_disjoint_regions' ((r1,lvar1),(r2,lvar2)) =
+    let l1 = generate_len lvar1 in
+    let l2 = generate_len lvar2 in
+    let r1' = build_load r1 "r1" cg_ctx.builder in
+    let r2' = build_load r2 "r2" cg_ctx.builder in
+    let ty = pointer_type (i8_type cg_ctx.llcontext) in
+    let lty = i64_type cg_ctx.llcontext in
+    let r1'' = build_bitcast r1' ty "r1cast" cg_ctx.builder in
+    let r2'' = build_bitcast r2' ty "r2cast" cg_ctx.builder in
+    let l1' = build_sext l1 lty "l1sext" cg_ctx.builder in
+    let l2' = build_sext l2 lty "l2sext" cg_ctx.builder in
+    let fn = string_of_ct_verif DISJOINT_REGIONS in
+    let callee = match lookup_function fn cg_ctx.llmodule with
+      | Some fn -> fn
+      | None -> raise CTVerifError in
+    let args = [| r1''; l1' ; r2''; l2'|] in
+    build_call callee args "" cg_ctx.builder |> ignore
+    in
+  List.iter generate_disjoint_regions' combinations

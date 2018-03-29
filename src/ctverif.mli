@@ -26,3 +26,7 @@ val codegen_dec : Codegen_utils.codegen_ctx_record
                -> variable_type
                -> llvalue
                -> unit
+
+val generate_disjoint_regions : (Llvm.llvalue * Tast.lexpr') list
+                             -> Codegen_utils.codegen_ctx_record
+                             -> unit

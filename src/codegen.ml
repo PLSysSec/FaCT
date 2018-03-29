@@ -228,14 +228,15 @@ let make_name_ll str llvalue =
 
 (* Allocate all of the args for a function *)
 let allocate_args cg_ctx args f =
-  let allocate_arg ({data=Param(var_name,var_type)} as arg) ll_arg =
-    let () =
+  let allocate_arg acc ({data=Param(var_name,var_type)} as arg) ll_arg =
+    let acc =
     match var_type.data with
       | RefVT (bt,ml,{data=Mut}) ->
         let name = make_name var_name.data ml in
         codegen_dec cg_ctx var_type ll_arg;
         Env.add_var cg_ctx.venv var_name ll_arg;
-        set_value_name name ll_arg
+        set_value_name name ll_arg;
+        acc
       | RefVT (bt,ml,{data=Const}) ->
         let ty = param_to_type cg_ctx arg in
         let name = make_name var_name.data ml in
@@ -243,7 +244,8 @@ let allocate_args cg_ctx args f =
         codegen_dec cg_ctx var_type ll_arg;
         Env.add_var cg_ctx.venv var_name alloca;
         set_value_name name ll_arg;
-        build_store ll_arg alloca cg_ctx.builder |> ignore
+        build_store ll_arg alloca cg_ctx.builder |> ignore;
+        acc
       (*| ArrayVT({data=ArrayAT(bt,{data=LIntLiteral(s)})},_,_) ->
         let ty = array_type (bt_to_llvm_ty cg_ctx bt.data) s in
         let size = const_int (i32_type cg_ctx.llcontext) s in
@@ -253,31 +255,34 @@ let allocate_args cg_ctx args f =
         ()*)
       (* We cannot pass a static array to a function.
          Instead, it must be a dyn array *)
-      | ArrayVT({data=ArrayAT(bt,{data=_(*LDynamic(var_name')*)})},ml,_) ->
+      | ArrayVT({data=ArrayAT(bt,{data=lvar})},ml,_) ->
         let ty = pointer_type(bt_to_llvm_ty cg_ctx.llcontext bt.data) in
         let name = make_name "arrarg" ml in
         let alloca = build_alloca ty name cg_ctx.builder in
         codegen_dec cg_ctx var_type ll_arg;
         Env.add_var cg_ctx.venv var_name alloca;
         set_value_name name ll_arg;
-        build_store ll_arg alloca cg_ctx.builder |> ignore
+        build_store ll_arg alloca cg_ctx.builder |> ignore;
+        (alloca, lvar)::acc
       | StructVT(s,_) ->
         let struct_ty,_ = List.assoc s.data cg_ctx.sdecs in
         let ty = pointer_type struct_ty in
         let name = make_name "structarg" (make_ast fake_pos (Fixed Public)) in
         let alloca = build_alloca ty name cg_ctx.builder in
-          (* XXX codegen_dec *)
-          Env.add_var cg_ctx.venv var_name alloca;
-          set_value_name name ll_arg;
-          build_store ll_arg alloca cg_ctx.builder |> ignore
+        (* XXX codegen_dec *)
+        Env.add_var cg_ctx.venv var_name alloca;
+        set_value_name name ll_arg;
+        build_store ll_arg alloca cg_ctx.builder |> ignore;
+        acc
     in
 
     (*let llvm_ty = param_to_type cg_ctx arg in
     let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in*)
-    Env.add_var cg_ctx.vtenv var_name var_type
+    Env.add_var cg_ctx.vtenv var_name var_type;
+    acc
   in
   let ll_args = Array.to_list (params f) in
-  List.iter2 allocate_arg args ll_args
+  List.fold_left2 allocate_arg [] args ll_args
 
 (* Allocate space for each variable declared inside a function. This is
    done at the beginning of the function. *)
@@ -538,7 +543,7 @@ and codegen_lval cg_ctx {data=(lval,vt);pos=p} =
         begin
           match arr' |> type_of |> element_type |> classify_type with
             | TypeKind.Pointer ->
-              [| index |], build_load arr' (make_name_vt "dynload" vt) cg_ctx.builder
+              [| index |], build_load arr' (make_name_vt "dyn" vt) cg_ctx.builder
             | _ -> [| zero; index |], arr'
         end in
         build_in_bounds_gep arr indices (make_name_vt "ptr" vt) cg_ctx.builder
@@ -1007,8 +1012,10 @@ let codegen_fun llcontext llmodule builder fenv sdecs verify_llvm = function
     declare_ct_verif verify_llvm llcontext llmodule SMACK_VALUE;
     declare_ct_verif verify_llvm llcontext llmodule SMACK_VALUES;
     declare_ct_verif verify_llvm llcontext llmodule SMACK_RETURN_VALUE;
-    allocate_args cg_ctx params ft;
+    declare_ct_verif verify_llvm llcontext llmodule DISJOINT_REGIONS;
+    let regions = allocate_args cg_ctx params ft in
     allocate_stack cg_ctx body;
+    generate_disjoint_regions regions cg_ctx;
     let returned = 
       begin
         match ret with

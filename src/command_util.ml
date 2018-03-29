@@ -165,33 +165,53 @@ let verify_opt_passes llmod = function
       | true -> Log.error "An optimzation did not pass!"
       | false -> Log.info "All optimzations passed!"
 
-let ctverify out_file llvm_mod = function
+let ctverify (Tast.Module(_,fdecs,_)) out_file llvm_mod = function
   | false -> Log.info "Not verifying with ctverif!"
-  | true  -> 
+  | true  ->
+    let verify ctv_file passed entrypoint = 
+      (* Docker commands: 1) start container, 2) copy ll file into it, 3) run ctverif, 4) stop container *)
+      Log.debug "Running docker commands...";
+      Log.debug "docker run...";
+      Sys.command "docker run -it -d --rm --name ctverif_cont bjohannesmeyer/ctverifdev /bin/bash" |> ignore;
+
+      Log.debug "docker cp...";
+      let cp_str = String.concat "" ["docker cp ";  ctv_file;" ctverif_cont:/root/fact-verifs/tmp.ll"] in
+      Sys.command cp_str |> ignore;
+
+      let exec_str = String.concat "" ["docker exec ctverif_cont /bin/bash -c 'cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make' 2>&1 | grep -q 'Boogie program verifier finished with 1 verified, 0 errors'"] in
+
+      (*let exec_str = String.concat "" ["docker exec ctverif_cont /bin/bash -c 'cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make'"] in*)
+
+
+      Log.debug "docker exec...";
+      let r = Sys.command exec_str in
+
+      Log.debug "docker stop...";
+      Sys.command "docker stop ctverif_cont" |> ignore;
+      match r with
+        | 0 ->  Log.info "Verified %s by ctverif" entrypoint; passed
+        | 1 -> Log.error "%s failed ct-verif verification!" entrypoint; false
+        | n -> Log.error "ct-verif failed with an unknown error: %d" n; exit 1
+    in
+
     Log.info "Verifying with ctverif";
     Log.debug "Converting 3.8 LLVM IR to 3.5 LLVM IR";
     let ll = Jank.convert (Llvm.string_of_llmodule llvm_mod) in
     let ctv_file = out_file ^ "-3.5.ll" in
     Log.debug "Outputting 3.5 LLVM IR to %s" ctv_file;
     Core_kernel.Out_channel.write_all ctv_file ~data:(ll);
-
-    (* Docker commands: 1) start container, 2) copy ll file into it, 3) run ctverif, 4) stop container *)
-    Log.debug "Running docker commands...";
-    Log.debug "docker run...";
-    Sys.command "docker run -it -d --rm --name ctverif_cont bjohannesmeyer/ctverif /bin/bash";
-
-    Log.debug "docker cp...";
-    let cp_str = String.concat "" ["docker cp ";  ctv_file;" ctverif_cont:/root/fact-verifs/tmp.ll"] in
-    Sys.command cp_str;
-
-    let entrypoint = "foo" in (* TODO: THIS SHOULD CHANGE *)
-    let exec_str = String.concat "" ["docker exec ctverif_cont /bin/bash -c 'cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make'"] in
-    Log.debug "docker exec...";
-    Sys.command exec_str;
-
-    Log.debug "docker stop...";
-    Sys.command "docker stop ctverif_cont";
-    Log.info "Verified by ctverif"
+    
+    let get_entrypoint entrypoints = function
+      | { data=Tast.FunDec(fn, {Tast.export=true}, rt, p, b)} ->
+        fn.data::entrypoints
+      | _ -> entrypoints in
+    let entrypoints = List.fold_left get_entrypoint [] fdecs in
+    let passed = List.fold_left (verify ctv_file) true entrypoints in
+    match passed with
+      | true -> Log.debug "Ct-verif passed! Code is constant-time!"
+      | false ->
+        Log.error "Ct-verif failed! Code is not constant-time! Exiting now...";
+        exit 1
 
 let compile (in_files,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in
@@ -244,7 +264,7 @@ let compile (in_files,out_file,out_dir) args =
   (* Lets optimize the module *)
   let llvm_mod = Opt.run_optimizations args.opt_level args.opt_limit llvm_mod in
 
-  ctverify out_file' llvm_mod args.verify_llvm;
+  ctverify xftast out_file' llvm_mod args.verify_llvm;
 
   (* Start verify final IR *)
   let errors = Hashtbl.create 100 in
