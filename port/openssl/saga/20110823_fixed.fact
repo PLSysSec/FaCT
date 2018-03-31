@@ -1,0 +1,366 @@
+/**
+ * commit c608171d9c30eb54a30fe71f9a02a922514dfec7
+ * Author: Andy Polyakov <appro@openssl.org>
+ * Date:   Tue Aug 23 13:51:38 2011
+ *
+ *     Add RC4-MD5 and AESNI-SHA1 "stitched" implementations.
+ */
+
+// this should be in fact's stdlib
+void
+memcpy(secret mut uint8[] dst, secret uint8[] src) {
+  for (uint32 i = 0 to len dst) {
+    dst[i] = src[i];
+  }
+}
+
+// this should be in fact's stdlib
+inline void
+store16_be(secret mut uint8[2] buf, secret uint16 n) {
+  buf[0] = (uint8)(n >> 8);
+  buf[1] = (uint8)n;
+}
+
+// this should be in fact's stdlib
+inline void
+store32_be(secret mut uint8[4] buf, secret uint32 n) {
+  buf[0] = (uint8)(n >> 24);
+  buf[1] = (uint8)(n >> 16);
+  buf[2] = (uint8)(n >> 8);
+  buf[3] = (uint8)n;
+}
+
+// # define AES_MAXNR 14
+struct AES_KEY {
+    secret uint32[60] rd_key; // 4 * (AES_MAXNR + 1)
+    public int32 rounds;
+}
+
+// # define SHA_LBLOCK      16
+struct SHA_CTX {
+    secret uint32[5] h;
+    secret uint32 Nl;
+    secret uint32 Nh;
+    secret uint8[64] data; // SHA_LBLOCK
+    secret uint32 num;
+}
+
+void SHA_CTX_cpy(mut struct SHA_CTX dst, struct SHA_CTX) {
+  for (uint32 i = 0; i < 5; i += 1) {
+    dst.h[i] = src.h[i];
+  }
+  dst.Nl = src.Nl;
+  dst.Nh = src.Nh;
+  memcpy(ref dst.data, src.data);
+  dst.num = src.num;
+}
+
+struct EVP_AES_HMAC_SHA1 {
+    struct AES_KEY ks;
+    struct SHA_CTX head;
+    struct SHA_CTX tail;
+    struct SHA_CTX md;
+    public uint64 payload_length; // size_t /* AAD length in decrypt case */
+    secret uint8[16] tls_aad; /* 13 used */
+}
+
+// # define EVP_MAX_IV_LENGTH               16
+struct evp_cipher_ctx_st {
+    secret uint8[40] unused1;
+    secret uint8[16] iv; // EVP_MAX_IV_LENGTH /* working iv */
+    secret uint8[60] unused2;
+    ref struct EVP_AES_HMAC_SHA1 key; /* per EVP data */
+    // everything after is unused so we don't even bother
+}
+
+extern
+void
+aesni_cbc_encrypt(
+    secret uint8[] in,
+    secret mut uint8[] out,
+    public uint64 length,
+    struct AES_KEY key,
+    secret mut uint8[] iv,
+    public int32 enc); // really a bool
+
+extern
+void
+sha1_block_data_order(
+    mut struct SHA_CTX ctx,
+    secret uint8[] p,
+    public uint32 num);
+
+
+void
+SHA1_Update_public(
+    mut struct SHA_CTX ctx,
+    secret uint8[] _in) {
+
+  public uint32 SHA_LBLOCK = 16;
+  public uint32 SHA_CBLOCK = (SHA_LBLOCK*4); /* SHA treats input data as a
+                                              * contiguous array of 32 bit wide
+                                              * big-endian values. */
+
+  public uint64 l = ((uint64)(len _in)) << 3;
+  public uint64 N = ((((uint64)(ctx.Nh)) << 32) | ctx.Nl) + l;
+  ctx.Nh += ((uint32)(N >> 32));
+  ctx.Nl = (uint32)N;
+
+  public mut uint32 inp = 0;
+  public mut uint32 _len = len _in;
+  public uint32 num = declassify(ctx.num);
+  if (num > 0) {
+    public uint32 res = len _in < SHA_CBLOCK - num ? len _in : SHA_CBLOCK - num;
+    memcpy(arrview(ctx.data, num, res), arrview(_in, 0, res));
+    if (res + num == SHA_CBLOCK) {
+      sha1_block_data_order(ref ctx, ctx.data, 1);
+      ctx.num = 0;
+    } else {
+      ctx.num += res;
+    }
+    inp += res;
+    _len -= res;
+  }
+
+  public uint32 n = _len / SHA_CBLOCK;
+  if (n > 0) {
+    sha1_block_data_order(ref ctx, arrview(_in, inp, _len), n);
+    inp += n * SHA_CBLOCK;
+    _len -= n * SHA_CBLOCK;
+  }
+
+  if (_len > 0) {
+    memcpy(arrview(ctx.data, 0, _len), arrview(_in, inp, _len));
+    ctx.num += _len;
+  }
+}
+
+void
+SHA1_Update_secret(
+    mut struct SHA_CTX ctx,
+    secret uint8[] _in,
+    secret uint32 slen) {
+
+  public uint32 SHA_LBLOCK = 16;
+  public uint32 SHA_CBLOCK = (SHA_LBLOCK*4); /* SHA treats input data as a
+                                              * contiguous array of 32 bit wide
+                                              * big-endian values. */
+
+  secret uint64 l = ((uint64)slen) << 3;
+  public uint64 N = ((((uint64)(ctx.Nh)) << 32) | ctx.Nl) + l;
+  ctx.Nh += ((uint32)(N >> 32));
+  ctx.Nl = (uint32)N;
+
+  public mut uint32 inp = 0;
+  public mut uint32 _len = len _in;
+
+  // assuming that we will never be called when there are leftover bytes
+
+  public uint32 n = _len / SHA_CBLOCK;
+  secret bool done = false;
+  for (uint32 i = 0; i < n; i += 1) {
+    public uint32 inp = i * SHA_CBLOCK;
+    public uint32 _len = len _in - inp;
+
+    secret uint32[5] h = arrcopy(ctx.h);
+
+    sha1_block_data_order(ref ctx, ctx.data, 1);
+    if (inp + SHA_CBLOCK > slen) {
+      // roll back state
+      for (uint32 j = 0; j < 5; j += 1) {
+        ctx.h[j] = h[j];
+      }
+      if (!done) {
+        // save the leftover bytes
+        // but only the first time we cross slen
+        memcpy(ctx.data, arrview(_in, inp, _len));
+        ctx.num = slen & (SHA_CBLOCK - 1); // slen % SHA_CBLOCK
+        done = true;
+      }
+    }
+  }
+}
+
+inline void
+SHA1_MAKE_STRING(
+    struct SHA_CTX ctx,
+    secret mut uint8[20] out) {
+  for (uint32 i = 0; i < 5; i += 1) {
+    store32_be(ref arrview(out, i * 4, 4), ctx.h[i]);
+  }
+}
+
+/**
+ * Implementer's notes:
+ *   SHA1 defines DATA_ORDER_IS_BIG_ENDIAN
+ */
+void
+SHA1_Final_public(
+    secret mut uint8[20] out,
+    mut struct SHA_CTX ctx) {
+  public mut uint32 num = declassify(ctx.num);
+
+  ctx.data[num] = 0x80;  /* there is always room for one */
+  num += 1;
+
+  if (num > ((len ctx.data) - 8)) {
+    _memzero(ref arrview(ctx.data, num, (len ctx.data) - num));
+    sha1_block_data_order(ref ctx, ctx.data, 1);
+    num = 0;
+  }
+  _memzero(ref arrview(ctx.data, num, (len ctx.data) - 8 - num));
+
+  store32_be(ref arrview(ctx.data, (len ctx.data) - 8, 4), ctx.Nh);
+  store32_be(ref arrview(ctx.data, (len ctx.data) - 4, 4), ctx.Nl);
+
+  sha1_block_data_order(ref ctx, ctx.data, 1);
+  ctx.num = 0;
+  _memzero(ref ctx.data);
+
+  SHA1_MAKE_STRING(ctx, ref out);
+}
+
+/**
+ * Implementer's notes:
+ *   SHA1 defines DATA_ORDER_IS_BIG_ENDIAN
+ */
+void
+SHA1_Final_secret(
+    secret mut uint8[20] out,
+    mut struct SHA_CTX ctx) {
+
+  secret len_in_first_block = ctx.num < ((len ctx.data) - 8);
+
+  for (uint32 i = 0; i < len ctx.data; i += 1) {
+    if (i == ctx.num) {
+      /* there is always room for one */
+      ctx.data[i] = 0x80;
+    } else if (i > ctx.num) {
+      ctx.data[i] = 0;
+      if (len_in_first_block) {
+        if (i >= ((len ctx.data) - 4)) {
+          public uint32 shift = (len ctx.data - 1 - i) * 8;
+          ctx.data[i] = ctx.Nh >> shift;
+        } else if (i >= ((len ctx.data) - 8)) {
+          public uint32 shift = (len ctx.data - 5 - i) * 8;
+          ctx.data[i] = ctx.Nl >> shift;
+        }
+      }
+    }
+  }
+  sha1_block_data_order(ref ctx, ctx.data, 1);
+
+  _memzero(ref arrview(ctx.data, 0, (len ctx.data) - 8));
+  store32_be(ref arrview(ctx.data, (len ctx.data) - 8, 4), ctx.Nh);
+  store32_be(ref arrview(ctx.data, (len ctx.data) - 4, 4), ctx.Nl);
+  secret uint32[5] h = arrcopy(ctx.h);
+  sha1_block_data_order(ref ctx, ctx.data, 1);
+  if (len_in_first_block) {
+    // roll back state
+    for (uint32 j = 0; j < 5; j += 1) {
+      ctx.h[j] = h[j];
+    }
+  }
+
+  ctx.num = 0;
+  _memzero(ref ctx.data);
+
+  SHA1_MAKE_STRING(ref ctx, ref out);
+}
+
+/**
+ * Implementer's notes:
+ *   Assuming only decrypt path
+ */
+
+export
+secret int32
+_aesni_cbc_hmac_sha1_cipher(
+    mut struct evp_cipher_ctx_st ctx,
+    secret mut uint8[] _out,
+    secret uint8[] _in) {
+
+  public uint64 NO_PAYLOAD_LENGTH = (uint64)-1;
+  public uint32 AES_BLOCK_SIZE = 16;
+  public uint32 SHA_DIGEST_LENGTH = 20;
+  public uint32 TLS1_1_VERSION = 0x0302;
+
+  public uint64 plen = ctx.key.payload_length;
+  ctx.key.payload_length = NO_PAYLOAD_LENGTH;
+
+  if (len _in % AES_BLOCK_SIZE != 0) {
+    return 0;
+  }
+
+  if (plen != NO_PAYLOAD_LENGTH) { /* "TLS" mode of operation */
+    public mut uint32 inp = 0;
+    public mut uint32 outp = 0;
+    public mut uint32 _len = len _out;
+
+    secret mut int32 ret = 1;
+
+    secret uint16 tls_ver = load16_be(arrview(ctx.key.tls_aad, plen - 4, 2));
+    // I'm assuming that these two bytes are actually a public version number
+    if (declassify(tls_ver >= TLS1_1_VERSION)) {
+      if (_len < (AES_BLOCK_SIZE + SHA_DIGEST_LENGTH + 1)) {
+        return 0;
+      }
+
+      /* omit explicit iv */
+      memcpy(ref ctx.iv, _in);
+      inp += AES_BLOCK_SIZE;
+      outp += AES_BLOCK_SIZE;
+      _len -= AES_BLOCK_SIZE;
+    } else if (_len < (SHA_DIGEST_LENGTH + 1)) {
+      return 0;
+    }
+
+    /* decrypt HMAC|padding at once */
+    aesni_cbc_encrypt(
+        arrview(_in, inp, _len),
+        ref arrview(_out, outp, _len),
+        _len,
+        ctx.key.ks,
+        ref ctx.iv, 0);
+
+    secret mut uint32 pad = _out[len _out - 1];
+
+    if (_len < pad + 1 + SHA_DIGEST_LENGTH) {
+      ret = 0;
+      pad = 0;
+    }
+
+    secret mut uint32 inp_len = _len - (pad + 1 + SHA_DIGEST_LENGTH);
+
+    store16_be(ref arrview(ctx.key.tls_aad, plen - 2, 2), (uint16)inp_len);
+
+    /* calculate HMAC and verify it */
+    SHA_CTX_cpy(ref ctx.key.md, ctx.key.head);
+    SHA1_Update_public(ref ctx.key.md, arrview(ctx.key.tls_aad, 0, plen));
+    SHA1_Update_secret(ref ctx.key.md, arrview(_out, outp, _len), inp_len);
+    cacheline secret mut uint8[20] pmac = noinit(20); // SHA_DIGEST_LENGTH
+    SHA1_Final_secret(ref pmac, ref ctx.key.md);
+
+    SHA_CTX_cpy(ref ctx.key.md, ctx.key.tail);
+    SHA1_Update_public(ref ctx.key.md, pmac);
+    SHA1_Final_public(ref pmac, ref ctx.key.md);
+
+    public uint32 pub_start = _len < (255 + 1 + SHA_DIGEST_LENGTH) ? 0
+      : _len - (255 + 1 + SHA_DIGEST_LENGTH);
+    if (outp + inp_len + SHA_DIGEST_LENGTH > _len) {
+      ret = 0;
+    }
+    for (uint32 i = outp + pub_start; i < _len; i += 1) {
+      if (i >= outp + inp_len && i < outp + inp_len + SHA_DIGEST_LENGTH) {
+        secret uint32 j = i - outp + inp_len;
+        if (_out[i] != pmac[declassify(j)]) { // cache tricks (see declaration of pmac)
+          ret = 0;
+        }
+      }
+    }
+  } else {
+    /* decrypt HMAC|padding at once */
+    aesni_cbc_encrypt(_in, ref _out, len _out, ctx.key.ks_rd_key, ref ctx.iv, 0);
+    SHA1_Update_public(ref ctx.key.md, _out);
+  }
+}
