@@ -11,7 +11,7 @@ struct a_sample_thing {
 #include "test_structs.h"
 
 void test_passing_struct(void) {
-  struct a_sample_thing ss = {0};
+  struct a_sample_thing ss = {0, 0, 0};
   TEST_ASSERT_EQUAL(1, recv_struct(2, &ss));
 }
 
@@ -28,7 +28,7 @@ void test_blitz_struct(void) {
 }
 
 void test_assign_struct(void) {
-  struct a_sample_thing ss = {0};
+  struct a_sample_thing ss = {0, 0, 0};
   set_struct(0, 6, &ss);
   TEST_ASSERT_EQUAL(0, ss.a_field);
   TEST_ASSERT_EQUAL(0, ss.unused);
@@ -40,7 +40,7 @@ void test_assign_struct(void) {
 }
 
 void test_assign_blitz(void) {
-  struct a_sample_thing ss = {0};
+  struct a_sample_thing ss = {0, 0, 0};
   set_struct(1, 4, &ss);
   TEST_ASSERT_EQUAL(4, ss.a_field);
   TEST_ASSERT_EQUAL(0, ss.unused);
@@ -52,7 +52,7 @@ void test_assign_blitz(void) {
 }
 
 void test_array_futzing(void) {
-  struct a_sample_thing ss = {0};
+  struct a_sample_thing ss = {0, 0, 0};
   futz_with_subarrays(&ss);
   TEST_ASSERT_EQUAL(7*256*256, ss.unused); // assuming little endian
 }
