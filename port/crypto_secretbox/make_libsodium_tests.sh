@@ -41,7 +41,7 @@ if [[ -n $TRACE_IMPL ]]; then
   sed -i -e '/#define common_H/a#ifndef TRACE\n#define TRACE(s) { static int __ = 1; if (__) { puts(s); __ = 0; } }\n#endif' common.h
   sed -i -e '/#define sodium_export_H/a#ifndef TRACE\n#define TRACE(s) { static int __ = 1; if (__) { puts(s); __ = 0; } }\n#endif' ../export.h
 else
-  sed -i -e '/#define common_H/a#ifndef TRACE \n#define TRACE(s) do { } while (0)\n#endif' common.h
+  sed -i -e '/#define common_H/a#ifndef TRACE\n#define TRACE(s) do { } while (0)\n#endif' common.h
   sed -i -e '/#define sodium_export_H/a#ifndef TRACE \n#define TRACE(s) do { } while (0)\n#endif' ../export.h
 fi
 
@@ -117,6 +117,11 @@ if [[ -n $BENCHMARKS ]]; then
   sed -i -e 's/.*printf.*ITERATIONS.*/    prcomma(1000000ULL * (ts_end - ts_start) \/ ITERATIONS);\n    printf("\\n");/' cmptest.h
   sed -i -e '/#undef  printf/i#undef  assert\n#define assert(x) do { } while(0)' cmptest.h
   date >> ../../benchmarks.log
+  if [[ -z $NO_FACT ]]; then
+    echo "FaCT implemenetation" >> ../../benchmarks.log
+  else
+    echo "C implementation, asm: $ASM" >> ../../benchmarks.log
+  fi
   for box in secretbox{,2}; do
     touch $box.c
     echo -n "Benchmark ($box): " | tee -a ../../benchmarks.log
