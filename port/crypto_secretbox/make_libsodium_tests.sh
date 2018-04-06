@@ -8,13 +8,17 @@ LIBSODIUM=$PWD
 FACT_DIR=~/const/fact
 OBJ_DIR=$FACT_DIR/port/crypto_secretbox
 
+ASM=no
 BENCHMARKS=
 NO_FACT=
 TRACE_IMPL=
-opts=$(getopt -- 'bnt' "$@")
+opts=$(getopt -- 'abnt' "$@")
 eval set -- $opts
 while [[ $# > 0 ]]; do
   case "$1" in
+    -a )
+      ASM=yes
+      shift 1;;
     -b )
       BENCHMARKS=yes
       shift 1;;
@@ -42,6 +46,8 @@ else
 fi
 
 cd $LIBSODIUM
+./configure --enable-asm=$ASM
+
 echo > $LIBSODIUM/src/libsodium/include/sodium/fact_secretbox.h
 if [[ -z $NO_FACT ]]; then
   # (re)compile FaCT port
@@ -109,10 +115,12 @@ if [[ -n $BENCHMARKS ]]; then
   sed -i -e 's/#  define ITERATIONS 128/#  define ITERATIONS (0x1000000)/' cmptest.h
   sed -i -e '/int main(void)/istatic void prcomma(unsigned long long diff) \{\n  if (diff < 1000) \{\n    printf("%llu", diff);\n    return;\n  \}\n  prcomma(diff / 1000);\n  printf(",%03llu", diff % 1000);\n\}\n' cmptest.h
   sed -i -e 's/.*printf.*ITERATIONS.*/    prcomma(1000000ULL * (ts_end - ts_start) \/ ITERATIONS);\n    printf("\\n");/' cmptest.h
+  sed -i -e '/#undef  printf/i#undef  assert\n#define assert(x) do { } while(0)' cmptest.h
+  date >> ../../benchmarks.log
   for box in secretbox{,2}; do
     touch $box.c
-    echo -n "Benchmark ($box): "
+    echo -n "Benchmark ($box): " | tee -a ../../benchmarks.log
     make $box.log >/dev/null
-    echo $(grep -E '^[[:digit:],]+$' $box.log) "picoseconds"
+    echo $(grep -E '^[[:digit:],]+$' $box.log) "picoseconds" | tee -a ../../benchmarks.log
   done
 fi
