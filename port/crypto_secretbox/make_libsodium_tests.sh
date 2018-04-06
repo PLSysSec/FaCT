@@ -11,7 +11,8 @@ OBJ_DIR=$FACT_DIR/port/crypto_secretbox
 BENCHMARKS=
 NO_FACT=
 TRACE_IMPL=
-eval set -- $(getopt -- 'bnt' "$@")
+opts=$(getopt -- 'bnt' "$@")
+eval set -- $opts
 while [[ $# > 0 ]]; do
   case "$1" in
     -b )
@@ -34,7 +35,7 @@ git checkout -- common.h
 git checkout -- ../export.h
 if [[ -n $TRACE_IMPL ]]; then
   sed -i -e '/#define common_H/a#ifndef TRACE\n#define TRACE(s) { static int __ = 1; if (__) { puts(s); __ = 0; } }\n#endif' common.h
-  sed -i -e '/#define sodium_export_H/a#ifndef TRACE \n#define TRACE(s) { static int __ = 1; if (__) { puts(s); __ = 0; } }\n#endif' ../export.h
+  sed -i -e '/#define sodium_export_H/a#ifndef TRACE\n#define TRACE(s) { static int __ = 1; if (__) { puts(s); __ = 0; } }\n#endif' ../export.h
 else
   sed -i -e '/#define common_H/a#ifndef TRACE \n#define TRACE(s) do { } while (0)\n#endif' common.h
   sed -i -e '/#define sodium_export_H/a#ifndef TRACE \n#define TRACE(s) do { } while (0)\n#endif' ../export.h
@@ -94,19 +95,24 @@ else
 fi
 
 cd test/default
+
+git checkout -- cmptest.h
 for box in secretbox{,2,7,8}; do
-  git checkout -- cmptest.h
   touch $box.c
   make $box.log
   cat $box.log
-  if [[ -n $BENCHMARKS && $box != "secretbox7" && $box != "secretbox8" ]]; then
-    sed -i -e '/#define __CMPTEST_H__/a#define BENCHMARKS' cmptest.h
-    grep -q -e '#  define ITERATIONS 128' cmptest.h
-    sed -i -e 's/#  define ITERATIONS 128/#  define ITERATIONS (0x1000000)/' cmptest.h
-    sed -i -e '/int main(void)/istatic void prcomma(unsigned long long diff) \{\n  if (diff < 1000) \{\n    printf("%llu", diff);\n    return;\n  \}\n  prcomma(diff / 1000);\n  printf(",%03llu", diff % 1000);\n\}\n' cmptest.h
-    sed -i -e 's/.*printf.*ITERATIONS.*/    prcomma(1000000ULL * (ts_end - ts_start) \/ ITERATIONS);\n    printf("\\n");/' cmptest.h
-    touch $box.c
-    make $box.log >/dev/null
-    echo "Benchmark:" $(grep -E '^[[:digit:],]+$' $box.log) "picoseconds"
-  fi
 done
+
+if [[ -n $BENCHMARKS ]]; then
+  sed -i -e '/#define __CMPTEST_H__/a#define BENCHMARKS' cmptest.h
+  grep -q -e '#  define ITERATIONS 128' cmptest.h
+  sed -i -e 's/#  define ITERATIONS 128/#  define ITERATIONS (0x1000000)/' cmptest.h
+  sed -i -e '/int main(void)/istatic void prcomma(unsigned long long diff) \{\n  if (diff < 1000) \{\n    printf("%llu", diff);\n    return;\n  \}\n  prcomma(diff / 1000);\n  printf(",%03llu", diff % 1000);\n\}\n' cmptest.h
+  sed -i -e 's/.*printf.*ITERATIONS.*/    prcomma(1000000ULL * (ts_end - ts_start) \/ ITERATIONS);\n    printf("\\n");/' cmptest.h
+  for box in secretbox{,2}; do
+    touch $box.c
+    echo -n "Benchmark ($box): "
+    make $box.log >/dev/null
+    echo $(grep -E '^[[:digit:],]+$' $box.log) "picoseconds"
+  done
+fi
