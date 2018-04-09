@@ -20,9 +20,8 @@ void _mpi_mul_hlp(
     secret mut uint64[] d,
     secret uint64 b) {
   secret mut uint64 c = 0;
-  secret mut uint64 t = 0;
 
-  for (uint64 i = n; i > 0; i -= 1) {
+  for (uint64 i = 0; i < n; i += 1) {
     secret uint128 r = s[i] * ((uint128)b);
     secret mut uint64 r0 = (uint64)r;
     secret mut uint64 r1 = (uint64)(r >> 64);
@@ -32,6 +31,11 @@ void _mpi_mul_hlp(
     r1 += r0 < d[i] ? 1 : 0;
     c = r1;
     d[i] = r0;
+  }
+
+  for (uint64 i = n; i < len d; i += 1) {
+    d[i] += c;
+    c = d[i] < c ? 1 : 0;
   }
 }
 
@@ -44,15 +48,19 @@ secret int32 _mbedtls_mpi_cmp_abs(
   secret mut uint64 saved_j = 0;
 
   for (uint64 i = len X_p; i > 0; i -= 1) {
-    if (X_p[i - 1] != 0) {
+    if (saved_i == 0 && X_p[i - 1] != 0) {
       saved_i = i;
     }
   }
 
   for (uint64 j = len Y_p; j > 0; j -= 1) {
-    if (Y_p[j - 1] != 0) {
+    if (saved_j == 0 && Y_p[j - 1] != 0) {
       saved_j = j;
     }
+  }
+
+  if (saved_i == 0 && saved_j == 0) {
+    return 0;
   }
 
   if (saved_i > saved_j) {
@@ -99,19 +107,20 @@ void _mpi_sub_hlp(
 
 /* mbedtls/library/bignum.c:1559 */
 //currently just assign them all to public
+export
 public int32 _mpi_montmul(
   //mbedtls_mpi *A
-  secret mut int32 A_s,
+  secret int32 A_s,
   secret mut uint64[] A_p,
   //const mbedtls_mpi *B
   public int32 B_s,
   public uint64[] B_p,
   //const mbedtls_mpi *N
-  public mut int32 N_s,
+  public int32 N_s,
   public mut uint64[] N_p,
   public uint64 mm,
   //const mbedtls_mpi *T
-  secret mut int32 T_s,
+  secret int32 T_s,
   secret mut uint64[] T_p,
   secret bool actually_do) {
 
@@ -127,7 +136,7 @@ public int32 _mpi_montmul(
 
     for(uint64 i = 0; i < n; i += 1) {
       secret uint64 u0 = A_p[i];
-      secret uint64 u1 = (T_p[i] + u0 * B_p[0]) * mm;
+      secret uint64 u1 = (T_p[i] + (u0 * B_p[0])) * mm;
 
       _mpi_mul_hlp(m, B_p, ref arrview(T_p, i, (len T_p) - i), u0);
       _mpi_mul_hlp(n, N_p, ref arrview(T_p, i, (len T_p) - i), u1);
