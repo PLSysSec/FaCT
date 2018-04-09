@@ -1,0 +1,79 @@
+/* openssl/ssl/record/ssl3_record.c:1511 */
+
+secret int32 _ssl3_cbc_copy_mac(
+  secret mut uint8[] out,
+  /* const SSL3_RECORD *rec */
+  //int32 rec_version,
+  //int32 rec_type,
+  secret uint64 rec_length,
+  public uint64 rec_orig_len,
+  //uint64 rec_off,
+  secret uint8[] rec_data,
+  //uint8[] rec_input,
+  //uint8[] rec_comp,
+  //uint32 rec_read,
+  //uint64 rec_epoch,
+  //uint8[3] rec_seq_num,  //XXX SEQ_NUM_SIZE = ?
+  ///////
+  public uint64 md_size) {
+
+  public uint64 EVP_MAX_MD_SIZE = 64;
+  //CBC_MAC_ROTATE_IN_PLACE is currently not defined
+  secret mut uint8[64] rotated_mac = arrzeros(64);
+
+  secret uint64 mac_end = rec_length;
+  secret uint64 mac_start = mac_end - md_size;
+
+  //XXX function ossl_assert()
+  //ossl_asser() (x != 0)
+  if(!(rec_orig_len >= md_size && md_size <= EVP_MAX_MD_SIZE)) {
+    return 0;
+  }
+
+  public mut uint64 scan_start = 0;
+  if(rec_orig_len > md_size + 255 + 1) {
+    scan_start = rec_orig_len - (md_size + 255 + 1);
+  }
+
+  secret mut uint64 in_mac = 0;
+  secret mut uint64 rotate_offset = 0;
+  //XXX function memset() -- use _fact_memzero
+  //memset(rotated_mac, 0, md_size);
+  for(uint64 i = 0 to md_size){
+    rotated_mac[i] = 0;
+  }
+  //_fact_memzero(ref rotated_mac, md_size);
+
+  public mut uint64 j = 0;
+  for(uint64 i = scan_start to rec_orig_len) {
+    secret mut uint64 mac_started = i == mac_start ? 0xFFFFFFFF : 0;
+    secret mut uint64 mac_ended = i < mac_end ? 0xFFFFFFFF : 0;
+    secret uint8 b = rec_data[i];
+
+    in_mac |= mac_started;
+    in_mac &= mac_ended;
+    rotate_offset |= (j & mac_started);
+    rotated_mac[j] |= (b & in_mac);
+    j += 1;
+    j &= j < md_size ? 0xFFFFFFFF : 0;
+  }
+
+  //XXX function memset()
+  //_memset(out, 0, md_size);
+  //_fact_memzero(out, md_size);
+  for(uint64 i = 0 to md_size) {
+      out[i] = 0;
+  }
+  rotate_offset = md_size - rotate_offset;
+  rotate_offset &= rotate_offset < md_size ? 0xFFFFFFFF : 0;
+  for(uint64 _i = 0 to md_size) {
+    for(uint64 _j = 0 to md_size) {
+      secret mut uint8 j_eq_offset = _j == rotate_offset ? 0xFF : 0;
+      out[_j] |= rotated_mac[_i] & j_eq_offset;
+    }
+    rotate_offset += 1;
+    rotate_offset &= rotate_offset < md_size ? 0xFFFFFFFF : 0;
+  }
+
+  return 1;
+}

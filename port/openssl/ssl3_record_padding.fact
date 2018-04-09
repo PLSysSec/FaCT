@@ -1,5 +1,5 @@
 /*
-
+openssl/ssl/record/record.h
 typedef struct ssl3_record_st {
     int rec_version;
     int type;
@@ -17,7 +17,7 @@ typedef struct ssl3_record_st {
 
 // this port version is a semi-direct translate
 // public value assigned to secret value
-int32 ssl3_cbc_remove_padding( 
+secret int32 ssl3_cbc_remove_padding( 
     // SSL3_RECORD struct
     public int16 rec_version,
     public int16 rec_type,
@@ -39,62 +39,47 @@ int32 ssl3_cbc_remove_padding(
     secret mut uint32 padding_length = 0;
     secret mut uint32 good = 0;
     public uint32 overhead = 1 + mac_size;
+    secret mut int32 ret = 0;
 
     // test public lengths in non-constant time
     if(overhead > length) {
-        return 0;
+        return ret;
     }
 
     padding_length = rec_data[length - 1];
-    if((length < (padding_length + overhead)) || (block_size < padding_length + 1)) {
-        good = 0;
-    } else {
-        good = 0xFFFFFFFF;
-    }
-
-    if(good != 0) {
-        length = reclength - (padding_length + 1);
-        return 1;
-    } else {
-        return -1;
-    }
+    good = (length < (padding_length + overhead)) || (block_size < padding_length + 1) ? 0 : 0xFFFFFFFF;
+    rec_length -= good & (padding_length + 1);
+    ret = (good == 0) ? -1 : 1;
+    return ret;
 }
 
 
 // this is a simplified version 
-int32 ssl3_cbc_remove_padding_smp( 
+secret int32 ssl3_cbc_remove_padding_simple( 
     // SSL3_RECORD struct
-    public int16 rec_version,
-    public int16 type,
-    secret mut uint32 length,
-    secret uint32 orig_len,
-    secret uint8[] data,
-    secret uint8[] input,
-    secret uint8[] comp,
-    public uint16 read,
-    public uint32 epoch,
-    public uint8[8] seq_num,
-
-    // public rec->length
-    public uint32 reclength,
-
+    secret mut uint32 rec_length,
+    secret uint8[] rec_data,
+    public uint32 length,   // public rec->length
     public uint32 block_size,
     public uint32 mac_size) {
     
     secret mut uint32 padding_length = 0;
     public uint32 overhead = 1 + mac_size;
+    secret mut int32 ret = 0;
 
     if(overhead > length) {
-        return 0;
+        return ret;
     }
 
-    padding_length = data[length - 1];
-    if(reclength >= (padding_length + overhead) && (block_size >= padding_length + 1)) {
-        length = reclength - (padding_length + 1);
-        return 1;
+    padding_length = rec_data[length - 1];
+    if(length >= (padding_length + overhead) && (block_size >= padding_length + 1)) {
+        rec_length -= padding_length + 1;
+        ret = 1;
     } else {
-        return -1;
+        ret = -1;
     }
+
+    return ret;
 }
 
 /*
@@ -122,26 +107,18 @@ int32 ssl3_cbc_remove_padding_smp(
     SSL_METHOD contains struct ssl3_enc_method (ssl/ssl_local.h line 1741)
  */
 
-int32 tls1_cbc_remove_padding(
+secret int32 tls1_cbc_remove_padding(
     /* 
         struct SSL, but we only need some flags
         s->ssl_method->ssl_enc->enc_flags (uint32_t enc_flags)
      */
-    public uint32 enc_flags,
-    public uint64 evp_cipher_flags,
+    public uint32 s_enc_flags,
+    public uint64 s_evp_cipher_flags,
     // struct SSL3_RECORD
-    public int16 rec_version,
-    public int16 type,
-    secret mut uint8 length,
-    public mut uint32 orig_len,         // what is orig_len? should it be public?
-    secret uint8[] data,
-    secret uint8[] input,
-    secret uint8[] comp,
-    public uint16 read,
-    public uint32 epoch,
-    public uint8[8] seq_num,
-    ////////////
-    public mut uint32 reclength,    // this padded record length is public
+    secret mut uint32 rec_length,
+    public mut uint32 rec_orig_len,         // what is orig_len? should it be public?
+    secret uint8[] rec_data,
+    public mut uint32 length,    // this padded record length is public
     public uint32 block_size,
     public uint32 mac_size) {
 
@@ -152,64 +129,123 @@ int32 tls1_cbc_remove_padding(
     secret mut uint8 padding_length = 0;
     public uint32 overhead = 1 + mac_size;
 
-    secret mut uint32 data_ptr = 0;
-    secret mut uint32 input_ptr = 0;
+    public mut uint32 data_ptr = 0;
+    public mut uint32 input_ptr = 0;
 
-    if((enc_flags & SSL_ENC_FLAG_EXPLICIT_IV) != 0) {
-        if(overhead + block_size > reclength) {
-            return 0;
+    secret mut int32 ret = 0;
+
+    if((s_enc_flags & SSL_ENC_FLAG_EXPLICIT_IV) != 0) {
+        if(overhead + block_size > length) {
+            return ret;
         }
-        //length -= (uint8)block_size;
-        
         // skip explicit IV
         // data is a pointer
         data_ptr += block_size;     
         input_ptr += block_size;
-        reclength -= block_size;
+        rec_length -= block_size;
         // not sure how to handle the following line
-        orig_len -= block_size;
+        rec_orig_len -= block_size;
 
-        length -= (uint8)block_size;
-    } else if(overhead > reclength) {
+        length -= block_size;
+    } else if(overhead > length) {
         return 0;
     }
 
-    padding_length = data[data_ptr + length - 1];
+    padding_length = rec_data[data_ptr + length - 1];
 
-    if((evp_cipher_flags & EVP_CIPH_FLAG_AEAD_CIPHER) != 0) {
-        length -= padding_length + 1;
+    if((s_evp_cipher_flags & EVP_CIPH_FLAG_AEAD_CIPHER) != 0) {
+        rec_length -= padding_length + 1;
         return 1;
     }
 
-    if(length >= overhead + padding_length) {
-        good = 0xFFFFFFFF;
+    good = rec_length >= overhead + padding_length ? 0xFFFFFFFF : 0;
+
+    public mut uint32 to_check = 256;
+    if(to_check > length) {
+        to_check = length;
     }
 
-    public mut uint8 to_check = 256;
-    if(to_check > reclength) {
-        to_check = (uint8)reclength;
+    for(uint32 i = 0 to to_check) {
+        secret uint8 mask = padding_length > i ? 0xFF : 0x00;
+        secret uint8 b = rec_data[data_ptr + length - 1 - i];
+        good &= ~((uint32)mask & (padding_length & (uint32)b)); 
     }
 
-    for(uint8 i = 0 to to_check) {
-        secret uint8 mask = 0;
-        if(i < padding_length) {
-            // here we need to add data_ptr to the offset in case
-            // data pointer has been changed
-            secret uint8 b = data[data_ptr + length - 1 - i];
-            // final |padding_length+1| bytes should have value
-            // |padding_length|
-            if(b == padding_length) {
-                good = good;
-            } else {
-                good = 0;
-            }
+    good = (uint8)good == 0xff ? 0xFFFFFFFF : 0;
+    rec_length -= good & (padding_length + 1);
+    ret = good == 0 ? -1 : 1;
+    return ret;
+}
+
+/* simplified version */
+secret int32 tls1_cbc_remove_padding_simple(
+    /* 
+        struct SSL, but we only need some flags
+        s->ssl_method->ssl_enc->enc_flags (uint32_t enc_flags)
+     */
+    public uint32 s_enc_flags,
+    public uint64 s_evp_cipher_flags,
+    // struct SSL3_RECORD
+    secret mut uint32 rec_length,
+    public mut uint32 rec_orig_len,         // what is orig_len? should it be public?
+    secret uint8[] rec_data,
+    public mut uint32 length,    // this padded record length is public
+    public uint32 block_size,
+    public uint32 mac_size) {
+
+    public uint32 EVP_CIPH_FLAG_AEAD_CIPHER = 0x200000;
+    public uint32 SSL_ENC_FLAG_EXPLICIT_IV = 0x1;
+
+    secret mut uint32 good = 0;
+    secret mut uint8 padding_length = 0;
+    public uint32 overhead = 1 + mac_size;
+
+    public mut uint32 data_ptr = 0;
+    public mut uint32 input_ptr = 0;
+
+    secret mut int32 ret = 0;
+
+    if((s_enc_flags & SSL_ENC_FLAG_EXPLICIT_IV) != 0) {
+        if(overhead + block_size > length) {
+            return ret;
         }
+        // skip explicit IV
+        // data is a pointer
+        data_ptr += block_size;     
+        input_ptr += block_size;
+        rec_length -= block_size;
+        // not sure how to handle the following line
+        rec_orig_len -= block_size;
+
+        length -= block_size;
+    } else if(overhead > length) {
+        return 0;
     }
 
-    if(good != 0) {
-        length -= (padding_length + 1);
+    padding_length = rec_data[data_ptr + length - 1];
+
+    if((s_evp_cipher_flags & EVP_CIPH_FLAG_AEAD_CIPHER) != 0) {
+        rec_length -= padding_length + 1;
         return 1;
-    } else {
-        return -1;
     }
+
+    good = rec_length >= overhead + padding_length ? 0xFFFFFFFF : 0;
+
+    public mut uint32 to_check = 256;
+    if(to_check > length) {
+        to_check = length;
+    }
+
+    for(uint32 i = 0 to to_check) {
+      if(i < padding_length) {
+        secret uint8 b = rec_data[data_ptr + length - 1 - i];
+        if(b != (uint8)padding_length) {
+          good = 0;
+        }
+      }
+    }
+
+    rec_length -= good & (padding_length + 1);
+    ret = good == 0 ? -1 : 1;
+    return ret;
 }

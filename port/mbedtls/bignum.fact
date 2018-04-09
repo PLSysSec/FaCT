@@ -1,10 +1,11 @@
 extern void _memset(public mut uint64[] array, public uint64 value, public uint64 length);
-extern void _mpi_mul_hlp(public uint64 i, public mut uint64[] s, public uint64 slen,
-                        public mut uint64[] d, public uint64 dlen,
-                        public uint64 b);
-extern int _mbedtls_mpi_cmp_abs(public uint64 s_x, public uint64 n_x, public uint64[] p_x, 
-                                public uint64 s_y, public uint64 n_y, public uint64[] p_y);
-extern int _mpi_sub_hlp(public uint64 n, public mut uint64[] s, public mut uint64[] d);
+extern void _mpi_mul_hlp(public uint64 i, public uint64[] s,
+                        public mut uint64[] d, public uint64 b);
+extern public int32 _mbedtls_mpi_cmp_abs(public int32 s_x, public uint64 n_x, 
+                                       public uint64[] p_x, public int32 s_y, 
+                                       public uint64 n_y, public uint64[] p_y);
+extern public int32 _mpi_sub_hlp(public uint64 n, public mut uint64[] s, public mut uint64[] d);
+
 /*
   mbedtls/include/bignum.h
   typedef  int64_t mbedtls_mpi_sint;
@@ -20,89 +21,74 @@ extern int _mpi_sub_hlp(public uint64 n, public mut uint64[] s, public mut uint6
                             //it looks like a pointer to an array
 */
 
-void mpi_sub_hlp(
-  // n is len s and len d
-  public uint64 n, 
-  public mut uint64[] s, 
-  public mut uint64[] d) {
-
-  public uint64 i = 0;
-  public uint64 c = 0, z=0;
-  public uint64 d_ptr = 0;
-  public uint64 s_ptr = 0;
-
-  for(i = 0 to n) {
-    z = d[d_ptr] < c;
-    d[d_ptr] -= c;
-    c = d[d_ptr] < s[s_ptr];
-    d[d_ptr] -= s[s_ptr];
-    s_ptr += 1;
-    d_ptr += 1;
-  }
-
-  //XXX how to handle while loop? It seems like the only choice 
-  //is to move this function to c?
-}
-
 /* mbedtls/library/bignum.c:1559 */
 //currently just assign them all to public
 public int32 mpi_montmul(
   //mbedtls_mpi *A
-  public mut int32 s_a,
-  public mut uint64 n_a,
-  public mut uint64[] p_a,
+  public mut int32 A_s,
+  public mut uint64 A_n,
+  public mut uint64[] A_p,
   //const mbedtls_mpi *B
-  public int32 s_b,
-  public uint64 n_b,
-  public uint64[] p_b,
+  public int32 B_s,
+  public uint64 B_n,
+  public uint64[] B_p,
   //const mbedtls_mpi *N
-  public int32 s_n,
-  public uint64 n_n,
-  public uint64[] p_n,
+  public mut int32 N_s,
+  public mut uint64 N_n,
+  public mut uint64[] N_p,
   //const mbedtls_mpi *T
-  public int32 s_t,
-  public uint64 n_t,
-  public uint64[] p_t,
-  //
+  public mut int32 T_s,
+  public mut uint64 T_n,
+  public mut uint64[] T_p,
   public uint64 mm) {
 
-  public mut uint64 i, n, m;
-  public mut uint64 u0, u1;
-  public mut uint64[] d;
+  /* do the NULL check in the c wrapper */
 
-  //do the check in the c wrapper
-
-  public uint64 ciL = 8;
-  //XXX How to call memset?
-  _memset(p_t, 0, n_t * ciL);
-
+  public uint64 n = N_n;
+  public mut uint64 m = (B_n < n) ? B_n : n;
+  public mut uint64 u0 = 0;
+  public mut uint64 u1 = 0;
   //instead of d = T->p, just use d as an offset
-  d_ptr = 0;
-  n = n_n;
-  m = (n_b < n) ? b_n : n;
+  public mut uint64 T_p_ptr = 0;
 
-  for(uint32 i = 0 to n) {
-    u0 = p_a[i];
-    u1 = (p_t[d_ptr] + u0 * p_b[0]) * m * m;    //is mm m*m?
+  //instead of memset use fact_memzero64, so no ciL needed
+  //public mut uint64 ciL = 8;
+  _fact_memzero64_public(ref T_p);
+
+  for(uint64 i = 0 to n) {
+    u0 = A_p[i];
+    u1 = (T_p[T_p_ptr] + u0 * B_p[0]) * mm;
     
     //XXX we need to pass d to the helper function
     //not sure how to do that yet
-    _mpi_mul_hlp(m, p_b, d, u0);
-    _mpi_mul_hlp(n, p_n, d, u1);
+    //update: maybe use an extra loop to manually copy
+    //public uint64 d_len = T_n - T_p_ptr;
+    //public mut uint64[d_len] d = arrzeros(d_len);
+    //_partial64_copy(T_p, ref d, T_p_ptr);
+    _mpi_mul_hlp(m, B_p, ref arrview(T_p, T_p_ptr, T_n - T_p_ptr), u0);
+    _mpi_mul_hlp(n, N_p, ref arrview(T_p, T_p_ptr, T_n - T_p_ptr), u1);
 
-    p_t[d_ptr] = u0;
-    d_ptr += 1;
-    p_t[d_ptr + n + 1] = 0;
+    T_p[T_p_ptr] = u0;
+    T_p_ptr += 1;
+    T_p[T_p_ptr + n + 1] = 0;
   }
 
-    //XXX not sure how to handle d here
-    _memcpy(p_a, d, (n+1) * ciL);
+    //XXX not sure how to handle d here, manually copy for now
+    //public uint64 d_len = T_n - T_p_ptr;
+    //public mut uint64[d_len] d = arrzeros(d_len);
+    //_partial64_copy(T_p, ref d, T_p_ptr);
+    //XXX how to copy n+1 * ciL bytes from d to A_p
+    //what is the size of A_p, what is the size of d?
+    
+    public uint64 ciL = 8;
+    for(uint64 i = 0 to (n+1) * ciL) {
+      A_p[i] = d[i];
+    }
 
-    //XXX add signature to the helper function
-    if(_mbedtls_mpi_cmp_abs(s_a, n_a, p_a, s_n, n_n, p_n) >= 0) {
-      mpi_sub_hlp(n, p_n, p_a);
+    if(_mbedtls_mpi_cmp_abs(A_s, A_n, A_p, N_s, N_n, N_p) >= 0) {
+      _mpi_sub_hlp(n, ref N_p, ref A_p);
     } else {
-      mpi_sub_hlp(n, p_a, p_t);
+      _mpi_sub_hlp(n, ref A_p, ref T_p);
     }
 
     return 0;
