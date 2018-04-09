@@ -310,7 +310,7 @@ let xf_fdec fenv sdecs everhi = pfunction
       let (venv,stms) = block in
       let xf_ctx = {
         rp=ref Public;
-        pc=Public;
+        pc=if !everhi then Secret else Public;
         rt;
         fenv;
         venv;
