@@ -24,7 +24,40 @@ secret int32 _mbedtls_mpi_cmp_abs(
     secret uint64[] X_p,
     secret int32 Y_s,
     secret uint64[] Y_p) {
-  return 1;
+  secret mut uint64 saved_i = 0;
+  secret mut uint64 saved_j = 0;
+
+  for (uint64 i = len X_p; i > 0; i -= 1) {
+    if (X_p[i - 1] != 0) {
+      saved_i = i;
+    }
+  }
+
+  for (uint64 j = len Y_p; j > 0; j -= 1) {
+    if (Y_p[j - 1] != 0) {
+      saved_j = j;
+    }
+  }
+
+  if (saved_i > saved_j) {
+    return 1;
+  }
+  if (saved_j > saved_i) {
+    return -1;
+  }
+
+  for (uint64 i = len X_p; i > 0; i -= 1) {
+    if (i <= saved_i) {
+      if (X_p[i - 1] > Y_p[i - 1]) {
+        return 1;
+      }
+      if (X_p[i - 1] < Y_p[i - 1]) {
+        return -1;
+      }
+    }
+  }
+
+  return 0;
 }
 
 void _mpi_sub_hlp(
@@ -64,12 +97,6 @@ public int32 _mpi_montmul(
       secret uint64 u0 = A_p[i];
       secret uint64 u1 = (T_p[i] + u0 * B_p[0]) * mm;
 
-      //XXX we need to pass d to the helper function
-      //not sure how to do that yet
-      //update: maybe use an extra loop to manually copy
-      //public uint64 d_len = T_n - T_p_ptr;
-      //public mut uint64[d_len] d = arrzeros(d_len);
-      //_partial64_copy(T_p, ref d, T_p_ptr);
       _mpi_mul_hlp(m, B_p, ref arrview(T_p, i, (len T_p) - i), u0);
       _mpi_mul_hlp(n, N_p, ref arrview(T_p, i, (len T_p) - i), u1);
 
