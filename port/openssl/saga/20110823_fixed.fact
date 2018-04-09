@@ -45,7 +45,7 @@ struct SHA_CTX {
     secret uint32 num;
 }
 
-void SHA_CTX_cpy(mut struct SHA_CTX dst, struct SHA_CTX) {
+void SHA_CTX_cpy(mut struct SHA_CTX dst, struct SHA_CTX src) {
   for (uint32 i = 0; i < 5; i += 1) {
     dst.h[i] = src.h[i];
   }
