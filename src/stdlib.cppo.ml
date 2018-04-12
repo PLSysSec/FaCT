@@ -22,10 +22,26 @@ let load_le_proto' n name' =
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
 
+let load_vec_le_proto' bw n name' =
+  let name = mkpos name' in
+  let ft = { export=false; inline=Always } in
+
+  let rt' = mkpos BaseET(mkpos UVec(bw,n), mkpos Fixed Secret) in
+  let rt = Some rt' in
+
+  let arr = mkpos ArrayAT(mkpos UInt 8, mkpos LIntLiteral (bw * n / 8)) in
+  let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Const) in
+  let params = [mkpos Param (mkpos "src", arg)] in
+
+  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+    name,fdec
+
 let load_le_proto () =
   load_le_proto' 32 "_load_le"
 let load64_le_proto () =
   load_le_proto' 64 "_load64_le"
+let load32_4_le_proto () =
+  load_vec_le_proto' 32 4 "_load32_4_le"
 
 let store_le_proto' n name' =
   let name = mkpos name' in
@@ -41,10 +57,26 @@ let store_le_proto' n name' =
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
 
+let store_vec_le_proto' bw n name' =
+  let name = mkpos name' in
+  let ft = { export=false; inline=Always } in
+  let rt = None in
+
+  let arr = mkpos ArrayAT(mkpos UInt 8, mkpos LIntLiteral (bw * n / 8)) in
+  let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Mut) in
+
+  let w = mkpos RefVT(mkpos UVec(bw,n), mkpos Fixed Secret, mkpos Const) in
+  let params = [mkpos Param (mkpos "dst", arg); mkpos Param (mkpos "w", w)] in
+
+  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+    name,fdec
+
 let store_le_proto () =
   store_le_proto' 32 "_store_le"
 let store64_le_proto () =
   store_le_proto' 64 "_store64_le"
+let store32_4_le_proto () =
+  store_vec_le_proto' 32 4 "_store32_4_le"
 
 let memzero_proto' n name' () =
   let name = mkpos name' in
@@ -98,10 +130,34 @@ let load_le_codegen' n name llcontext llmodule =
       build_ret load b;
       fn
 
+let load_vec_le_codegen' bw n name llcontext llmodule =
+  let ity = integer_type llcontext bw in
+  let vty = vector_type ity n in
+  let bty = i8_type llcontext in
+  let aty = pointer_type bty in
+  let pty = pointer_type vty in
+  let ft = function_type vty [| aty |] in
+  let fn = declare_function name ft llmodule in
+    add_function_attr fn Alwaysinline;
+    add_function_attr fn Readonly;
+    set_linkage Internal fn;
+  let bb = append_block llcontext "entry" fn in
+  let b = builder llcontext in
+    position_at_end bb b;
+    let arr = param fn 0 in
+      add_param_attr arr Noalias;
+      add_param_attr arr (Alignment 4);
+    let cast = build_bitcast arr pty "_secret_cast" b in
+    let load = build_load cast "_secret_load" b in
+      build_ret load b;
+      fn
+
 let load_le_codegen =
   load_le_codegen' 32 "_load_le"
 let load64_le_codegen =
   load_le_codegen' 64 "_load64_le"
+let load32_4_le_codegen =
+  load_vec_le_codegen' 32 4 "_load32_4_le"
 
 let store_le_codegen' n name llcontext llmodule =
   let ity = integer_type llcontext n in
@@ -122,10 +178,32 @@ let store_le_codegen' n name llcontext llmodule =
       build_ret_void b;
       fn
 
+let store_vec_le_codegen' bw n name llcontext llmodule =
+  let ity = integer_type llcontext bw in
+  let vty = vector_type ity n in
+  let bty = i8_type llcontext in
+  let aty = pointer_type bty in
+  let pty = pointer_type vty in
+  let ft = function_type (void_type llcontext) [| aty; vty |] in
+  let fn = declare_function name ft llmodule in
+    add_function_attr fn Alwaysinline;
+    set_linkage Internal fn;
+  let bb = append_block llcontext "entry" fn in
+  let b = builder llcontext in
+    position_at_end bb b;
+    let arr = param fn 0 in
+    let w = param fn 1 in
+    let cast = build_bitcast arr pty "_secret_cast" b in
+      build_store w cast b;
+      build_ret_void b;
+      fn
+
 let store_le_codegen =
   store_le_codegen' 32 "_store_le"
 let store64_le_codegen =
   store_le_codegen' 64 "_store64_le"
+let store32_4_le_codegen =
+  store_vec_le_codegen' 32 4 "_store32_4_le"
 
 let memzero_codegen' n name llcontext llmodule =
   let i8_ty = i8_type llcontext in
@@ -166,16 +244,20 @@ let get_stdlib name llctx llmod =
   match name with
     | "_load_le" -> load_le_codegen llctx llmod
     | "_load64_le" -> load64_le_codegen llctx llmod
+    | "_load32_4_le" -> load32_4_le_codegen llctx llmod
     | "_store_le" -> store_le_codegen llctx llmod
     | "_store64_le" -> store64_le_codegen llctx llmod
+    | "_store32_4_le" -> store32_4_le_codegen llctx llmod
     | "_memzero" -> memzero_codegen llctx llmod
     | "_memzero64" -> memzero64_codegen llctx llmod
 
 let functions = [
   load_le_proto ();
   load64_le_proto ();
+  load32_4_le_proto ();
   store_le_proto ();
   store64_le_proto ();
+  store32_4_le_proto ();
   memzero_proto ();
   memzero64_proto ();
 ]

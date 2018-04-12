@@ -111,6 +111,15 @@ struct_name:
 
 base_type:
   | t=TYPE { mkpos (to_type (mkpos t)) }
+  | t=TYPE LESSTHAN n=INT GREATERTHAN
+    { let bw =
+        match t with
+            | "uint8" -> 8
+            | "uint16" -> 16
+            | "uint32" -> 32
+            | "uint64" -> 64
+      in
+        mkpos (UVec(bw, n)) }
 
 array_type:
   | b=base_type l=brack(lexpr) { mkpos (ArrayAT(b, l)) }
@@ -193,6 +202,8 @@ expr:
   | e1=expr QUESTION e2=expr COLON e3=expr { mkpos (TernOp(e1, e2, e3)) }
   | fn=fun_name args=plist(arg) { mkpos (FnCall(fn, args)) }
   | DECLASSIFY e=paren(expr) { mkpos (Declassify e) }
+  | e=expr COLON LESSTHAN mask=separated_list(COMMA, INT) GREATERTHAN
+    { mkpos (Shuffle(e, mask)) }
 
 array_expr:
   | es=alist(expr) { mkpos (ArrayLit es) }
