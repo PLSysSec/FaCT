@@ -36,8 +36,8 @@ let load_vec_le_proto' bw n name' =
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
 
-let load_le_proto () =
-  load_le_proto' 32 "_load_le"
+let load32_le_proto () =
+  load_le_proto' 32 "_load32_le"
 let load64_le_proto () =
   load_le_proto' 64 "_load64_le"
 let load32_4_le_proto () =
@@ -71,8 +71,8 @@ let store_vec_le_proto' bw n name' =
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
 
-let store_le_proto () =
-  store_le_proto' 32 "_store_le"
+let store32_le_proto () =
+  store_le_proto' 32 "_store32_le"
 let store64_le_proto () =
   store_le_proto' 64 "_store64_le"
 let store32_4_le_proto () =
@@ -152,8 +152,8 @@ let load_vec_le_codegen' bw n name llcontext llmodule =
       build_ret load b;
       fn
 
-let load_le_codegen =
-  load_le_codegen' 32 "_load_le"
+let load32_le_codegen =
+  load_le_codegen' 32 "_load32_le"
 let load64_le_codegen =
   load_le_codegen' 64 "_load64_le"
 let load32_4_le_codegen =
@@ -198,8 +198,8 @@ let store_vec_le_codegen' bw n name llcontext llmodule =
       build_ret_void b;
       fn
 
-let store_le_codegen =
-  store_le_codegen' 32 "_store_le"
+let store32_le_codegen =
+  store_le_codegen' 32 "_store32_le"
 let store64_le_codegen =
   store_le_codegen' 64 "_store64_le"
 let store32_4_le_codegen =
@@ -242,20 +242,20 @@ let memzero64_codegen = memzero_codegen' 64 "_memzero64"
 
 let get_stdlib name llctx llmod =
   match name with
-    | "_load_le" -> load_le_codegen llctx llmod
+    | "_load32_le" -> load32_le_codegen llctx llmod
     | "_load64_le" -> load64_le_codegen llctx llmod
     | "_load32_4_le" -> load32_4_le_codegen llctx llmod
-    | "_store_le" -> store_le_codegen llctx llmod
+    | "_store32_le" -> store32_le_codegen llctx llmod
     | "_store64_le" -> store64_le_codegen llctx llmod
     | "_store32_4_le" -> store32_4_le_codegen llctx llmod
     | "_memzero" -> memzero_codegen llctx llmod
     | "_memzero64" -> memzero64_codegen llctx llmod
 
 let functions = [
-  load_le_proto ();
+  load32_le_proto ();
   load64_le_proto ();
   load32_4_le_proto ();
-  store_le_proto ();
+  store32_le_proto ();
   store64_le_proto ();
   store32_4_le_proto ();
   memzero_proto ();

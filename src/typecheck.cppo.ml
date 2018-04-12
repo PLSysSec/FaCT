@@ -437,7 +437,15 @@ and tc_expr tc_ctx = pfunction
       end
   | Ast.Shuffle(e,mask) ->
     let e' = tc_expr tc_ctx e in
-      Shuffle(e',mask), type_of' e'
+    let BaseET(b, ml) = type_of' e' in
+    let UVec(bw, n) = b.data in
+    let len = List.length mask in
+    let b' =
+      if len = 1 then
+        UInt bw
+      else
+        UVec(bw, len) in
+      Shuffle(e',mask), BaseET(mkpos b', ml)
 
 (* returns ((Tast.array_expr', Tast.ArrayET), is_new_memory) *)
 and tc_arrayexpr' tc_ctx = xfunction

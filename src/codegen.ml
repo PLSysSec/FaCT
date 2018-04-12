@@ -655,12 +655,18 @@ and codegen_expr cg_ctx = function
   | Shuffle(expr,mask),ty ->
     let e = codegen_expr cg_ctx expr.data in
     let llty = element_type (type_of e) in
-    let m = const_vector
-              (Array.of_list
-                 (List.map
-                    (fun n -> const_int llty n)
-                    mask)) in
-      build_shufflevector e (undef (type_of e)) m (make_name_et "shuffletmp" ty) cg_ctx.builder
+      begin
+        match mask with
+          | [i] ->
+            build_extractelement e (const_int llty i) (make_name_et "extracttmp" ty) cg_ctx.builder
+          | _ ->
+            let m = const_vector
+                      (Array.of_list
+                         (List.map
+                            (fun n -> const_int llty n)
+                            mask)) in
+              build_shufflevector e (undef (type_of e)) m (make_name_et "shuffletmp" ty) cg_ctx.builder
+      end
 
 and extend_to ctx builder signed dest et v =
   let llvm_et = expr_ty_to_llvm_ty ctx et in

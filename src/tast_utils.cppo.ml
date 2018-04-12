@@ -105,6 +105,7 @@ let refvt_to_betype' = xfunction
 let refvt_to_betype = rebind refvt_to_betype'
 
 let arrayvt_to_refvt = pfunction
+  | RefVT _ -> raise @@ cerr("expected an array, got a base type instead", p)
   | ArrayVT(a,ml,m) ->
     let ArrayAT(bt,lexpr) = a.data in
       RefVT(bt,ml,m)
