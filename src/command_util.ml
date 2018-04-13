@@ -136,8 +136,8 @@ let output_shared out_file =
   let out_file_s = out_file ^ ".s" in
   let out_file_fpic_s = out_file ^ ".fpic.s" in
   Log.debug "Creating .s file at %s" out_file_s;
-  run_command "llc" [|"llc"; out_file'|];
-  run_command "llc" [|"llc"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
+  run_command "llc" [|"llc"; "-mcpu=core-avx2"; out_file'|];
+  run_command "llc" [|"llc"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
 
 let output_object out_file =
   let out_file_s = out_file ^ ".s" in
