@@ -1,0 +1,30 @@
+inline
+void
+initarr_64(secret mut int64[] arr,
+           secret int64 v,
+           public uint32 n)
+{
+  for (uint32 i = 0; i < n; i += 1) {
+    arr[i] = v;
+  }
+}
+  
+void
+memcpy_64(secret mut int64[] dst,
+          secret int64[] src)
+{
+  for (uint32 i = 0; i < (len src); i += 1) {
+    dst[i] = src[i];
+  }
+}
+
+void
+memset_64(secret mut int64[] arr,
+          public uint32 start,
+          public uint32 length,
+          secret int64 v)
+{
+  for (uint32 i = 0; i < length; i += 1) {
+    arr[start + i] = v;
+  }
+}

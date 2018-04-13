@@ -1,0 +1,872 @@
+/*
+ * typedef uint8_t u8
+ * typedef int32_t s32
+ * typedef int64_t limb
+ */
+
+/* Sum two numbers: output += in */
+export
+void
+fsum(secret mut int64[] output,
+     secret int64[] in)
+{
+  for (uint8 i = 0; i < 10; i += 2) {
+    //public uint8 i = j * 2;
+    output[0+i] = output[0+i] + in[0+i];
+    output[1+i] = output[1+i] + in[0+i];
+  }
+}
+
+/* Find the difference of two numbers: output = in - output */
+export
+void
+fdifference(secret mut int64[] output,
+            secret int64[] in)
+{
+  for(uint8 i = 0; i < 10; i += 1) {
+    output[i] = in[i] - output[i];
+  }
+}
+
+/* Multiply a number by a scalar: output = in * scalar */
+export
+void
+fscalar_product(secret mut int64[] output,
+                secret int64[] in,
+                secret int64 scalar)
+{
+  for(uint8 i = 0; i < 10; i += 1) {
+    output[i] = in[i] * scalar;
+  }
+}
+
+/* Multiply two numbers: output = in2 * in
+ *
+ * output must be distinct to both inputs. The inputs are
+ * reduced coefficient form, the output is not.
+ *
+ * output[x] <= 14 * the largest product of the input limb */
+export
+void
+fproduct(secret mut int64[] output,
+         secret int64[] in2,
+         secret int64[] in)
+{    
+  output[0] =       ((int64) ((int32) in2[0])) * ((int32) in[0]);
+  output[1] =       ((int64) ((int32) in2[0])) * ((int32) in[1]) +
+                    ((int64) ((int32) in2[1])) * ((int32) in[0]);
+  output[2] =  2 *  ((int64) ((int32) in2[1])) * ((int32) in[1]) +
+                    ((int64) ((int32) in2[0])) * ((int32) in[2]) +
+                    ((int64) ((int32) in2[2])) * ((int32) in[0]);
+  output[3] =       ((int64) ((int32) in2[1])) * ((int32) in[2]) +
+                    ((int64) ((int32) in2[2])) * ((int32) in[1]) +
+                    ((int64) ((int32) in2[0])) * ((int32) in[3]) +
+                    ((int64) ((int32) in2[3])) * ((int32) in[0]);
+  output[4] =       ((int64) ((int32) in2[2])) * ((int32) in[2]) +
+               2 * (((int64) ((int32) in2[1])) * ((int32) in[3]) +
+                    ((int64) ((int32) in2[3])) * ((int32) in[1])) +
+                    ((int64) ((int32) in2[0])) * ((int32) in[4]) +
+                    ((int64) ((int32) in2[4])) * ((int32) in[0]);
+  output[5] =       ((int64) ((int32) in2[2])) * ((int32) in[3]) +
+                    ((int64) ((int32) in2[3])) * ((int32) in[2]) +
+                    ((int64) ((int32) in2[1])) * ((int32) in[4]) +
+                    ((int64) ((int32) in2[4])) * ((int32) in[1]) +
+                    ((int64) ((int32) in2[0])) * ((int32) in[5]) +
+                    ((int64) ((int32) in2[5])) * ((int32) in[0]);
+  output[6] =  2 * (((int64) ((int32) in2[3])) * ((int32) in[3]) +
+                    ((int64) ((int32) in2[1])) * ((int32) in[5]) +
+                    ((int64) ((int32) in2[5])) * ((int32) in[1])) +
+                    ((int64) ((int32) in2[2])) * ((int32) in[4]) +
+                    ((int64) ((int32) in2[4])) * ((int32) in[2]) +
+                    ((int64) ((int32) in2[0])) * ((int32) in[6]) +
+                    ((int64) ((int32) in2[6])) * ((int32) in[0]);
+  output[7] =       ((int64) ((int32) in2[3])) * ((int32) in[4]) +
+                    ((int64) ((int32) in2[4])) * ((int32) in[3]) +
+                    ((int64) ((int32) in2[2])) * ((int32) in[5]) +
+                    ((int64) ((int32) in2[5])) * ((int32) in[2]) +
+                    ((int64) ((int32) in2[1])) * ((int32) in[6]) +
+                    ((int64) ((int32) in2[6])) * ((int32) in[1]) +
+                    ((int64) ((int32) in2[0])) * ((int32) in[7]) +
+                    ((int64) ((int32) in2[7])) * ((int32) in[0]);
+  output[8] =       ((int64) ((int32) in2[4])) * ((int32) in[4]) +
+               2 * (((int64) ((int32) in2[3])) * ((int32) in[5]) +
+                    ((int64) ((int32) in2[5])) * ((int32) in[3]) +
+                  ((int64) ((int32) in2[1])) * ((int32) in[7]) +
+                    ((int64) ((int32) in2[7])) * ((int32) in[1])) +
+                    ((int64) ((int32) in2[2])) * ((int32) in[6]) +
+                    ((int64) ((int32) in2[6])) * ((int32) in[2]) +
+                    ((int64) ((int32) in2[0])) * ((int32) in[8]) +
+                    ((int64) ((int32) in2[8])) * ((int32) in[0]);
+  output[9] =       ((int64) ((int32) in2[4])) * ((int32) in[5]) +
+                    ((int64) ((int32) in2[5])) * ((int32) in[4]) +
+                    ((int64) ((int32) in2[3])) * ((int32) in[6]) +
+                    ((int64) ((int32) in2[6])) * ((int32) in[3]) +
+                    ((int64) ((int32) in2[2])) * ((int32) in[7]) +
+                    ((int64) ((int32) in2[7])) * ((int32) in[2]) +
+                    ((int64) ((int32) in2[1])) * ((int32) in[8]) +
+                    ((int64) ((int32) in2[8])) * ((int32) in[1]) +
+                    ((int64) ((int32) in2[0])) * ((int32) in[9]) +
+                    ((int64) ((int32) in2[9])) * ((int32) in[0]);
+  output[10] = 2 * (((int64) ((int32) in2[5])) * ((int32) in[5]) +
+                    ((int64) ((int32) in2[3])) * ((int32) in[7]) +
+                    ((int64) ((int32) in2[7])) * ((int32) in[3]) +
+                    ((int64) ((int32) in2[1])) * ((int32) in[9]) +
+                    ((int64) ((int32) in2[9])) * ((int32) in[1])) +
+                    ((int64) ((int32) in2[4])) * ((int32) in[6]) +
+                    ((int64) ((int32) in2[6])) * ((int32) in[4]) +
+                    ((int64) ((int32) in2[2])) * ((int32) in[8]) +
+                    ((int64) ((int32) in2[8])) * ((int32) in[2]);
+  output[11] =      ((int64) ((int32) in2[5])) * ((int32) in[6]) +
+                    ((int64) ((int32) in2[6])) * ((int32) in[5]) +
+                    ((int64) ((int32) in2[4])) * ((int32) in[7]) +
+                    ((int64) ((int32) in2[7])) * ((int32) in[4]) +
+                    ((int64) ((int32) in2[3])) * ((int32) in[8]) +
+                    ((int64) ((int32) in2[8])) * ((int32) in[3]) +
+                    ((int64) ((int32) in2[2])) * ((int32) in[9]) +
+                    ((int64) ((int32) in2[9])) * ((int32) in[2]);
+  output[12] =      ((int64) ((int32) in2[6])) * ((int32) in[6]) +
+               2 * (((int64) ((int32) in2[5])) * ((int32) in[7]) +
+                    ((int64) ((int32) in2[7])) * ((int32) in[5]) +
+                    ((int64) ((int32) in2[3])) * ((int32) in[9]) +
+                    ((int64) ((int32) in2[9])) * ((int32) in[3])) +
+                    ((int64) ((int32) in2[4])) * ((int32) in[8]) +
+                    ((int64) ((int32) in2[8])) * ((int32) in[4]);
+  output[13] =      ((int64) ((int32) in2[6])) * ((int32) in[7]) +
+                    ((int64) ((int32) in2[7])) * ((int32) in[6]) +
+                    ((int64) ((int32) in2[5])) * ((int32) in[8]) +
+                    ((int64) ((int32) in2[8])) * ((int32) in[5]) +
+                    ((int64) ((int32) in2[4])) * ((int32) in[9]) +
+                    ((int64) ((int32) in2[9])) * ((int32) in[4]);
+  output[14] = 2 * (((int64) ((int32) in2[7])) * ((int32) in[7]) +
+                    ((int64) ((int32) in2[5])) * ((int32) in[9]) +
+                    ((int64) ((int32) in2[9])) * ((int32) in[5])) +
+                    ((int64) ((int32) in2[6])) * ((int32) in[8]) +
+                    ((int64) ((int32) in2[8])) * ((int32) in[6]);
+  output[15] =      ((int64) ((int32) in2[7])) * ((int32) in[8]) +
+                    ((int64) ((int32) in2[8])) * ((int32) in[7]) +
+                    ((int64) ((int32) in2[6])) * ((int32) in[9]) +
+                    ((int64) ((int32) in2[9])) * ((int32) in[6]);
+  output[16] =      ((int64) ((int32) in2[8])) * ((int32) in[8]) +
+               2 * (((int64) ((int32) in2[7])) * ((int32) in[9]) +
+                    ((int64) ((int32) in2[9])) * ((int32) in[7]));
+  output[17] =      ((int64) ((int32) in2[8])) * ((int32) in[9]) +
+                    ((int64) ((int32) in2[9])) * ((int32) in[8]);
+  output[18] = 2 *  ((int64) ((int32) in2[9])) * ((int32) in[9]);
+}
+
+/* Reduce a long form to a short form by taking the input
+ * mod 2^255 - 19
+ *
+ * On entry: |output[i]| < 14*2^54
+ * On exit: |output[0..8]| < 280*2^54 */
+export
+void
+freduce_degree(secret mut int64[] output)
+{
+  output[8] += output[18] << 4;
+  output[8] += output[18] << 1;
+  output[8] += output[18];
+  output[7] += output[17] << 4;
+  output[7] += output[17] << 1;
+  output[7] += output[17];
+  output[6] += output[16] << 4;
+  output[6] += output[16] << 1;
+  output[6] += output[16];
+  output[5] += output[15] << 4;
+  output[5] += output[15] << 1;
+  output[5] += output[15];
+  output[4] += output[14] << 4;
+  output[4] += output[14] << 1;
+  output[4] += output[14];
+  output[3] += output[13] << 4;
+  output[3] += output[13] << 1;
+  output[3] += output[13];
+  output[2] += output[12] << 4;
+  output[2] += output[12] << 1;
+  output[2] += output[12];
+  output[1] += output[11] << 4;
+  output[1] += output[11] << 1;
+  output[1] += output[11];
+  output[0] += output[10] << 4;
+  output[0] += output[10] << 1;
+  output[0] += output[10];
+}
+
+/* The following code only works on a two's complement system */
+
+/* return v / 2^26, using only shifts and adds.
+ *
+ * On entry: v can take any value. */
+//XXX: how to handle inline function?
+inline
+secret int64
+div_by_2_26(secret int64 v) 
+{
+  secret uint32 highword = (uint32) (((uint64) v) >> 32);
+  secret int32 sign = ((int32) highword) >> 31;
+  secret int32 roundoff = (int32) (((uint32) sign) >> 6);
+  return (v + roundoff) >> 26;
+}
+ 
+/* return v / (2^25), using only shifts and adds.
+ *
+ * On entry: v can take any value. */
+export
+secret int64
+div_by_2_25(secret int64 v)
+{
+  secret uint32 highword = (uint32) (((uint64) v) >> 32);
+  secret int32 sign = ((int32) highword) >> 31;
+  secret int32 roundoff = (int32) (((uint32) sign) >> 7);
+  return (v + roundoff) >> 25;
+}
+
+/* Reduce all coefficients of the short form input so that
+ * |x| < 2^26.
+ *
+ * On entry: |output[i]| < 280*2^54 */
+export
+void
+freduce_coefficients(secret mut int64[] output)
+{
+  output[10] = 0;
+
+  for(uint8 i = 0; i < 10; i += 2) {
+    //public uint8 i = j * 2;
+    secret mut int64 over = div_by_2_26(output[i]);
+
+    output[i] -= over << 26;
+    output[i+1] += over;
+
+    over = div_by_2_25(output[i+1]);
+    output[i+1] -= over << 25;
+    output[i+2] += over;
+  }
+
+  output[0] += output[10] << 4;
+  output[0] += output[10] << 1;
+  output[0] += output[10];
+
+  output[10] = 0;
+
+  //XXX: why do we need a block here in the original code?
+  //XXX: it seems like fact does not support this syntax?
+  
+  secret int64 over = div_by_2_26(output[0]);
+  output[0] -= over << 26;
+  output[1] += over;
+  
+}
+
+/* A helpful wrapper around fproduct: output = in * in2.
+ *
+ * On entry: |in[i]| < 2^27 and |in2[i]| < 2^27.
+ *
+ * output must be distinct to both inputs. The output is reduced degree
+ * (indeed, one need only provide storage for 10 limbs) and
+ * |output[i]| < 2^26. */
+export
+void
+fmul(secret mut int64[] output,
+     secret int64[] in,
+     secret int64[] in2)
+{
+  secret mut int64[19] t = arrzeros(19);
+  fproduct(ref t, in, in2);
+  /* |t[i]| < 14*2^54 */
+  freduce_degree(ref t);
+  freduce_coefficients(ref t);
+  /* |t[i]| < 2^26 */
+  memcpy_64(ref output, t);
+}
+
+/* Square a number: output = in**2
+ *
+ * output must be distinct from the input. The inputs are reduced coefficient
+ * form, the ouput is not.
+ *
+ * output[x] <= 14 * the largest product of the input limbs */
+export
+void
+fsquare_inner(secret mut int64[] output,
+              secret int64[] in)
+{
+  output[0] =       ((int64) ((int32) in[0])) * ((int32) in[0]);
+  output[1] =  2 *  ((int64) ((int32) in[0])) * ((int32) in[1]);
+  output[2] =  2 * (((int64) ((int32) in[1])) * ((int32) in[1]) +
+                    ((int64) ((int32) in[0])) * ((int32) in[2]));
+  output[3] =  2 * (((int64) ((int32) in[1])) * ((int32) in[2]) +
+                    ((int64) ((int32) in[0])) * ((int32) in[3]));
+  output[4] =       ((int64) ((int32) in[2])) * ((int32) in[2]) +
+               4 *  ((int64) ((int32) in[1])) * ((int32) in[3]) +
+               2 *  ((int64) ((int32) in[0])) * ((int32) in[4]);
+  output[5] =  2 * (((int64) ((int32) in[2])) * ((int32) in[3]) +
+                    ((int64) ((int32) in[1])) * ((int32) in[4]) +
+                    ((int64) ((int32) in[0])) * ((int32) in[5]));
+  output[6] =  2 * (((int64) ((int32) in[3])) * ((int32) in[3]) +
+                    ((int64) ((int32) in[2])) * ((int32) in[4]) +
+                    ((int64) ((int32) in[0])) * ((int32) in[6]) +
+               2 *  ((int64) ((int32) in[1])) * ((int32) in[5]));
+  output[7] =  2 * (((int64) ((int32) in[3])) * ((int32) in[4]) +
+                    ((int64) ((int32) in[2])) * ((int32) in[5]) +
+                    ((int64) ((int32) in[1])) * ((int32) in[6]) +
+                    ((int64) ((int32) in[0])) * ((int32) in[7]));
+  output[8] =       ((int64) ((int32) in[4])) * ((int32) in[4]) +
+               2 * (((int64) ((int32) in[2])) * ((int32) in[6]) +
+                    ((int64) ((int32) in[0])) * ((int32) in[8]) +
+               2 * (((int64) ((int32) in[1])) * ((int32) in[7]) +
+                    ((int64) ((int32) in[3])) * ((int32) in[5])));
+  output[9] =  2 * (((int64) ((int32) in[4])) * ((int32) in[5]) +
+                    ((int64) ((int32) in[3])) * ((int32) in[6]) +
+                    ((int64) ((int32) in[2])) * ((int32) in[7]) +
+                    ((int64) ((int32) in[1])) * ((int32) in[8]) +
+                    ((int64) ((int32) in[0])) * ((int32) in[9]));
+  output[10] = 2 * (((int64) ((int32) in[5])) * ((int32) in[5]) +
+                    ((int64) ((int32) in[4])) * ((int32) in[6]) +
+                    ((int64) ((int32) in[2])) * ((int32) in[8]) +
+               2 * (((int64) ((int32) in[3])) * ((int32) in[7]) +
+                    ((int64) ((int32) in[1])) * ((int32) in[9])));
+  output[11] = 2 * (((int64) ((int32) in[5])) * ((int32) in[6]) +
+                    ((int64) ((int32) in[4])) * ((int32) in[7]) +
+                    ((int64) ((int32) in[3])) * ((int32) in[8]) +
+                    ((int64) ((int32) in[2])) * ((int32) in[9]));
+  output[12] =      ((int64) ((int32) in[6])) * ((int32) in[6]) +
+               2 * (((int64) ((int32) in[4])) * ((int32) in[8]) +
+               2 * (((int64) ((int32) in[5])) * ((int32) in[7]) +
+                    ((int64) ((int32) in[3])) * ((int32) in[9])));
+  output[13] = 2 * (((int64) ((int32) in[6])) * ((int32) in[7]) +
+                    ((int64) ((int32) in[5])) * ((int32) in[8]) +
+                    ((int64) ((int32) in[4])) * ((int32) in[9]));
+  output[14] = 2 * (((int64) ((int32) in[7])) * ((int32) in[7]) +
+                    ((int64) ((int32) in[6])) * ((int32) in[8]) +
+               2 *  ((int64) ((int32) in[5])) * ((int32) in[9]));
+  output[15] = 2 * (((int64) ((int32) in[7])) * ((int32) in[8]) +
+                    ((int64) ((int32) in[6])) * ((int32) in[9]));
+  output[16] =      ((int64) ((int32) in[8])) * ((int32) in[8]) +
+               4 *  ((int64) ((int32) in[7])) * ((int32) in[9]);
+  output[17] = 2 *  ((int64) ((int32) in[8])) * ((int32) in[9]);
+  output[18] = 2 *  ((int64) ((int32) in[9])) * ((int32) in[9]);
+}
+
+/* fsquare sets output = in^2.
+ *
+ * On entry: The |in| argument is in reduced coefficients form and
+ * |in[i]| < 2^27
+ *
+ * On exit: The |output| argument is in reduced coefficients form
+ * (indeed, one need only provide storage for 10 limbs) and
+ * |out[i]| < 2^26. */
+export
+void
+fsquare(secret mut int64[] output,
+        secret int64[] in)
+{
+  secret mut int64[19] t = arrzeros(19);
+  fsquare_inner(ref t, in);
+
+  freduce_degree(ref t);
+  freduce_coefficients(ref t);
+
+  memcpy_64(ref output, t);
+}
+
+/* Take a little-endian, 32-byte number and expand it into polynomial form */
+void
+fexpand_F(secret mut int64[] output,
+          secret uint8[] input,
+          public uint8 n,
+          public uint8 start,
+          public uint8 shift,
+          public int32 mask)
+{
+  output[n] = ((((int64) input[start + 0]) | ((int64) input[start + 1]) << 8 |
+                ((int64) input[start + 2]) << 16 |
+                ((int64) input[start + 3]) << 24) >> (int32) shift) & mask;
+}
+
+export
+void
+fexpand(secret mut int64[] output,
+        secret uint8[] input)
+{
+  //XXX: #defin F
+  //currently I just move F out of the function
+  fexpand_F(ref output, input, 0, 0, 0, 0x3ffffff);
+  fexpand_F(ref output, input, 1, 3, 2, 0x1ffffff);
+  fexpand_F(ref output, input, 2, 6, 3, 0x3ffffff);
+  fexpand_F(ref output, input, 3, 9, 5, 0x1ffffff);
+  fexpand_F(ref output, input, 4, 12, 6, 0x3ffffff);
+  fexpand_F(ref output, input, 5, 16, 0, 0x1ffffff);
+  fexpand_F(ref output, input, 6, 19, 1, 0x3ffffff);
+  fexpand_F(ref output, input, 7, 22, 3, 0x1ffffff);
+  fexpand_F(ref output, input, 8, 25, 4, 0x3ffffff);
+  fexpand_F(ref output, input, 9, 28, 6, 0x1ffffff);
+}
+
+//XXX:here I just assume the if condition is always met
+/* This code only works when >> does sign-extension on negative numbers */
+
+/* s32_eq returns 0xffffffff iff a == b and zero otherwise. */
+export
+secret int32
+s32_eq(secret int32 a, 
+       secret int32 b)
+{
+  secret mut int32 a_ = a;
+  a_ = ~(a_ ^ b);
+  a_ &= a_ << 16;
+  a_ &= a_ << 8;
+  a_ &= a_ << 4;
+  a_ &= a_ << 2;
+  a_ &= a_ << 1;
+  return a_ >> 31;
+}
+
+/* s32_gte returns 0xffffffff if a >= b and zero otherwise, where 
+ * a and b are both non-negative */
+export
+secret int32
+s32_gte(secret int32 a,
+        secret int32 b)
+{
+  secret mut int32 a_ = a;
+  a_ -= b;
+  return ~(a_ >> 31);
+}
+
+/* Take a fully reduced polynomial form number and contract it
+ * into a little-endian, 32-byte array. */
+inline
+void
+fcontract_F(secret mut uint8[] output,
+            secret int32[] input,
+            public uint8 i,
+            public uint8 s)
+{
+  output[s+0] |= (uint8) (input[i] & 0xff);
+  output[s+1] = (uint8) ((input[i] >> 8) & 0xff);
+  output[s+2] = (uint8) ((input[i] >> 16) & 0xff);
+  output[s+3] = (uint8) ((input[i] >> 24) & 0xff);
+}
+
+export
+void
+fcontract(secret mut uint8[] output,
+          secret int64[] input_limbs)
+{
+  secret mut int32[10] input = arrzeros(10);
+  secret mut int32 mask = 0;
+  secret mut int32 carry = 0;
+
+  for (uint8 i = 0; i < 10; i += 1) {
+    //XXX: here input is int32[] and input_limbs is int64[]
+    // will it be automatically downcasted? No
+    input[i] = (int32) input_limbs[i];
+  }
+
+  for (uint8 j = 0; j < 2; j += 1) {
+    for (uint8 i = 0; i < 9; i += 1) {
+      if ((i & 1) == 1) {
+        mask = input[i] >> 31;
+        carry = -((input[i] & mask) >> 25);
+        input[i] = input[i] + (carry << 25);
+        input[i+1] = input[i+1] - carry;
+      } else {
+        mask = input[i] >> 31;
+        carry = -((input[i] & mask) >> 26);
+        input[i] = input[i] + (carry << 26);
+        input[i+1] = input[i+1] - carry;
+      }
+    }
+  }
+
+  //XXX: again, what is the block for?
+  //XXX: and the syntax is not supported in fact
+  mask = input[9] >> 31;
+  carry = -((input[9] & mask) >> 25);
+  input[9] = input[9] + (carry << 25);
+  input[0] = input[0] - (carry * 19);
+
+  //XXX: also a block here
+  mask = input[0] >> 31;
+  carry = -((input[0] & mask) >> 26);
+  input[0] = input[0] + (carry << 26);
+  input[1] = input[1] - carry;
+
+  for (uint8 j = 0; j < 2; j += 1) {
+    for (uint8 i = 0; i < 9; i += 1) {
+      if ((i & 1) == 1) {
+        carry = input[i] >> 25;
+        input[i] &= 0x1ffffff;
+        input[i+1] += carry;
+      } else {
+        carry = input[i] >> 26;
+        input[i] &= 0x3ffffff;
+        input[i+1] += carry;
+      }
+    }
+
+    carry = input[9] >> 25;
+    input[9] &= 0x1ffffff;
+    input[0] += 19 * carry;
+  }
+
+  mask = s32_gte(input[0], 0x3ffffed);
+  for (uint8 i = 1; i < 10; i += 1) {
+    if ((i & 1) == 1) {
+      mask &= s32_eq(input[i], 0x1ffffff);
+    } else {
+      mask &= s32_eq(input[i], 0x3ffffff);
+    }
+  }
+
+  /* mask is either 0xffffffff and zero otherwise */
+  input[0] -= mask & 0x3ffffed;
+
+  for (uint8 i = 1; i < 10; i += 1) {
+    if ((i & 1) == 1) {
+      input[i] -= mask & 0x1ffffff;
+    } else {
+      input[i] -= mask & 0x3ffffff;
+    }
+  }
+
+  input[1] = input[1] << 2;
+  input[2] = input[2] << 3;
+  input[3] = input[3] << 5;
+  input[4] = input[4] << 6;
+  input[6] = input[6] << 1;
+  input[7] = input[7] << 3;
+  input[8] = input[8] << 4;
+  input[9] = input[9] << 6;
+
+  //XXX: I moved inline function F out to fcontract_F
+  output[0] = 0;
+  output[16] = 0;
+  fcontract_F(ref output, input, 0,0);
+  fcontract_F(ref output, input, 1,3);
+  fcontract_F(ref output, input, 2,6);
+  fcontract_F(ref output, input, 3,9);
+  fcontract_F(ref output, input, 4,12);
+  fcontract_F(ref output, input, 5,16);
+  fcontract_F(ref output, input, 6,19);
+  fcontract_F(ref output, input, 7,22);
+  fcontract_F(ref output, input, 8,25);
+  fcontract_F(ref output, input, 9,28);
+}
+
+/* Input: Q, Q', Q-Q'
+ * Output: 2Q, Q+Q'
+ *
+ *   x2 z3: long form
+ *   x3 z3: long form
+ *   x z: short form, destroyed
+ *   xprime zprime: short form, destroyed
+ *   qmqp: short form, preserved
+ *
+ * On entry and exit, the absolute value of the limbs of all inputs and outputs
+ * are < 2^26. */
+export
+void
+fmonty(secret mut int64[] x2,
+       secret mut int64[] z2,
+       secret mut int64[] x3,
+       secret mut int64[] z3,
+       secret mut int64[] x,
+       secret mut int64[] z,
+       secret mut int64[] xprime,
+       secret mut int64[] zprime,
+       secret int64[] qmqp)
+{
+  secret mut int64[10] origx = arrzeros(10);
+  secret mut int64[10] origxprime = arrzeros(10);
+  secret mut int64[19] zzz = arrzeros(19);
+  secret mut int64[19] xx = arrzeros(19);
+  secret mut int64[19] zz = arrzeros(19);
+  secret mut int64[19] xxprime = arrzeros(19);
+  secret mut int64[19] zzprime = arrzeros(19);
+  secret mut int64[19] zzzprime = arrzeros(19);
+  secret mut int64[19] xxxprime = arrzeros(19);
+
+  memcpy_64(ref origx, x);
+
+  fsum(ref x, z);
+  fdifference(ref z, origx);
+
+  memcpy_64(ref origxprime, xprime);
+  fsum(ref xprime, zprime);
+  /* |xprime[i]| < 2^27 */
+  fdifference(ref zprime, origxprime);
+  /* |zprime[i]| < 2^27 */
+  fproduct(ref xxprime, xprime, z);
+  /* |xxprime[i]| < 14*2^54: the largest product of two limbs will be <
+   * 2^(27+27) and fproduct adds together, at most, 14 of those products.
+   * (Approximating that to 2^58 doesn't work out.) */
+  fproduct(ref zzprime, x, zprime);
+  /* |zzprime[i]| < 14*2^54 */
+  freduce_degree(ref xxprime);
+  freduce_coefficients(ref xxprime);
+  /* |xxprime[i]| < 2^26 */
+  freduce_degree(ref zzprime);
+  freduce_coefficients(ref zzprime);
+  /* |zzprime[i]| < 2^26 */
+  memcpy_64(ref origxprime, xxprime);
+  fsum(ref xxprime, zzprime);
+  /* |xxprime[i]| < 2^27 */
+  fdifference(ref zzprime, origxprime);
+  /* |zzprime[i]| < 2^27 */
+  fsquare(ref xxxprime, xxprime);
+  /* |xxxprime[i]| < 2^26 */
+  fsquare(ref zzzprime, zzprime);
+  /* |zzzprime[i]| < 2^26 */
+  fproduct(ref zzprime, zzzprime, qmqp);
+  /* |zzprime[i]| < 14*2^52 */
+  freduce_degree(ref zzprime);
+  freduce_coefficients(ref zzprime);
+  /* |zzprime[i]| < 2^26 */
+  
+  memcpy_64(ref x3, xxxprime);
+  memcpy_64(ref z3, zzprime);
+
+  fsquare(ref xx, x);
+  /* |xx[i]| < 2^26 */
+  fsquare(ref zz, z);
+  /* |zz[i]| < 2^26 */
+  fproduct(ref x2, xx, zz);
+  /* |x2[i]| < 14*2^52 */
+  freduce_degree(ref x2);
+  freduce_coefficients(ref x2);
+  /* |x2[i]| < 2^26 */
+  fdifference(ref zz, xx);  // does zz = xx - zz
+  /* |zz[i]| < 2^27 */
+
+  memset_64(ref zzz, 10, 9, 0);
+  
+  fscalar_product(ref zzz, zz, 121665);
+  /* |zzz[i]| < 2^(27+17) */
+  /* No need to call freduce_degree here:
+     fscalar_product doesn't increase the degree of its input. */
+  freduce_coefficients(ref zzz);
+  /* |zzz[i]| < 2^26 */
+  fsum(ref zzz, xx);
+  /* |zzz[i]| < 2^27 */
+  fproduct(ref z2, zz, zzz);
+  /* |z2[i]| < 14*2^(26+27) */
+  freduce_degree(ref z2);
+  freduce_coefficients(ref z2);
+  /* |z2|i| < 2^26 */
+}
+
+/* Conditional swap in constant time */
+export
+void
+swap_conditional(secret mut int64[19] a,
+                 secret mut int64[19] b,
+                 secret int64 iswap)
+{
+  secret int32 swap = (int32) -iswap;
+
+  for (uint8 i = 0; i < 10; i += 1) {
+    secret int32 x = swap & (((int32) a[i]) ^ ((int32) b[i]));
+    a[i] = ((int32) a[i]) ^ x;
+    b[i] = ((int32) b[i]) ^ x;
+  }
+}
+
+/* Calculates nQ where Q is the x-coordinate of a point on the 
+ * curve */
+inline
+void
+array_swap(secret mut int64[] a,
+           secret mut int64[] b)
+{
+  secret mut int64[] t = arrview(a, 0, len a);
+  memcpy_64(ref a, b);
+  memcpy_64(ref b, t);
+}
+
+export
+void 
+cmult(secret mut int64[] resultx,
+      secret mut int64[] resultz,
+      secret uint8[] n,
+      secret int64[] q)
+{
+  //XXX: stdlib function to initialize array with non-zero values
+  secret mut int64[19] a = arrzeros(19);
+  secret mut int64[19] b = arrzeros(19);
+  initarr_64(ref b, 1, 19);
+  secret mut int64[19] c = arrzeros(19);
+  initarr_64(ref c, 1, 19);
+  secret mut int64[19] d = arrzeros(19);
+
+  secret mut int64[] nqpqx = arrview(a, 0, 19);
+  secret mut int64[] nqpqz = arrview(b, 0, 19);
+  secret mut int64[] nqx = arrview(c, 0, 19);
+  secret mut int64[] nqz = arrview(d, 0, 19);
+  //XXX: there is a pointer limb *t
+  // might need to do some trick here to replace t
+  // or do we have array assignment (hope their length are all 19)?
+
+  //XXX: stdlib function to initialize array with non-zero values
+  secret mut int64[19] e = arrzeros(19);
+  secret mut int64[19] f = arrzeros(19);
+  initarr_64(ref f, 1, 19);
+  secret mut int64[19] g = arrzeros(19);
+  secret mut int64[19] h = arrzeros(19);
+  initarr_64(ref h, 1, 19);
+
+  secret mut int64[] nqpqx2 = arrview(e, 0, 19);
+  secret mut int64[] nqpqz2 = arrview(f, 0, 19);
+  secret mut int64[] nqx2 = arrview(g, 0, 19);
+  secret mut int64[] nqz2 = arrview(h, 0, 19);
+
+  memcpy_64(ref nqpqx, q);
+
+  for (uint8 i = 0; i < 32; i += 1) {
+    secret mut uint8 byte = n[31 - i];
+    for (uint8 j = 0; j < 8; j += 1) {
+      secret int64 bit = (int64) (byte >> 7);
+      
+      swap_conditional(ref nqx, ref nqpqx, bit);
+      swap_conditional(ref nqz, ref nqpqz, bit);
+      fmonty(ref nqx2, ref nqz2,
+             ref nqpqx2, ref nqpqz2,
+             ref nqx, ref nqz,
+             ref nqpqx, ref nqpqz,
+             q);
+      swap_conditional(ref nqx2, ref nqpqx2, bit);
+      swap_conditional(ref nqz2, ref nqpqz2, bit);
+
+      //XXX: it seems like this part is doing a bunch of
+      // array swapping. So I replaced it with some helper
+      // functions to bypass pointer assignment.
+      array_swap(ref nqx, ref nqx2);
+      array_swap(ref nqz, ref nqz2);
+      array_swap(ref nqpqx, ref nqpqx2);
+      array_swap(ref nqpqz, ref nqpqz2);
+    }
+  }
+
+  memcpy_64(ref resultx, nqx);
+  memcpy_64(ref resultz, nqz);
+}
+
+export
+void
+crecip(secret mut int64[] out,
+       secret int64[] z)
+{
+  secret mut int64[10] z2 = arrzeros(10);
+  secret mut int64[10] z9 = arrzeros(10);
+  secret mut int64[10] z11 = arrzeros(10);
+  secret mut int64[10] z2_5_0 = arrzeros(10);
+  secret mut int64[10] z2_10_0 = arrzeros(10);
+  secret mut int64[10] z2_20_0 = arrzeros(10);
+  secret mut int64[10] z2_50_0 = arrzeros(10);
+  secret mut int64[10] z2_100_0 = arrzeros(10);
+  secret mut int64[10] t0 = arrzeros(10);
+  secret mut int64[10] t1 = arrzeros(10);
+
+  fsquare(ref z2, z);
+  fsquare(ref t1, z2);
+  fsquare(ref t0, t1);
+  fmul(ref z9, t0, z);
+  fmul(ref z11, z9, z2);
+  fsquare(ref t0, z11);
+  fmul(ref z2_5_0, t0, z9);
+
+  fsquare(ref t0, z2_5_0);
+  fsquare(ref t1, t0);
+  fsquare(ref t0, t1);
+  fsquare(ref t1, t0);
+  fsquare(ref t0, t1);
+  fmul(ref z2_10_0, t0, z2_5_0);
+
+  fsquare(ref t0, z2_10_0);
+  fsquare(ref t1, t0);
+  //XXX: the original code uses for (i = 2; i < 10; i += 2)
+  // but i is never used inside the loop
+  for (uint8 i = 2; i < 10; i += 2) {
+    fsquare(ref t0, t1);
+    fsquare(ref t1, t0);
+  }
+  fmul(ref z2_20_0, t1, z2_10_0);
+
+  fsquare(ref t0, z2_20_0);
+  fsquare(ref t1, t0);
+  for (uint8 i = 0; i < 9; i += 1) {
+    fsquare(ref t0, t1);
+    fsquare(ref t1, t0);
+  }
+  fmul(ref t0, t1, z2_20_0);
+
+  fsquare(ref t1, t0);
+  fsquare(ref t0, t1);
+  for (uint8 i = 2; i < 10; i += 2) {
+    fsquare(ref t1, t0);
+    fsquare(ref t0, t1);
+  }
+  fmul(ref z2_50_0, t0, z2_10_0);
+
+  fsquare(ref t0, z2_50_0);
+  fsquare(ref t1, t0);
+  for (uint8 i = 2; i < 50; i += 2) {
+    fsquare(ref t0, t1);
+    fsquare(ref t1, t0);
+  }
+  fmul(ref z2_100_0, t1, z2_50_0);
+
+  fsquare(ref t1, z2_100_0);
+  fsquare(ref t0, t1);
+  for (uint8 i = 2; i < 100; i += 2) {
+    fsquare(ref t1, t0);
+    fsquare(ref t0, t1);
+  }
+  fmul(ref t1, t0, z2_100_0);
+
+  fsquare(ref t0, t1);
+  fsquare(ref t1, t0);
+  for (uint8 i = 2; i < 50; i += 2) {
+    fsquare(ref t0, t1);
+    fsquare(ref t1, t0);
+  }
+  fmul(ref t0, t1, z2_50_0);
+
+  fsquare(ref t1, t0);
+  fsquare(ref t0, t1);
+  fsquare(ref t1, t0);
+  fsquare(ref t0, t1);
+  fsquare(ref t1, t0);
+  fmul(ref out, t1, z11);
+}
+
+//XXX: should mypublic be secret or public?
+// since fcontract takes secret...
+export
+secret int32
+curve25519_donna(secret mut uint8[] mypublic,
+                 secret uint8[] _secret,
+                 secret uint8[] basepoint)
+{
+  secret mut int64[10] bp = arrzeros(10);
+  secret mut int64[10] x = arrzeros(10);
+  secret mut int64[11] z = arrzeros(11);
+  secret mut int64[10] zmone = arrzeros(10);
+  secret mut uint8[32] e = arrzeros(32);
+  
+  for (uint8 i = 0; i < 32; i += 1) {
+    e[i] = _secret[i];
+  }
+
+  e[0] &= 248;
+  e[31] &= 127;
+  e[31] |= 64;
+
+  fexpand(ref bp, basepoint);
+  cmult(ref x, ref z, e, bp);
+  crecip(ref zmone, z);
+  fmul(ref z, x, zmone);
+  fcontract(ref mypublic, z);
+  return 0;
+}
