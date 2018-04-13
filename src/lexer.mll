@@ -56,7 +56,7 @@ let keywords = [
   ("export",EXPORT);
   ("noinline",NOINLINE);
   ("struct",STRUCT);
-  ("embed",EMBED);
+  ("cacheline",CACHELINE);
 ]
 let _ = List.map add_keyword keywords
 }

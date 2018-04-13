@@ -40,7 +40,7 @@ let rec params_has_secret_refs xf_ctx = function
       match vty' with
         | RefVT(_,{data=Fixed label},{data=mut}) ->
           (mut = Mut && label = Secret) || params_has_secret_refs xf_ctx params
-        | ArrayVT(_,{data=Fixed label},{data=mut}) ->
+        | ArrayVT(_,{data=Fixed label},{data=mut},_) ->
           (mut = Mut && label = Secret) || params_has_secret_refs xf_ctx params
         | StructVT(s,{data=mut}) ->
           (mut = Mut && struct_has_secrets xf_ctx.sdecs s) || params_has_secret_refs xf_ctx params
@@ -53,7 +53,7 @@ let fdec_has_secret_refs xf_ctx p (fdec,everhi) =
     | _ -> false
 
 let r2bty { data=RefVT(b,ml,_) } = BaseET(b,ml)
-let a2bty { data=ArrayVT({data=ArrayAT(b,_)},ml,_) } = BaseET(b,ml)
+let a2bty { data=ArrayVT({data=ArrayAT(b,_)},ml,_,_) } = BaseET(b,ml)
 let b2rty l mut { data=BaseET(b,_); pos=p } =
   let ml = mkpos Fixed l in
     RefVT(b,ml,mut)

@@ -59,6 +59,10 @@ let etype_conv = pfunction
   | Ast.BaseET(b,l) ->
     BaseET(bconv b, mlconv l)
 
+let vattr_conv = function
+  | { Ast.cache_aligned; } ->
+    { cache_aligned; }
+
 let refvt_conv = pfunction
   | Ast.RefVT(b,l,m) ->
     RefVT(bconv b, mlconv l, mconv m)
@@ -66,19 +70,19 @@ let refvt_conv = pfunction
 
 let fieldtype_conv = pfunction
   | Ast.RefVT(b,l,m) ->
-    if m.data = Ast.Const then raise @@ cerr("unimplemented", p);
+    if m.data = Ast.Mut then raise @@ cerr("unimplemented", p);
     RefVT(bconv b, mlconv l, mconv m)
-  | Ast.ArrayVT(a,ml,m) ->
-    if m.data = Ast.Const then raise @@ cerr("unimplemented", p);
+  | Ast.ArrayVT(a,ml,m,attr) ->
+    if m.data = Ast.Mut then raise @@ cerr("unimplemented", p);
     let aconv = pfunction
       | Ast.ArrayAT(bt,le) ->
         let leconv = pfunction
           | Ast.LExpression ({data=Ast.IntLiteral n}) ->
             LIntLiteral n in
           ArrayAT(bconv bt, leconv le) in
-      ArrayVT(aconv a, mlconv ml, mconv m)
+      ArrayVT(aconv a, mlconv ml, mconv m, vattr_conv attr)
   | Ast.StructVT(s,m) ->
-    if m.data = Ast.Const then raise @@ cerr("unimplemented", p);
+    if m.data = Ast.Mut then raise @@ cerr("unimplemented", p);
     StructVT(s, mconv m)
 
 let inline_conv = function
@@ -221,7 +225,7 @@ let params_all_refs_above tc_ctx rpc params =
       begin
         match vty' with
           | RefVT(_,{data=Fixed l},{data=mut})
-          | ArrayVT(_,{data=Fixed l},{data=mut}) ->
+          | ArrayVT(_,{data=Fixed l},{data=mut},_) ->
             if (mut != Mut) || (rpc <$. l)
             then (checker (n+1) params)
             else n
@@ -256,8 +260,8 @@ and atype_conv_fill tc_ctx lexpr' = pfunction
 and refvt_conv_fill tc_ctx lexpr' = pfunction
   | Ast.RefVT(b,l,m) ->
     RefVT(bconv b, mlconv l, mconv m)
-  | Ast.ArrayVT(a,ml,m) ->
-    ArrayVT(atype_conv_fill tc_ctx lexpr' a, mlconv ml, mconv m)
+  | Ast.ArrayVT(a,ml,m,attr) ->
+    ArrayVT(atype_conv_fill tc_ctx lexpr' a, mlconv ml, mconv m, vattr_conv attr)
   | Ast.StructVT(s,m) ->
     if not (has_struct tc_ctx.sdecs s) then raise @@ cerr("struct " ^ s.data ^ " does not exist", p);
     StructVT(s,mconv m)
@@ -274,6 +278,7 @@ and tc_arg tc_ctx = pfunction
                 | ArrayVT _ ->
                   let ae',_ = tc_arrayexpr tc_ctx (mkpos Ast.ArrayVar lval) in
                     ByArray(ae', mkpos Const)
+                | _ -> raise @@ cerr("somethng wetn worng", p)
             end
         | _ -> ByValue (tc_expr tc_ctx e)
     end
@@ -306,7 +311,7 @@ and argtype_of tc_ctx = xfunction
       mkpos vt
   | ByArray({data=(aexpr,aty)}, mut) ->
     let b,ml = atype_out (mkpos aty) in
-    mkpos ArrayVT(b,ml,mut)
+    mkpos ArrayVT(b,ml,mut,default_var_attr)
 
 and tc_args ~xf_args tc_ctx p params args =
   match params,args with
@@ -349,7 +354,11 @@ and tc_lvalue tc_ctx = pfunction
     let (_,vt) = lval'.data in
     let StructVT(s,m) = vt in
     let Struct(_,fields) = (find_struct tc_ctx.sdecs s).data in
-    let Field(_,fvt) = (List.find (fun {data=Field(fn,_)} -> field.data = fn.data) fields).data in
+    let Field(_,fvt) =
+      try (List.find (fun {data=Field(fn,_)} -> field.data = fn.data) fields).data
+      with
+        | Not_found -> raise @@ cerr(Printf.sprintf "Unknown field: `%s`" field.data, field.pos)
+    in
     let fvt' = refvt_update_mut' (refvt_mut_out' vt) fvt in
       StructEl(lval', field), fvt'
 

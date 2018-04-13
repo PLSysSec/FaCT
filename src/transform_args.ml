@@ -15,10 +15,10 @@ open Pos
 let xf_param = function
 | Param(vn,
     {data=ArrayVT(
-      {data=ArrayAT(bt,{data=LIntLiteral(n); pos=p3}); pos=p2},ml,mt); pos=p1}) ->
+      {data=ArrayAT(bt,{data=LIntLiteral(n); pos=p3}); pos=p2},ml,mt,attr); pos=p1}) ->
   Param(vn,
     {data=ArrayVT(
-      {data=ArrayAT(bt,{data=LDynamic({data="";pos=p3}); pos=p3}); pos=p2},ml,mt); pos=p1})
+      {data=ArrayAT(bt,{data=LDynamic({data="";pos=p3}); pos=p3}); pos=p2},ml,mt,attr); pos=p1})
 | Param(vn,vt) ->
   Param(vn,vt)
 

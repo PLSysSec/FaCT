@@ -111,14 +111,14 @@ let declare_ct_verif verify_llvm llctx llmod keyword =
 
 let codegen_dec cg_ctx vt llvalue =
   let vt_to_et = function
-      | ArrayVT(at,lab,mut') -> ArrayET(at,lab,mut')
+      | ArrayVT(at,lab,mut',_) -> ArrayET(at,lab,mut')
       | _ -> raise CTVerifError
   in
   let extract_label = function
     | RefVT(bt,{data=Fixed(label)},_) ->
       let bt' = Codegen_utils.bt_to_llvm_ty cg_ctx.llcontext bt.data in
       Some(label,bt')
-    | ArrayVT(_,{data=Fixed(label)},_) as vt ->
+    | ArrayVT(_,{data=Fixed(label)},_,_) as vt ->
       let bt = expr_ty_to_base_ty (vt_to_et vt) in
       let ty = pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt) in
       Some(label,ty)
@@ -173,7 +173,7 @@ let generate_disjoint_regions verify_llvm regions cg_ctx arr_env =
     | LDynamic {data=""} ->
       let (vn : Tast.var_name),var = Env.find_var arr_env vn in
       let size = begin match var.data with
-        | ArrayVT({data=ArrayAT(_,({data=LIntLiteral s}))},_,_) -> s
+        | ArrayVT({data=ArrayAT(_,({data=LIntLiteral s}))},_,_,_) -> s
         | _ -> raise CTVerifError end in
         const_int (i64_type cg_ctx.llcontext) size
     | LDynamic var_name ->

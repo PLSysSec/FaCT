@@ -47,7 +47,7 @@ let gh_ety = xfunction
 
 let gh_vty x = xfunction
   | RefVT(b,l,m) -> Printf.sprintf "%s %s%s %s" (gh_label l) (gh_bty b) (gh_mut m) x
-  | ArrayVT(a,l,m) -> Printf.sprintf "%s %s%s %s%s" (gh_label l) (gh_amut m) (gh_aty a) x (gh_aty_post a)
+  | ArrayVT(a,l,m,_) -> Printf.sprintf "%s %s%s %s%s" (gh_label l) (gh_amut m) (gh_aty a) x (gh_aty_post a)
   | StructVT(s,m) -> Printf.sprintf "struct %s * %s%s" s.data (gh_amut m) x
 
 let gh_rty = function
@@ -82,7 +82,7 @@ let gh_field = xfunction
           (gh_label l)
           (gh_bty b)
           x.data
-      | ArrayVT(a,l,m) ->
+      | ArrayVT(a,l,m,_) ->
         Printf.sprintf
           "//   %s %s %s%s;"
           (gh_label l)

@@ -134,13 +134,13 @@ let get_size ctx = function
   | LDynamic var_name -> raise CodegenError
 
 let is_dynamic_sized_array = function
-  | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true
+  | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_,_) -> true
   | _ -> false
 
 let vt_to_llvm_ty (cg_ctx : codegen_ctx_record) = function
   | RefVT({data=base_type},maybe_label,_) ->
     bt_to_llvm_ty cg_ctx.llcontext base_type
-  | ArrayVT({data=ArrayAT(at,size)},maybe_label,_) ->
+  | ArrayVT({data=ArrayAT(at,size)},maybe_label,_,_) ->
     let arr_ty = bt_to_llvm_ty cg_ctx.llcontext at.data in
     let size = get_size cg_ctx size.data in
     (* TODO: Should we be passing arrays as a * or **? *)
@@ -156,7 +156,7 @@ let param_to_type cg_ctx = function
   | {data=Param(var_name,
     {data=RefVT({data=base_type},maybe_label,{data=Const})})} ->
     bt_to_llvm_ty cg_ctx.llcontext base_type
-  | {data=Param(var_name,{data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_)})} ->
+  | {data=Param(var_name,{data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_,_)})} ->
     begin
       match size.data with
         | LIntLiteral s ->
@@ -211,7 +211,7 @@ let make_name_et str = function
 
 let make_name_vt str = function
   | RefVT(_,ml,_) -> make_name str ml
-  | ArrayVT(_,ml,_) -> make_name str ml
+  | ArrayVT(_,ml,_,_) -> make_name str ml
   | StructVT _ -> make_name str (make_ast fake_pos (Fixed Public))
 
 let make_name_ll str llvalue =
@@ -257,7 +257,7 @@ let allocate_args cg_ctx args f =
         ()*)
       (* We cannot pass a static array to a function.
          Instead, it must be a dyn array *)
-      | ArrayVT({data=ArrayAT(bt,{data=lvar})},ml,_) ->
+      | ArrayVT({data=ArrayAT(bt,{data=lvar})},ml,_,attr) ->
         let ty = pointer_type(bt_to_llvm_ty cg_ctx.llcontext bt.data) in
         let name = make_name "arrarg" ml in
         let alloca = build_alloca ty name cg_ctx.builder in
@@ -493,7 +493,7 @@ let rec codegen_arg cg_ctx arg ty =
     | ByArray(arr,_) ->
       begin
         match ty.data with
-          | Param(name,{data=ArrayVT({data=ArrayAT(bt,lexpr)},ml,_)}) ->
+          | Param(name,{data=ArrayVT({data=ArrayAT(bt,lexpr)},ml,_,_)}) ->
             let arr',_ = codegen_array_expr cg_ctx name arr.data in
             let arr =
             begin
@@ -526,10 +526,10 @@ let rec codegen_arg cg_ctx arg ty =
       let var = codegen_lval cg_ctx r in
       match vt with
         | RefVT(_,ml,{data=Const})
-        | ArrayVT(_,ml,{data=Const}) ->
+        | ArrayVT(_,ml,{data=Const},_) ->
           build_load var (make_name "argref" ml) cg_ctx.builder
         | RefVT(_,_,{data=Mut})
-        | ArrayVT(_,_,{data=Mut}) -> var
+        | ArrayVT(_,_,{data=Mut},_) -> var
         | StructVT(_,{data=Mut}) ->
           build_load var (make_name_vt "structload" vt) cg_ctx.builder
 
@@ -802,11 +802,11 @@ and codegen_stm cg_ctx ret_ty = function
     false
   | {data=ArrayDec(var_name,var_type,arr_expr)} ->
     let bt_of_vt = function
-      | ArrayVT({data=ArrayAT(bt,_)},_,_) -> bt
+      | ArrayVT({data=ArrayAT(bt,_)},_,_,_) -> bt
       | _ -> raise CodegenError
     in
     let at_to_et = function
-      | ArrayVT(at,lab,mut') -> ArrayET(at,lab,mut')
+      | ArrayVT(at,lab,mut',_) -> ArrayET(at,lab,mut')
       | _ -> raise CodegenError
     in
     let bt_at_of_et = function
@@ -1057,7 +1057,7 @@ let field_to_type llctx sdecs = function
                 {data=RefVT({data=base_type},maybe_label,_)})} ->
     bt_to_llvm_ty llctx base_type
   | {data=Field(var_name,
-                {data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_)})} ->
+                {data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_,_)})} ->
     begin
       match size.data with
         | LIntLiteral s ->
