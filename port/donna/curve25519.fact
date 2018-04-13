@@ -197,7 +197,6 @@ freduce_degree(secret mut int64[] output)
 /* return v / 2^26, using only shifts and adds.
  *
  * On entry: v can take any value. */
-//XXX: how to handle inline function?
 inline
 secret int64
 div_by_2_26(secret int64 v) 
