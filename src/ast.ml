@@ -50,9 +50,11 @@ and expr_type' =
 [@@deriving show]
 and expr_type = expr_type' pos_ast [@@deriving show]
 
+and var_attr = { cache_aligned : bool }
+
 and variable_type' =
   | RefVT of base_type * label * mutability
-  | ArrayVT of array_type * label * mutability
+  | ArrayVT of array_type * label * mutability * var_attr
   | StructVT of struct_name * mutability
 [@@deriving show]
 and variable_type = variable_type' pos_ast [@@deriving show]
@@ -156,8 +158,10 @@ and param' =
 [@@deriving show]
 and param = param' pos_ast [@@deriving show]
 
+and is_pointer = bool
+
 and field' =
-  | Field of var_name * variable_type
+  | Field of var_name * variable_type * is_pointer
 [@@deriving show]
 and field = field' pos_ast [@@deriving show]
 
@@ -198,3 +202,5 @@ and top_level =
 | Statement of statement
 | Expression of expr
 [@@deriving show]
+
+let default_var_attr = { cache_aligned=false; }

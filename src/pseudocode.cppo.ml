@@ -63,9 +63,13 @@ let ps_ety = xfunction
   | BaseET(b,l) -> String.concat " " [ps_label l; ps_bty b]
   | ArrayET(a,l,m) -> String.concat " " [ps_aty a; ps_label l; ps_mut m]
 
+let ps_vattr { cache_aligned; } =
+  if cache_aligned then "cacheline "
+  else ""
+
 let ps_vty = xfunction
   | RefVT(b,l,m) -> Printf.sprintf "%s %s%s" (ps_label l) (ps_mut m) (ps_bty b)
-  | ArrayVT(a,l,m) -> Printf.sprintf "%s %s%s" (ps_label l) (ps_mut m) (ps_aty a)
+  | ArrayVT(a,l,m,attr) -> Printf.sprintf "%s%s %s%s" (ps_vattr attr) (ps_label l) (ps_mut m) (ps_aty a)
   | StructVT(s,m) -> Printf.sprintf "%sstruct %s" (ps_mut m) s.data
 
 let ps_unop = function

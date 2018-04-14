@@ -99,41 +99,41 @@ let aetype_to_lexpr' = xfunction
       lexpr.data
 
 let refvt_to_betype' = xfunction
-  | ArrayVT(a,ml,m) ->
+  | ArrayVT(a,ml,m,_) ->
     let ArrayAT(bt,lexpr) = a.data in
       BaseET(bt,ml)
 let refvt_to_betype = rebind refvt_to_betype'
 
 let arrayvt_to_refvt = pfunction
   | RefVT _ -> raise @@ cerr("expected an array, got a base type instead", p)
-  | ArrayVT(a,ml,m) ->
+  | ArrayVT(a,ml,m,_) ->
     let ArrayAT(bt,lexpr) = a.data in
       RefVT(bt,ml,m)
 
 let refvt_type_out = xfunction
   | RefVT(b,ml,m) -> b,ml,m
-  | ArrayVT(a,ml,m) -> (atype_to_btype a),ml,m
+  | ArrayVT(a,ml,m,_) -> (atype_to_btype a),ml,m
 
 let refvt_mut_out' = function
   | RefVT(_,_,m) -> m
-  | ArrayVT(_,_,m) -> m
+  | ArrayVT(_,_,m,_) -> m
   | StructVT(_,m) -> m
 
 let refvt_to_lexpr = xfunction
-  | ArrayVT(a,ml,m) ->
+  | ArrayVT(a,ml,m,_) ->
     let ArrayAT(bt,lexpr) = a.data in
       lexpr
 
 let refvt_to_lexpr_option = xfunction
   | RefVT _ -> None
-  | ArrayVT(a,ml,m) ->
+  | ArrayVT(a,ml,m,_) ->
     let ArrayAT(bt,lexpr) = a.data in
       Some lexpr.data
   | StructVT _ -> None
 
 let refvt_to_etype' = xfunction
   | RefVT(b,ml,_) -> BaseET(b, ml)
-  | ArrayVT(a,ml,m) -> ArrayET(a, ml, m)
+  | ArrayVT(a,ml,m,_) -> ArrayET(a, ml, m)
 let refvt_to_etype = rebind refvt_to_etype'
 
 let fname_of = xfunction
@@ -290,7 +290,7 @@ let check_can_be_passed_to { pos=p; data=argty} {data=paramty} =
                         (ps_label l1)
                         (ps_label l2), p);
       ()
-    | ArrayVT(a1,l1,m1), ArrayVT(a2,l2,m2) ->
+    | ArrayVT(a1,l1,m1,_), ArrayVT(a2,l2,m2,_) ->
       let ArrayAT(b1,lx1), ArrayAT(b2,lx2) = a1.data, a2.data in
       let lxmatch =
         match lx1.data, lx2.data with
@@ -362,7 +362,7 @@ let param_is_ldynamic = xfunction
   | Param(_,{data=vty'}) ->
     begin
       match vty' with
-        | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true
+        | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_,_) -> true
         | _ -> false
     end
 
@@ -381,7 +381,7 @@ let aetype_update_mut' mut = function
 
 let refvt_update_mut' mut = xfunction
   | RefVT(b,ml,_) -> RefVT(b, ml, mut)
-  | ArrayVT(a,ml,_) -> ArrayVT(a, ml, mut)
+  | ArrayVT(a,ml,_,attr) -> ArrayVT(a, ml, mut, attr)
   | StructVT(s,_) -> StructVT(s, mut)
 
 
@@ -397,10 +397,10 @@ let rec struct_has_secrets sdecs s =
   let sdec = find_struct sdecs s in
   let Struct(_,fields) = sdec.data in
     List.exists
-      (fun {data=Field(_,vt)} ->
+      (fun {data=Field(_,vt,_)} ->
          match vt.data with
            | RefVT(_,{data=Fixed label},_) -> label = Secret
-           | ArrayVT(_,{data=Fixed label},_) -> label = Secret
+           | ArrayVT(_,{data=Fixed label},_,_) -> label = Secret
            | StructVT(sn,_) -> struct_has_secrets sdecs sn
       )
       fields

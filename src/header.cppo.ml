@@ -47,7 +47,7 @@ let gh_ety = xfunction
 
 let gh_vty x = xfunction
   | RefVT(b,l,m) -> Printf.sprintf "%s %s%s %s" (gh_label l) (gh_bty b) (gh_mut m) x
-  | ArrayVT(a,l,m) -> Printf.sprintf "%s %s%s %s%s" (gh_label l) (gh_amut m) (gh_aty a) x (gh_aty_post a)
+  | ArrayVT(a,l,m,_) -> Printf.sprintf "%s %s%s %s%s" (gh_label l) (gh_amut m) (gh_aty a) x (gh_aty_post a)
   | StructVT(s,m) -> Printf.sprintf "struct %s * %s%s" s.data (gh_amut m) x
 
 let gh_rty = function
@@ -74,25 +74,28 @@ let gh_fdec fenv = xfunction
   | _ -> ""
 
 let gh_field = xfunction
-  | Field(x,vty) ->
+  | Field(x,vty,is_pointer) ->
     match vty.data with
-      | RefVT(b,l,m) ->
-        Printf.sprintf
-          "//   %s %s %s;"
-          (gh_label l)
-          (gh_bty b)
-          x.data
-      | ArrayVT(a,l,m) ->
+      | RefVT(b,l,_) ->
         Printf.sprintf
           "//   %s %s %s%s;"
           (gh_label l)
-          (gh_aty a)
+          (gh_bty b)
+          (if is_pointer then "*" else "")
           x.data
-          (gh_aty_post a)
-      | StructVT(s,m) ->
+      | ArrayVT(a,l,_,_) ->
         Printf.sprintf
-          "//   struct %s * %s;"
+          "//   %s %s%s %s%s;"
+          (gh_label l)
+          (gh_aty a)
+          (if is_pointer then " *" else "")
+          x.data
+          (if is_pointer then "" else gh_aty_post a)
+      | StructVT(s,_) ->
+        Printf.sprintf
+          "//   struct %s %s%s;"
           s.data
+          (if is_pointer then "*" else "")
           x.data
 
 let gh_sdec = xfunction

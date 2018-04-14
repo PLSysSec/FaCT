@@ -51,7 +51,8 @@ let to_type { data=t; pos=p } =
 %token COMMA
 %token LEN RIGHTARROW
 %token EXTERN INLINE EXPORT NOINLINE
-%token STRUCT EMBED DOT
+%token STRUCT DOT
+%token CACHELINE
 
 %token FD_START ST_START EX_START EX_END
 
@@ -225,13 +226,13 @@ base_variable_type:
 
 array_variable_type:
   | a=array_type
-    { mkpos (ArrayVT(a, mkpos Unknown, mkpos Const)) }
+    { mkpos (ArrayVT(a, mkpos Unknown, mkpos Const, default_var_attr)) }
   | l=label a=array_type
-    { mkpos (ArrayVT(a, l, mkpos Const)) }
+    { mkpos (ArrayVT(a, l, mkpos Const, default_var_attr)) }
   | m=mutability a=array_type
-    { mkpos (ArrayVT(a, mkpos Unknown, m)) }
+    { mkpos (ArrayVT(a, mkpos Unknown, m, default_var_attr)) }
   | l=label m=mutability a=array_type
-    { mkpos (ArrayVT(a, l, m)) }
+    { mkpos (ArrayVT(a, l, m, default_var_attr)) }
 
 %inline if_clause:
   | IF c=paren(expr) thens=block elses=loption(ELSE elses=else_clause { elses })
@@ -254,10 +255,15 @@ statement:
     { mkpos (BaseDec(x, b, e)) }
   | a=array_variable_type x=var_name ASSIGN ae=array_expr SEMICOLON
     { mkpos (ArrayDec(x, a, ae)) }
+  | CACHELINE a=array_variable_type x=var_name ASSIGN ae=array_expr SEMICOLON
+    { let { data=ArrayVT(a,l,m,attr) } = a in
+      let attr' = { attr with cache_aligned=true } in
+      let a' = { a with data=ArrayVT(a,l,m,attr') } in
+      mkpos (ArrayDec(x, a', ae)) }
   | MUT STRUCT s=struct_name x=var_name SEMICOLON (* XXX make this better *)
     { mkpos (StructDec(x, s)) }
   | a=array_variable_type x=var_name ASSIGN n=var_name RIGHTARROW e=expr SEMICOLON
-    { let { data=ArrayVT({ data=ArrayAT(b, l) }, _, _) } = a in
+    { let { data=ArrayVT({ data=ArrayAT(b, l) }, _, _, _) } = a in
       mkpos (ArrayDec(x, a, mkposrange(n,e) (ArrayComp(b, l, n, e)))) }
   | stmt=for_loop_update SEMICOLON
     { stmt }
@@ -293,9 +299,9 @@ param_type:
   | l=label m=mutability b=base_type
     { mkpos (RefVT(b, l, m)) }
   | l=label a=array_type
-    { mkpos (ArrayVT(a, l, mkpos Const)) }
+    { mkpos (ArrayVT(a, l, mkpos Const, default_var_attr)) }
   | l=label m=mutability a=array_type
-    { mkpos (ArrayVT(a, l, m)) }
+    { mkpos (ArrayVT(a, l, m, default_var_attr)) }
   | STRUCT s=struct_name
     { mkpos (StructVT(s, mkpos Const)) }
   | m=mutability STRUCT s=struct_name
@@ -308,20 +314,16 @@ param:
 field_type:
   | l=label b=base_type
     { mkpos (RefVT(b, l, mkpos Mut)) }
-  | EMBED l=label b=base_type
-    { mkpos (RefVT(b, l, mkpos Const)) }
   | l=label a=array_type
-    { mkpos (ArrayVT(a, l, mkpos Mut)) }
-  | EMBED l=label a=array_type
-    { mkpos (ArrayVT(a, l, mkpos Const)) }
+    { mkpos (ArrayVT(a, l, mkpos Mut, default_var_attr)) }
   | STRUCT s=struct_name
     { mkpos (StructVT(s, mkpos Mut)) }
-  | EMBED STRUCT s=struct_name
-    { mkpos (StructVT(s, mkpos Const)) }
 
 field:
   | t=field_type x=var_name SEMICOLON
-    { mkpos (Field(x, t)) }
+    { mkpos (Field(x, t, false)) }
+  | REF t=field_type x=var_name SEMICOLON
+    { mkpos (Field(x, t, true)) }
 
 function_dec:
   | export=boption(EXPORT) r=ret_type fn=fun_name params=plist(param) body=block
