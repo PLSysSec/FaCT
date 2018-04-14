@@ -15,6 +15,15 @@ memcpy(secret mut uint8[] dst, secret uint8[] src) {
 }
 
 // this should be in fact's stdlib
+inline
+secret uint16
+load16_be(secret uint8[2] buf) {
+  secret uint16 x2 = ((uint16)buf[0]) << 8 ;
+  secret uint16 x1 = ((uint16)buf[1]);
+  return x1 | x2;
+}
+
+// this should be in fact's stdlib
 inline void
 store16_be(secret mut uint8[2] buf, secret uint16 n) {
   buf[0] = (uint8)(n >> 8);
@@ -102,7 +111,7 @@ SHA1_Update_public(
                                               * big-endian values. */
 
   public uint64 l = ((uint64)(len _in)) << 3;
-  public uint64 N = ((((uint64)(ctx.Nh)) << 32) | ctx.Nl) + l;
+  secret uint64 N = ((((uint64)(ctx.Nh)) << 32) | ctx.Nl) + l;
   ctx.Nh += ((uint32)(N >> 32));
   ctx.Nl = (uint32)N;
 
@@ -111,7 +120,7 @@ SHA1_Update_public(
   public uint32 num = declassify(ctx.num);
   if (num > 0) {
     public uint32 res = len _in < SHA_CBLOCK - num ? len _in : SHA_CBLOCK - num;
-    memcpy(arrview(ctx.data, num, res), arrview(_in, 0, res));
+    memcpy(ref arrview(ctx.data, num, res), arrview(_in, 0, res));
     if (res + num == SHA_CBLOCK) {
       sha1_block_data_order(ref ctx, ctx.data, 1);
       ctx.num = 0;
@@ -130,7 +139,7 @@ SHA1_Update_public(
   }
 
   if (_len > 0) {
-    memcpy(arrview(ctx.data, 0, _len), arrview(_in, inp, _len));
+    memcpy(ref arrview(ctx.data, 0, _len), arrview(_in, inp, _len));
     ctx.num += _len;
   }
 }
@@ -147,7 +156,7 @@ SHA1_Update_secret(
                                               * big-endian values. */
 
   secret uint64 l = ((uint64)slen) << 3;
-  public uint64 N = ((((uint64)(ctx.Nh)) << 32) | ctx.Nl) + l;
+  secret uint64 N = ((((uint64)(ctx.Nh)) << 32) | ctx.Nl) + l;
   ctx.Nh += ((uint32)(N >> 32));
   ctx.Nl = (uint32)N;
 
@@ -157,7 +166,7 @@ SHA1_Update_secret(
   // assuming that we will never be called when there are leftover bytes
 
   public uint32 n = _len / SHA_CBLOCK;
-  secret bool done = false;
+  secret mut bool done = false;
   for (uint32 i = 0; i < n; i += 1) {
     public uint32 inp = i * SHA_CBLOCK;
     public uint32 _len = len _in - inp;
@@ -173,7 +182,7 @@ SHA1_Update_secret(
       if (!done) {
         // save the leftover bytes
         // but only the first time we cross slen
-        memcpy(ctx.data, arrview(_in, inp, _len));
+        memcpy(ref ctx.data, arrview(_in, inp, _len));
         ctx.num = slen & (SHA_CBLOCK - 1); // slen % SHA_CBLOCK
         done = true;
       }
@@ -217,7 +226,7 @@ SHA1_Final_public(
   ctx.num = 0;
   _memzero(ref ctx.data);
 
-  SHA1_MAKE_STRING(ctx, ref out);
+  SHA1_MAKE_STRING(ref ctx, ref out);
 }
 
 /**
@@ -229,7 +238,7 @@ SHA1_Final_secret(
     secret mut uint8[20] out,
     mut struct SHA_CTX ctx) {
 
-  secret len_in_first_block = ctx.num < ((len ctx.data) - 8);
+  secret bool len_in_first_block = ctx.num < ((len ctx.data) - 8);
 
   for (uint32 i = 0; i < len ctx.data; i += 1) {
     if (i == ctx.num) {
@@ -240,10 +249,10 @@ SHA1_Final_secret(
       if (len_in_first_block) {
         if (i >= ((len ctx.data) - 4)) {
           public uint32 shift = (len ctx.data - 1 - i) * 8;
-          ctx.data[i] = ctx.Nh >> shift;
+          ctx.data[i] = ((uint8)(ctx.Nh >> shift));
         } else if (i >= ((len ctx.data) - 8)) {
           public uint32 shift = (len ctx.data - 5 - i) * 8;
-          ctx.data[i] = ctx.Nl >> shift;
+          ctx.data[i] = ((uint8)(ctx.Nl >> shift));
         }
       }
     }
@@ -320,7 +329,7 @@ _aesni_cbc_hmac_sha1_cipher(
         arrview(_in, inp, _len),
         ref arrview(_out, outp, _len),
         _len,
-        ctx.key.ks,
+        ref ctx.key.ks,
         ref ctx.iv, 0);
 
     secret mut uint32 pad = _out[len _out - 1];
@@ -335,13 +344,13 @@ _aesni_cbc_hmac_sha1_cipher(
     store16_be(ref arrview(ctx.key.tls_aad, plen - 2, 2), (uint16)inp_len);
 
     /* calculate HMAC and verify it */
-    SHA_CTX_cpy(ref ctx.key.md, ctx.key.head);
+    SHA_CTX_cpy(ref ctx.key.md, ref ctx.key.head);
     SHA1_Update_public(ref ctx.key.md, arrview(ctx.key.tls_aad, 0, plen));
     SHA1_Update_secret(ref ctx.key.md, arrview(_out, outp, _len), inp_len);
     cacheline secret mut uint8[20] pmac = noinit(20); // SHA_DIGEST_LENGTH
     SHA1_Final_secret(ref pmac, ref ctx.key.md);
 
-    SHA_CTX_cpy(ref ctx.key.md, ctx.key.tail);
+    SHA_CTX_cpy(ref ctx.key.md, ref ctx.key.tail);
     SHA1_Update_public(ref ctx.key.md, pmac);
     SHA1_Final_public(ref pmac, ref ctx.key.md);
 
@@ -360,7 +369,9 @@ _aesni_cbc_hmac_sha1_cipher(
     }
   } else {
     /* decrypt HMAC|padding at once */
-    aesni_cbc_encrypt(_in, ref _out, len _out, ctx.key.ks_rd_key, ref ctx.iv, 0);
+    aesni_cbc_encrypt(_in, ref _out, len _out, ref ctx.key.ks, ref ctx.iv, 0);
     SHA1_Update_public(ref ctx.key.md, _out);
   }
+
+  return 1;
 }
