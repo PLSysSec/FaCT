@@ -70,10 +70,8 @@ let refvt_conv = pfunction
 
 let fieldtype_conv = pfunction
   | Ast.RefVT(b,l,m) ->
-    if m.data = Ast.Mut then raise @@ cerr("unimplemented", p);
     RefVT(bconv b, mlconv l, mconv m)
   | Ast.ArrayVT(a,ml,m,attr) ->
-    if m.data = Ast.Mut then raise @@ cerr("unimplemented", p);
     let aconv = pfunction
       | Ast.ArrayAT(bt,le) ->
         let leconv = pfunction
@@ -82,7 +80,6 @@ let fieldtype_conv = pfunction
           ArrayAT(bconv bt, leconv le) in
       ArrayVT(aconv a, mlconv ml, mconv m, vattr_conv attr)
   | Ast.StructVT(s,m) ->
-    if m.data = Ast.Mut then raise @@ cerr("unimplemented", p);
     StructVT(s, mconv m)
 
 let inline_conv = function
@@ -354,8 +351,8 @@ and tc_lvalue tc_ctx = pfunction
     let (_,vt) = lval'.data in
     let StructVT(s,m) = vt in
     let Struct(_,fields) = (find_struct tc_ctx.sdecs s).data in
-    let Field(_,fvt) =
-      try (List.find (fun {data=Field(fn,_)} -> field.data = fn.data) fields).data
+    let Field(_,fvt,_) =
+      try (List.find (fun {data=Field(fn,_,_)} -> field.data = fn.data) fields).data
       with
         | Not_found -> raise @@ cerr(Printf.sprintf "Unknown field: `%s`" field.data, field.pos)
     in
@@ -765,9 +762,9 @@ let tc_fdec fenv sdecs = xfunction
       fdec'
 
 let tc_field = pfunction
-  | Ast.Field(x,vty) ->
+  | Ast.Field(x,vty,is_pointer) ->
     let refvt = fieldtype_conv vty in
-      Field(x,refvt)
+      Field(x,refvt,is_pointer)
 
 let tc_sdec = xfunction
   | Ast.Struct(s,fields) -> mkpos Struct(s,List.map tc_field fields)

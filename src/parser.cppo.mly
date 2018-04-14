@@ -299,21 +299,17 @@ param:
 
 field_type:
   | l=label b=base_type
-    { mkpos (RefVT(b, l, mkpos Const)) }
-  | REF l=label b=base_type
     { mkpos (RefVT(b, l, mkpos Mut)) }
   | l=label a=array_type
-    { mkpos (ArrayVT(a, l, mkpos Const, default_var_attr)) }
-  | REF l=label a=array_type
     { mkpos (ArrayVT(a, l, mkpos Mut, default_var_attr)) }
   | STRUCT s=struct_name
-    { mkpos (StructVT(s, mkpos Const)) }
-  | REF STRUCT s=struct_name
     { mkpos (StructVT(s, mkpos Mut)) }
 
 field:
   | t=field_type x=var_name SEMICOLON
-    { mkpos (Field(x, t)) }
+    { mkpos (Field(x, t, false)) }
+  | REF t=field_type x=var_name SEMICOLON
+    { mkpos (Field(x, t, true)) }
 
 function_dec:
   | export=boption(EXPORT) r=ret_type fn=fun_name params=plist(param) body=block

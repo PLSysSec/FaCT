@@ -267,14 +267,8 @@ let allocate_args cg_ctx args f =
         build_store ll_arg alloca cg_ctx.builder |> ignore;
         (alloca, lvar, var_name)::acc
       | StructVT(s,_) ->
-        let struct_ty,_ = List.assoc s.data cg_ctx.sdecs in
-        let ty = pointer_type struct_ty in
-        let name = make_name "structarg" (make_ast fake_pos (Fixed Public)) in
-        let alloca = build_alloca ty name cg_ctx.builder in
-        (* XXX codegen_dec *)
-        Env.add_var cg_ctx.venv var_name alloca;
-        set_value_name name ll_arg;
-        build_store ll_arg alloca cg_ctx.builder |> ignore;
+        Env.add_var cg_ctx.venv var_name ll_arg;
+        set_value_name var_name.data ll_arg;
         acc
     in
 
@@ -529,9 +523,9 @@ let rec codegen_arg cg_ctx arg ty =
         | ArrayVT(_,ml,{data=Const},_) ->
           build_load var (make_name "argref" ml) cg_ctx.builder
         | RefVT(_,_,{data=Mut})
-        | ArrayVT(_,_,{data=Mut},_) -> var
-        | StructVT(_,{data=Mut}) ->
-          build_load var (make_name_vt "structload" vt) cg_ctx.builder
+        | ArrayVT(_,_,{data=Mut},_)
+        | StructVT _ ->
+          var
 
 and codegen_lval cg_ctx {data=(lval,vt);pos=p} =
   match lval with
@@ -554,10 +548,13 @@ and codegen_lval cg_ctx {data=(lval,vt);pos=p} =
       let StructVT(s,m) = vt in
       let sty, Struct(_,fields) = List.assoc s.data cg_ctx.sdecs in
       let fields' = List.mapi (fun i fld -> (i, fld.data)) fields in
-      let (fldi,Field(_,fvt)) = List.find (fun (i,Field(fn,_)) -> fn.data = field.data) fields' in
+      let (fldi,Field(_,fvt,is_pointer)) = List.find (fun (i,Field(fn,_,_)) -> fn.data = field.data) fields' in
       let st' = codegen_lval cg_ctx lv in
-      let st'' = build_load st' (make_name "structload" (make_ast fake_pos (Fixed Public))) cg_ctx.builder in
-        build_struct_gep st'' fldi (make_name_vt "structgep" fvt.data) cg_ctx.builder
+      let fieldloc = build_struct_gep st' fldi (make_name_vt "structgep" fvt.data) cg_ctx.builder in
+        if is_pointer then
+          build_load fieldloc (make_name_vt "fieldptrload" fvt.data) cg_ctx.builder
+        else
+          fieldloc
     | CheckedLval(stms, lval) ->
       List.map (codegen_stm cg_ctx None) stms;
       codegen_lval cg_ctx lval
@@ -1052,21 +1049,26 @@ let rec codegen_fdecs llcontext llmodule builder fenv sdecs verify = function
     ignore(codegen_fun llcontext llmodule builder fenv sdecs verify fd);
     codegen_fdecs llcontext llmodule builder fenv sdecs verify rest
 
-let field_to_type llctx sdecs = function
-  | {data=Field(var_name,
-                {data=RefVT({data=base_type},maybe_label,_)})} ->
-    bt_to_llvm_ty llctx base_type
-  | {data=Field(var_name,
-                {data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_,_)})} ->
+let field_to_type llctx sdecs {data=Field(_,
+                                          {data=vt},
+                                          is_pointer)} =
+  match vt with
+  | RefVT({data=base_type},maybe_label,_) ->
+    let basety = bt_to_llvm_ty llctx base_type in
+      if is_pointer then pointer_type basety else basety
+  | ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_,_) ->
+    let basety = bt_to_llvm_ty llctx bt.data in
     begin
       match size.data with
-        | LIntLiteral s ->
-          array_type (bt_to_llvm_ty llctx bt.data) s
+        | LIntLiteral s when not is_pointer ->
+          array_type basety s
+        | _ when is_pointer ->
+          pointer_type basety
     end
-  | {data=Field(var_name,
-                {data=StructVT(s,_)})} ->
+  | StructVT(s,_) ->
     let struct_ty,_ = List.assoc s.data sdecs in
-      pointer_type struct_ty
+    let basety = struct_ty in
+      if is_pointer then pointer_type basety else basety
 
 let codegen_sdec llctx sdecs {data=sdec} =
   let Struct(s,fields) = sdec in

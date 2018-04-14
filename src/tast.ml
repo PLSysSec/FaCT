@@ -145,7 +145,7 @@ and param = param' pos_ast [@@deriving show]
 and params = param list [@@deriving show]
 
 and field' =
-  | Field of var_name * variable_type
+  | Field of var_name * variable_type * is_pointer
 [@@deriving show]
 and field = field' pos_ast [@@deriving show]
 

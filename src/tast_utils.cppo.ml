@@ -389,7 +389,7 @@ let rec struct_has_secrets sdecs s =
   let sdec = find_struct sdecs s in
   let Struct(_,fields) = sdec.data in
     List.exists
-      (fun {data=Field(_,vt)} ->
+      (fun {data=Field(_,vt,_)} ->
          match vt.data with
            | RefVT(_,{data=Fixed label},_) -> label = Secret
            | ArrayVT(_,{data=Fixed label},_,_) -> label = Secret
