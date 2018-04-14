@@ -4,7 +4,7 @@ all: secretbox1.bin secretbox2.bin crypto_secretbox_wrapper.fpic.o
 
 .PRECIOUS: crypto_secretbox.h
 
-crypto_secretbox.o: stdlib.fact crypto_poly1305.fact crypto_secretbox.fact
+crypto_secretbox.o: stdlib.fact crypto_poly1305.fact u0.fact crypto_secretbox.fact
 	../../fact.byte $(FFLAGS) -ast-out -pseudocode -generate-header -llvm-out -debug $^
 
 crypto_secretbox.h: crypto_secretbox.o

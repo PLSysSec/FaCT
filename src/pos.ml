@@ -25,7 +25,7 @@ let pos_string { file=f; line=l; lpos=lp; rpos=rp } =
   f ^ ":" ^ string_of_int(l) ^
   ":" ^ string_of_int(lp) ^ "-" ^ string_of_int(rp)
 
-let unpack {data} = data
+let unpack fn {data} = fn data
 let posmap fn = fun pa -> { pa with data=(fn pa.data) }
 
 let wrap f pa = { pa with data=f pa.pos pa.data }

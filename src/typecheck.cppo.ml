@@ -45,6 +45,7 @@ let bconv = pfunction
   | Ast.UInt n -> UInt n
   | Ast.Int n -> Int n
   | Ast.Bool -> Bool
+  | Ast.UVec(bw,n) -> UVec(bw,n)
 
 let mlconv = pfunction
   | Ast.Public -> Fixed Public
@@ -434,6 +435,17 @@ and tc_expr tc_ctx = pfunction
             let args' = tc_args ~xf_args:false tc_ctx p params args in
               DebugFnCall(f,args'), rty.data
       end
+  | Ast.Shuffle(e,mask) ->
+    let e' = tc_expr tc_ctx e in
+    let BaseET(b, ml) = type_of' e' in
+    let UVec(bw, n) = b.data in
+    let len = List.length mask in
+    let b' =
+      if len = 1 then
+        UInt bw
+      else
+        UVec(bw, len) in
+      Shuffle(e',mask), BaseET(mkpos b', ml)
 
 (* returns ((Tast.array_expr', Tast.ArrayET), is_new_memory) *)
 and tc_arrayexpr' tc_ctx = xfunction

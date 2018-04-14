@@ -29,12 +29,15 @@ let is_int = xfunction
   | Int _ -> true
   | Num _ -> true
   | Bool -> false
+  | UVec _ -> true
 
-let is_signed = xfunction
+let is_signed' = function
   | Int _ -> true
   | UInt _ -> false
   | Num(_,s) -> s
   | Bool -> false
+  | UVec _ -> false
+let is_signed = unpack is_signed'
 
 let numbits = xfunction
   | UInt n
@@ -49,6 +52,10 @@ let numbits = xfunction
 
 let is_bool = xfunction
   | Bool -> true
+  | _ -> false
+
+let is_vec = xfunction
+  | UVec _ -> true
   | _ -> false
 
 let is_array = xfunction
@@ -98,6 +105,7 @@ let refvt_to_betype' = xfunction
 let refvt_to_betype = rebind refvt_to_betype'
 
 let arrayvt_to_refvt = pfunction
+  | RefVT _ -> raise @@ cerr("expected an array, got a base type instead", p)
   | ArrayVT(a,ml,m) ->
     let ArrayAT(bt,lexpr) = a.data in
       RefVT(bt,ml,m)
@@ -147,8 +155,7 @@ let (<:) { data=b1 } { data=b2 } =
     | Int n, Num(k,s) -> true
     | Num(k,s), UInt n when not s -> true
     | UInt n, Num(k,s) when not s -> true
-    | Num _, Num _ -> true
-    | String, String -> true
+    | a, b when a = b -> true
     | _ -> false
 
 let (=:) { data=b1 } { data=b2 } =
@@ -157,7 +164,7 @@ let (=:) { data=b1 } { data=b2 } =
     | Num _, Int _
     | UInt _, Num _
     | Int _, Num _ -> true
-    | x, y when x = y -> true
+    | a, b when a = b -> true
     | _ -> false
 
 let (<::) { data=ArrayAT(b1,lx1) } { data=ArrayAT(b2,lx2) } =
@@ -183,6 +190,7 @@ let join_bt p { data=b1 } { data=b2 } =
       | UInt n, Num(k,s) -> b1
       | String, String -> b1
       | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2) (* XXX max k1 k2 makes no sense *)
+      | a, b when a = b -> a
       | _ -> raise @@ cerr("type mismatch: " ^ show_base_type' b1 ^ " <> " ^ show_base_type' b2, p);
   in mkpos b'
 

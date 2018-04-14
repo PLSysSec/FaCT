@@ -29,6 +29,7 @@ and base_type' =
   | Int of size
   | Bool
   | String
+  | UVec of size * int
 [@@deriving show]
 and base_type = base_type' pos_ast [@@deriving show]
 
@@ -76,6 +77,7 @@ and expr' =
   | TernOp of expr * expr * expr
   | FnCall of fun_name * arg_exprs
   | Declassify of expr
+  | Shuffle of expr * int list
 [@@deriving show]
 and expr = expr' pos_ast [@@deriving show]
 

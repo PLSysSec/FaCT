@@ -135,6 +135,9 @@ class ast_visitor =
           | Inject(x,stms) ->
             let stms' = List.map visit#stm stms in
               Inject(x,stms')
+          | Shuffle(e,mask) ->
+            let e' = visit#expr e in
+              Shuffle(e', mask)
           | _ -> expr
       in
         mkpos (expr',ety)

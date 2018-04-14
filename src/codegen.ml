@@ -123,11 +123,7 @@ let get_intrinsic intrinsic cg_ctx =
     | Some fn -> fn
     | None -> declare_intrinsic cg_ctx intrinsic
 
-let is_signed = function
-  | UInt _   -> false
-  | Int _    -> true
-  | Bool     -> false
-  | Num(i,s) -> s
+let is_signed = Tast_utils.is_signed'
 
 let get_size ctx = function
   | LIntLiteral s -> s
@@ -303,6 +299,7 @@ let rec allocate_stack cg_ctx stms =
       | Declassify e -> allocate_inject e
       | Inject(_,stms) -> List.iter allocate_stack' stms
       | CheckedExpr(_,e) -> allocate_inject e
+      | Shuffle(e,_) -> allocate_inject e
       | _ -> ()
   and allocate_lval {data=(lval,_)} =
     match lval with
@@ -363,21 +360,31 @@ let rec allocate_stack cg_ctx stms =
   ignore(List.map allocate_stack' stms')
 
 let codegen_binop cg_ctx op e1 e2 ty ety b1 b2 ml b =
-  let e1_width = integer_bitwidth (type_of e1) in
-  let e2_width = integer_bitwidth (type_of e2) in
+  let e1_llty = type_of e1 in
+  let e2_llty = type_of e2 in
+  let get_base llty =
+    match classify_type llty with
+      | Integer -> llty
+      | Vector -> element_type llty
+  in
+  let e1_basellty = get_base e1_llty in
+  let e2_basellty = get_base e2_llty in
+  let e1_width = integer_bitwidth e1_basellty in
+  let e2_width = integer_bitwidth e2_basellty in
   let e1,e2 =
     match e1_width,e2_width with
       | w1,w2 when w1 < w2 ->
         let name = make_name "lhssext" ml in
         let build_ext = if is_signed b1.data then build_sext else build_zext in
         let e1' = (build_ext e1 (type_of e2)) name cg_ctx.builder in
-        e1',e2
+          e1',e2
       | w1,w2 when w1 > w2 -> 
         let name = make_name "rhssext" ml in
         let build_ext = if is_signed b2.data then build_sext else build_zext in
         let e2' = (build_ext e2 (type_of e1)) name cg_ctx.builder in
-        e1,e2'
-      | w1,w2 -> e1,e2 in
+          e1,e2'
+      | w1,w2 -> e1,e2
+  in
   let res = 
     match op with
       | Ast.Plus -> build_add e1 e2 (make_name "addtmp" ml) b
@@ -402,10 +409,22 @@ let codegen_binop cg_ctx op e1 e2 ty ety b1 b2 ml b =
       | Ast.BitwiseAnd -> build_and e1 e2 (make_name "andtmp" ml) b
       | Ast.BitwiseOr -> build_or e1 e2 (make_name  "ortmp" ml) b
       | Ast.BitwiseXor -> build_xor e1 e2 (make_name "xortmp" ml) b
-      | Ast.LeftShift -> build_shl e1 e2 (make_name "lshift" ml) b
+      | Ast.LeftShift ->
+        if (Tast_utils.is_vec b1) then
+          let e2 = const_intcast e2 e1_basellty false in
+          let e2' = const_vector [| e2; e2; e2; e2 |] in
+            build_shl e1 e2' (make_name "lshift" ml) b
+        else
+          build_shl e1 e2 (make_name "lshift" ml) b
       | Ast.RightShift when is_signed ty ->
         build_ashr e1 e2 (make_name "arshift" ml) b
-      | Ast.RightShift -> build_lshr e1 e2 (make_name "lrshift" ml) b
+      | Ast.RightShift ->
+        if (Tast_utils.is_vec b1) then
+          let e2 = const_intcast e2 e1_basellty false in
+          let e2' = const_vector [| e2; e2; e2; e2 |] in
+            build_lshr e1 e2' (make_name "lrshift" ml) b
+        else
+          build_lshr e1 e2 (make_name "lrshift" ml) b
       | Ast.LeftRotate ->
         (* counting on the optimizer to optimize this into a single instruction *)
         let UInt n = ty in
@@ -633,6 +652,21 @@ and codegen_expr cg_ctx = function
   | CheckedExpr(stms,e),_ ->
     List.map (codegen_stm cg_ctx None) stms |> ignore;
     codegen_expr cg_ctx e.data
+  | Shuffle(expr,mask),ty ->
+    let e = codegen_expr cg_ctx expr.data in
+    let llty = element_type (type_of e) in
+      begin
+        match mask with
+          | [i] ->
+            build_extractelement e (const_int llty i) (make_name_et "extracttmp" ty) cg_ctx.builder
+          | _ ->
+            let m = const_vector
+                      (Array.of_list
+                         (List.map
+                            (fun n -> const_int llty n)
+                            mask)) in
+              build_shufflevector e (undef (type_of e)) m (make_name_et "shuffletmp" ty) cg_ctx.builder
+      end
 
 and extend_to ctx builder signed dest et v =
   let llvm_et = expr_ty_to_llvm_ty ctx et in

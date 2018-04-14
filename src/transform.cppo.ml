@@ -171,6 +171,9 @@ and xf_expr' xf_ctx { data; pos=p } =
       | Declassify e ->
         let e' = xf_expr xf_ctx e in
           Declassify e'
+      | Shuffle(e,mask) ->
+        let e' = xf_expr xf_ctx e in
+          Shuffle(e',mask)
 and xf_expr xf_ctx ({ data=(e,ety) } as pa) = { pa with data=(xf_expr' xf_ctx pa, ety) }
 
 and xf_arrayexpr' xf_ctx { data; pos=p } =

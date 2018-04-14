@@ -20,11 +20,12 @@ let prindent ps_ctx n =
 #define inc ({ ps_ctx with indent=ps_ctx.indent+1 })
 
 let ps_bty = xfunction
-  | UInt n -> Printf.sprintf "uint%d" n
-  | Int  n -> Printf.sprintf  "int%d" n
-  | Bool   -> Printf.sprintf  "bool"
-  | Num _  -> Printf.sprintf "literal"
-  | String -> Printf.sprintf "string"
+  | UInt n     -> Printf.sprintf "uint%d" n
+  | Int n      -> Printf.sprintf "int%d" n
+  | Bool       -> Printf.sprintf "bool"
+  | Num _      -> Printf.sprintf "literal"
+  | String     -> Printf.sprintf "string"
+  | UVec(bw,n) -> Printf.sprintf "uint%d<%d>" bw n
 
 let ps_label' p = function
   | Public -> "public"

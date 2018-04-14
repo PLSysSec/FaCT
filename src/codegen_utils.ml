@@ -37,6 +37,7 @@ let bt_to_llvm_ty llctx = function
     in
       integer_type llctx (numbits i)
   | String -> pointer_type (i8_type llctx)
+  | UVec(bw,n) -> vector_type (integer_type llctx bw) n
 
 let expr_ty_to_base_ty = function
   | BaseET({data=base_type},_) -> base_type
