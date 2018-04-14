@@ -366,7 +366,7 @@ fsquare(secret mut int64[] output,
   freduce_degree(ref t);
   freduce_coefficients(ref t);
 
-  memcpy_64(ref output, t);
+  pmemcpy_64(ref output, t, 10);
 }
 
 /* Take a little-endian, 32-byte number and expand it into polynomial form */
@@ -587,12 +587,12 @@ fmonty(secret mut int64[] x2,
   secret mut int64[19] zzzprime = arrzeros(19);
   secret mut int64[19] xxxprime = arrzeros(19);
 
-  memcpy_64(ref origx, x);
+  pmemcpy_64(ref origx, x, 10);
 
   fsum(ref x, z);
   fdifference(ref z, origx);
 
-  memcpy_64(ref origxprime, xprime);
+  pmemcpy_64(ref origxprime, xprime, 10);
   fsum(ref xprime, zprime);
   /* |xprime[i]| < 2^27 */
   fdifference(ref zprime, origxprime);
