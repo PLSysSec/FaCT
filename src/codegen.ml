@@ -798,6 +798,7 @@ and codegen_stm cg_ctx ret_ty = function
     (*codegen_dec cg_ctx.verify_llvm var_type expr' cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;*)
     false
   | {data=ArrayDec(var_name,var_type,arr_expr)} ->
+    let ArrayVT(_,_,_,vattr) = var_type.data in
     let bt_of_vt = function
       | ArrayVT({data=ArrayAT(bt,_)},_,_,_) -> bt
       | _ -> raise CodegenError
@@ -813,6 +814,9 @@ and codegen_stm cg_ctx ret_ty = function
     let arr_expr, _ = arr_expr.data in
     let left_ty = at_to_et var_type.data in
     let alloca,add_to_type_env = codegen_array_expr cg_ctx var_name (arr_expr, left_ty) in
+      set_value_name (make_name_vt var_name.data var_type.data) alloca;
+      if vattr.cache_aligned then
+        set_alignment 32 alloca; (* XXX 32 is architecture specific or something *)
     let ct_verif_ty = bt_to_llvm_ty cg_ctx.llcontext (bt_of_vt var_type.data).data in
     let ct_verif_ty' = pointer_type ct_verif_ty in
     (*let alloca' = build_bitcast alloca ct_verif_ty' "ddd" cg_ctx.builder in
