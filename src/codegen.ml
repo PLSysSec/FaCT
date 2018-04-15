@@ -320,9 +320,7 @@ let rec allocate_stack cg_ctx stms =
       let llvm_ty = vt_to_llvm_ty cg_ctx var_type.data in
       let ptr_ty = pointer_type llvm_ty in
       let name = make_name_vt var_name.data var_type.data in
-      let alloca' = build_alloca llvm_ty name cg_ctx.builder in
-      let alloca = build_alloca ptr_ty name cg_ctx.builder in
-      build_store alloca' alloca cg_ctx.builder;
+      let alloca = build_alloca llvm_ty name cg_ctx.builder in
       Env.add_var cg_ctx.venv var_name alloca;
       Env.add_var cg_ctx.vtenv var_name var_type
     | {data=Assign(lv,expr)} -> allocate_lval lv; allocate_inject expr
