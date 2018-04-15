@@ -163,14 +163,12 @@ SHA1_Update_secret(
 
   for (uint32 i = 0; i < len _in; i += 1) {
     public uint32 j = (ctx.num + i) % SHA_CBLOCK; // index into ctx.data
-    secret uint8 uu = ((uint8)(i < slen ? j : 0));
     if (i < slen) {
       ctx.data[j] = _in[i];
     }
     if (j == SHA_CBLOCK - 1) {
       secret uint32[5] h = arrcopy(ctx.h);
       sha1_block_data_order(ref ctx, ctx.data, 1);
-      secret uint8 uu = i >= slen ? 0 : 1;
       if (i >= slen) {
         // roll back state
         for (uint32 k = 0; k < 5; k += 1) {
