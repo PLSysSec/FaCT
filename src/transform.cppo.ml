@@ -73,8 +73,17 @@ let b2rty l mut { data=BaseET(b,_); pos=p } =
 #define ctx (band(band(bctx,rctx), \
                   if Env.has_var xf_ctx.venv (mkpos "__fctx") then bvar((mkpos "__fctx")) else sebool(True)))
 
+let join_ty'' p ty1 ty2 =
+  let unbool ty =
+    let b,ml = type_out ty in
+    let b' = if b.data = Bool then UInt 8 else b.data in
+    let ty' = {ty with data=BaseET({b with data=b'},ml)} in
+      ty'
+  in
+    join_ty' p (unbool ty1) (unbool ty2)
+
 let selty p e1 e2 =
-  let BaseET(b',ml') = join_ty' p (type_of e1) (type_of e2) in
+  let BaseET(b',ml') = join_ty'' p (type_of e1) (type_of e2) in
     BaseET(b',mkpos Fixed Secret)
 
 #define ctx_select(e1,e2) (mkpos (Select(ctx,e1,e2), selty p e1 e2))
@@ -285,7 +294,7 @@ and xf_stm' xf_ctx p = function
         thenstms', elsestms' in
     let cond' = xf_expr xf_ctx cond in
       if is_expr_secret cond' then
-        let vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
+        let vt = mkpos RefVT(mkpos UInt 8, mkpos Fixed Secret, mkpos Const) in
         let tname = mkpos new_temp_var () in
         let mdec = BaseDec(tname, vt, cond') in
         let entry = (tname, vt) in
@@ -382,7 +391,7 @@ let xf_fdec fenv sdecs everhi = pfunction
       let params' = if (params_has_secret_refs xf_ctx params) && !everhi
         then
           let fctx = mkpos "__fctx" in
-          let fctx_vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
+          let fctx_vt = mkpos RefVT(mkpos UInt 8, mkpos Fixed Secret, mkpos Const) in
           let fctx_param = mkpos Param(fctx, fctx_vt) in
           let entry = (fctx, fctx_vt) in
             Env.add_var venv fctx entry;
