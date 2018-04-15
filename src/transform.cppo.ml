@@ -58,12 +58,12 @@ let b2rty l mut { data=BaseET(b,_); pos=p } =
   let ml = mkpos Fixed l in
     RefVT(b,ml,mut)
 
-#define sbool (BaseET(mkpos Bool, mkpos Fixed Secret))
-#define svbool (RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const))
+#define sbool (BaseET(mkpos UInt 8, mkpos Fixed Secret))
+#define svbool (RefVT(mkpos UInt 8, mkpos Fixed Secret, mkpos Const))
 #define sebool(e) (mkpos (e, sbool))
-#define band(e1,e2) sebool(BinOp(Ast.LogicalAnd,e1,e2))
-#define bor(e1,e2) sebool(BinOp(Ast.LogicalOr,e1,e2))
-#define bnot(e1) sebool(UnOp(Ast.LogicalNot,e1))
+#define band(e1,e2) sebool(BinOp(Ast.BitwiseAnd,e1,e2))
+#define bor(e1,e2) sebool(BinOp(Ast.BitwiseOr,e1,e2))
+#define bnot(e1) sebool(UnOp(Ast.BitwiseNot,e1))
 #define blval(x) (mkpos (Base x,svbool))
 #define bvar(x) sebool(Lvalue(blval(x)))
 
@@ -95,9 +95,10 @@ let is_zero p e =
     msb p bw bitand
 
 #define _u8 (BaseET(mkpos UInt 8, mkpos Fixed Secret))
+#define _ubx (BaseET(bx, mkpos Fixed Secret))
 #define _uop(op,a) (mkpos (UnOp(op,a), _u8))
 #define _not(a) (_uop(Ast.BitwiseNot,a))
-#define _bop(op,a,b) (mkpos (BinOp(op,a,b), _u8))
+#define _bop(op,a,b) (mkpos (BinOp(op,a,b), _ubx))
 #define _sub(a,b) (_bop(Ast.Minus,a,b))
 #define _and(a,b) (_bop(Ast.BitwiseAnd,a,b))
 #define _or(a,b) (_bop(Ast.BitwiseOr,a,b))
@@ -105,21 +106,23 @@ let is_zero p e =
 
 let expr_of' {data=(e,_)} = e
 
-let lt p a b =
+let lt p s a b =
   let b1 = expr_to_btype a in
   let b2 = expr_to_btype b in
   let bx = join_bt p b1 b2 in
   let bw = numbits bx in
-  let x = _xor(a,b) in
+  let z = _sub(a,b) in
   msb p bw
-    (_xor(a,
-          _or(_xor(a,b),
-              _xor(_sub(a,b),
-                   b))))
-let gt p a b = lt p b a
-let ge p a b = expr_of' _not(mkpos (lt p a b,_u8))
-let le p a b = ge p b a
+    (_xor(z,
+          _and(_xor(b,a),
+               _xor((if s then a else b),z))))
+let gt p s a b = lt p s b a
+let ge p s a b = expr_of' _not(mkpos (lt p s a b,_u8))
+let le p s a b = ge p s b a
 let eq p a b =
+  let b1 = expr_to_btype a in
+  let b2 = expr_to_btype b in
+  let bx = join_bt p b1 b2 in
   is_zero p _xor(a,b)
 let neq p a b = expr_of' _not(mkpos (eq p a b,_u8))
 
@@ -164,32 +167,34 @@ and xf_expr' xf_ctx { data; pos=p } =
         let e' = xf_expr xf_ctx e in
           UnOp(op,e')
       | BinOp(op,e1,e2) ->
-        if is_expr_secret e1 then
-          match op with
-            | Ast.LogicalAnd ->
-              let { data=(expr,ety) } = xf_expr xf_ctx (mkpos (TernOp(e1,e2,sebool(False)), sbool)) in
-                expr
-            | Ast.LogicalOr ->
-              let { data=(expr,ety) } = xf_expr xf_ctx (mkpos (TernOp(e1,sebool(True),e2), sbool)) in
-                expr
-            | _ ->
-              let e1' = xf_expr xf_ctx e1 in
-              let e2' = xf_expr xf_ctx e2 in
-                BinOp(op,e1',e2')
-        else
+        let basic_xf () =
           let e1' = xf_expr xf_ctx e1 in
           let e2' = xf_expr xf_ctx e2 in
+          let BaseET(b,_) = ety in
             if is_type_secret ety then
               match op with
                 | Ast.Equal -> eq p e1' e2'
                 | Ast.NEqual -> neq p e1' e2'
-                | Ast.LT -> lt p e1' e2'
-                | Ast.LTE -> le p e1' e2'
-                | Ast.GT -> gt p e1' e2'
-                | Ast.GTE -> ge p e1' e2'
+                | Ast.LT -> lt p (is_signed b) e1' e2'
+                | Ast.LTE -> le p (is_signed b) e1' e2'
+                | Ast.GT -> gt p (is_signed b) e1' e2'
+                | Ast.GTE -> ge p (is_signed b) e1' e2'
                 | _ -> BinOp(op,e1',e2')
             else
               BinOp(op,e1',e2')
+        in
+          if is_expr_secret e1 then
+            match op with
+              | Ast.LogicalAnd ->
+                let { data=(expr,ety) } = xf_expr xf_ctx (mkpos (TernOp(e1,e2,sebool(False)), sbool)) in
+                  expr
+              | Ast.LogicalOr ->
+                let { data=(expr,ety) } = xf_expr xf_ctx (mkpos (TernOp(e1,sebool(True),e2), sbool)) in
+                  expr
+              | _ ->
+                basic_xf()
+          else
+            basic_xf ()
       | TernOp(e1,e2,e3) ->
         let e1' = xf_expr xf_ctx e1 in
           if is_expr_secret e1' then

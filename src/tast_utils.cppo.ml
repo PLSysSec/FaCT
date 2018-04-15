@@ -35,7 +35,7 @@ let is_signed' = function
   | Int _ -> true
   | UInt _ -> false
   | Num(_,s) -> s
-  | Bool -> false
+  | Bool -> true
   | UVec _ -> false
 let is_signed = unpack is_signed'
 

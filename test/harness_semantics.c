@@ -102,13 +102,13 @@ void test_multiply(void) {
 }
 
 void test_equal(void) {
-  TEST_ASSERT_EQUAL(1,equal(1,1));
+  TEST_ASSERT_EQUAL(255,equal(1,1));
   TEST_ASSERT_EQUAL(0,equal(1,11));
 }
 
 void test_nequal(void) {
   TEST_ASSERT_EQUAL(0,nequal(1,1));
-  TEST_ASSERT_EQUAL(1,nequal(1,11));
+  TEST_ASSERT_EQUAL(255,nequal(1,11));
 }
 
 void test_lshift(void) {
@@ -128,27 +128,27 @@ void test_rshift(void) {
 void test_gt(void) {
   TEST_ASSERT_EQUAL(0,gt(1,1));
   TEST_ASSERT_EQUAL(0,gt(0,1));
-  TEST_ASSERT_EQUAL(1,gt(1,0));
-  TEST_ASSERT_EQUAL(1,gt(111,11));
+  TEST_ASSERT_EQUAL(255,gt(1,0));
+  TEST_ASSERT_EQUAL(255,gt(111,11));
 }
 
 void test_gte(void) {
-  TEST_ASSERT_EQUAL(1,gte(1,1));
+  TEST_ASSERT_EQUAL(255,gte(1,1));
   TEST_ASSERT_EQUAL(0,gte(0,1));
-  TEST_ASSERT_EQUAL(1,gte(1,0));
-  TEST_ASSERT_EQUAL(1,gte(111,11));
+  TEST_ASSERT_EQUAL(255,gte(1,0));
+  TEST_ASSERT_EQUAL(255,gte(111,11));
 }
 
 void test_lt(void) {
   TEST_ASSERT_EQUAL(0,lt(1,1));
-  TEST_ASSERT_EQUAL(1,lt(0,1));
+  TEST_ASSERT_EQUAL(255,lt(0,1));
   TEST_ASSERT_EQUAL(0,lt(1,0));
   TEST_ASSERT_EQUAL(0,lt(111,11));
 }
 
 void test_lte(void) {
-  TEST_ASSERT_EQUAL(1,lte(1,1));
-  TEST_ASSERT_EQUAL(1,lte(0,1));
+  TEST_ASSERT_EQUAL(255,lte(1,1));
+  TEST_ASSERT_EQUAL(255,lte(0,1));
   TEST_ASSERT_EQUAL(0,lte(1,0));
   TEST_ASSERT_EQUAL(0,lte(111,11));
 }

@@ -640,15 +640,14 @@ and codegen_expr cg_ctx = function
     e
   | Select(expr1,expr2,expr3), ty ->
     let e1 = codegen_expr cg_ctx expr1.data in
-    let e1' = build_is_not_null e1 (make_name_et "condtmp" ty) cg_ctx.builder in
     let ty' = expr_ty_to_llvm_ty cg_ctx ty in
     let e2 = codegen_ext cg_ctx ty' expr2 in
     let e3 = codegen_ext cg_ctx ty' expr3 in
 
-    let m = build_sext e1' ty' (make_name_et "selectmask" ty) cg_ctx.builder in
+    let m = build_sext e1 ty' (make_name_et "selectmask" ty) cg_ctx.builder in
     let xor = build_xor e2 e3 (make_name_et "selectxor" ty) cg_ctx.builder in
     let t = build_and m xor (make_name_et "selectand" ty) cg_ctx.builder in
-      build_xor e2 t (make_name_et "selecttmp" ty) cg_ctx.builder
+      build_xor e3 t (make_name_et "selecttmp" ty) cg_ctx.builder
   | Inject(var_name,stms), ty ->
     let ret_ty = None in
     ignore(List.map (codegen_stm cg_ctx ret_ty) stms);
