@@ -29,6 +29,7 @@ type args_record = {
   opt_level   : opt_level;
   opt_limit   : seconds option;
   verify_opts : string option;
+  shared      : bool;
 }
 
 let run_command c args =
@@ -148,7 +149,8 @@ let output_object out_file =
   run_command "clang" [|"clang"; "-c"; out_file_s; "-o"; out_file_o|];
   run_command "clang" [|"clang"; "-c"; out_file_fpic_s; "-o"; out_file_fpic|]
 
-let output_shared_object out_file =
+let output_shared_object out_file args =
+  if not args.shared then () else
   let out_file_s = out_file ^ ".s" in
   let out_file_fpic_s = out_file ^ ".fpic.s" in
   let out_file_o = out_file ^ ".so" in
@@ -291,7 +293,7 @@ let compile (in_files,out_file,out_dir) args =
           output_llvm args.llvm_out out_file' llvm_mod;
           output_bitcode out_file' llvm_mod;
           output_assembly out_file';
-          output_shared_object out_file';
+          output_shared_object out_file' args;
           output_object out_file'
         | Debugfun.PROD -> () end;
         exit 1 |> ignore;
@@ -315,7 +317,7 @@ let compile (in_files,out_file,out_dir) args =
   output_llvm args.llvm_out out_file' llvm_mod;
   output_bitcode out_file' llvm_mod;
   output_assembly out_file';
-  output_shared_object out_file';
+  output_shared_object out_file' args;
   output_object out_file'
   (*let core_ir = transform tast in
   Log.debug "Core IR transform complete";
