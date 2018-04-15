@@ -116,9 +116,10 @@ if [[ -n $BENCHMARKS ]]; then
   sed -i -e '/int main(void)/istatic void prcomma(unsigned long long diff) \{\n  if (diff < 1000) \{\n    printf("%llu", diff);\n    return;\n  \}\n  prcomma(diff / 1000);\n  printf(",%03llu", diff % 1000);\n\}\n' cmptest.h
   sed -i -e 's/.*printf.*ITERATIONS.*/    prcomma(1000000ULL * (ts_end - ts_start) \/ ITERATIONS);\n    printf("\\n");/' cmptest.h
   sed -i -e '/#undef  printf/i#undef  assert\n#define assert(x) do { } while(0)' cmptest.h
+  echo >> ../../benchmarks.log
   date >> ../../benchmarks.log
   if [[ -z $NO_FACT ]]; then
-    echo "FaCT implemenetation" >> ../../benchmarks.log
+    echo "FaCT implementation" >> ../../benchmarks.log
   else
     echo "C implementation, asm: $ASM" >> ../../benchmarks.log
   fi
