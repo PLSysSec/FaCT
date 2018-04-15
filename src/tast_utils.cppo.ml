@@ -42,7 +42,7 @@ let is_signed = unpack is_signed'
 let numbits = xfunction
   | UInt n
   | Int n -> n
-  | Bool -> 1
+  | Bool -> 8
   | Num(i,s) ->
     let rec numbits' = function
       | n when n >= -128 && n <= 127 -> 8
@@ -353,6 +353,10 @@ let (<:$*) (ty1,is_new_mem) ty2 =
 
 
 (* Complex Predicates *)
+
+let is_type_secret ety =
+  let BaseET(_,{data=Fixed l}) = ety in
+    l = Secret
 
 let is_expr_secret e =
   let { data=(_,BaseET(_,{data=Fixed l})) } = e in

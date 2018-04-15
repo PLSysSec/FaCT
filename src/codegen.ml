@@ -377,7 +377,7 @@ let codegen_binop cg_ctx op e1 e2 ty ety b1 b2 ml b =
           e1,e2'
       | w1,w2 -> e1,e2
   in
-  let res = 
+  let res' =
     match op with
       | Ast.Plus -> build_add e1 e2 (make_name "addtmp" ml) b
       | Ast.Minus -> build_sub e1 e2 (make_name "subtmp" ml) b
@@ -427,6 +427,12 @@ let codegen_binop cg_ctx op e1 e2 ty ety b1 b2 ml b =
         let UInt n = ty in
         let rotr_fn = get_intrinsic (Rotr n) cg_ctx in
           build_call rotr_fn [| e1; e2 |] "rotrtmp" b
+  in
+  let res =
+    if integer_bitwidth (type_of res') = 1 then
+      build_sext res' (bt_to_llvm_ty cg_ctx.llcontext Bool) (make_name "bool" ml) cg_ctx.builder
+    else
+      res'
   in
 
   let ret_ty = bt_to_llvm_ty cg_ctx.llcontext ty in
@@ -638,7 +644,11 @@ and codegen_expr cg_ctx = function
     let ty' = expr_ty_to_llvm_ty cg_ctx ty in
     let e2 = codegen_ext cg_ctx ty' expr2 in
     let e3 = codegen_ext cg_ctx ty' expr3 in
-    build_select e1' e2 e3 (make_name_et "selecttmp" ty) cg_ctx.builder
+
+    let m = build_sext e1' ty' (make_name_et "selectmask" ty) cg_ctx.builder in
+    let xor = build_xor e2 e3 (make_name_et "selectxor" ty) cg_ctx.builder in
+    let t = build_and m xor (make_name_et "selectand" ty) cg_ctx.builder in
+      build_xor e2 t (make_name_et "selecttmp" ty) cg_ctx.builder
   | Inject(var_name,stms), ty ->
     let ret_ty = None in
     ignore(List.map (codegen_stm cg_ctx ret_ty) stms);
@@ -874,7 +884,7 @@ and codegen_stm cg_ctx ret_ty = function
   | {data=If(cond,thenstms,elsestms)} ->
 
     let cond' = codegen_expr cg_ctx cond.data in
-    let one = const_int (i1_type cg_ctx.llcontext) 1 in
+    let one = const_int (i8_type cg_ctx.llcontext) (-1) in
     let _,cond_ty = cond.data in
     let name = make_name_et "branchcompare" cond_ty in
     let cond_val = build_icmp Icmp.Eq cond' one name cg_ctx.builder in
@@ -932,7 +942,8 @@ and codegen_stm cg_ctx ret_ty = function
     ignore(build_br bb_check cg_ctx.builder);
     position_at_end bb_check cg_ctx.builder;
     let name = make_name "loopcond" ml in
-    let cond = codegen_expr cg_ctx cond_expr.data in
+    let cond' = codegen_expr cg_ctx cond_expr.data in
+    let cond = build_trunc cond' (i1_type cg_ctx.llcontext) name cg_ctx.builder in
     ignore(build_cond_br cond bb_body bb_end cg_ctx.builder);
     position_at_end bb_body cg_ctx.builder;
     codegen_stms cg_ctx ret_ty statements |> ignore;

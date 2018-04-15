@@ -29,7 +29,7 @@ let bt_to_llvm_ty llctx = function
   | Int  size when size <= 16 -> i16_type llctx
   | Int  size when size <= 32 -> i32_type llctx
   | Int  size when size <= 64 -> i64_type llctx
-  | Bool                      -> i1_type llctx (* TODO: Double check this*)
+  | Bool                      -> i8_type llctx (* TODO: Double check this*)
   | Num(i,s)                  ->
     let rec numbits = function
       | n when n >= -128 && n <= 127 -> 8
