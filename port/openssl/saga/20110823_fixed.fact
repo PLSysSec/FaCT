@@ -51,7 +51,7 @@ struct SHA_CTX {
     secret uint32 Nl;
     secret uint32 Nh;
     secret uint8[64] data; // SHA_LBLOCK
-    secret uint32 num;
+    public uint32 num;
 }
 
 void SHA_CTX_cpy(mut struct SHA_CTX dst, struct SHA_CTX src) {
@@ -117,7 +117,7 @@ SHA1_Update_public(
 
   public mut uint32 inp = 0;
   public mut uint32 _len = len _in;
-  public uint32 num = declassify(ctx.num);
+  public uint32 num = ctx.num;
   if (num > 0) {
     public uint32 res = len _in < SHA_CBLOCK - num ? len _in : SHA_CBLOCK - num;
     memcpy(ref arrview(ctx.data, num, res), arrview(_in, 0, res));
@@ -147,6 +147,7 @@ SHA1_Update_public(
 void
 SHA1_Update_secret(
     mut struct SHA_CTX ctx,
+    secret mut uint32 ctx_num,
     secret uint8[] _in,
     secret uint32 slen) {
 
@@ -160,34 +161,26 @@ SHA1_Update_secret(
   ctx.Nh += ((uint32)(N >> 32));
   ctx.Nl = (uint32)N;
 
-  public mut uint32 inp = 0;
-  public mut uint32 _len = len _in;
-
-  // assuming that we will never be called when there are leftover bytes
-
-  public uint32 n = _len / SHA_CBLOCK;
-  secret mut bool done = false;
-  for (uint32 i = 0; i < n; i += 1) {
-    public uint32 inp = i * SHA_CBLOCK;
-    public uint32 _len = len _in - inp;
-
-    secret uint32[5] h = arrcopy(ctx.h);
-
-    sha1_block_data_order(ref ctx, ctx.data, 1);
-    if (inp + SHA_CBLOCK > slen) {
-      // roll back state
-      for (uint32 j = 0; j < 5; j += 1) {
-        ctx.h[j] = h[j];
-      }
-      if (!done) {
-        // save the leftover bytes
-        // but only the first time we cross slen
-        memcpy(ref ctx.data, arrview(_in, inp, _len));
-        ctx.num = slen & (SHA_CBLOCK - 1); // slen % SHA_CBLOCK
-        done = true;
+  for (uint32 i = 0; i < len _in; i += 1) {
+    public uint32 j = (ctx.num + i) % SHA_CBLOCK; // index into ctx.data
+    secret uint8 uu = ((uint8)(i < slen ? j : 0));
+    if (i < slen) {
+      ctx.data[j] = _in[i];
+    }
+    if (j == SHA_CBLOCK - 1) {
+      secret uint32[5] h = arrcopy(ctx.h);
+      sha1_block_data_order(ref ctx, ctx.data, 1);
+      secret uint8 uu = i >= slen ? 0 : 1;
+      if (i >= slen) {
+        // roll back state
+        for (uint32 k = 0; k < 5; k += 1) {
+          ctx.h[k] = h[k];
+        }
       }
     }
   }
+  ctx_num = (ctx.num + slen) & (SHA_CBLOCK - 1);
+  ctx.num = (ctx.num + len _in) % SHA_CBLOCK;
 }
 
 inline void
@@ -207,7 +200,7 @@ void
 SHA1_Final_public(
     secret mut uint8[20] out,
     mut struct SHA_CTX ctx) {
-  public mut uint32 num = declassify(ctx.num);
+  public mut uint32 num = ctx.num;
 
   ctx.data[num] = 0x80;  /* there is always room for one */
   num += 1;
@@ -236,23 +229,24 @@ SHA1_Final_public(
 void
 SHA1_Final_secret(
     secret mut uint8[20] out,
-    mut struct SHA_CTX ctx) {
+    mut struct SHA_CTX ctx,
+    secret uint32 ctx_num) {
 
-  secret bool len_in_first_block = ctx.num < ((len ctx.data) - 8);
+  secret bool len_in_first_block = ctx_num < ((len ctx.data) - 8);
 
   for (uint32 i = 0; i < len ctx.data; i += 1) {
-    if (i == ctx.num) {
+    if (i == ctx_num) {
       /* there is always room for one */
       ctx.data[i] = 0x80;
-    } else if (i > ctx.num) {
+    } else if (i > ctx_num) {
       ctx.data[i] = 0;
       if (len_in_first_block) {
         if (i >= ((len ctx.data) - 4)) {
           public uint32 shift = (len ctx.data - 1 - i) * 8;
-          ctx.data[i] = ((uint8)(ctx.Nh >> shift));
+          ctx.data[i] = ((uint8)(ctx.Nl >> shift));
         } else if (i >= ((len ctx.data) - 8)) {
           public uint32 shift = (len ctx.data - 5 - i) * 8;
-          ctx.data[i] = ((uint8)(ctx.Nl >> shift));
+          ctx.data[i] = ((uint8)(ctx.Nh >> shift));
         }
       }
     }
@@ -294,6 +288,8 @@ _aesni_cbc_hmac_sha1_cipher(
   public uint32 SHA_DIGEST_LENGTH = 20;
   public uint32 TLS1_1_VERSION = 0x0302;
 
+  secret mut int32 ret = 1;
+
   public uint64 plen = ctx.key.payload_length;
   ctx.key.payload_length = NO_PAYLOAD_LENGTH;
 
@@ -305,8 +301,6 @@ _aesni_cbc_hmac_sha1_cipher(
     public mut uint32 inp = 0;
     public mut uint32 outp = 0;
     public mut uint32 _len = len _out;
-
-    secret mut int32 ret = 1;
 
     secret uint16 tls_ver = load16_be(arrview(ctx.key.tls_aad, plen - 4, 2));
     // I'm assuming that these two bytes are actually a public version number
@@ -346,9 +340,10 @@ _aesni_cbc_hmac_sha1_cipher(
     /* calculate HMAC and verify it */
     SHA_CTX_cpy(ref ctx.key.md, ref ctx.key.head);
     SHA1_Update_public(ref ctx.key.md, arrview(ctx.key.tls_aad, 0, plen));
-    SHA1_Update_secret(ref ctx.key.md, arrview(_out, outp, _len), inp_len);
+    secret mut uint32 ctx_num = 0;
+    SHA1_Update_secret(ref ctx.key.md, ref ctx_num, arrview(_out, outp, _len), inp_len);
     cacheline secret mut uint8[20] pmac = noinit(20); // SHA_DIGEST_LENGTH
-    SHA1_Final_secret(ref pmac, ref ctx.key.md);
+    SHA1_Final_secret(ref pmac, ref ctx.key.md, ctx_num);
 
     SHA_CTX_cpy(ref ctx.key.md, ref ctx.key.tail);
     SHA1_Update_public(ref ctx.key.md, pmac);
@@ -361,7 +356,7 @@ _aesni_cbc_hmac_sha1_cipher(
     }
     for (uint32 i = outp + pub_start; i < _len; i += 1) {
       if (i >= outp + inp_len && i < outp + inp_len + SHA_DIGEST_LENGTH) {
-        secret uint32 j = i - outp + inp_len;
+        secret uint32 j = i - (outp + inp_len);
         if (_out[i] != pmac[declassify(j)]) { // cache tricks (see declaration of pmac)
           ret = 0;
         }
@@ -373,5 +368,5 @@ _aesni_cbc_hmac_sha1_cipher(
     SHA1_Update_public(ref ctx.key.md, _out);
   }
 
-  return 1;
+  return ret;
 }
