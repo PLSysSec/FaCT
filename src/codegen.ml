@@ -50,12 +50,14 @@ type intrinsic =
   | Memset
   | Rotl of int
   | Rotr of int
+  | Cmov of int
 
 let string_of_intrinsic = function
   | Memcpy -> "llvm.memcpy.p0i8.p0i8.i64"
   | Memset -> "llvm.memset.p0i8.i64"
   | Rotl n -> "__rotl" ^ (string_of_int n)
   | Rotr n -> "__rotr" ^ (string_of_int n)
+  | Cmov n -> "select.cmov.i" ^ (string_of_int n)
 
 let declare_intrinsic cg_ctx = function
   | Memcpy ->
@@ -117,6 +119,49 @@ let declare_intrinsic cg_ctx = function
       let rotrtmp = build_or lrshift lshift "_secret_rotrtmp" b in
         build_ret rotrtmp b;
         fn
+  | Cmov n as cmov_sz ->
+    let i1ty = i1_type cg_ctx.llcontext in
+    let i32ty = i32_type cg_ctx.llcontext in
+    let ity = integer_type cg_ctx.llcontext n in
+    let asmty = if n < 32 then i32ty else ity in
+
+    let ft = function_type ity [| i1ty; ity; ity |] in
+    let asmfty = function_type asmty [| i1ty; asmty; asmty |] in
+
+    let fn = declare_function (string_of_intrinsic cmov_sz) ft cg_ctx.llmodule in
+      add_function_attr fn Alwaysinline;
+      set_linkage Internal fn;
+    let bb = append_block cg_ctx.llcontext "entry" fn in
+    let b = builder cg_ctx.llcontext in
+
+    let ext x' =
+      if n < 32 then
+        build_zext x' i32ty "_secret_zext" b
+      else x' in
+    let trunc x' =
+      if n < 32 then
+        build_trunc x' ity "_secret_trunc" b
+      else x' in
+
+      position_at_end bb b;
+      let cond = param fn 0 in
+      let x' = param fn 1 in
+      let y' = param fn 2 in
+        set_value_name "_secret_cond" cond;
+        set_value_name "_secret_a" x';
+        set_value_name "_secret_b" y';
+        let x = ext x' in
+        let y = ext y' in
+        let asm = const_inline_asm
+                    asmfty
+                    "testb $1, $1; mov $3, $0; cmovnz $2, $0"
+                    "=&r,r,r,r,~{flags}"
+                    false false in
+        let ret' = build_call asm [| cond; x; y; |] "_secret_asm" b in
+        let ret = trunc ret' in
+          build_ret ret b;
+          Llvm.print_module "tmp.ll" cg_ctx.llmodule;
+          fn
 
 let get_intrinsic intrinsic cg_ctx =
   match lookup_function (string_of_intrinsic intrinsic) cg_ctx.llmodule with
@@ -320,9 +365,7 @@ let rec allocate_stack cg_ctx stms =
       let llvm_ty = vt_to_llvm_ty cg_ctx var_type.data in
       let ptr_ty = pointer_type llvm_ty in
       let name = make_name_vt var_name.data var_type.data in
-      let alloca' = build_alloca llvm_ty name cg_ctx.builder in
-      let alloca = build_alloca ptr_ty name cg_ctx.builder in
-      build_store alloca' alloca cg_ctx.builder;
+      let alloca = build_alloca llvm_ty name cg_ctx.builder in
       Env.add_var cg_ctx.venv var_name alloca;
       Env.add_var cg_ctx.vtenv var_name var_type
     | {data=Assign(lv,expr)} -> allocate_lval lv; allocate_inject expr
@@ -640,7 +683,8 @@ and codegen_expr cg_ctx = function
     let ty' = expr_ty_to_llvm_ty cg_ctx ty in
     let e2 = codegen_ext cg_ctx ty' expr2 in
     let e3 = codegen_ext cg_ctx ty' expr3 in
-    build_select e1' e2 e3 (make_name_et "selecttmp" ty) cg_ctx.builder
+    let fn = get_intrinsic (Cmov (integer_bitwidth ty')) cg_ctx in
+      build_call fn [| e1'; e2; e3 |] (make_name_et "selecttmp" ty) cg_ctx.builder
   | Inject(var_name,stms), ty ->
     let ret_ty = None in
     ignore(List.map (codegen_stm cg_ctx ret_ty) stms);

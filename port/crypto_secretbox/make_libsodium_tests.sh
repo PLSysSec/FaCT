@@ -46,7 +46,7 @@ else
 fi
 
 cd $LIBSODIUM
-./configure --enable-asm=$ASM
+CC=clang-3.8 ./configure --enable-asm=$ASM
 
 echo > $LIBSODIUM/src/libsodium/include/sodium/fact_secretbox.h
 if [[ -z $NO_FACT ]]; then

@@ -333,7 +333,7 @@ _aesni_cbc_hmac_sha1_cipher(
       ret = 0;
       pad = 0;
     }
-    if(pad > maxpad) {
+    if (pad > maxpad) {
       ret = 0;
       pad = maxpad;
     }
