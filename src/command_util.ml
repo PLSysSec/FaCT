@@ -132,13 +132,21 @@ let output_bitcode out_file llvm_mod =
     | false -> Log.error "An error occurred printing LLVM bitcode"; exit (-1)
     | true -> Log.debug "Successfully output LLVM bitcode"
 
-let output_assembly out_file =
+let output_assembly opt_level out_file =
   let out_file' = out_file ^ ".bc" in
   let out_file_s = out_file ^ ".s" in
   let out_file_fpic_s = out_file ^ ".fpic.s" in
   Log.debug "Creating .s file at %s" out_file_s;
-  run_command "llc" [|"llc"; "-mcpu=core-avx2"; out_file'|];
-  run_command "llc" [|"llc"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
+  if opt_level = O2 then
+    begin
+      run_command "llc" [|"llc"; "-O2"; "-mcpu=core-avx2"; out_file'|];
+      run_command "llc" [|"llc"; "-O2"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
+    end
+  else
+    begin
+      run_command "llc" [|"llc"; "-mcpu=core-avx2"; out_file'|];
+      run_command "llc" [|"llc"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
+    end
 
 let output_object out_file =
   let out_file_s = out_file ^ ".s" in
@@ -292,7 +300,7 @@ let compile (in_files,out_file,out_dir) args =
         | Debugfun.DEV ->
           output_llvm args.llvm_out out_file' llvm_mod;
           output_bitcode out_file' llvm_mod;
-          output_assembly out_file';
+          output_assembly args.opt_level out_file';
           output_shared_object out_file' args;
           output_object out_file'
         | Debugfun.PROD -> () end;
@@ -316,7 +324,7 @@ let compile (in_files,out_file,out_dir) args =
   (* ADD BACK: Llvm_analysis.assert_valid_module llvm_mod |> ignore;*)
   output_llvm args.llvm_out out_file' llvm_mod;
   output_bitcode out_file' llvm_mod;
-  output_assembly out_file';
+  output_assembly args.opt_level out_file';
   output_shared_object out_file' args;
   output_object out_file'
   (*let core_ir = transform tast in
