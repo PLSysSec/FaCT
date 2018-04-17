@@ -6,11 +6,10 @@
 
 /* Sum two numbers: output += in */
 void
-_fsum(secret mut int64[] output,
-     secret int64[] in)
+_fsum(secret mut int64[10] output,
+     secret int64[10] in)
 {
   for (uint8 i = 0; i < 10; i += 2) {
-    //public uint8 i = j * 2;
     output[0+i] = output[0+i] + in[0+i];
     output[1+i] = output[1+i] + in[1+i];
   }
@@ -18,8 +17,8 @@ _fsum(secret mut int64[] output,
 
 /* Find the difference of two numbers: output = in - output */
 void
-_fdifference(secret mut int64[] output,
-            secret int64[] in)
+_fdifference(secret mut int64[10] output,
+            secret int64[10] in)
 {
   for(uint8 i = 0; i < 10; i += 1) {
     output[i] = in[i] - output[i];
@@ -28,8 +27,8 @@ _fdifference(secret mut int64[] output,
 
 /* Multiply a number by a scalar: output = in * scalar */
 void
-_fscalar_product(secret mut int64[] output,
-                secret int64[] in,
+_fscalar_product(secret mut int64[10] output,
+                secret int64[10] in,
                 secret int64 scalar)
 {
   for(uint8 i = 0; i < 10; i += 1) {
@@ -44,10 +43,10 @@ _fscalar_product(secret mut int64[] output,
  *
  * output[x] <= 14 * the largest product of the input limb */
 void
-_fproduct(secret mut int64[] output,
-         secret int64[] in2,
-         secret int64[] in)
-{    
+_fproduct(secret mut int64[19] output,
+         secret int64[10] in2,
+         secret int64[10] in)
+{
   output[0] =       ((int64) ((int32) in2[0])) * ((int32) in[0]);
   output[1] =       ((int64) ((int32) in2[0])) * ((int32) in[1]) +
                     ((int64) ((int32) in2[1])) * ((int32) in[0]);
@@ -156,7 +155,7 @@ _fproduct(secret mut int64[] output,
  * On entry: |output[i]| < 14*2^54
  * On exit: |output[0..8]| < 280*2^54 */
 void
-_freduce_degree(secret mut int64[] output)
+_freduce_degree(secret mut int64[19] output)
 {
   output[8] += output[18] << 4;
   output[8] += output[18] << 1;
@@ -194,14 +193,14 @@ _freduce_degree(secret mut int64[] output)
  * On entry: v can take any value. */
 inline
 secret int64
-div_by_2_26(secret int64 v) 
+div_by_2_26(secret int64 v)
 {
   secret uint32 highword = (uint32) (((uint64) v) >> 32);
   secret int32 sign = ((int32) highword) >> 31;
   secret int32 roundoff = (int32) (((uint32) sign) >> 6);
   return (v + roundoff) >> 26;
 }
- 
+
 /* return v / (2^25), using only shifts and adds.
  *
  * On entry: v can take any value. */
@@ -220,12 +219,11 @@ div_by_2_25(secret int64 v)
  *
  * On entry: |output[i]| < 280*2^54 */
 void
-_freduce_coefficients(secret mut int64[] output)
+_freduce_coefficients(secret mut int64[11] output)
 {
   output[10] = 0;
 
   for(uint8 i = 0; i < 10; i += 2) {
-    //public uint8 i = j * 2;
     secret mut int64 over = div_by_2_26(output[i]);
 
     output[i] -= over << 26;
@@ -244,11 +242,11 @@ _freduce_coefficients(secret mut int64[] output)
 
   //XXX: why do we need a block here in the original code?
   //XXX: it seems like fact does not support this syntax?
-  
+
   secret int64 over = div_by_2_26(output[0]);
   output[0] -= over << 26;
   output[1] += over;
-  
+
 }
 
 /* A helpful wrapper around _fproduct: output = in * in2.
@@ -259,17 +257,17 @@ _freduce_coefficients(secret mut int64[] output)
  * (indeed, one need only provide storage for 10 limbs) and
  * |output[i]| < 2^26. */
 void
-_fmul(secret mut int64[] output,
-     secret int64[] in,
-     secret int64[] in2)
+_fmul(secret mut int64[10] output,
+     secret int64[10] in,
+     secret int64[10] in2)
 {
   secret mut int64[19] t = arrzeros(19);
   _fproduct(ref t, in, in2);
   /* |t[i]| < 14*2^54 */
   _freduce_degree(ref t);
-  _freduce_coefficients(ref t);
+  _freduce_coefficients(ref arrview(t, 0, 11));
   /* |t[i]| < 2^26 */
-  memcpy_64(ref output, arrview(t, 0, 10));
+  pmemcpy_64(ref output, arrview(t, 0, 10));
 }
 
 /* Square a number: output = in**2
@@ -279,8 +277,8 @@ _fmul(secret mut int64[] output,
  *
  * output[x] <= 14 * the largest product of the input limbs */
 void
-_fsquare_inner(secret mut int64[] output,
-              secret int64[] in)
+_fsquare_inner(secret mut int64[19] output,
+              secret int64[10] in)
 {
   output[0] =       ((int64) ((int32) in[0])) * ((int32) in[0]);
   output[1] =  2 *  ((int64) ((int32) in[0])) * ((int32) in[1]);
@@ -348,48 +346,47 @@ _fsquare_inner(secret mut int64[] output,
  * (indeed, one need only provide storage for 10 limbs) and
  * |out[i]| < 2^26. */
 void
-_fsquare(secret mut int64[] output,
-        secret int64[] in)
+_fsquare(secret mut int64[10] output,
+        secret int64[10] in)
 {
   secret mut int64[19] t = arrzeros(19);
   _fsquare_inner(ref t, in);
 
-  _freduce_degree(ref t);
-  _freduce_coefficients(ref t);
+  _freduce_degree(ref arrview(t, 0, 19));
+  _freduce_coefficients(ref arrview(t, 0, 11));
 
-  pmemcpy_64(ref output, t, 10);
+  pmemcpy_64(ref output, arrview(t, 0, 10));
 }
 
 /* Take a little-endian, 32-byte number and expand it into polynomial form */
+inline
 void
-fexpand_F(secret mut int64[] output,
-          secret uint8[] input,
-          public uint8 n,
-          public uint8 start,
+fexpand_F(secret mut int64 output,
+          secret uint8[4] input,
           public uint8 shift,
           public int32 mask)
 {
-  output[n] = ((((int64) input[start + 0]) | ((int64) input[start + 1]) << 8 |
-                ((int64) input[start + 2]) << 16 |
-                ((int64) input[start + 3]) << 24) >> (int32) shift) & mask;
+  output = ((((int64) input[0]) | ((int64) input[1]) << 8 |
+                ((int64) input[2]) << 16 |
+                ((int64) input[3]) << 24) >> (int32) shift) & mask;
 }
 
 void
-_fexpand(secret mut int64[] output,
-        secret uint8[] input)
+_fexpand(secret mut int64[10] output,
+        secret uint8[32] input)
 {
   //XXX: #defin F
   //currently I just move F out of the function
-  fexpand_F(ref output, input, 0, 0, 0, 0x3ffffff);
-  fexpand_F(ref output, input, 1, 3, 2, 0x1ffffff);
-  fexpand_F(ref output, input, 2, 6, 3, 0x3ffffff);
-  fexpand_F(ref output, input, 3, 9, 5, 0x1ffffff);
-  fexpand_F(ref output, input, 4, 12, 6, 0x3ffffff);
-  fexpand_F(ref output, input, 5, 16, 0, 0x1ffffff);
-  fexpand_F(ref output, input, 6, 19, 1, 0x3ffffff);
-  fexpand_F(ref output, input, 7, 22, 3, 0x1ffffff);
-  fexpand_F(ref output, input, 8, 25, 4, 0x3ffffff);
-  fexpand_F(ref output, input, 9, 28, 6, 0x1ffffff);
+  fexpand_F(ref output[0], arrview(input,  0, 4), 0, 0x3ffffff);
+  fexpand_F(ref output[1], arrview(input,  3, 4), 2, 0x1ffffff);
+  fexpand_F(ref output[2], arrview(input,  6, 4), 3, 0x3ffffff);
+  fexpand_F(ref output[3], arrview(input,  9, 4), 5, 0x1ffffff);
+  fexpand_F(ref output[4], arrview(input, 12, 4), 6, 0x3ffffff);
+  fexpand_F(ref output[5], arrview(input, 16, 4), 0, 0x1ffffff);
+  fexpand_F(ref output[6], arrview(input, 19, 4), 1, 0x3ffffff);
+  fexpand_F(ref output[7], arrview(input, 22, 4), 3, 0x1ffffff);
+  fexpand_F(ref output[8], arrview(input, 25, 4), 4, 0x3ffffff);
+  fexpand_F(ref output[9], arrview(input, 28, 4), 6, 0x1ffffff);
 }
 
 //XXX:here I just assume the if condition is always met
@@ -397,7 +394,7 @@ _fexpand(secret mut int64[] output,
 
 /* s32_eq returns 0xffffffff iff a == b and zero otherwise. */
 secret int32
-s32_eq(secret int32 a, 
+s32_eq(secret int32 a,
        secret int32 b)
 {
   secret mut int32 a_ = a;
@@ -410,7 +407,7 @@ s32_eq(secret int32 a,
   return a_ >> 31;
 }
 
-/* s32_gte returns 0xffffffff if a >= b and zero otherwise, where 
+/* s32_gte returns 0xffffffff if a >= b and zero otherwise, where
  * a and b are both non-negative */
 secret int32
 s32_gte(secret int32 a,
@@ -425,20 +422,18 @@ s32_gte(secret int32 a,
  * into a little-endian, 32-byte array. */
 inline
 void
-fcontract_F(secret mut uint8[] output,
-            secret int32[] input,
-            public uint8 i,
-            public uint8 s)
+fcontract_F(secret mut uint8[4] output,
+            secret int32 input)
 {
-  output[s+0] |= (uint8) (input[i] & 0xff);
-  output[s+1] = (uint8) ((input[i] >> 8) & 0xff);
-  output[s+2] = (uint8) ((input[i] >> 16) & 0xff);
-  output[s+3] = (uint8) ((input[i] >> 24) & 0xff);
+  output[0] |= (uint8) (input & 0xff);
+  output[1] = (uint8) ((input >> 8) & 0xff);
+  output[2] = (uint8) ((input >> 16) & 0xff);
+  output[3] = (uint8) ((input >> 24) & 0xff);
 }
 
 void
-_fcontract(secret mut uint8[] output,
-          secret int64[] input_limbs)
+_fcontract(secret mut uint8[32] output,
+          secret int64[10] input_limbs)
 {
   secret mut int32[10] input = arrzeros(10);
   secret mut int32 mask = 0;
@@ -529,16 +524,16 @@ _fcontract(secret mut uint8[] output,
   //XXX: I moved inline function F out to fcontract_F
   output[0] = 0;
   output[16] = 0;
-  fcontract_F(ref output, input, 0,0);
-  fcontract_F(ref output, input, 1,3);
-  fcontract_F(ref output, input, 2,6);
-  fcontract_F(ref output, input, 3,9);
-  fcontract_F(ref output, input, 4,12);
-  fcontract_F(ref output, input, 5,16);
-  fcontract_F(ref output, input, 6,19);
-  fcontract_F(ref output, input, 7,22);
-  fcontract_F(ref output, input, 8,25);
-  fcontract_F(ref output, input, 9,28);
+  fcontract_F(ref arrview(output,  0, 4), input[0]);
+  fcontract_F(ref arrview(output,  3, 4), input[1]);
+  fcontract_F(ref arrview(output,  6, 4), input[2]);
+  fcontract_F(ref arrview(output,  9, 4), input[3]);
+  fcontract_F(ref arrview(output, 12, 4), input[4]);
+  fcontract_F(ref arrview(output, 16, 4), input[5]);
+  fcontract_F(ref arrview(output, 19, 4), input[6]);
+  fcontract_F(ref arrview(output, 22, 4), input[7]);
+  fcontract_F(ref arrview(output, 25, 4), input[8]);
+  fcontract_F(ref arrview(output, 28, 4), input[9]);
 }
 
 /* Input: Q, Q', Q-Q'
@@ -553,15 +548,15 @@ _fcontract(secret mut uint8[] output,
  * On entry and exit, the absolute value of the limbs of all inputs and outputs
  * are < 2^26. */
 void
-_fmonty(secret mut int64[] x2,
-       secret mut int64[] z2,
-       secret mut int64[] x3,
-       secret mut int64[] z3,
-       secret mut int64[] x,
-       secret mut int64[] z,
-       secret mut int64[] xprime,
-       secret mut int64[] zprime,
-       secret int64[] qmqp)
+_fmonty(secret mut int64[19] x2,
+       secret mut int64[19] z2,
+       secret mut int64[10] x3,
+       secret mut int64[10] z3,
+       secret mut int64[10] x,
+       secret mut int64[10] z,
+       secret mut int64[10] xprime,
+       secret mut int64[10] zprime,
+       secret int64[10] qmqp)
 {
   secret mut int64[10] origx = arrzeros(10);
   secret mut int64[10] origxprime = arrzeros(10);
@@ -573,12 +568,12 @@ _fmonty(secret mut int64[] x2,
   secret mut int64[19] zzzprime = arrzeros(19);
   secret mut int64[19] xxxprime = arrzeros(19);
 
-  pmemcpy_64(ref origx, x, 10);
+  pmemcpy_64(ref origx, x);
 
   _fsum(ref x, z);
   _fdifference(ref z, origx);
 
-  pmemcpy_64(ref origxprime, xprime, 10);
+  pmemcpy_64(ref origxprime, xprime);
   _fsum(ref xprime, zprime);
   /* |xprime[i]| < 2^27 */
   _fdifference(ref zprime, origxprime);
@@ -590,55 +585,55 @@ _fmonty(secret mut int64[] x2,
   _fproduct(ref zzprime, x, zprime);
   /* |zzprime[i]| < 14*2^54 */
   _freduce_degree(ref xxprime);
-  _freduce_coefficients(ref xxprime);
+  _freduce_coefficients(ref arrview(xxprime, 0, 11));
   /* |xxprime[i]| < 2^26 */
   _freduce_degree(ref zzprime);
-  _freduce_coefficients(ref zzprime);
+  _freduce_coefficients(ref arrview(zzprime, 0, 11));
   /* |zzprime[i]| < 2^26 */
-  memcpy_64(ref origxprime, xxprime);
-  _fsum(ref xxprime, zzprime);
+  pmemcpy_64(ref origxprime, arrview(xxprime, 0, 10));
+  _fsum(ref arrview(xxprime, 0, 10), arrview(zzprime, 0, 10));
   /* |xxprime[i]| < 2^27 */
-  _fdifference(ref zzprime, origxprime);
+  _fdifference(ref arrview(zzprime, 0, 10), origxprime);
   /* |zzprime[i]| < 2^27 */
-  _fsquare(ref xxxprime, xxprime);
+  _fsquare(ref arrview(xxxprime, 0, 10), arrview(xxprime, 0, 10));
   /* |xxxprime[i]| < 2^26 */
-  _fsquare(ref zzzprime, zzprime);
+  _fsquare(ref arrview(zzzprime, 0, 10), arrview(zzprime, 0, 10));
   /* |zzzprime[i]| < 2^26 */
-  _fproduct(ref zzprime, zzzprime, qmqp);
+  _fproduct(ref zzprime, arrview(zzzprime, 0, 10), qmqp);
   /* |zzprime[i]| < 14*2^52 */
   _freduce_degree(ref zzprime);
-  _freduce_coefficients(ref zzprime);
+  _freduce_coefficients(ref arrview(zzprime, 0, 11));
   /* |zzprime[i]| < 2^26 */
-  
-  memcpy_64(ref x3, xxxprime);
-  memcpy_64(ref z3, zzprime);
 
-  _fsquare(ref xx, x);
+  pmemcpy_64(ref x3, arrview(xxxprime, 0, 10));
+  pmemcpy_64(ref z3, arrview(zzprime, 0, 10));
+
+  _fsquare(ref arrview(xx, 0, 10), x);
   /* |xx[i]| < 2^26 */
-  _fsquare(ref zz, z);
+  _fsquare(ref arrview(zz, 0, 10), z);
   /* |zz[i]| < 2^26 */
-  _fproduct(ref x2, xx, zz);
+  _fproduct(ref x2, arrview(xx, 0, 10), arrview(zz, 0, 10));
   /* |x2[i]| < 14*2^52 */
   _freduce_degree(ref x2);
-  _freduce_coefficients(ref x2);
+  _freduce_coefficients(ref arrview(x2, 0, 11));
   /* |x2[i]| < 2^26 */
-  _fdifference(ref zz, xx);  // does zz = xx - zz
+  _fdifference(ref arrview(zz, 0, 10), arrview(xx, 0, 10));  // does zz = xx - zz
   /* |zz[i]| < 2^27 */
 
   memset_64(ref zzz, 10, 9, 0);
-  
-  _fscalar_product(ref zzz, zz, 121665);
+
+  _fscalar_product(ref arrview(zzz, 0, 10), arrview(zz, 0, 10), 121665);
   /* |zzz[i]| < 2^(27+17) */
   /* No need to call _freduce_degree here:
      _fscalar_product doesn't increase the degree of its input. */
-  _freduce_coefficients(ref zzz);
+  _freduce_coefficients(ref arrview(zzz, 0, 11));
   /* |zzz[i]| < 2^26 */
-  _fsum(ref zzz, xx);
+  _fsum(ref arrview(zzz, 0, 10), arrview(xx, 0, 10));
   /* |zzz[i]| < 2^27 */
-  _fproduct(ref z2, zz, zzz);
+  _fproduct(ref z2, arrview(zz, 0, 10), arrview(zzz, 0, 10));
   /* |z2[i]| < 14*2^(26+27) */
   _freduce_degree(ref z2);
-  _freduce_coefficients(ref z2);
+  _freduce_coefficients(ref arrview(z2, 0, 11));
   /* |z2|i| < 2^26 */
 }
 
@@ -657,11 +652,11 @@ _swap_conditional(secret mut int64[19] a,
   }
 }
 
-void 
-_cmult(secret mut int64[] resultx,
-      secret mut int64[] resultz,
-      secret uint8[] n,
-      secret int64[] q)
+void
+_cmult(secret mut int64[10] resultx,
+      secret mut int64[10] resultz,
+      secret uint8[32] n,
+      secret int64[10] q)
 {
   //XXX: stdlib function to initialize array with non-zero values
   secret mut int64[19] a = arrzeros(19);
@@ -692,20 +687,20 @@ _cmult(secret mut int64[] resultx,
   secret mut int64[] nqx2 = arrview(g, 0, 19);
   secret mut int64[] nqz2 = arrview(h, 0, 19);
 
-  memcpy_64(ref nqpqx, q);
+  pmemcpy_64(ref arrview(nqpqx, 0, 10), q);
 
   for (uint8 i = 0; i < 32; i += 1) {
     secret mut uint8 byte = n[31 - i];
     for (uint8 j = 0; j < 8; j += 1) {
       secret int64 bit = (int64) (byte >> 7);
-      
+
       if ((j & 1) == 0) {
         _swap_conditional(ref nqx, ref nqpqx, bit);
         _swap_conditional(ref nqz, ref nqpqz, bit);
         _fmonty(ref nqx2, ref nqz2,
-               ref nqpqx2, ref nqpqz2,
-               ref nqx, ref nqz,
-               ref nqpqx, ref nqpqz,
+               ref arrview(nqpqx2, 0, 10), ref arrview(nqpqz2, 0, 10),
+               ref arrview(nqx, 0, 10), ref arrview(nqz, 0, 10),
+               ref arrview(nqpqx, 0, 10), ref arrview(nqpqz, 0, 10),
                q);
         _swap_conditional(ref nqx2, ref nqpqx2, bit);
         _swap_conditional(ref nqz2, ref nqpqz2, bit);
@@ -713,9 +708,9 @@ _cmult(secret mut int64[] resultx,
         _swap_conditional(ref nqx2, ref nqpqx2, bit);
         _swap_conditional(ref nqz2, ref nqpqz2, bit);
         _fmonty(ref nqx, ref nqz,
-               ref nqpqx, ref nqpqz,
-               ref nqx2, ref nqz2,
-               ref nqpqx2, ref nqpqz2,
+               ref arrview(nqpqx, 0, 10), ref arrview(nqpqz, 0, 10),
+               ref arrview(nqx2, 0, 10), ref arrview(nqz2, 0, 10),
+               ref arrview(nqpqx2, 0, 10), ref arrview(nqpqz2, 0, 10),
                q);
         _swap_conditional(ref nqx, ref nqpqx, bit);
         _swap_conditional(ref nqz, ref nqpqz, bit);
@@ -725,13 +720,13 @@ _cmult(secret mut int64[] resultx,
     }
   }
 
-  memcpy_64(ref resultx, arrview(nqx, 0, 10));
-  memcpy_64(ref resultz, arrview(nqz, 0, 10));
+  pmemcpy_64(ref resultx, arrview(nqx, 0, 10));
+  pmemcpy_64(ref resultz, arrview(nqz, 0, 10));
 }
 
 void
-_crecip(secret mut int64[] out,
-       secret int64[] z)
+_crecip(secret mut int64[10] out,
+       secret int64[10] z)
 {
   secret mut int64[10] z2 = arrzeros(10);
   secret mut int64[10] z9 = arrzeros(10);
@@ -821,16 +816,16 @@ _crecip(secret mut int64[] out,
 // since _fcontract takes secret...
 export
 secret int32
-_curve25519_donna(secret mut uint8[] mypublic,
-                 secret uint8[] _secret,
-                 secret uint8[] basepoint)
+_curve25519_donna(secret mut uint8[32] mypublic,
+                 secret uint8[32] _secret,
+                 secret uint8[32] basepoint)
 {
   secret mut int64[10] bp = arrzeros(10);
   secret mut int64[10] x = arrzeros(10);
-  secret mut int64[11] z = arrzeros(11);
+  secret mut int64[10] z = arrzeros(10);
   secret mut int64[10] zmone = arrzeros(10);
   secret mut uint8[32] e = arrzeros(32);
-  
+
   for (uint8 i = 0; i < 32; i += 1) {
     e[i] = _secret[i];
   }

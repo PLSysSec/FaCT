@@ -9,26 +9,18 @@ initarr_64(secret mut int64[] arr,
     arr[i] = 0;
   }
 }
-  
+
+inline
 void
-memcpy_64(secret mut int64[] dst,
-          secret int64[] src)
+pmemcpy_64(secret mut int64[10] dst,
+          secret int64[10] src)
 {
   for (uint32 i = 0; i < (len src); i += 1) {
     dst[i] = src[i];
   }
 }
 
-void
-pmemcpy_64(secret mut int64[] dst,
-           secret int64[] src,
-           public uint32 n)
-{
-  for (uint32 i = 0; i < n; i += 1) {
-    dst[i] = src[i];
-  }
-}
-
+inline
 void
 memset_64(secret mut int64[] arr,
           public uint32 start,
