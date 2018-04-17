@@ -13,6 +13,9 @@ let convert ll =
   (* Remove lines with `!0` *)
   let lld = global_replace (regexp ".*!0.*") "" llc in
 
+   (* Remove argmemonly attr *)
+   let lle = global_replace (regexp "argmemonly ") "" lld in
+
   (* Replace `norecurse`with `` *)
-  global_replace (regexp "norecurse") "" lld
+  global_replace (regexp "norecurse") "" lle
  

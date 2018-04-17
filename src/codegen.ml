@@ -523,7 +523,7 @@ let rec codegen_arg cg_ctx arg ty =
                   build_bitcast arr' pt name cg_ctx.builder
                 | LDynamic var_name,true ->
                   let arr',_ = codegen_array_expr cg_ctx name arr.data in
-                  let name = make_name "loadeddynarrarg" ml in
+                  let name = make_name "dynarrarg" ml in
                   build_load arr' name cg_ctx.builder
                 | LDynamic var_name,false ->
                   let arr',_ = codegen_array_expr cg_ctx name arr.data in
@@ -571,7 +571,7 @@ and codegen_lval cg_ctx {data=(lval,vt);pos=p} =
       let st' = codegen_lval cg_ctx lv in
       let fieldloc = build_struct_gep st' fldi (make_name_vt "structgep" fvt.data) cg_ctx.builder in
         if is_pointer then
-          build_load fieldloc (make_name_vt "fieldptrload" fvt.data) cg_ctx.builder
+          build_load fieldloc (make_name_vt "fieldptrld" fvt.data) cg_ctx.builder
         else
           fieldloc
     | CheckedLval(stms, lval) ->
@@ -753,7 +753,7 @@ and codegen_array_expr cg_ctx arr_name = function
       begin
         match from |> type_of |> element_type |> classify_type with
           | TypeKind.Pointer ->
-            let name = make_name_et "loadedtocopy" ty in
+            let name = make_name_et "ldedtocopy" ty in
             let source_casted = build_load from name cg_ctx.builder in
             let name = make_name_et "sourcecasted" ty in
             let source_casted' =
@@ -784,7 +784,7 @@ and codegen_array_expr cg_ctx arr_name = function
         match from |> type_of |> element_type |> classify_type with
           | TypeKind.Pointer ->
             let indices = [| index |] in
-            let name = make_name_et "loadedviewptr" ty in
+            let name = make_name_et "ldedviewptr" ty in
             let ptr = build_load from name cg_ctx.builder in
             let name = make_name_et "source_gep" ty in
             let source_gep = build_in_bounds_gep ptr indices name cg_ctx.builder in
