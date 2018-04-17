@@ -4,8 +4,9 @@ initarr_64(secret mut int64[] arr,
            secret int64 v,
            public uint32 n)
 {
-  for (uint32 i = 0; i < n; i += 1) {
-    arr[i] = v;
+  arr[0] = v;
+  for (uint32 i = 1; i < n; i += 1) {
+    arr[i] = 0;
   }
 }
   
