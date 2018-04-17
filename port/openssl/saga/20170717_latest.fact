@@ -152,16 +152,16 @@ extern void __printx(secret uint8 b);
 extern void __printctx(secret mut uint32 c, public int32 chr); // actually struct SHA_CTX
 extern void __printb(secret uint8[] b, public int32 sz); // actually struct SHA_CTX
 
-// XXX _store_le should be able to be used (properly!) within a secret context
+// XXX _store32_le should be able to be used (properly!) within a secret context
 inline
 void
 cond_store(
     secret mut uint8[4] pmac,
     secret uint32 val,
     secret bool mask) {
-  secret uint32 pmac_val = _load_le(pmac);
+  secret uint32 pmac_val = _load32_le(pmac);
   secret uint32 sval = mask ? val : pmac_val;
-  _store_le(ref pmac, sval);
+  _store32_le(ref pmac, sval);
 }
 
 /**
@@ -230,7 +230,7 @@ _aesni_cbc_hmac_sha1_cipher(
     public uint32 tmppad = _len - (SHA_DIGEST_LENGTH + 1);
     public uint32 maxpad = tmppad > 255 ? 255 : tmppad;
 
-    secret int32 mask = maxpad >= pad ? -1 : 0;
+    secret int32 mask = maxpad >= pad ? (-1) : 0;
     ret &= mask;
     if (pad > maxpad) {
       /*
@@ -320,7 +320,7 @@ _aesni_cbc_hmac_sha1_cipher(
         j += 64;
       }
       // NOTE: block is purely because I don't want to rename `mask`
-      _store_le(ref arrview(ctx.key.md_data, 4*(SHA_LBLOCK - 1), 4), bitlen);
+      _store32_le(ref arrview(ctx.key.md_data, 4*(SHA_LBLOCK - 1), 4), bitlen);
       sha1_block_data_order(ref ctx.key.md_h0, ctx.key.md_data, 1);
       secret bool m2 = j < inp_len + 73;
       cond_store(ref arrview(pmac, 0 , 4), ctx.key.md_h0, m2);
@@ -329,11 +329,11 @@ _aesni_cbc_hmac_sha1_cipher(
       cond_store(ref arrview(pmac, 12, 4), ctx.key.md_h3, m2);
       cond_store(ref arrview(pmac, 16, 4), ctx.key.md_h4, m2);
 
-      _store_le(ref arrview(pmac, 0 , 4), bswap4(_load_le(arrview(pmac, 0 , 4))));
-      _store_le(ref arrview(pmac, 4 , 4), bswap4(_load_le(arrview(pmac, 4 , 4))));
-      _store_le(ref arrview(pmac, 8 , 4), bswap4(_load_le(arrview(pmac, 8 , 4))));
-      _store_le(ref arrview(pmac, 12, 4), bswap4(_load_le(arrview(pmac, 12, 4))));
-      _store_le(ref arrview(pmac, 16, 4), bswap4(_load_le(arrview(pmac, 16, 4))));
+      _store32_le(ref arrview(pmac, 0 , 4), bswap4(_load32_le(arrview(pmac, 0 , 4))));
+      _store32_le(ref arrview(pmac, 4 , 4), bswap4(_load32_le(arrview(pmac, 4 , 4))));
+      _store32_le(ref arrview(pmac, 8 , 4), bswap4(_load32_le(arrview(pmac, 8 , 4))));
+      _store32_le(ref arrview(pmac, 12, 4), bswap4(_load32_le(arrview(pmac, 12, 4))));
+      _store32_le(ref arrview(pmac, 16, 4), bswap4(_load32_le(arrview(pmac, 16, 4))));
       _len += SHA_DIGEST_LENGTH;
     /* end post-lucky-13 section */
 
