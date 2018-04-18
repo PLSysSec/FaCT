@@ -12,7 +12,7 @@ type t =
   | SMACK_RETURN_VALUE
   | DISJOINT_REGIONS
 
-type c_code = string option
+type c_code = string
 
 (* String version of a ct_verif type *)
 val string_of_ct_verif : t -> string
@@ -41,4 +41,4 @@ val declassify : Codegen_utils.codegen_ctx_record
 
 val generate_wrappers : string
                      -> Tast.fact_module
-                     -> c_code list
+                     -> (Tast.fun_name * c_code) option list
