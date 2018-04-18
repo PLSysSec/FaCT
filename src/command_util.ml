@@ -187,9 +187,10 @@ let verify_opt_passes llmod = function
 let ctverify (Tast.Module(_,fdecs,_)) out_file llvm_mod = function
   | false -> Log.info "Not verifying with ctverif!"
   | true  ->
+    Log.error "To run ctverif use the script at FaCT/docker/build-ctverif/verif-ll.sh"
+    (*
     let verify ctv_file passed entrypoint = 
       (* Docker commands: 1) start container, 2) copy ll file into it, 3) run ctverif, 4) stop container *)
-      (*
       Log.debug "Running docker commands...";
       Log.debug "docker run...";
       Sys.command "docker run -it -d --rm --name ctverif_cont bjohannesmeyer/ctverifdev /bin/bash" |> ignore;
@@ -207,16 +208,13 @@ let ctverify (Tast.Module(_,fdecs,_)) out_file llvm_mod = function
 
       Log.debug "docker stop...";
       Sys.command "docker stop ctverif_cont" |> ignore;
-      *)
-      let r = 9000 in
-      Log.error "To run ctverif use the script at FaCT/docker/build-ctverif/verif-ll.sh";
+
       match r with
         | 0 ->  Log.info "Verified %s by ctverif" entrypoint; passed
         | 1 -> Log.error "%s failed ct-verif verification!" entrypoint; false
         | n -> Log.error "ct-verif failed with an unknown error: %d" n; exit 1
     in
 
-    ()(*
     Log.info "Verifying with ctverif";
     Log.debug "Converting 3.8 LLVM IR to 3.5 LLVM IR";
     let ll = Jank.convert (Llvm.string_of_llmodule llvm_mod) in
