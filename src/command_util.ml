@@ -184,56 +184,29 @@ let verify_opt_passes llmod = function
       | true -> Log.error "An optimzation did not pass!"
       | false -> Log.info "All optimzations passed!"
 
-let ctverify (Tast.Module(_,fdecs,_)) out_file llvm_mod = function
+let ctverify (Tast.Module(_,fdecs,_)) out_file llvm_mod
+  (wrappers : (Tast.fun_name * Ctverif.c_code) option list) = function
   | false -> Log.info "Not verifying with ctverif!"
   | true  ->
-    Log.error "To run ctverif use the script at FaCT/docker/build-ctverif/verif-ll.sh"
-    (*
-    let verify ctv_file passed entrypoint = 
-      (* Docker commands: 1) start container, 2) copy ll file into it, 3) run ctverif, 4) stop container *)
-      Log.debug "Running docker commands...";
-      Log.debug "docker run...";
-      Sys.command "docker run -it -d --rm --name ctverif_cont bjohannesmeyer/ctverifdev /bin/bash" |> ignore;
-
-      Log.debug "docker cp...";
-      let cp_str = String.concat "" ["docker cp ";  ctv_file;" ctverif_cont:/root/fact-verifs/tmp.ll"] in
-      Sys.command cp_str |> ignore;
-
-      let exec_str = String.concat "" ["docker exec ctverif_cont /bin/bash -c 'cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make' 2>&1 | grep -q 'Boogie program verifier finished with 1 verified, 0 errors'"] in
-
-      let exec_str = String.concat "" ["docker exec ctverif_cont /bin/bash -c 'cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make'"] in
-
-      Log.debug "docker exec...";
-      let r = Sys.command exec_str in
-
-      Log.debug "docker stop...";
-      Sys.command "docker stop ctverif_cont" |> ignore;
-
-      match r with
-        | 0 ->  Log.info "Verified %s by ctverif" entrypoint; passed
-        | 1 -> Log.error "%s failed ct-verif verification!" entrypoint; false
-        | n -> Log.error "ct-verif failed with an unknown error: %d" n; exit 1
-    in
-
-    Log.info "Verifying with ctverif";
-    Log.debug "Converting 3.8 LLVM IR to 3.5 LLVM IR";
-    let ll = Jank.convert (Llvm.string_of_llmodule llvm_mod) in
-    let ctv_file = out_file ^ "-3.5.ll" in
-    Log.debug "Outputting 3.5 LLVM IR to %s" ctv_file;
-    Core_kernel.Out_channel.write_all ctv_file ~data:(ll);
-    
-    let get_entrypoint entrypoints = function
-      | { data=Tast.FunDec(fn, {Tast.export=true}, rt, p, b)} ->
-        fn.data::entrypoints
-      | _ -> entrypoints in
-    let entrypoints = List.fold_left get_entrypoint [] fdecs in
-    let passed = List.fold_left (verify ctv_file) true entrypoints in
-    match passed with
-      | true -> Log.debug "Ct-verif passed! Code is constant-time!"
-      | false ->
-        Log.error "Ct-verif failed! Code is not constant-time! Exiting now...";
-        exit 1
-    *)
+    output_llvm true out_file llvm_mod;
+    let ll_file = out_file ^ ".ll" in
+    let verify f wrapper header llvm_file =
+      let entrypoint = f ^ "_wrapper" in
+      let args = String.concat " " [wrapper; header; ll_file; entrypoint] in
+      let command = "./docker/build-ctverif/verif-ll.sh " ^ args in
+      Log.error "COMMAND: %s" command;
+      match Sys.command command with
+        | 0 -> Log.info "Ct-verif passed"
+        | _ -> Log.info "Ct-verif failed or was unable to run" in
+    List.map (fun wrapper (*(fun_name,c_code)*) ->
+      match wrapper with
+        | None -> ()
+        | Some({data=fun_name},c_code) ->
+          let wrapper_name = fun_name ^ "_wrapper.c" in
+          Core.Out_channel.write_all wrapper_name ~data:c_code;
+          verify fun_name wrapper_name (out_file ^ ".h") llvm_mod
+    ) wrappers |> ignore;
+    ()
 
 let compile (in_files,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in
@@ -262,7 +235,7 @@ let compile (in_files,out_file,out_dir) args =
   let ast = Ast.Module (all_fdecs,all_sdecs) in
   output_ast args.ast_out out_file' ast;
   let tast' = Typecheck.tc_module ast in
-  generate_header args.gen_header out_file' tast';
+  generate_header (args.gen_header || args.verify_llvm) out_file' tast';
   let tast = Transform_args.xf_module tast' in
   output_tast args.ast_out out_file' tast;
   Log.debug "Typecheck complete";
@@ -283,7 +256,7 @@ let compile (in_files,out_file,out_dir) args =
   List.map (fun wrapper ->
     match wrapper with
       | None -> ()
-      | Some c -> Log.debug "C-wrapper:\n%s" c)
+      | Some (_,c) -> Log.debug "C-wrapper:\n%s" c)
     c_wrappers |> ignore;
   
   (* Verify the opt passes via the command line. This doesn't affect llvm_mod *)
@@ -295,7 +268,7 @@ let compile (in_files,out_file,out_dir) args =
   (* Lets optimize the module *)
   let llvm_mod = Opt.run_optimizations args.opt_level args.opt_limit llvm_mod in
 
-  ctverify xftast out_file' llvm_mod args.verify_llvm;
+  ctverify xftast out_file' llvm_mod c_wrappers args.verify_llvm;
 
   (* Start verify final IR *)
   let errors = Hashtbl.create 100 in
