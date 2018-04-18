@@ -39,16 +39,24 @@ let is_signed' = function
   | UVec _ -> false
 let is_signed = unpack is_signed'
 
-let numbits = xfunction
+let numbits' = function
   | UInt n
   | Int n -> n
   | Bool -> 1
   | Num(i,s) ->
-    let rec numbits' = function
-      | n when n >= -128 && n <= 127 -> 8
-      | n -> 8 + (numbits' (n / 256))
-    in
-      numbits' i
+    if s || (i < 0) then
+      let rec numbits_helper = function
+        | n when n >= -128 && n <= 127 -> 8
+        | n -> 8 + (numbits_helper (n / 256))
+      in
+        numbits_helper i
+    else
+      let rec numbits_helper = function
+        | n when n >= 0 && n <= 255 -> 8
+        | n -> 8 + (numbits_helper (n / 256))
+      in
+        numbits_helper i
+let numbits = unpack numbits'
 
 let is_bool = xfunction
   | Bool -> true
@@ -201,8 +209,12 @@ let min_bt p { data=b1 } { data=b2 } =
       | Int n, Int m -> Int (min n m)
       | Num(k,s), Int n -> b2
       | Int n, Num(k,s) -> b1
-      | Num(k,s), UInt n -> b2
-      | UInt n, Num(k,s) -> b1
+      | Num(k,s), UInt n ->
+        let m = numbits' b1 in
+          UInt (min n m)
+      | UInt n, Num(k,s) ->
+        let m = numbits' b2 in
+          UInt (min n m)
       | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2) (* XXX max k1 k2 makes no sense *)
       | _ -> raise @@ cerr("invalid types for min_bt: " ^ show_base_type' b1 ^ " <> " ^ show_base_type' b2, p);
   in mkpos b'
