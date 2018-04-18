@@ -199,7 +199,7 @@ let ctverify (Tast.Module(_,fdecs,_)) out_file llvm_mod = function
 
       let exec_str = String.concat "" ["docker exec ctverif_cont /bin/bash -c 'cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make' 2>&1 | grep -q 'Boogie program verifier finished with 1 verified, 0 errors'"] in
 
-      (*let exec_str = String.concat "" ["docker exec ctverif_cont /bin/bash -c 'cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make'"] in*)
+      let exec_str = String.concat "" ["docker exec ctverif_cont /bin/bash -c 'cd /root/fact-verifs && ENTRYPOINTS="; entrypoint; " FACTLL=tmp.ll make'"] in
 
 
       Log.debug "docker exec...";
@@ -273,7 +273,16 @@ let compile (in_files,out_file,out_dir) args =
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let llvm_builder = Llvm.builder llvm_ctx in
   let _ = codegen llvm_ctx llvm_mod llvm_builder args.verify_llvm xftast in
-
+  
+  (* TODO: The line below will generate a C wrapper to send to ct-verif.
+     Uncomment it when ready. *)
+  let c_wrappers = Ctverif.generate_wrappers out_file' xftast in
+  List.map (fun wrapper ->
+    match wrapper with
+      | None -> ()
+      | Some c -> Log.debug "C-wrapper:\n%s" c)
+    c_wrappers |> ignore;
+  
   (* Verify the opt passes via the command line. This doesn't affect llvm_mod *)
   (* verify_opt_pass llvm_mod out_file' args.llvm_out args.verify_opts; *)
 
