@@ -5,8 +5,5 @@ RUN cd /root && git clone https://github.com/PLSysSec/verifying-constant-time.gi
 RUN cd /root/verifying-constant-time/bin && make local-tools
 
 RUN mkdir /root/fact-verifs
-COPY Makefile-ll /root/fact-verifs/Makefile
-COPY disjointregs.c /root/fact-verifs/disjointregs.c
+COPY Makefile /root/fact-verifs/Makefile
 
-RUN mkdir /root/c-verifs
-COPY Makefile-c /root/c-verifs/Makefile
