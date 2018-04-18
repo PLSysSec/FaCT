@@ -12,6 +12,8 @@ type t =
   | SMACK_RETURN_VALUE
   | DISJOINT_REGIONS
 
+type c_code = string option
+
 (* String version of a ct_verif type *)
 val string_of_ct_verif : t -> string
 
@@ -36,3 +38,7 @@ val generate_disjoint_regions : bool
 val declassify : Codegen_utils.codegen_ctx_record
               -> llvalue
               -> unit
+
+val generate_wrappers : string
+                     -> Tast.fact_module
+                     -> c_code list

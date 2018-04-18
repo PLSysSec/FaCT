@@ -15,6 +15,8 @@ type t =
   | SMACK_RETURN_VALUE
   | DISJOINT_REGIONS
 
+type c_code = string option
+
 let string_of_ct_verif = function
   | ASSUME -> "__VERIFIER_assume"
   | PUBLIC_IN -> "public_in"
@@ -214,3 +216,155 @@ let declassify cg_ctx llval =
       | None -> raise CTVerifError
       | Some declassified_out -> declassified_out in
   build_call declassify_out [| v |] "" cg_ctx.builder |> ignore
+
+let name_of_param = function
+  | { data=(Tast.Param(name,_)) } -> name.data
+
+let rec vt_to_c_type sdecs vn = function
+  | { data=RefVT({data=Int s},_,{ data=Mut })} ->
+    "int" ^ (string_of_int s) ^ "_t *" ^ vn
+  | { data=RefVT({data=UInt s},_,{ data=Mut })} ->
+    "uint" ^ (string_of_int s) ^ "_t *" ^ vn
+  | { data=RefVT({data=Bool},_,{ data=Mut })} ->
+    "int32_t *" ^ vn
+  | { data=RefVT({data=String},_,_)} ->
+    "char *" ^ vn
+  | { data=RefVT({data=Num(i,b)},_,{ data=Mut })} ->
+    "int" ^ (string_of_int i) ^ "_t *" ^ vn
+  | { data=RefVT({data=Int s},_,{ data=Const })} ->
+    "int" ^ (string_of_int s) ^ "_t" ^ vn
+  | { data=RefVT({data=UInt s},_,{ data=Const })} ->
+    "uint" ^ (string_of_int s) ^ "_t" ^ vn
+  | { data=RefVT({data=Bool},_,{ data=Const })} ->
+    "int32_t" ^ vn
+  | { data=RefVT({data=Num(i,b)},_,{ data=Const })} ->
+    "int" ^ (string_of_int i) ^ "_t" ^ vn
+  | { data=RefVT({data=UVec _},_,_)} ->
+    raise CTVerifError
+  | { data=ArrayVT({data=ArrayAT({data=Int s},_)},_,_,_) } ->
+    "int" ^ (string_of_int s) ^ "_t *" ^ vn
+  | { data=ArrayVT({data=ArrayAT({data=UInt s},_)},_,_,_) } ->
+    "uint" ^ (string_of_int s) ^ "_t *" ^ vn
+  | { data=ArrayVT({data=ArrayAT({data=Bool},_)},_,_,_) } ->
+    "int32_t *" ^ vn
+  | { data=ArrayVT({data=ArrayAT({data=String},_)},_,_,_) } ->
+    raise CTVerifError
+  | { data=ArrayVT({data=ArrayAT({data=Num(i,b)},_)},_,_,_) } ->
+    "int" ^ (string_of_int i) ^ "_t *" ^ vn
+  | { data=StructVT({ data=struct_name },{ data=_ })} ->
+    let extract_field (Field (vn',vt,ip)) = vt_to_c_type sdecs vn'.data vt in
+    let is_the_struct name = function
+      | Struct(sn,_) when name = sn.data -> true
+      | Struct(sn,_) -> false in
+    let (Struct(sn,fields)) = List.find (is_the_struct struct_name) sdecs in
+    let fields' = List.map (fun f -> extract_field f.data) fields in
+    String.concat ", " fields'
+  | _ -> raise CTVerifError
+
+let fact_param_to_c_param sdecs = function
+  | { data=Param(vn,vt) } -> vt_to_c_type sdecs vn.data vt
+
+let extract_param_name sdecs = function
+  | { data=Param(vn,{data=StructVT(sn,mut')})} ->
+    let extract_field {data=(Field (vn',vt,ip))} = vn'.data in
+    let is_the_struct = function
+      | Struct(sn',_) when sn'.data = sn.data -> true
+      | Struct(sn',_) -> false in
+    let (Struct(sn,fields)) = List.find is_the_struct sdecs in
+    let args = List.map extract_field fields in
+    "{" ^ (String.concat ", " args) ^ "}"
+  | { data=Param(vn,_) } -> vn.data
+
+let build_function_top
+  sdecs filename args fun_name public_args public_struct_fields disjoint_regions =
+  let c_args = List.map (fact_param_to_c_param sdecs) args in
+  let c_args' = String.concat ", " c_args in
+  let includes = "#include <ctverif.h>\n#include <stdint.h>\n#include \"" ^ filename ^ ".h\"\n" in
+  let dec = "void " ^ fun_name ^ "_wrapper(" ^ c_args' ^ ") {\n" in
+  let s' = List.fold_left
+    (fun s p ->
+      let pi = "public_in(__SMACK_VALUE(" ^ (name_of_param p) ^ "));\n" in
+      s ^ pi)
+    dec public_args in
+  let s'' = List.fold_left
+    (fun s {data=Field(vn,_,_)} ->
+      let pi = "public_in(__SMACK_VALUE(" ^ vn.data ^ "));\n" in
+      s ^ pi)
+    s' public_struct_fields in
+  let s''' = List.fold_left
+    (fun s (({data=Param(r1,_)},s1), ({data=Param(r2,_)},s2)) ->
+      let dr = "__disjoint_regions(" ^ r1.data ^ "," ^ s1 ^
+        "," ^ r2.data ^ "," ^ s2 ^ ");\n" in
+      s ^ dr
+    )
+    s'' disjoint_regions in
+  let arg_names = String.concat ", " (List.map (extract_param_name sdecs) args) in
+  let fun_call = fun_name ^ "(" ^ arg_names ^ ");\n" in
+  let s'''' = "\n}" in
+  includes ^ s''' ^ fun_call ^ s''''
+
+let is_public = function
+  | { data=Fixed(Public)} -> true
+  | _ -> false
+
+let is_arg_public = function
+  | { data=(Param(name,{data=RefVT(bt,{ data=Fixed(Public) },mut')})) } -> true
+  | { data=(Param(name,{data=ArrayVT(at,{ data=Fixed(Public)},mut',attr)})) } ->
+    true
+  | { data=(Param(name,{data=StructVT(sname,mut')})) } -> false
+  | _ -> false
+
+let public_struct_fields sdecs acc = function
+  | { data=(Param(name,{data=StructVT(sn,mut')})) } ->
+    let is_public_field = function
+      | Field(vn,{data=RefVT(_,{data=Fixed Public},_)},_) -> true
+      | Field(vn,{data=ArrayVT(_,{data=Fixed Public},_,_)},_) -> true
+      | _ -> false in
+    let is_the_struct = function
+      | Struct(sn',_) when sn'.data = sn.data -> true
+      | Struct(sn',_) -> false in
+    let (Struct(sn,fields)) = List.find is_the_struct sdecs in
+    let public_fields = List.filter (fun f -> is_public_field f.data) fields in
+    acc @ public_fields
+  | _ -> acc
+
+let is_disjoint_region = function
+  | { data=(Param(name,{data=ArrayVT(at,{ data=Fixed(_)},mut',attr)})) } ->
+    true
+  | _ -> false
+
+let assign_array_size arr_env = function
+  | { data=Param(_,
+    { data=ArrayVT({ data=ArrayAT(_,{ data=LIntLiteral size})},_,_,_)})} as a ->
+    (a,(string_of_int size))
+  | { data=Param(vn,
+    { data=ArrayVT({ data=ArrayAT(_,{ data=LDynamic{data=""}})},_,_,_)})} as a ->
+    let (vn : Tast.var_name),var = Env.find_var arr_env vn in
+    let size = begin match var.data with
+      | ArrayVT({data=ArrayAT(_,({data=LIntLiteral s}))},_,_,_) -> s
+      | _ -> raise CTVerifError end in
+    (a,(string_of_int size))
+  | { data=Param(_,
+    { data=ArrayVT({ data=ArrayAT(_,{ data=LDynamic var_name})},_,_,_)})} as a ->
+    (a,var_name.data)
+  | _ -> raise CTVerifError
+
+let generate_fdec_wrapper sdecs filename = function
+  | FunDec(fn,{ export=true }, ret_ty, params, body) ->
+    let arr_env,_ = body in
+    let public_params = List.filter is_arg_public params in
+    let public_struct_fields =
+      List.fold_left (public_struct_fields sdecs) [] params in
+    let disjoint_regions = List.filter is_disjoint_region params in
+    let disjoint_regions' =
+      List.map (assign_array_size arr_env) disjoint_regions in
+    let regions_combinations = generate_combinations disjoint_regions' [] in
+    Some (build_function_top
+      sdecs filename params fn.data public_params public_struct_fields
+      regions_combinations)
+  | _ -> None
+
+let generate_wrappers filename = function
+  | Tast.Module (env, fdecs, structs) ->
+    let sdecs = List.map (fun sdec -> sdec.data) structs in
+    List.map (fun fdec -> generate_fdec_wrapper sdecs filename fdec.data) fdecs
