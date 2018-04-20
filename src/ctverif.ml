@@ -3,6 +3,11 @@ open Tast
 open Pos
 open Codegen_utils
 
+(*
+  TODO:
+    1) Make a local variable for each struct
+*)
+
 exception CTVerifError
 
 type t =
@@ -232,13 +237,13 @@ let rec vt_to_c_type sdecs vn = function
   | { data=RefVT({data=Num(i,b)},_,{ data=Mut })} ->
     "int" ^ (string_of_int i) ^ "_t *" ^ vn
   | { data=RefVT({data=Int s},_,{ data=Const })} ->
-    "int" ^ (string_of_int s) ^ "_t" ^ vn
+    "int" ^ (string_of_int s) ^ "_t " ^ vn
   | { data=RefVT({data=UInt s},_,{ data=Const })} ->
-    "uint" ^ (string_of_int s) ^ "_t" ^ vn
+    "uint" ^ (string_of_int s) ^ "_t " ^ vn
   | { data=RefVT({data=Bool},_,{ data=Const })} ->
-    "int32_t" ^ vn
+    "int32_t " ^ vn
   | { data=RefVT({data=Num(i,b)},_,{ data=Const })} ->
-    "int" ^ (string_of_int i) ^ "_t" ^ vn
+    "int" ^ (string_of_int i) ^ "_t " ^ vn
   | { data=RefVT({data=UVec _},_,_)} ->
     raise CTVerifError
   | { data=ArrayVT({data=ArrayAT({data=Int s},_)},_,_,_) } ->
@@ -281,19 +286,25 @@ let rec extract_param_name sdecs = function
 
 let build_function_top
   sdecs filename args fun_name public_args public_struct_fields disjoint_regions
-  public_arrays =
+  public_arrays all_arrays =
   let c_args = List.map (fact_param_to_c_param sdecs) args in
   let c_args' = String.concat ", " c_args in
-  let includes = "#include <ctverif.h>\n#include <stdint.h>\n#include \"" ^ filename ^ ".h\"\n" in
+  let includes = "#include \"ct-verif.h\"\n#include <stdint.h>\n#include \"" ^ filename ^ ".h\"\n" in
   let dec = "void " ^ fun_name ^ "_wrapper(" ^ c_args' ^ ") {\n" in
+  let public_in_arrays = List.fold_left
+    (fun s {data=Param(r1,_)} ->
+      let pv = "public_in(__SMACK_value(" ^ r1.data ^ "));\n" in
+      s ^ pv
+    )
+    dec all_arrays in
   let s' = List.fold_left
     (fun s p ->
-      let pi = "public_in(__SMACK_VALUE(" ^ (name_of_param p) ^ "));\n" in
+      let pi = "public_in(__SMACK_value(" ^ (name_of_param p) ^ "));\n" in
       s ^ pi)
-    dec public_args in
+    public_in_arrays public_args in
   let s'' = List.fold_left
     (fun s {data=Field(vn,_,_)} ->
-      let pi = "public_in(__SMACK_VALUE(" ^ vn.data ^ "));\n" in
+      let pi = "public_in(__SMACK_value(" ^ vn.data ^ "));\n" in
       s ^ pi)
     s' public_struct_fields in
   let s''' = List.fold_left
@@ -305,7 +316,7 @@ let build_function_top
     s'' disjoint_regions in
   let public_values = List.fold_left
     (fun s ({data=Param(r1,_)}, size) ->
-      let pv = "public_in(__SMACK_VALUES(" ^ r1.data ^ "," ^ size ^ "))\n" in
+      let pv = "public_in(__SMACK_values(" ^ r1.data ^ "," ^ size ^ "));\n" in
       s ^ pv
     )
     s''' public_arrays in
@@ -365,11 +376,16 @@ let is_public_array = function
     true
   | _ -> false
 
+let is_array = function
+  | { data=(Param(name,{data=ArrayVT(_)})) } -> true
+  | _ -> false
+
 let generate_fdec_wrapper sdecs filename = function
   | FunDec(fn,{ export=true }, ret_ty, params, body) ->
     let arr_env,_ = body in
     let public_params = List.filter is_arg_public params in
     let public_arrays = List.filter is_public_array params in
+    let arrays = List.filter is_array params in
     let public_arrays' = List.map (assign_array_size arr_env) public_arrays in
     let public_struct_fields =
       List.fold_left (public_struct_fields sdecs) [] params in
@@ -379,7 +395,7 @@ let generate_fdec_wrapper sdecs filename = function
     let regions_combinations = generate_combinations disjoint_regions' [] in
     Some (fn,(build_function_top
       sdecs filename params fn.data public_params public_struct_fields
-      regions_combinations public_arrays'))
+      regions_combinations public_arrays' arrays))
   | _ -> None
 
 let generate_wrappers filename = function
