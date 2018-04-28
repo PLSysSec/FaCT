@@ -1,5 +1,5 @@
 
-type opt_level = O0 | O1 | O2 | OF
+type opt_level = O0 | O1 | O2 | O3 | OF
 type seconds = int
 
 val scalar_optimizations :

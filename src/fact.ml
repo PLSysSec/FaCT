@@ -140,8 +140,9 @@ let compile_command =
         | Some "O0" -> O0
         | Some "O1" -> O1
         | Some "O2" -> O2
+        | Some "O3" -> O3
         | Some "OF" -> OF
-        | Some o -> error_exit ("Unknown optimization level: " ^ o ^ ". Expected O0, O1, O2, or OF")
+        | Some o -> error_exit ("Unknown optimization level: " ^ o ^ ". Expected O0, O1, O2, O3, or OF")
         | None -> O0 in
       let args = { in_files; out_file; debug;
                    ast_out; core_ir_out; pseudo_out; smack_out;
