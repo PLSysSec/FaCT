@@ -8,16 +8,25 @@ type fenv = (string,fentry) Hashtbl.t [@printer Env.pp_hashtbl]
 [@@deriving show]
 
 type codegen_ctx_record = {
-  llcontext   : llcontext;
-  llmodule    : llmodule;
-  builder     : llbuilder;
-  venv        : llvalue Env.env;
-  fenv        : fenv;
-  tenv        : array_type Env.env;
-  vtenv       : variable_type Env.env;
-  sdecs       : (string * (lltype * struct_type')) list;
-  verify_llvm : bool;
+  llcontext    : llcontext;
+  llmodule     : llmodule;
+  builder      : llbuilder;
+  venv         : llvalue Env.env;
+  fenv         : fenv;
+  tenv         : array_type Env.env;
+  vtenv        : variable_type Env.env;
+  sdecs        : (string * (lltype * struct_type')) list;
+  verify_llvm  : bool;
+  noinline     : llattribute;
+  alwaysinline : llattribute;
 }
+
+let mk_ctx
+  llcontext llmodule builder venv fenv tenv vtenv sdecs verify_llvm =
+    let noinline = create_enum_attr llcontext "noinline" 0L in
+    let alwaysinline = create_enum_attr llcontext "alwaysinline" 0L in
+    { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm;
+    sdecs; noinline; alwaysinline; }
 
 let bt_to_llvm_ty llctx = function
   | UInt size when size <= 8  -> i8_type llctx

@@ -1,6 +1,7 @@
 open Tast
 open Pos
 open Llvm
+open Codegen_utils
 
 #define cerr(msg, p) InternalCompilerError("error: " ^ msg << p)
 #define err(p) cerr("internal compiler error", p)
@@ -32,35 +33,35 @@ let rec string_of_intrinsic = function
     else
       string_of_intrinsic (CmovSel n)
 
-let rec declare_intrinsic llctx llmod = function
+let rec declare_intrinsic cg_ctx = function
   | Memcpy ->
-    let i32_ty = i32_type llctx in
-    let i64_ty = i64_type llctx in
-    let ptr_ty = pointer_type (i8_type llctx) in
-    let bool_ty = i1_type llctx in
+    let i32_ty = i32_type cg_ctx.llcontext in
+    let i64_ty = i64_type cg_ctx.llcontext in
+    let ptr_ty = pointer_type (i8_type cg_ctx.llcontext) in
+    let bool_ty = i1_type cg_ctx.llcontext in
     let arg_types = [| ptr_ty; ptr_ty; i64_ty; i32_ty; bool_ty |] in
-    let vt = void_type llctx in
+    let vt = void_type cg_ctx.llcontext in
     let ft = function_type vt arg_types in
-      declare_function (string_of_intrinsic Memcpy) ft llmod
+      declare_function (string_of_intrinsic Memcpy) ft cg_ctx.llmodule
   | Memset ->
-    let i8_ty = i8_type llctx in
-    let i32_ty = i32_type llctx in
-    let i64_ty = i64_type llctx in
-    let ptr_ty = pointer_type (i8_type llctx) in
-    let bool_ty = i1_type llctx in
+    let i8_ty = i8_type cg_ctx.llcontext in
+    let i32_ty = i32_type cg_ctx.llcontext in
+    let i64_ty = i64_type cg_ctx.llcontext in
+    let ptr_ty = pointer_type (i8_type cg_ctx.llcontext) in
+    let bool_ty = i1_type cg_ctx.llcontext in
     let arg_types = [| ptr_ty; i8_ty; i64_ty; i32_ty; bool_ty |] in
-    let vt = void_type llctx in
+    let vt = void_type cg_ctx.llcontext in
     let ft = function_type vt arg_types in
-      declare_function (string_of_intrinsic Memset) ft llmod
+      declare_function (string_of_intrinsic Memset) ft cg_ctx.llmodule
   | Rotl n as rotl_sz ->
     (* we expect this function to get inlined and disappear at high optimization levels *)
-    let ity = integer_type llctx n in
+    let ity = integer_type cg_ctx.llcontext n in
     let ft = function_type ity [| ity; ity |] in
-    let fn = declare_function (string_of_intrinsic rotl_sz) ft llmod in
-      add_function_attr fn Alwaysinline;
+    let fn = declare_function (string_of_intrinsic rotl_sz) ft cg_ctx.llmodule in
+      add_function_attr fn cg_ctx.alwaysinline Function;
       set_linkage Internal fn;
-    let bb = append_block llctx "entry" fn in
-    let b = builder llctx in
+    let bb = append_block cg_ctx.llcontext "entry" fn in
+    let b = builder cg_ctx.llcontext in
       position_at_end bb b;
       let e1 = param fn 0 in
       let e2 = param fn 1 in
@@ -74,13 +75,13 @@ let rec declare_intrinsic llctx llmod = function
         fn
   | Rotr n as rotr_sz ->
     (* we expect this function to get inlined and disappear at high optimization levels *)
-    let ity = integer_type llctx n in
+    let ity = integer_type cg_ctx.llcontext n in
     let ft = function_type ity [| ity; ity |] in
-    let fn = declare_function (string_of_intrinsic rotr_sz) ft llmod in
-      add_function_attr fn Alwaysinline;
+    let fn = declare_function (string_of_intrinsic rotr_sz) ft cg_ctx.llmodule in
+      add_function_attr fn cg_ctx.alwaysinline Function;
       set_linkage Internal fn;
-    let bb = append_block llctx "entry" fn in
-    let b = builder llctx in
+    let bb = append_block cg_ctx.llcontext "entry" fn in
+    let b = builder cg_ctx.llcontext in
       position_at_end bb b;
       let e1 = param fn 0 in
       let e2 = param fn 1 in
@@ -93,19 +94,19 @@ let rec declare_intrinsic llctx llmod = function
         build_ret rotrtmp b;
         fn
   | CmovAsm n as cmov_sz ->
-    let i1ty = i1_type llctx in
-    let i32ty = i32_type llctx in
-    let ity = integer_type llctx n in
+    let i1ty = i1_type cg_ctx.llcontext in
+    let i32ty = i32_type cg_ctx.llcontext in
+    let ity = integer_type cg_ctx.llcontext n in
     let asmty = if n < 32 then i32ty else ity in
 
     let ft = function_type ity [| i1ty; ity; ity |] in
     let asmfty = function_type asmty [| i1ty; asmty; asmty |] in
 
-    let fn = declare_function (string_of_intrinsic cmov_sz) ft llmod in
-      add_function_attr fn Alwaysinline;
+    let fn = declare_function (string_of_intrinsic cmov_sz) ft cg_ctx.llmodule in
+      add_function_attr fn cg_ctx.alwaysinline Function;
       set_linkage Internal fn;
-    let bb = append_block llctx "entry" fn in
-    let b = builder llctx in
+    let bb = append_block cg_ctx.llcontext "entry" fn in
+    let b = builder cg_ctx.llcontext in
 
     let ext x' =
       if n < 32 then
@@ -135,16 +136,16 @@ let rec declare_intrinsic llctx llmod = function
           build_ret ret b;
           fn
   | CmovXor n as cmov_sz ->
-    let i1ty = i1_type llctx in
-    let ity = integer_type llctx n in
+    let i1ty = i1_type cg_ctx.llcontext in
+    let ity = integer_type cg_ctx.llcontext n in
 
     let ft = function_type ity [| i1ty; ity; ity |] in
 
-    let fn = declare_function (string_of_intrinsic cmov_sz) ft llmod in
-      add_function_attr fn Alwaysinline;
+    let fn = declare_function (string_of_intrinsic cmov_sz) ft cg_ctx.llmodule in
+      add_function_attr fn cg_ctx.alwaysinline Function;
       set_linkage Internal fn;
-    let bb = append_block llctx "entry" fn in
-    let b = builder llctx in
+    let bb = append_block cg_ctx.llcontext "entry" fn in
+    let b = builder cg_ctx.llcontext in
 
       position_at_end bb b;
       let cond = param fn 0 in
@@ -160,16 +161,16 @@ let rec declare_intrinsic llctx llmod = function
           build_ret ret b;
           fn
   | CmovSel n as cmov_sz ->
-    let i1ty = i1_type llctx in
-    let ity = integer_type llctx n in
+    let i1ty = i1_type cg_ctx.llcontext in
+    let ity = integer_type cg_ctx.llcontext n in
 
     let ft = function_type ity [| i1ty; ity; ity |] in
 
-    let fn = declare_function (string_of_intrinsic cmov_sz) ft llmod in
-      add_function_attr fn Alwaysinline;
+    let fn = declare_function (string_of_intrinsic cmov_sz) ft cg_ctx.llmodule in
+      add_function_attr fn cg_ctx.alwaysinline Function;
       set_linkage Internal fn;
-    let bb = append_block llctx "entry" fn in
-    let b = builder llctx in
+    let bb = append_block cg_ctx.llcontext "entry" fn in
+    let b = builder cg_ctx.llcontext in
 
       position_at_end bb b;
       let cond = param fn 0 in
@@ -183,14 +184,14 @@ let rec declare_intrinsic llctx llmod = function
           fn
   | CmovAsm8 n as cmov_sz ->
     if n < 32 then
-      declare_intrinsic llctx llmod (CmovAsm n)
+      declare_intrinsic cg_ctx (CmovAsm n)
     else
-      declare_intrinsic llctx llmod (CmovSel n)
+      declare_intrinsic cg_ctx (CmovSel n)
 
-let get_intrinsic intrinsic llctx llmod =
-  match lookup_function (string_of_intrinsic intrinsic) llmod with
+let get_intrinsic intrinsic cg_ctx =
+  match lookup_function (string_of_intrinsic intrinsic) cg_ctx.llmodule with
     | Some fn -> fn
-    | None -> declare_intrinsic llctx llmod intrinsic
+    | None -> declare_intrinsic cg_ctx intrinsic
 
 
 let load_le_proto' n name' =
@@ -299,44 +300,40 @@ let arrcopy_proto () =
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
   name,fdec
 
-let load_le_codegen' n name llcontext llmodule =
-  let ity = integer_type llcontext n in
-  let bty = i8_type llcontext in
+let load_le_codegen' n name cg_ctx =
+  let ity = integer_type cg_ctx.llcontext n in
+  let bty = i8_type cg_ctx.llcontext in
   let aty = pointer_type bty in
   let pty = pointer_type ity in
   let ft = function_type ity [| aty |] in
-  let fn = declare_function name ft llmodule in
-    add_function_attr fn Alwaysinline;
-    add_function_attr fn Readonly;
+  let fn = declare_function name ft cg_ctx.llmodule in
+    add_function_attr fn cg_ctx.alwaysinline Function;
+    add_function_attr fn (create_enum_attr cg_ctx.llcontext "readonly" 0L) Function;
     set_linkage Internal fn;
-  let bb = append_block llcontext "entry" fn in
-  let b = builder llcontext in
+  let bb = append_block cg_ctx.llcontext "entry" fn in
+  let b = builder cg_ctx.llcontext in
     position_at_end bb b;
     let arr = param fn 0 in
-      add_param_attr arr Noalias;
-      add_param_attr arr (Alignment 4);
     let cast = build_bitcast arr pty "_secret_cast" b in
     let load = build_load cast "_secret_load" b in
       build_ret load b;
       fn
 
-let load_vec_le_codegen' bw n name llcontext llmodule =
-  let ity = integer_type llcontext bw in
+let load_vec_le_codegen' bw n name cg_ctx =
+  let ity = integer_type cg_ctx.llcontext bw in
   let vty = vector_type ity n in
-  let bty = i8_type llcontext in
+  let bty = i8_type cg_ctx.llcontext in
   let aty = pointer_type bty in
   let pty = pointer_type vty in
   let ft = function_type vty [| aty |] in
-  let fn = declare_function name ft llmodule in
-    add_function_attr fn Alwaysinline;
-    add_function_attr fn Readonly;
+  let fn = declare_function name ft cg_ctx.llmodule in
+    add_function_attr fn cg_ctx.alwaysinline Function;
+    add_function_attr fn (create_enum_attr cg_ctx.llcontext "readonly" 0L) Function;
     set_linkage Internal fn;
-  let bb = append_block llcontext "entry" fn in
-  let b = builder llcontext in
+  let bb = append_block cg_ctx.llcontext "entry" fn in
+  let b = builder cg_ctx.llcontext in
     position_at_end bb b;
     let arr = param fn 0 in
-      add_param_attr arr Noalias;
-      add_param_attr arr (Alignment 4);
     let cast = build_bitcast arr pty "_secret_cast" b in
     let load = build_load cast "_secret_load" b in
       build_ret load b;
@@ -349,17 +346,17 @@ let load64_le_codegen =
 let load32_4_le_codegen =
   load_vec_le_codegen' 32 4 "_load32_4_le"
 
-let store_le_codegen' n name llcontext llmodule =
-  let ity = integer_type llcontext n in
-  let bty = i8_type llcontext in
+let store_le_codegen' n name cg_ctx =
+  let ity = integer_type cg_ctx.llcontext n in
+  let bty = i8_type cg_ctx.llcontext in
   let aty = pointer_type bty in
   let pty = pointer_type ity in
-  let ft = function_type (void_type llcontext) [| aty; ity |] in
-  let fn = declare_function name ft llmodule in
-    add_function_attr fn Alwaysinline;
+  let ft = function_type (void_type cg_ctx.llcontext) [| aty; ity |] in
+  let fn = declare_function name ft cg_ctx.llmodule in
+      add_function_attr fn cg_ctx.alwaysinline Function;
     set_linkage Internal fn;
-  let bb = append_block llcontext "entry" fn in
-  let b = builder llcontext in
+  let bb = append_block cg_ctx.llcontext "entry" fn in
+  let b = builder cg_ctx.llcontext in
     position_at_end bb b;
     let arr = param fn 0 in
     let w = param fn 1 in
@@ -368,18 +365,18 @@ let store_le_codegen' n name llcontext llmodule =
       build_ret_void b;
       fn
 
-let store_vec_le_codegen' bw n name llcontext llmodule =
-  let ity = integer_type llcontext bw in
+let store_vec_le_codegen' bw n name cg_ctx =
+  let ity = integer_type cg_ctx.llcontext bw in
   let vty = vector_type ity n in
-  let bty = i8_type llcontext in
+  let bty = i8_type cg_ctx.llcontext in
   let aty = pointer_type bty in
   let pty = pointer_type vty in
-  let ft = function_type (void_type llcontext) [| aty; vty |] in
-  let fn = declare_function name ft llmodule in
-    add_function_attr fn Alwaysinline;
+  let ft = function_type (void_type cg_ctx.llcontext) [| aty; vty |] in
+  let fn = declare_function name ft cg_ctx.llmodule in
+      add_function_attr fn cg_ctx.alwaysinline Function;
     set_linkage Internal fn;
-  let bb = append_block llcontext "entry" fn in
-  let b = builder llcontext in
+  let bb = append_block cg_ctx.llcontext "entry" fn in
+  let b = builder cg_ctx.llcontext in
     position_at_end bb b;
     let arr = param fn 0 in
     let w = param fn 1 in
@@ -395,26 +392,26 @@ let store64_le_codegen =
 let store32_4_le_codegen =
   store_vec_le_codegen' 32 4 "_store32_4_le"
 
-let memzero_codegen' n name llcontext llmodule =
-  let i8_ty = i8_type llcontext in
-  let i32_ty = i32_type llcontext in
+let memzero_codegen' n name cg_ctx =
+  let i8_ty = i8_type cg_ctx.llcontext in
+  let i32_ty = i32_type cg_ctx.llcontext in
   let ptr_ty = pointer_type i8_ty in
-  let bool_ty = i1_type llcontext in
+  let bool_ty = i1_type cg_ctx.llcontext in
   let arg_types = [| ptr_ty; i8_ty; i32_ty; i32_ty; bool_ty |] in
-  let vt = void_type llcontext in
+  let vt = void_type cg_ctx.llcontext in
   let ft = function_type vt arg_types in
-  let memset = declare_function ("llvm.memset.p0i8.i32") ft llmodule in
+  let memset = declare_function ("llvm.memset.p0i8.i32") ft cg_ctx.llmodule in
 
-  let ity = integer_type llcontext n in
+  let ity = integer_type cg_ctx.llcontext n in
   let iptr_ty = pointer_type ity in
   let arg_types = [| iptr_ty; i32_ty; |] in
-  let vt = void_type llcontext in
+  let vt = void_type cg_ctx.llcontext in
   let ft = function_type vt arg_types in
-  let fn = declare_function name ft llmodule in
-    add_function_attr fn Noinline;
+  let fn = declare_function name ft cg_ctx.llmodule in
+    add_function_attr fn cg_ctx.noinline Function;
     set_linkage Internal fn;
-  let bb = append_block llcontext "entry" fn in
-  let b = builder llcontext in
+  let bb = append_block cg_ctx.llcontext "entry" fn in
+  let b = builder cg_ctx.llcontext in
     position_at_end bb b;
     let arr = param fn 0 in
     let len = param fn 1 in
@@ -430,24 +427,24 @@ let memzero_codegen' n name llcontext llmodule =
 let memzero_codegen = memzero_codegen' 8 "_memzero"
 let memzero64_codegen = memzero_codegen' 64 "_memzero64"
 
-let arrcopy_codegen llctx llmod =
-  let i8_ty = i8_type llctx in
-  let i32_ty = i32_type llctx in
+let arrcopy_codegen cg_ctx =
+  let i8_ty = i8_type cg_ctx.llcontext in
+  let i32_ty = i32_type cg_ctx.llcontext in
   let ptr_ty = pointer_type i8_ty in
-  let bool_ty = i1_type llctx in
+  let bool_ty = i1_type cg_ctx.llcontext in
   let arg_types = [| ptr_ty; ptr_ty; i32_ty; i32_ty; bool_ty; |] in
-  let vt = void_type llctx in
+  let vt = void_type cg_ctx.llcontext in
   let ft = function_type vt arg_types in
-  let memcpy = declare_function ("llvm.memcpy.p0i8.p0i8.i32") ft llmod in
+  let memcpy = declare_function ("llvm.memcpy.p0i8.p0i8.i32") ft cg_ctx.llmodule in
 
   let arg_types = [| ptr_ty; i32_ty; ptr_ty; i32_ty; |] in
-  let vt = void_type llctx in
+  let vt = void_type cg_ctx.llcontext in
   let ft = function_type vt arg_types in
-  let fn = declare_function "_arrcopy" ft llmod in
-    add_function_attr fn Alwaysinline;
+  let fn = declare_function "_arrcopy" ft cg_ctx.llmodule in
+      add_function_attr fn cg_ctx.alwaysinline Function;
     set_linkage Internal fn;
-  let bb = append_block llctx "entry" fn in
-  let b = builder llctx in
+  let bb = append_block cg_ctx.llcontext "entry" fn in
+  let b = builder cg_ctx.llcontext in
     position_at_end bb b;
     let arr1 = param fn 0 in
     let len = param fn 1 in
@@ -459,17 +456,17 @@ let arrcopy_codegen llctx llmod =
       build_ret_void b;
       fn
 
-let get_stdlib name llctx llmod =
+let get_stdlib name cg_ctx =
   match name with
-    | "_load32_le" -> load32_le_codegen llctx llmod
-    | "_load64_le" -> load64_le_codegen llctx llmod
-    | "_load32_4_le" -> load32_4_le_codegen llctx llmod
-    | "_store32_le" -> store32_le_codegen llctx llmod
-    | "_store64_le" -> store64_le_codegen llctx llmod
-    | "_store32_4_le" -> store32_4_le_codegen llctx llmod
-    | "_memzero" -> memzero_codegen llctx llmod
-    | "_memzero64" -> memzero64_codegen llctx llmod
-    | "_arrcopy" -> arrcopy_codegen llctx llmod
+    | "_load32_le" -> load32_le_codegen cg_ctx
+    | "_load64_le" -> load64_le_codegen cg_ctx
+    | "_load32_4_le" -> load32_4_le_codegen cg_ctx
+    | "_store32_le" -> store32_le_codegen cg_ctx
+    | "_store64_le" -> store64_le_codegen cg_ctx
+    | "_store32_4_le" -> store32_4_le_codegen cg_ctx
+    | "_memzero" -> memzero_codegen cg_ctx
+    | "_memzero64" -> memzero64_codegen cg_ctx
+    | "_arrcopy" -> arrcopy_codegen cg_ctx
 
 let functions = [
   load32_le_proto ();

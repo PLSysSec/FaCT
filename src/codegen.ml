@@ -40,11 +40,6 @@ let new_fenv oldfenv =
 (* End env functionality *)
 
 
-let mk_ctx
-  llcontext llmodule builder venv fenv tenv vtenv verify_llvm =
-  { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm;
-    sdecs=[]; }
-
 let is_signed = Tast_utils.is_signed'
 
 let get_size ctx = function
@@ -342,12 +337,12 @@ let codegen_binop cg_ctx op e1 e2 ty ety b1 b2 ml b =
       | Ast.LeftRotate ->
         (* counting on the optimizer to optimize this into a single instruction *)
         let UInt n = ty in
-        let rotl_fn = Stdlib.get_intrinsic (Rotl n) cg_ctx.llcontext cg_ctx.llmodule in
+        let rotl_fn = Stdlib.get_intrinsic (Rotl n) cg_ctx in
           build_call rotl_fn [| e1; e2 |] "rotltmp" b
       | Ast.RightRotate ->
         (* counting on the optimizer to optimize this into a single instruction *)
         let UInt n = ty in
-        let rotr_fn = Stdlib.get_intrinsic (Rotr n) cg_ctx.llcontext cg_ctx.llmodule in
+        let rotr_fn = Stdlib.get_intrinsic (Rotr n) cg_ctx in
           build_call rotr_fn [| e1; e2 |] "rotrtmp" b
   in
 
@@ -541,7 +536,7 @@ and codegen_expr cg_ctx = function
     let fun_dec = get_fn cg_ctx.fenv fun_name in
     let callee = match lookup_function fun_name.data cg_ctx.llmodule with
       | Some fn -> fn
-      | None -> Stdlib.get_stdlib fun_name.data cg_ctx.llcontext cg_ctx.llmodule in
+      | None -> Stdlib.get_stdlib fun_name.data cg_ctx in
     let codegen_arg' = codegen_arg cg_ctx in
     let args' = List.map2 codegen_arg' args fun_dec.args in
     let name = make_name_et "calltmp" ty in
@@ -560,7 +555,7 @@ and codegen_expr cg_ctx = function
     let ty' = expr_ty_to_llvm_ty cg_ctx ty in
     let e2 = codegen_ext cg_ctx ty' expr2 in
     let e3 = codegen_ext cg_ctx ty' expr3 in
-    let fn = Stdlib.get_intrinsic (CmovAsm8 (integer_bitwidth ty')) cg_ctx.llcontext cg_ctx.llmodule in
+    let fn = Stdlib.get_intrinsic (CmovAsm8 (integer_bitwidth ty')) cg_ctx in
       build_call fn [| e1'; e2; e3 |] (make_name_et "selecttmp" ty) cg_ctx.builder
   | Inject(var_name,stms), ty ->
     let ret_ty = None in
@@ -654,7 +649,7 @@ and codegen_array_expr cg_ctx arr_name = function
           let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
           let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
           let args = [| source_casted; zero; sz; alignment; volatility |] in
-          let memset = Stdlib.get_intrinsic Memset cg_ctx.llcontext cg_ctx.llmodule in
+          let memset = Stdlib.get_intrinsic Memset cg_ctx in
           build_call memset args "" cg_ctx.builder |> ignore;
           alloca,false
         | LDynamic x -> raise @@ CodegenErrorMsg (Err.("hi" << lexpr.pos))
@@ -689,7 +684,7 @@ and codegen_array_expr cg_ctx arr_name = function
     let name = make_name_et "destcast" ty in
     let dest_casted = build_bitcast alloca source_ty name cg_ctx.builder in
     let args = [| dest_casted; source_val; ll_cpy_len; alignment; volatility |] in
-    let memcpy = Stdlib.get_intrinsic Memcpy cg_ctx.llcontext cg_ctx.llmodule in
+    let memcpy = Stdlib.get_intrinsic Memcpy cg_ctx in
     build_call memcpy args "" cg_ctx.builder |> ignore;
     alloca,false
 
@@ -869,7 +864,7 @@ and codegen_stm cg_ctx ret_ty = function
     let fun_dec = get_fn cg_ctx.fenv fun_name in
     let callee = match lookup_function fun_name.data cg_ctx.llmodule with
       | Some fn -> fn
-      | None -> Stdlib.get_stdlib fun_name.data cg_ctx.llcontext cg_ctx.llmodule in
+      | None -> Stdlib.get_stdlib fun_name.data cg_ctx in
     let codegen_arg' = codegen_arg cg_ctx in
     let args' = List.map2 codegen_arg' arg_exprs fun_dec.args in
     build_call callee (Array.of_list args') "" cg_ctx.builder |> ignore;
@@ -953,16 +948,16 @@ let codegen_fun llcontext llmodule builder fenv sdecs verify_llvm = function
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
     let vtenv = Env.new_env () in
-    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv;
-      sdecs; verify_llvm; } in
+    let cg_ctx = mk_ctx llcontext llmodule builder venv fenv tenv vtenv
+      sdecs verify_llvm in
     let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
       if not funattrs.export && not verify_llvm then
         set_linkage Internal ft;
       (match funattrs.inline with
         | Always ->
-          add_function_attr ft Alwaysinline
+            add_function_attr ft cg_ctx.alwaysinline Function
         | Never ->
-          add_function_attr ft Noinline
+            add_function_attr ft cg_ctx.noinline Function
         | _ -> ());
     let bb = append_block llcontext "entry" ft in
     position_at_end bb builder;
@@ -996,8 +991,8 @@ let codegen_fun llcontext llmodule builder fenv sdecs verify_llvm = function
     let venv = Env.new_env () in
     let tenv = Env.new_env () in
     let vtenv = Env.new_env () in
-    let cg_ctx = { llcontext; llmodule; builder; venv; fenv; tenv; vtenv;
-      sdecs; verify_llvm; } in
+    let cg_ctx = mk_ctx llcontext llmodule builder venv fenv tenv vtenv
+      sdecs verify_llvm in
     declare_prototype cg_ctx llmodule builder fenv params ret_ty fun_name
   | { data=DebugFunDec _} -> raise CodegenError
   | { data=StdlibFunDec _} -> raise CodegenError
