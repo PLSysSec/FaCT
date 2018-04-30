@@ -115,7 +115,7 @@ void _poly1305_update(
 
   /* process full blocks */
   if (len m - mindex >= 16) {
-    public uint64 want = ((len m - mindex) & ~(16 - 1)); // XXX wat
+    public uint64 want = ((len m - mindex) & ~((uint32)(16 - 1))); // XXX wat
 
     secret uint8[] mview = arrview(m, mindex, want);
     _poly1305_blocks(ref state, mview);
