@@ -215,7 +215,7 @@ let load_vec_le_proto' bw n name' =
   let rt' = mkpos BaseET(mkpos UVec(bw,n), mkpos Fixed Secret) in
   let rt = Some rt' in
 
-  let arr = mkpos ArrayAT(mkpos UInt 8, mkpos LIntLiteral (bw * n / 8)) in
+  let arr = mkpos ArrayAT(mkpos UInt bw, mkpos LIntLiteral n) in
   let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Const, default_var_attr) in
   let params = [mkpos Param (mkpos "src", arg)] in
 
@@ -229,13 +229,13 @@ let load64_le_proto () =
 let load32_4_le_proto () =
   load_vec_le_proto' 32 4 "_load32_4_le"
 
-let store_le_proto' n name' =
+let store_le_proto' n lbl name' =
   let name = mkpos name' in
   let ft = { export=false; inline=Always } in
   let rt = None in
 
   let arr = mkpos ArrayAT(mkpos UInt 8, mkpos LIntLiteral (n / 8)) in
-  let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Mut, default_var_attr) in
+  let arg = mkpos ArrayVT(arr, mkpos Fixed lbl, mkpos Mut, default_var_attr) in
 
   let w = mkpos RefVT(mkpos UInt n, mkpos Fixed Secret, mkpos Const) in
   let params = [mkpos Param (mkpos "dst", arg); mkpos Param (mkpos "w", w)] in
@@ -248,7 +248,7 @@ let store_vec_le_proto' bw n name' =
   let ft = { export=false; inline=Always } in
   let rt = None in
 
-  let arr = mkpos ArrayAT(mkpos UInt 8, mkpos LIntLiteral (bw * n / 8)) in
+  let arr = mkpos ArrayAT(mkpos UInt bw, mkpos LIntLiteral n) in
   let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Mut, default_var_attr) in
 
   let w = mkpos RefVT(mkpos UVec(bw,n), mkpos Fixed Secret, mkpos Const) in
@@ -258,9 +258,11 @@ let store_vec_le_proto' bw n name' =
     name,fdec
 
 let store32_le_proto () =
-  store_le_proto' 32 "_store32_le"
+  store_le_proto' 32 Secret "_store32_le"
 let store64_le_proto () =
-  store_le_proto' 64 "_store64_le"
+  store_le_proto' 64 Secret "_store64_le"
+let store64p_le_proto () =
+  store_le_proto' 64 Public "_store64_le_public"
 let store32_4_le_proto () =
   store_vec_le_proto' 32 4 "_store32_4_le"
 
@@ -279,6 +281,7 @@ let memzero_proto' n name' () =
     name,fdec
 
 let memzero_proto = memzero_proto' 8 "_memzero"
+let memzero32_proto = memzero_proto' 32 "_memzero32"
 let memzero64_proto = memzero_proto' 64 "_memzero64"
 
 let arrcopy_proto () =
@@ -322,8 +325,7 @@ let load_le_codegen' n name cg_ctx =
 let load_vec_le_codegen' bw n name cg_ctx =
   let ity = integer_type cg_ctx.llcontext bw in
   let vty = vector_type ity n in
-  let bty = i8_type cg_ctx.llcontext in
-  let aty = pointer_type bty in
+  let aty = pointer_type ity in
   let pty = pointer_type vty in
   let ft = function_type vty [| aty |] in
   let fn = declare_function name ft cg_ctx.llmodule in
@@ -368,8 +370,7 @@ let store_le_codegen' n name cg_ctx =
 let store_vec_le_codegen' bw n name cg_ctx =
   let ity = integer_type cg_ctx.llcontext bw in
   let vty = vector_type ity n in
-  let bty = i8_type cg_ctx.llcontext in
-  let aty = pointer_type bty in
+  let aty = pointer_type ity in
   let pty = pointer_type vty in
   let ft = function_type (void_type cg_ctx.llcontext) [| aty; vty |] in
   let fn = declare_function name ft cg_ctx.llmodule in
@@ -425,6 +426,7 @@ let memzero_codegen' n name cg_ctx =
       fn
 
 let memzero_codegen = memzero_codegen' 8 "_memzero"
+let memzero32_codegen = memzero_codegen' 32 "_memzero32"
 let memzero64_codegen = memzero_codegen' 64 "_memzero64"
 
 let arrcopy_codegen cg_ctx =
@@ -463,8 +465,10 @@ let get_stdlib name cg_ctx =
     | "_load32_4_le" -> load32_4_le_codegen cg_ctx
     | "_store32_le" -> store32_le_codegen cg_ctx
     | "_store64_le" -> store64_le_codegen cg_ctx
+    | "_store64_le_public" -> store_le_codegen' 64 "_store64_le_public" cg_ctx
     | "_store32_4_le" -> store32_4_le_codegen cg_ctx
     | "_memzero" -> memzero_codegen cg_ctx
+    | "_memzero32" -> memzero32_codegen cg_ctx
     | "_memzero64" -> memzero64_codegen cg_ctx
     | "_arrcopy" -> arrcopy_codegen cg_ctx
 
@@ -474,8 +478,10 @@ let functions = [
   load32_4_le_proto ();
   store32_le_proto ();
   store64_le_proto ();
+  store64p_le_proto ();
   store32_4_le_proto ();
   memzero_proto ();
+  memzero32_proto ();
   memzero64_proto ();
   arrcopy_proto ();
 ]
