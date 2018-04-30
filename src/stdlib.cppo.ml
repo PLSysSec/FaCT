@@ -316,7 +316,7 @@ let load_le_codegen' n name llcontext llmodule =
       add_param_attr arr Noalias;
       add_param_attr arr (Alignment 4);
     let cast = build_bitcast arr pty "_secret_cast" b in
-    let load = build_load cast "_secret_load" b in
+    let load = build_load cast "_secret_ld" b in
       build_ret load b;
       fn
 
@@ -338,7 +338,7 @@ let load_vec_le_codegen' bw n name llcontext llmodule =
       add_param_attr arr Noalias;
       add_param_attr arr (Alignment 4);
     let cast = build_bitcast arr pty "_secret_cast" b in
-    let load = build_load cast "_secret_load" b in
+    let load = build_load cast "_secret_ld" b in
       build_ret load b;
       fn
 
