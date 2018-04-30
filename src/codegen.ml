@@ -97,7 +97,7 @@ let declare_intrinsic cg_ctx = function
       let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
       let lrshift = build_lshr e1 subtmp "_secret_lrshift" b in
       let rotltmp = build_or lshift lrshift "_secret_rotltmp" b in
-        build_ret rotltmp b;
+      build_ret rotltmp b |> ignore;
         fn
   | Rotr n as rotr_sz ->
     (* we expect this function to get inlined and disappear at high optimization levels *)
@@ -117,7 +117,7 @@ let declare_intrinsic cg_ctx = function
       let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
       let lshift = build_shl e1 subtmp "_secret_lshift" b in
       let rotrtmp = build_or lrshift lshift "_secret_rotrtmp" b in
-        build_ret rotrtmp b;
+      build_ret rotrtmp b |> ignore;
         fn
   | Cmov n as cmov_sz ->
     let i1ty = i1_type cg_ctx.llcontext in
@@ -159,9 +159,9 @@ let declare_intrinsic cg_ctx = function
                     false false in
         let ret' = build_call asm [| cond; x; y; |] "_secret_asm" b in
         let ret = trunc ret' in
-          build_ret ret b;
-          Llvm.print_module "tmp.ll" cg_ctx.llmodule;
-          fn
+        build_ret ret b |> ignore;
+        Llvm.print_module "tmp.ll" cg_ctx.llmodule;
+        fn
 
 let get_intrinsic intrinsic cg_ctx =
   match lookup_function (string_of_intrinsic intrinsic) cg_ctx.llmodule with
@@ -276,7 +276,7 @@ let allocate_args cg_ctx args f =
     match var_type.data with
       | RefVT (bt,ml,{data=Mut}) ->
         let name = make_name var_name.data ml in
-        codegen_dec cg_ctx var_type ll_arg;
+        (*codegen_dec cg_ctx var_type ll_arg;*)
         Env.add_var cg_ctx.venv var_name ll_arg;
         set_value_name name ll_arg;
         acc
@@ -284,7 +284,7 @@ let allocate_args cg_ctx args f =
         let ty = param_to_type cg_ctx arg in
         let name = make_name var_name.data ml in
         let alloca = build_alloca ty name cg_ctx.builder in
-        codegen_dec cg_ctx var_type ll_arg;
+        (*codegen_dec cg_ctx var_type ll_arg;*)
         Env.add_var cg_ctx.venv var_name alloca;
         set_value_name name ll_arg;
         build_store ll_arg alloca cg_ctx.builder |> ignore;
@@ -302,7 +302,7 @@ let allocate_args cg_ctx args f =
         let ty = pointer_type(bt_to_llvm_ty cg_ctx.llcontext bt.data) in
         let name = make_name "arrarg" ml in
         let alloca = build_alloca ty name cg_ctx.builder in
-        codegen_dec cg_ctx var_type ll_arg;
+        (*codegen_dec cg_ctx var_type ll_arg;*)
         Env.add_var cg_ctx.venv var_name alloca;
         set_value_name name ll_arg;
         build_store ll_arg alloca cg_ctx.builder |> ignore;
@@ -618,7 +618,7 @@ and codegen_lval cg_ctx {data=(lval,vt);pos=p} =
         else
           fieldloc
     | CheckedLval(stms, lval) ->
-      List.map (codegen_stm cg_ctx None) stms;
+      List.map (codegen_stm cg_ctx None) stms |> ignore;
       codegen_lval cg_ctx lval
 
 and codegen_expr cg_ctx = function
@@ -675,7 +675,7 @@ and codegen_expr cg_ctx = function
     let n = value_name e in
     set_value_name ("_declassified_" ^ n) e;
     let ast = make_ast fake_pos (value_name e) in
-    declassify cg_ctx e;
+    (*declassify cg_ctx e;*)
     e
   | Select(expr1,expr2,expr3), ty ->
     let e1 = codegen_expr cg_ctx expr1.data in
@@ -865,7 +865,7 @@ and codegen_array_expr cg_ctx arr_name = function
         | LDynamic x -> raise CodegenError
     end
   | CheckedArrayExpr(stms,ae),_ ->
-    List.map (codegen_stm cg_ctx None) stms;
+    List.map (codegen_stm cg_ctx None) stms |> ignore;
     codegen_array_expr cg_ctx arr_name ae.data
 
 and codegen_stm cg_ctx ret_ty = function
@@ -913,8 +913,8 @@ and codegen_stm cg_ctx ret_ty = function
     let (_,vt) = lval.data in
     let vt' = vt_to_llvm_ty cg_ctx vt in
     let expr' = codegen_ext cg_ctx vt' expr in
-      build_store expr' v cg_ctx.builder;
-      false
+    build_store expr' v cg_ctx.builder |> ignore;
+    false
   | {data=Block(stms)} ->
     codegen_stms cg_ctx ret_ty stms
   | {data=If(cond,thenstms,elsestms)} ->
@@ -1090,18 +1090,18 @@ let codegen_fun llcontext llmodule builder fenv sdecs verify_llvm = function
     let bb = append_block llcontext "entry" ft in
     position_at_end bb builder;
 
-    declare_ct_verif verify_llvm llcontext llmodule ASSUME;
+    (*declare_ct_verif verify_llvm llcontext llmodule ASSUME;
     declare_ct_verif verify_llvm llcontext llmodule PUBLIC_IN;
     declare_ct_verif verify_llvm llcontext llmodule PUBLIC_OUT;
     declare_ct_verif verify_llvm llcontext llmodule DECLASSIFIED_OUT;
     declare_ct_verif verify_llvm llcontext llmodule SMACK_VALUE;
     declare_ct_verif verify_llvm llcontext llmodule SMACK_VALUES;
     declare_ct_verif verify_llvm llcontext llmodule SMACK_RETURN_VALUE;
-    declare_ct_verif verify_llvm llcontext llmodule DISJOINT_REGIONS;
+    declare_ct_verif verify_llvm llcontext llmodule DISJOINT_REGIONS;*)
     let regions = allocate_args cg_ctx params ft in
     allocate_stack cg_ctx body;
-    let arr_env,_ = body in
-    generate_disjoint_regions verify_llvm regions cg_ctx arr_env;
+    (*let arr_env,_ = body in
+    generate_disjoint_regions verify_llvm regions cg_ctx arr_env;*)
     let returned =
       begin
         match ret with

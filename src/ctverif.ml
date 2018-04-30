@@ -21,7 +21,7 @@ type t =
   | DISJOINT_REGIONS
 
 type c_code = string
-
+(*
 let string_of_ct_verif = function
   | ASSUME -> "__VERIFIER_assume"
   | PUBLIC_IN -> "public_in"
@@ -158,7 +158,7 @@ let codegen_dec cg_ctx vt llvalue =
         | Llvm.TypeKind.Pointer ->  public_in ty
         | _ -> () end
     | Some(Public,ty) -> public_in ty
-
+*)
 let rec generate_combinations regions combinations =
   let rec generate_combinations' r rs acc = 
     match rs with
@@ -171,7 +171,7 @@ let rec generate_combinations regions combinations =
       let combinations' =
         generate_combinations' region1 (region2::r) [] in
       generate_combinations (region2::r) (combinations'::combinations)
-
+(*
 let generate_disjoint_regions verify_llvm regions cg_ctx arr_env =
   if not verify_llvm then () else
   let combinations = generate_combinations regions [] in
@@ -221,7 +221,7 @@ let declassify cg_ctx llval =
       | None -> raise CTVerifError
       | Some declassified_out -> declassified_out in
   build_call declassify_out [| v |] "" cg_ctx.builder |> ignore
-
+*)
 let name_of_param = function
   | { data=(Tast.Param(name,_)) } -> name.data
 
@@ -280,28 +280,49 @@ let rec extract_param_name sdecs = function
       | Struct(sn',_) -> false in
     let (Struct(sn,fields)) = List.find is_the_struct sdecs in
     let args = List.map extract_field' fields in
-    "{" ^ (String.concat ", " args) ^ "}"
-  | { data=Param(vn,_) } ->
+    "{" ^ (String.concat ", " args) ^ "}" |> ignore;
     vn.data
+  | { data=Param(vn,_) } ->
+    let pre = Core.String.is_prefix vn.data ~prefix:"__" in
+    let suf = Core.String.is_suffix vn.data ~suffix:"_len" in
+    match pre, suf with
+      | true, true -> "16"
+      | _ -> vn.data
+
+let build_structs sdecs = function
+  | { data=Param(vn,{data=StructVT(sn,mut')})} ->
+    let extract_field' = function
+      | { data=Field(vn',({data=StructVT(sn',mut'')} as vt),ip); pos=p} ->
+        extract_param_name sdecs {data=Param(vn',vt); pos=p};
+      | { data=Field(vn',vt,ip)} -> vn'.data in
+    let is_the_struct = function
+      | Struct(sn',_) when sn'.data = sn.data -> true
+      | Struct(sn',_) -> false in
+    let (Struct(sn,fields)) = List.find is_the_struct sdecs in
+    let args = List.map extract_field' fields in
+    let s = "{" ^ (String.concat ", " args) ^ "}" in
+    Log.error "Building struct %s %s = %s" sn.data vn.data s;
+    Some ("struct " ^ sn.data ^ " " ^ vn.data ^ " = " ^ s ^ ";\n")
+  | _ -> None
 
 let build_function_top
   sdecs filename args fun_name public_args public_struct_fields disjoint_regions
-  public_arrays all_arrays =
+  public_arrays pointers =
   let c_args = List.map (fact_param_to_c_param sdecs) args in
   let c_args' = String.concat ", " c_args in
   let includes = "#include \"ct-verif.h\"\n#include <stdint.h>\n#include \"" ^ filename ^ ".h\"\n" in
   let dec = "void " ^ fun_name ^ "_wrapper(" ^ c_args' ^ ") {\n" in
-  let public_in_arrays = List.fold_left
+  let pointers = List.fold_left
     (fun s {data=Param(r1,_)} ->
       let pv = "public_in(__SMACK_value(" ^ r1.data ^ "));\n" in
       s ^ pv
     )
-    dec all_arrays in
+    dec pointers in
   let s' = List.fold_left
     (fun s p ->
       let pi = "public_in(__SMACK_value(" ^ (name_of_param p) ^ "));\n" in
       s ^ pi)
-    public_in_arrays public_args in
+      pointers public_args in
   let s'' = List.fold_left
     (fun s {data=Field(vn,_,_)} ->
       let pi = "public_in(__SMACK_value(" ^ vn.data ^ "));\n" in
@@ -316,14 +337,21 @@ let build_function_top
     s'' disjoint_regions in
   let public_values = List.fold_left
     (fun s ({data=Param(r1,_)}, size) ->
+      let size = "16" in
       let pv = "public_in(__SMACK_values(" ^ r1.data ^ "," ^ size ^ "));\n" in
       s ^ pv
     )
     s''' public_arrays in
+  let structs = List.map (build_structs sdecs) args in
+  let structs' = List.filter Core.Option.is_some structs in
+  let structs'' = List.fold_left
+    (fun s (Some struct') ->
+      s ^ struct'
+    ) "" structs' in
   let arg_names = String.concat ", " (List.map (extract_param_name sdecs) args) in
   let fun_call = fun_name ^ "(" ^ arg_names ^ ");\n" in
   let s'''' = "\n}" in
-  includes ^ public_values ^ fun_call ^ s''''
+  includes ^ public_values ^ structs'' ^ fun_call ^ s''''
 
 let is_public = function
   | { data=Fixed(Public)} -> true
@@ -376,8 +404,9 @@ let is_public_array = function
     true
   | _ -> false
 
-let is_array = function
+let is_array_or_mutable = function
   | { data=(Param(name,{data=ArrayVT(_)})) } -> true
+  | { data=(Param(name,{data=RefVT(_,_,{data=Mut})}))} -> true
   | _ -> false
 
 let generate_fdec_wrapper sdecs filename = function
@@ -385,7 +414,7 @@ let generate_fdec_wrapper sdecs filename = function
     let arr_env,_ = body in
     let public_params = List.filter is_arg_public params in
     let public_arrays = List.filter is_public_array params in
-    let arrays = List.filter is_array params in
+    let pointers = List.filter is_array_or_mutable params in
     let public_arrays' = List.map (assign_array_size arr_env) public_arrays in
     let public_struct_fields =
       List.fold_left (public_struct_fields sdecs) [] params in
@@ -395,7 +424,7 @@ let generate_fdec_wrapper sdecs filename = function
     let regions_combinations = generate_combinations disjoint_regions' [] in
     Some (fn,(build_function_top
       sdecs filename params fn.data public_params public_struct_fields
-      regions_combinations public_arrays' arrays))
+      regions_combinations public_arrays' pointers))
   | _ -> None
 
 let generate_wrappers filename = function

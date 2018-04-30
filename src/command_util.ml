@@ -32,7 +32,7 @@ type args_record = {
   shared      : bool;
 }
 
-let run_command c args =
+let run_command c args ?(exit_on_error=true) =
   let process = Lwt_process.exec (c,args) in
   let handler = function
     | Unix.WEXITED s ->
@@ -45,7 +45,10 @@ let run_command c args =
       Log.debug "Error occured on command. Code %d" s;
       Lwt.return s in
   let ret_code = Lwt_main.run (process >>= handler) in
-    if ret_code != 0 then raise @@ InternalCompilerError("error: " ^ (String.concat " " (Array.to_list args))); ()
+  match exit_on_error with
+    | true when ret_code != 0 ->
+      raise @@ InternalCompilerError("error: " ^ (String.concat " " (Array.to_list args)))
+    | _ -> ret_code
 
 let generate_out_file out_dir out_file = out_dir ^ "/" ^ out_file
 
@@ -139,12 +142,12 @@ let output_assembly opt_level out_file =
   Log.debug "Creating .s file at %s" out_file_s;
   if opt_level = O2 then
     begin
-      run_command "llc" [|"llc"; "-O2"; "-mcpu=core-avx2"; out_file'|];
+      run_command "llc" [|"llc"; "-O2"; "-mcpu=core-avx2"; out_file'|] |> ignore;
       run_command "llc" [|"llc"; "-O2"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
     end
   else
     begin
-      run_command "llc" [|"llc"; "-mcpu=core-avx2"; out_file'|];
+      run_command "llc" [|"llc"; "-mcpu=core-avx2"; out_file'|] |> ignore;
       run_command "llc" [|"llc"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
     end
 
@@ -154,7 +157,7 @@ let output_object out_file =
   let out_file_o = out_file ^ ".o" in
   let out_file_fpic = out_file ^ ".fpic.o" in
   Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang" [|"clang"; "-c"; out_file_s; "-o"; out_file_o|];
+  run_command "clang" [|"clang"; "-c"; out_file_s; "-o"; out_file_o|] |> ignore;
   run_command "clang" [|"clang"; "-c"; out_file_fpic_s; "-o"; out_file_fpic|]
 
 let output_shared_object out_file args =
@@ -164,8 +167,10 @@ let output_shared_object out_file args =
   let out_file_o = out_file ^ ".so" in
   let out_file_fpic = out_file ^ ".fpic.so" in
   Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang" [|"clang"; "-shared"; out_file_s; "-o"; out_file_o|];
-  run_command "clang" [|"clang"; "-shared"; out_file_fpic_s; "-o"; out_file_fpic|]
+  run_command "clang"
+    [|"clang"; "-shared"; out_file_s; "-o"; out_file_o|] |> ignore;
+  run_command "clang"
+    [|"clang"; "-shared"; out_file_fpic_s; "-o"; out_file_fpic|] |> ignore
 
 let verify_opt_pass llmod out_file llvm_out = function
   | None       -> Log.info "Not verifying opt passes"
@@ -192,12 +197,13 @@ let ctverify (Tast.Module(_,fdecs,_)) out_file llvm_mod
     let ll_file = out_file ^ ".ll" in
     let verify f wrapper header llvm_file =
       let entrypoint = f ^ "_wrapper" in
-      let args = String.concat " " [wrapper; header; ll_file; entrypoint] in
-      let command = "./docker/build-ctverif/verif-ll.sh " ^ args in
-      Log.error "COMMAND: %s" command;
-      match Sys.command command with
-        | 0 -> Log.info "Ct-verif passed"
-        | _ -> Log.info "Ct-verif failed or was unable to run" in
+      let cmd = [| "verif-ll.sh"; wrapper; header; ll_file; entrypoint|] in
+      let ret_code = try run_command "" cmd ~exit_on_error:false
+        with | _ -> Log.error "Ct-verif failed to run. Please check that `docker/build-ctverif` is in you PATH"; exit 1; in
+      Log.info "Ct-verif returned with status %d" ret_code;
+      (* TODO: Have verif-ll.sh check if ct-verif passed or not and set the
+               error code accordingly. *)
+      in
     List.map (fun wrapper (*(fun_name,c_code)*) ->
       match wrapper with
         | None -> ()
@@ -285,9 +291,9 @@ let compile (in_files,out_file,out_dir) args =
         | Debugfun.DEV ->
           output_llvm args.llvm_out out_file' llvm_mod;
           output_bitcode out_file' llvm_mod;
-          output_assembly args.opt_level out_file';
+          output_assembly args.opt_level out_file' |> ignore;
           output_shared_object out_file' args;
-          output_object out_file'
+          output_object out_file' |> ignore
         | Debugfun.PROD -> () end;
         exit 1 |> ignore;
         () in
@@ -309,9 +315,9 @@ let compile (in_files,out_file,out_dir) args =
   (* ADD BACK: Llvm_analysis.assert_valid_module llvm_mod |> ignore;*)
   output_llvm args.llvm_out out_file' llvm_mod;
   output_bitcode out_file' llvm_mod;
-  output_assembly args.opt_level out_file';
+  output_assembly args.opt_level out_file' |> ignore;
   output_shared_object out_file' args;
-  output_object out_file'
+  output_object out_file' |> ignore
   (*let core_ir = transform tast in
   Log.debug "Core IR transform complete";
   output_core_ir core_ir_out out_file' core_ir;
