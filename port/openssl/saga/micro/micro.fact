@@ -39,3 +39,27 @@ void micro2(
     }
   }
 }
+
+export
+secret uint8 _micro1(
+    secret uint32 j,
+    secret uint32 inp_len,
+    secret uint8 out) {
+
+  return j < inp_len ? out :
+    j == inp_len ? 0x80
+    : 0;
+}
+
+export
+secret uint8 _micro2(
+    secret uint32 j,
+    secret uint32 inp_len,
+    secret uint8 out) {
+
+  secret mut uint32 c = out;
+  secret mut uint32 mask = (uint32)(((int32)(j - inp_len)) >> (4 * 8 - 8)); // the `4` is sizeof(j)
+  c &= mask;
+  c |= 0x80 & (~mask) & ~((inp_len - j) >> (4 * 8 - 8)); // the `4` is sizeof(j)
+  return (uint8)c;
+}
