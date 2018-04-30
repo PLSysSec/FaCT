@@ -30,6 +30,7 @@ type args_record = {
   opt_limit   : seconds option;
   verify_opts : string option;
   shared      : bool;
+  noguac      : bool;
 }
 
 let run_command c args =
@@ -278,6 +279,7 @@ let compile (in_files,out_file,out_dir) args =
 
   (* Start verify final IR *)
   let errors = Hashtbl.create 100 in
+  if not args.noguac then
   begin
   match Verify.verify errors "NoOpt" llvm_mod with
     | Verify.Secure -> Log.debug "Secure!"
