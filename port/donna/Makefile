@@ -5,6 +5,9 @@ test: test_curve25519
 
 .PRECIOUS: curve25519.h
 
+donna:
+	../../fact.byte -llvm-out -opt O2 stdlib.fact curve25519-c64.fact
+
 curve25519.o: stdlib.fact curve25519.fact Makefile ../../fact.byte
 	../../fact.byte -pseudocode -generate-header -ast-out -core-ir-out -llvm-out -debug -opt O2 stdlib.fact curve25519.fact
 
