@@ -45,129 +45,6 @@ let mk_ctx
   { llcontext; llmodule; builder; venv; fenv; tenv; vtenv; verify_llvm;
     sdecs=[]; }
 
-type intrinsic = 
-  | Memcpy
-  | Memset
-  | Rotl of int
-  | Rotr of int
-  | Cmov of int
-
-let string_of_intrinsic = function
-  | Memcpy -> "llvm.memcpy.p0i8.p0i8.i64"
-  | Memset -> "llvm.memset.p0i8.i64"
-  | Rotl n -> "__rotl" ^ (string_of_int n)
-  | Rotr n -> "__rotr" ^ (string_of_int n)
-  | Cmov n -> "select.cmov.i" ^ (string_of_int n)
-
-let declare_intrinsic cg_ctx = function
-  | Memcpy ->
-    let i32_ty = i32_type cg_ctx.llcontext in
-    let i64_ty = i64_type cg_ctx.llcontext in
-    let ptr_ty = pointer_type (i8_type cg_ctx.llcontext) in
-    let bool_ty = i1_type cg_ctx.llcontext in
-    let arg_types = [| ptr_ty; ptr_ty; i64_ty; i32_ty; bool_ty |] in
-    let vt = void_type cg_ctx.llcontext in
-    let ft = function_type vt arg_types in
-      declare_function (string_of_intrinsic Memcpy) ft cg_ctx.llmodule
-  | Memset ->
-    let i8_ty = i8_type cg_ctx.llcontext in
-    let i32_ty = i32_type cg_ctx.llcontext in
-    let i64_ty = i64_type cg_ctx.llcontext in
-    let ptr_ty = pointer_type (i8_type cg_ctx.llcontext) in
-    let bool_ty = i1_type cg_ctx.llcontext in
-    let arg_types = [| ptr_ty; i8_ty; i64_ty; i32_ty; bool_ty |] in
-    let vt = void_type cg_ctx.llcontext in
-    let ft = function_type vt arg_types in
-      declare_function (string_of_intrinsic Memset) ft cg_ctx.llmodule
-  | Rotl n as rotl_sz ->
-    (* we expect this function to get inlined and disappear at high optimization levels *)
-    let ity = integer_type cg_ctx.llcontext n in
-    let ft = function_type ity [| ity; ity |] in
-    let fn = declare_function (string_of_intrinsic rotl_sz) ft cg_ctx.llmodule in
-      add_function_attr fn Alwaysinline;
-      set_linkage Internal fn;
-    let bb = append_block cg_ctx.llcontext "entry" fn in
-    let b = builder cg_ctx.llcontext in
-      position_at_end bb b;
-      let e1 = param fn 0 in
-      let e2 = param fn 1 in
-        set_value_name "_secret_x" e1;
-        set_value_name "_secret_n" e2;
-      let lshift = build_shl e1 e2 "_secret_lshift" b in
-      let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
-      let lrshift = build_lshr e1 subtmp "_secret_lrshift" b in
-      let rotltmp = build_or lshift lrshift "_secret_rotltmp" b in
-      build_ret rotltmp b |> ignore;
-        fn
-  | Rotr n as rotr_sz ->
-    (* we expect this function to get inlined and disappear at high optimization levels *)
-    let ity = integer_type cg_ctx.llcontext n in
-    let ft = function_type ity [| ity; ity |] in
-    let fn = declare_function (string_of_intrinsic rotr_sz) ft cg_ctx.llmodule in
-      add_function_attr fn Alwaysinline;
-      set_linkage Internal fn;
-    let bb = append_block cg_ctx.llcontext "entry" fn in
-    let b = builder cg_ctx.llcontext in
-      position_at_end bb b;
-      let e1 = param fn 0 in
-      let e2 = param fn 1 in
-        set_value_name "_secret_x" e1;
-        set_value_name "_secret_n" e2;
-      let lrshift = build_lshr e1 e2 "_secret_lrshift" b in
-      let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
-      let lshift = build_shl e1 subtmp "_secret_lshift" b in
-      let rotrtmp = build_or lrshift lshift "_secret_rotrtmp" b in
-      build_ret rotrtmp b |> ignore;
-        fn
-  | Cmov n as cmov_sz ->
-    let i1ty = i1_type cg_ctx.llcontext in
-    let i32ty = i32_type cg_ctx.llcontext in
-    let ity = integer_type cg_ctx.llcontext n in
-    let asmty = if n < 32 then i32ty else ity in
-
-    let ft = function_type ity [| i1ty; ity; ity |] in
-    let asmfty = function_type asmty [| i1ty; asmty; asmty |] in
-
-    let fn = declare_function (string_of_intrinsic cmov_sz) ft cg_ctx.llmodule in
-      add_function_attr fn Alwaysinline;
-      set_linkage Internal fn;
-    let bb = append_block cg_ctx.llcontext "entry" fn in
-    let b = builder cg_ctx.llcontext in
-
-    let ext x' =
-      if n < 32 then
-        build_zext x' i32ty "_secret_zext" b
-      else x' in
-    let trunc x' =
-      if n < 32 then
-        build_trunc x' ity "_secret_trunc" b
-      else x' in
-
-      position_at_end bb b;
-      let cond = param fn 0 in
-      let x' = param fn 1 in
-      let y' = param fn 2 in
-        set_value_name "_secret_cond" cond;
-        set_value_name "_secret_a" x';
-        set_value_name "_secret_b" y';
-        let x = ext x' in
-        let y = ext y' in
-        let asm = const_inline_asm
-                    asmfty
-                    "testb $1, $1; mov $3, $0; cmovnz $2, $0"
-                    "=&r,r,r,r,~{flags}"
-                    false false in
-        let ret' = build_call asm [| cond; x; y; |] "_secret_asm" b in
-        let ret = trunc ret' in
-        build_ret ret b |> ignore;
-        Llvm.print_module "tmp.ll" cg_ctx.llmodule;
-        fn
-
-let get_intrinsic intrinsic cg_ctx =
-  match lookup_function (string_of_intrinsic intrinsic) cg_ctx.llmodule with
-    | Some fn -> fn
-    | None -> declare_intrinsic cg_ctx intrinsic
-
 let is_signed = Tast_utils.is_signed'
 
 let get_size ctx = function
@@ -465,12 +342,12 @@ let codegen_binop cg_ctx op e1 e2 ty ety b1 b2 ml b =
       | Ast.LeftRotate ->
         (* counting on the optimizer to optimize this into a single instruction *)
         let UInt n = ty in
-        let rotl_fn = get_intrinsic (Rotl n) cg_ctx in
+        let rotl_fn = Stdlib.get_intrinsic (Rotl n) cg_ctx.llcontext cg_ctx.llmodule in
           build_call rotl_fn [| e1; e2 |] "rotltmp" b
       | Ast.RightRotate ->
         (* counting on the optimizer to optimize this into a single instruction *)
         let UInt n = ty in
-        let rotr_fn = get_intrinsic (Rotr n) cg_ctx in
+        let rotr_fn = Stdlib.get_intrinsic (Rotr n) cg_ctx.llcontext cg_ctx.llmodule in
           build_call rotr_fn [| e1; e2 |] "rotrtmp" b
   in
 
@@ -683,7 +560,7 @@ and codegen_expr cg_ctx = function
     let ty' = expr_ty_to_llvm_ty cg_ctx ty in
     let e2 = codegen_ext cg_ctx ty' expr2 in
     let e3 = codegen_ext cg_ctx ty' expr3 in
-    let fn = get_intrinsic (Cmov (integer_bitwidth ty')) cg_ctx in
+    let fn = Stdlib.get_intrinsic (CmovAsm8 (integer_bitwidth ty')) cg_ctx.llcontext cg_ctx.llmodule in
       build_call fn [| e1'; e2; e3 |] (make_name_et "selecttmp" ty) cg_ctx.builder
   | Inject(var_name,stms), ty ->
     let ret_ty = None in
@@ -777,7 +654,7 @@ and codegen_array_expr cg_ctx arr_name = function
           let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
           let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
           let args = [| source_casted; zero; sz; alignment; volatility |] in
-          let memset = get_intrinsic Memset cg_ctx in
+          let memset = Stdlib.get_intrinsic Memset cg_ctx.llcontext cg_ctx.llmodule in
           build_call memset args "" cg_ctx.builder |> ignore;
           alloca,false
         | LDynamic x -> raise @@ CodegenErrorMsg (Err.("hi" << lexpr.pos))
@@ -812,7 +689,7 @@ and codegen_array_expr cg_ctx arr_name = function
     let name = make_name_et "destcast" ty in
     let dest_casted = build_bitcast alloca source_ty name cg_ctx.builder in
     let args = [| dest_casted; source_val; ll_cpy_len; alignment; volatility |] in
-    let memcpy = get_intrinsic Memcpy cg_ctx in
+    let memcpy = Stdlib.get_intrinsic Memcpy cg_ctx.llcontext cg_ctx.llmodule in
     build_call memcpy args "" cg_ctx.builder |> ignore;
     alloca,false
 

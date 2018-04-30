@@ -10,7 +10,7 @@ open Lwt
 
 exception OptimizationError
 
-type opt_level = O0 | O1 | O2 | OF
+type opt_level = O0 | O1 | O2 | O3 | OF
 
 type seconds = int
 
@@ -161,6 +161,7 @@ let run_optimizations opt_level limit llmodule =
       | O0 -> Some 0
       | O1 -> Some 1
       | O2 -> Some 2
+      | O3 -> Some 3
       | OF -> None in
   match opt_level' with
     | None ->

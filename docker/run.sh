@@ -1,5 +1,6 @@
 #!/bin/bash 
 
+docker pull bjohannesmeyer/fact
 docker run -it --rm \
     -v $(pwd)/..:/home/docker/FaCT \
     -v /var/run/docker.sock:/var/run/docker.sock \
