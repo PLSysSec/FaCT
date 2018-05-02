@@ -21,8 +21,14 @@ let smack_assert = "__VERIFIER_assert"
 let nondet_32 = "__VERIFIER_nondet_int"
 
 let get_nondet = pfunction
-  | UInt 32
-  | Int 32 -> nondet_32
+  | Int 8   -> "__VERIFIER_nondet_signed_char"
+  | Int 16  -> "__VERIFIER_nondet_signed_short"
+  | Int 32  -> "__VERIFIER_nondet_signed_int"
+  | Int 64  -> "__VERIFIER_nondet_signed_long_long"
+  | UInt 8  -> "__VERIFIER_nondet_unsigned_char"
+  | UInt 16 -> "__VERIFIER_nondet_unsigned_short"
+  | UInt 32 -> "__VERIFIER_nondet_unsigned_int"
+  | UInt 64 -> "__VERIFIER_nondet_unsigned_long_long"
 
 let binop op e1 e2 =
   let p = e1.pos in
@@ -84,7 +90,6 @@ class smack_visitor =
       let Module(fenv,fdecs,sdecs) = m in
       let p = fake_pos in (* for mkpos macro *)
       let i32param = mkpos Param(mkpos "predicate", mkpos RefVT(mkpos Int 32, mkpos Fixed Public, mkpos Const)) in
-      let i32rty = mkpos BaseET(mkpos UInt 32, mkpos Fixed Public) in
 
       let fdecs' = fdecs in
 
@@ -96,9 +101,17 @@ class smack_visitor =
       let fdecs' = fdec::fdecs' in
         Env.add_var fenv (mkpos smack_assert) (fdec, ref false);
 
-      let fdec = mkpos CExtern(mkpos nondet_32, Some i32rty, []) in
-      let fdecs' = fdec::fdecs' in
-        Env.add_var fenv (mkpos nondet_32) (fdec, ref false);
+        let fdecs' = List.fold_left
+                       (fun fdecs ty ->
+                          let nondet = get_nondet (mkpos ty) in
+                          let rty = mkpos BaseET(mkpos ty, mkpos Fixed Public) in
+                          let fdec = mkpos CExtern(nondet, Some rty, []) in
+                          let fdecs' = fdec::fdecs in
+                            Env.add_var fenv nondet (fdec, ref false);
+                            fdecs')
+                       fdecs'
+                       [ UInt 64; UInt 32; UInt 16; UInt 8;
+                         Int 64;  Int 32;  Int 16;  Int 8; ] in
 
       let m' = Module(fenv, fdecs', sdecs) in
         super#fact_module m'
@@ -148,6 +161,13 @@ class smack_visitor =
                   let bitlen = mkpos (IntLiteral (Tast_utils.numbits bty), BaseET(mkpos Int 64, mkpos Fixed Public)) in
                   let e2cast = mkpos (IntCast(mkpos Int 64, e2), BaseET(mkpos Int 64, mkpos Fixed Public)) in
                   let stms = [call_assert(binop Ast.LT e2cast bitlen)] in
+                    mkpos (CheckedExpr(stms, super#expr expr_), ety)
+                | Divide
+                | Modulo ->
+                  let (_,BaseET(bty,_)) = e1.data in
+                  let zero = mkpos (IntLiteral 0, BaseET(mkpos Int 64, mkpos Fixed Public)) in
+                  let e2cast = mkpos (IntCast(mkpos Int 64, e2), BaseET(mkpos Int 64, mkpos Fixed Public)) in
+                  let stms = [call_assert(binop Ast.NEqual e2cast zero)] in
                     mkpos (CheckedExpr(stms, super#expr expr_), ety)
                 | _ -> super#expr expr_
             end

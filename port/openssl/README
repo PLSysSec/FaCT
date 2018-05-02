@@ -1,7 +1,0 @@
-- build this directory
-- copy s3_cbc.s to openssl/ssl/_s3_cbc.s where openssl is the root directory of the openssl source tree
-- copy __s3_cbc.c to openssl/ssl/__s3_cbc.c
-- apply the patch file openssl_XXXXXXX.patch to the openssl source tree
-  - the XXXXXXX is the commit short hash that the patch was patched from
-    - the specified commit will have optimal patchability, but other commits should work fine too
-- build openssl, confirm that the tests work
