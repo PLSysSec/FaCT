@@ -162,6 +162,13 @@ class smack_visitor =
                   let e2cast = mkpos (IntCast(mkpos Int 64, e2), BaseET(mkpos Int 64, mkpos Fixed Public)) in
                   let stms = [call_assert(binop Ast.LT e2cast bitlen)] in
                     mkpos (CheckedExpr(stms, super#expr expr_), ety)
+                | Divide
+                | Modulo ->
+                  let (_,BaseET(bty,_)) = e1.data in
+                  let zero = mkpos (IntLiteral 0, BaseET(mkpos Int 64, mkpos Fixed Public)) in
+                  let e2cast = mkpos (IntCast(mkpos Int 64, e2), BaseET(mkpos Int 64, mkpos Fixed Public)) in
+                  let stms = [call_assert(binop Ast.NEqual e2cast zero)] in
+                    mkpos (CheckedExpr(stms, super#expr expr_), ety)
                 | _ -> super#expr expr_
             end
           | _ -> super#expr expr_
