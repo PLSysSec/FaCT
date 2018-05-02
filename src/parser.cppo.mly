@@ -309,7 +309,7 @@ param_type:
 
 param:
   | t=param_type x=var_name
-    { mkpos (Param(x, t)) }
+    { mkpos (Param(x, t, default_param_attr)) }
 
 field_type:
   | l=label b=base_type

@@ -16,7 +16,7 @@ let print_fun () =
   let label = make_ast pos (Fixed Public) in
   let mutability = make_ast pos Const in
   let var_expr_type = make_ast pos (RefVT(var_type,label,mutability)) in
-  let param = make_ast pos (Param(var_name,var_expr_type)) in
+  let param = make_ast pos (Param(var_name,var_expr_type,default_param_attr)) in
   let fdec = make_ast pos (DebugFunDec(name,None,[param])) in
   name,fdec
 
@@ -31,8 +31,8 @@ let print_int_fun () =
   let mutability = make_ast pos Const in
   let int_expr_type = make_ast pos (RefVT(int_type,label,mutability)) in
   let string_expr_type = make_ast pos (RefVT(string_type,label,mutability)) in
-  let int_param = make_ast pos (Param(int_var_name,int_expr_type)) in
-  let string_param = make_ast pos (Param(string_var_name,string_expr_type)) in
+  let int_param = make_ast pos (Param(int_var_name,int_expr_type,default_param_attr)) in
+  let string_param = make_ast pos (Param(string_var_name,string_expr_type,default_param_attr)) in
   let fdec = make_ast pos (DebugFunDec(name,None,[string_param;int_param])) in
   name,fdec
 

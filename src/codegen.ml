@@ -64,12 +64,12 @@ let vt_to_llvm_ty (cg_ctx : codegen_ctx_record) = function
 
 let param_to_type cg_ctx = function
   | {data=Param(var_name,
-    {data=RefVT({data=base_type},maybe_label,{data=Mut})})} ->
+    {data=RefVT({data=base_type},maybe_label,{data=Mut})},_)} ->
     pointer_type(bt_to_llvm_ty cg_ctx.llcontext base_type)
   | {data=Param(var_name,
-    {data=RefVT({data=base_type},maybe_label,{data=Const})})} ->
+    {data=RefVT({data=base_type},maybe_label,{data=Const})},_)} ->
     bt_to_llvm_ty cg_ctx.llcontext base_type
-  | {data=Param(var_name,{data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_,_)})} ->
+  | {data=Param(var_name,{data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_,_)},_)} ->
     begin
       match size.data with
         | LIntLiteral s ->
@@ -78,7 +78,7 @@ let param_to_type cg_ctx = function
           Hashtbl.add (Env.get_vtbl cg_ctx.tenv) var_name.data ty;
           pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt.data)
     end
-  | {data=Param(var_name,{data=StructVT(s,_)})} ->
+  | {data=Param(var_name,{data=StructVT(s,_)},_)} ->
     let struct_ty,_ = List.assoc s.data cg_ctx.sdecs in
       pointer_type struct_ty
 
@@ -143,7 +143,7 @@ let make_name_ll str llvalue =
 
 (* Allocate all of the args for a function *)
 let allocate_args cg_ctx args f =
-  let allocate_arg acc ({data=Param(var_name,var_type)} as arg) ll_arg =
+  let allocate_arg acc ({data=Param(var_name,var_type,_)} as arg) ll_arg =
     let acc =
     match var_type.data with
       | RefVT (bt,ml,{data=Mut}) ->
@@ -414,14 +414,14 @@ let rec codegen_arg cg_ctx arg ty =
         | _ -> false in
   let vt =
     match ty.data with
-      | Param(_,vt) -> vt.data in
+      | Param(_,vt,_) -> vt.data in
   match arg.data with
     | ByValue expr ->
       codegen_ext cg_ctx (vt_to_llvm_ty cg_ctx vt) expr
     | ByArray(arr,_) ->
       begin
         match ty.data with
-          | Param(name,{data=ArrayVT({data=ArrayAT(bt,lexpr)},ml,_,_)}) ->
+          | Param(name,{data=ArrayVT({data=ArrayAT(bt,lexpr)},ml,_,_)},_) ->
             let arr',_ = codegen_array_expr cg_ctx name arr.data in
             let arr =
             begin

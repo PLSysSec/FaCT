@@ -35,7 +35,7 @@ type xf_ctx_record = {
 
 let rec params_has_secret_refs xf_ctx = function
   | [] -> false
-  | ({data=Param(_,{data=vty'});pos=p}::params) ->
+  | ({data=Param(_,{data=vty'}, _);pos=p}::params) ->
     begin
       match vty' with
         | RefVT(_,{data=Fixed label},{data=mut}) ->
@@ -324,7 +324,7 @@ let xf_fdec fenv sdecs everhi = pfunction
         then
           let fctx = mkpos "__fctx" in
           let fctx_vt = mkpos RefVT(mkpos Bool, mkpos Fixed Secret, mkpos Const) in
-          let fctx_param = mkpos Param(fctx, fctx_vt) in
+          let fctx_param = mkpos Param(fctx, fctx_vt, default_param_attr) in
           let entry = (fctx, fctx_vt) in
             Env.add_var venv fctx entry;
             params @ [fctx_param]

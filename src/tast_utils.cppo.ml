@@ -371,7 +371,7 @@ let is_expr_secret e =
     l = Secret
 
 let param_is_ldynamic = xfunction
-  | Param(_,{data=vty'}) ->
+  | Param(_,{data=vty'},_) ->
     begin
       match vty' with
         | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_,_) -> true

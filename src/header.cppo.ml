@@ -54,7 +54,7 @@ let gh_rty = function
   | None -> "void"
   | Some ety -> gh_ety ety
 
-let gh_param { data=Param(x,vty) } =
+let gh_param { data=Param(x,vty,_) } =
   "\n  " ^ gh_vty x.data vty
 
 let gh_fdec fenv = xfunction

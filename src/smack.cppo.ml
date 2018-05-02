@@ -89,7 +89,7 @@ class smack_visitor =
     method fact_module m =
       let Module(fenv,fdecs,sdecs) = m in
       let p = fake_pos in (* for mkpos macro *)
-      let i32param = mkpos Param(mkpos "predicate", mkpos RefVT(mkpos Int 32, mkpos Fixed Public, mkpos Const)) in
+      let i32param = mkpos Param(mkpos "predicate", mkpos RefVT(mkpos Int 32, mkpos Fixed Public, mkpos Const), default_param_attr) in
 
       let fdecs' = fdecs in
 

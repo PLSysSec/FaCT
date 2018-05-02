@@ -225,7 +225,7 @@ let declassify cg_ctx llval =
   build_call declassify_out [| v |] "" cg_ctx.builder |> ignore
 *)
 let name_of_param = function
-  | { data=(Tast.Param(name,_)) } -> name.data
+  | { data=(Tast.Param(name,_,_)) } -> name.data
 
 let rec vt_to_c_type sdecs vn = function
   | { data=RefVT({data=Int s},_,{ data=Mut })} ->
@@ -269,13 +269,13 @@ let rec vt_to_c_type sdecs vn = function
   | _ -> raise CTVerifError
 
 let fact_param_to_c_param sdecs = function
-  | { data=Param(vn,vt) } -> vt_to_c_type sdecs vn.data vt
+  | { data=Param(vn,vt,_) } -> vt_to_c_type sdecs vn.data vt
 
 let rec extract_param_name sdecs = function
-  | { data=Param(vn,{data=StructVT(sn,mut')})} ->
+  | { data=Param(vn,{data=StructVT(sn,mut')},attr)} ->
     let extract_field' = function
       | { data=Field(vn',({data=StructVT(sn',mut'')} as vt),ip); pos=p} ->
-        extract_param_name sdecs {data=Param(vn',vt); pos=p};
+        extract_param_name sdecs {data=Param(vn',vt,attr); pos=p};
       | { data=Field(vn',vt,ip)} -> vn'.data in
     let is_the_struct = function
       | Struct(sn',_) when sn'.data = sn.data -> true
@@ -284,7 +284,7 @@ let rec extract_param_name sdecs = function
     let args = List.map extract_field' fields in
     "{" ^ (String.concat ", " args) ^ "}" |> ignore;
     vn.data
-  | { data=Param(vn,_) } ->
+  | { data=Param(vn,_,_) } ->
     let pre = Core.String.is_prefix vn.data ~prefix:"__" in
     let suf = Core.String.is_suffix vn.data ~suffix:"_len" in
     match pre, suf with
@@ -292,10 +292,10 @@ let rec extract_param_name sdecs = function
       | _ -> vn.data
 
 let build_structs sdecs = function
-  | { data=Param(vn,{data=StructVT(sn,mut')})} ->
+  | { data=Param(vn,{data=StructVT(sn,mut')},attr)} ->
     let extract_field' = function
       | { data=Field(vn',({data=StructVT(sn',mut'')} as vt),ip); pos=p} ->
-        extract_param_name sdecs {data=Param(vn',vt); pos=p};
+        extract_param_name sdecs {data=Param(vn',vt,attr); pos=p};
       | { data=Field(vn',vt,ip)} -> vn'.data in
     let is_the_struct = function
       | Struct(sn',_) when sn'.data = sn.data -> true
@@ -315,7 +315,7 @@ let build_function_top
   let includes = "#include \"ct-verif.h\"\n#include <stdint.h>\n#include \"" ^ filename ^ ".h\"\n" in
   let dec = "void " ^ fun_name ^ "_wrapper(" ^ c_args' ^ ") {\n" in
   let pointers = List.fold_left
-    (fun s {data=Param(r1,_)} ->
+    (fun s {data=Param(r1,_,_)} ->
       let pv = "public_in(__SMACK_value(" ^ r1.data ^ "));\n" in
       s ^ pv
     )
@@ -331,14 +331,14 @@ let build_function_top
       s ^ pi)
     s' public_struct_fields in
   let s''' = List.fold_left
-    (fun s (({data=Param(r1,_)},s1), ({data=Param(r2,_)},s2)) ->
+    (fun s (({data=Param(r1,_,_)},s1), ({data=Param(r2,_,_)},s2)) ->
       let dr = "__disjoint_regions(" ^ r1.data ^ "," ^ s1 ^
         "," ^ r2.data ^ "," ^ s2 ^ ");\n" in
       s ^ dr
     )
     s'' disjoint_regions in
   let public_values = List.fold_left
-    (fun s ({data=Param(r1,_)}, size) ->
+    (fun s ({data=Param(r1,_,_)}, size) ->
       let size = "16" in
       let pv = "public_in(__SMACK_values(" ^ r1.data ^ "," ^ size ^ "));\n" in
       s ^ pv
@@ -360,14 +360,14 @@ let is_public = function
   | _ -> false
 
 let is_arg_public = function
-  | { data=(Param(name,{data=RefVT(bt,{ data=Fixed(Public) },mut')})) } -> true
-  | { data=(Param(name,{data=ArrayVT(at,{ data=Fixed(Public)},mut',attr)})) } ->
+  | { data=(Param(name,{data=RefVT(bt,{ data=Fixed(Public) },mut')},_)) } -> true
+  | { data=(Param(name,{data=ArrayVT(at,{ data=Fixed(Public)},mut',attr)},_)) } ->
     true
-  | { data=(Param(name,{data=StructVT(sname,mut')})) } -> false
+  | { data=(Param(name,{data=StructVT(sname,mut')},_)) } -> false
   | _ -> false
 
 let public_struct_fields sdecs acc = function
-  | { data=(Param(name,{data=StructVT(sn,mut')})) } ->
+  | { data=(Param(name,{data=StructVT(sn,mut')},_)) } ->
     let is_public_field = function
       | Field(vn,{data=RefVT(_,{data=Fixed Public},_)},_) -> true
       | Field(vn,{data=ArrayVT(_,{data=Fixed Public},_,_)},_) -> true
@@ -381,34 +381,34 @@ let public_struct_fields sdecs acc = function
   | _ -> acc
 
 let is_disjoint_region = function
-  | { data=(Param(name,{data=ArrayVT(at,{ data=Fixed(_)},mut',attr)})) } ->
+  | { data=(Param(name,{data=ArrayVT(at,{ data=Fixed(_)},mut',attr)},_)) } ->
     true
   | _ -> false
 
 let assign_array_size arr_env = function
   | { data=Param(_,
-    { data=ArrayVT({ data=ArrayAT(_,{ data=LIntLiteral size})},_,_,_)})} as a ->
+    { data=ArrayVT({ data=ArrayAT(_,{ data=LIntLiteral size})},_,_,_)},_)} as a ->
     (a,(string_of_int size))
   | { data=Param(vn,
-    { data=ArrayVT({ data=ArrayAT(_,{ data=LDynamic{data=""}})},_,_,_)})} as a ->
+    { data=ArrayVT({ data=ArrayAT(_,{ data=LDynamic{data=""}})},_,_,_)},_)} as a ->
     let (vn : Tast.var_name),var = Env.find_var arr_env vn in
     let size = begin match var.data with
       | ArrayVT({data=ArrayAT(_,({data=LIntLiteral s}))},_,_,_) -> s
       | _ -> raise CTVerifError end in
     (a,(string_of_int size))
   | { data=Param(_,
-    { data=ArrayVT({ data=ArrayAT(_,{ data=LDynamic var_name})},_,_,_)})} as a ->
+    { data=ArrayVT({ data=ArrayAT(_,{ data=LDynamic var_name})},_,_,_)},_)} as a ->
     (a,var_name.data)
   | _ -> raise CTVerifError
 
 let is_public_array = function
-  | { data=(Param(name,{data=ArrayVT(at,{ data=Fixed(Public)},mut',attr)})) } ->
+  | { data=(Param(name,{data=ArrayVT(at,{ data=Fixed(Public)},mut',attr)},_)) } ->
     true
   | _ -> false
 
 let is_array_or_mutable = function
-  | { data=(Param(name,{data=ArrayVT(_)})) } -> true
-  | { data=(Param(name,{data=RefVT(_,_,{data=Mut})}))} -> true
+  | { data=(Param(name,{data=ArrayVT(_)},_)) } -> true
+  | { data=(Param(name,{data=RefVT(_,_,{data=Mut})},_))} -> true
   | _ -> false
 
 let generate_fdec_wrapper sdecs filename = function

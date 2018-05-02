@@ -64,6 +64,10 @@ let vattr_conv = function
   | { Ast.cache_aligned; } ->
     { cache_aligned; }
 
+let pattr_conv = function
+  | { Ast.output_only; } ->
+    { output_only; }
+
 let refvt_conv = pfunction
   | Ast.RefVT(b,l,m) ->
     RefVT(bconv b, mlconv l, mconv m)
@@ -219,7 +223,7 @@ let tc_binop' p op e1 e2 =
 let params_all_refs_above tc_ctx rpc params =
   let rec checker n = function
     | [] -> -1
-    | ({data=Param(_,{data=vty'}); pos=p}::params) ->
+    | ({data=Param(_,{data=vty'},_); pos=p}::params) ->
       begin
         match vty' with
           | RefVT(_,{data=Fixed l},{data=mut})
@@ -317,7 +321,7 @@ and tc_args ~xf_args tc_ctx p params args =
     | (param::params), (arg::args) ->
       let arg' = tc_arg tc_ctx arg in
       let argref = argtype_of tc_ctx.venv arg' in
-      let Param(_,paramvt) = param.data in
+      let Param(_,paramvt,_) = param.data in
         check_can_be_passed_to argref paramvt;
         if param_is_ldynamic param && xf_args then
           let _::params = params in
@@ -692,7 +696,7 @@ and tc_block tc_ctx stms =
     (tc_ctx.venv, stms')
 
 let tc_param' sdecs xf_param = xfunction
-  | Ast.Param(x,vty) ->
+  | Ast.Param(x,vty,attr) ->
     let len = "__" ^ x.data ^ "_len" in
     let lexpr' = LDynamic(mkpos len) in
     (* the lexpr will only get used if vty is LUnspecified *)
@@ -707,12 +711,12 @@ let tc_param' sdecs xf_param = xfunction
       add_stms=ref [];
     } in
     let refvt = refvt_conv_fill fake_hacky_useless_tc_ctx lexpr' vty in
-    let param = Param(x,refvt) in
+    let param = Param(x,refvt,pattr_conv attr) in
     let lexpr = refvt_to_lexpr_option refvt in
       param :: (match lexpr with
                  | Some LDynamic len when xf_param ->
                    let lenvt = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
-                     [Param(len, lenvt)]
+                     [Param(len, lenvt, default_param_attr)]
                  | _ -> [])
 let tc_param sdecs xf_param pa = List.map (make_ast pa.pos) (tc_param' sdecs xf_param pa)
 
@@ -726,7 +730,7 @@ let tc_fdec' fpos fenv sdecs = function
     in
     let params' = List.flatten @@ List.map (tc_param sdecs true) params in
     let venv = Env.new_env () in
-      List.iter (fun {data=Param(name,vty)} ->
+      List.iter (fun {data=Param(name,vty,_)} ->
                   let entry = (name,vty) in
                     Env.add_var venv name entry)
         params';
@@ -768,7 +772,7 @@ let tc_fdec' fpos fenv sdecs = function
     in
     let params' = List.flatten @@ List.map (tc_param sdecs false) params in
     let venv = Env.new_env () in
-      List.iter (fun {data=Param(name,vty)} ->
+      List.iter (fun {data=Param(name,vty,_)} ->
                   let entry = (name,vty) in
                     Env.add_var venv name entry)
         params';

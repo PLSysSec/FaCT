@@ -203,7 +203,7 @@ let load_le_proto' n name' =
 
   let arr = mkpos ArrayAT(mkpos UInt 8, mkpos LIntLiteral (n / 8)) in
   let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Const, default_var_attr) in
-  let params = [mkpos Param (mkpos "src", arg)] in
+  let params = [mkpos Param (mkpos "src", arg, default_param_attr)] in
 
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
@@ -217,7 +217,7 @@ let load_vec_le_proto' bw n name' =
 
   let arr = mkpos ArrayAT(mkpos UInt bw, mkpos LIntLiteral n) in
   let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Const, default_var_attr) in
-  let params = [mkpos Param (mkpos "src", arg)] in
+  let params = [mkpos Param (mkpos "src", arg, default_param_attr)] in
 
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
@@ -238,7 +238,8 @@ let store_le_proto' n lbl name' =
   let arg = mkpos ArrayVT(arr, mkpos Fixed lbl, mkpos Mut, default_var_attr) in
 
   let w = mkpos RefVT(mkpos UInt n, mkpos Fixed Secret, mkpos Const) in
-  let params = [mkpos Param (mkpos "dst", arg); mkpos Param (mkpos "w", w)] in
+  let out_attr = { default_param_attr with output_only = true } in
+  let params = [mkpos Param (mkpos "dst", arg, out_attr); mkpos Param (mkpos "w", w, default_param_attr)] in
 
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
@@ -252,7 +253,8 @@ let store_vec_le_proto' bw n name' =
   let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Mut, default_var_attr) in
 
   let w = mkpos RefVT(mkpos UVec(bw,n), mkpos Fixed Secret, mkpos Const) in
-  let params = [mkpos Param (mkpos "dst", arg); mkpos Param (mkpos "w", w)] in
+  let out_attr = { default_param_attr with output_only = true } in
+  let params = [mkpos Param (mkpos "dst", arg, out_attr); mkpos Param (mkpos "w", w, default_param_attr)] in
 
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
@@ -275,7 +277,8 @@ let memzero_proto' n name' () =
   let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Mut, default_var_attr) in
 
   let len = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
-  let params = [mkpos Param (mkpos "arr", arg); mkpos Param (mkpos "_len", len)] in
+  let out_attr = { default_param_attr with output_only = true } in
+  let params = [mkpos Param (mkpos "arr", arg, out_attr); mkpos Param (mkpos "_len", len, default_param_attr)] in
 
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
@@ -295,10 +298,11 @@ let arrcopy_proto () =
   let arg2 = mkpos ArrayVT(arr2, mkpos Fixed Secret, mkpos Const, default_var_attr) in
 
   let len = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
-  let params = [ mkpos Param (mkpos "arr1", arg1);
-                 mkpos Param (mkpos "_len1", len);
-                 mkpos Param (mkpos "arr2", arg2);
-                 mkpos Param (mkpos "_len2", len); ] in
+  let out_attr = { default_param_attr with output_only = true } in
+  let params = [ mkpos Param (mkpos "arr1", arg1, out_attr);
+                 mkpos Param (mkpos "_len1", len, default_param_attr);
+                 mkpos Param (mkpos "arr2", arg2, default_param_attr);
+                 mkpos Param (mkpos "_len2", len, default_param_attr); ] in
 
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
   name,fdec
@@ -541,8 +545,9 @@ let structcopy_proto structname =
   let arg1 = mkpos StructVT(structname, mkpos Mut) in
   let arg2 = mkpos StructVT(structname, mkpos Mut) in
 
-  let params = [ mkpos Param (mkpos "arg1", arg1);
-                 mkpos Param (mkpos "arg2", arg2); ] in
+  let out_attr = { default_param_attr with output_only = true } in
+  let params = [ mkpos Param (mkpos "arg1", arg1, out_attr);
+                 mkpos Param (mkpos "arg2", arg2, default_param_attr); ] in
 
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
     fdec, ref false

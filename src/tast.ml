@@ -139,8 +139,9 @@ and statement' =
 [@@deriving show]
 and statement = statement' pos_ast [@@deriving show]
 
+and param_attr = { output_only : bool }
 and param' =
-  | Param of var_name * variable_type
+  | Param of var_name * variable_type * param_attr
 [@@deriving show]
 and param = param' pos_ast [@@deriving show]
 
@@ -192,3 +193,4 @@ and top_level =
 [@@deriving show]
 
 let default_var_attr = { cache_aligned=false; }
+let default_param_attr = { output_only=false; }

@@ -31,7 +31,7 @@ class ast_visitor =
       | _ as f -> f
 
     method param = pfunction
-      | Param(x,vty) -> Param(x,vty)
+      | Param(x,vty,attr) -> Param(x,vty,attr)
 
     method block (venv,stms) =
       (venv,List.map visit#stm stms)

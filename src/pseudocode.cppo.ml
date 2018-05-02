@@ -279,7 +279,7 @@ let ps_fnattr ft =
           | Never -> "noinline "
           | Default -> "")
 
-let ps_param { data=Param(x,vty) } =
+let ps_param { data=Param(x,vty,_) } =
   "\n    " ^ ps_vty vty ^ " " ^ x.data
 
 let ps_fdec = xfunction
