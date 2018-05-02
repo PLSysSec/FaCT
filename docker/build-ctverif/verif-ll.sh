@@ -26,13 +26,16 @@ ENTRYPOINTS=$4
 # Remove lines with `!0`
 # Find `norecurse`; replace with ``
 # Find `argmemonly`; replace with ``
-sed -i -e 's/load[^,]*, /load /g' $FACTLLPATH
+sed -i -e 's/ = load[^,]*, / = load /g' $FACTLLPATH
 sed -i -e 's/getelementptr i64, /getelementptr /g' $FACTLLPATH
 sed -i -e 's/getelementptr inbounds [^,]*, /getelementptr inbounds /g' $FACTLLPATH
 sed -i -e 's/smack_value\(.*\)) bitcast/smack_value\1)* bitcast/g' $FACTLLPATH
 sed -i.bak '/!0/d' $FACTLLPATH && rm ${FACTLLPATH}.bak
 sed -i -e 's/norecurse//g' $FACTLLPATH
 sed -i -e 's/argmemonly//g' $FACTLLPATH
+sed -i -e 's/writeonly//g' $FACTLLPATH
+sed -i -e 's/argmemonly//g' $FACTLLPATH
+sed -i -e 's/source_filename = "Module"//g' $FACTLLPATH
 
 # Copy into docker container and verify
 docker pull $DOCKERIMG 
