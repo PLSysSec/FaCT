@@ -620,7 +620,14 @@ let rec tc_stm' tc_ctx = xfunction
 
   | Ast.VoidFnCall(f,args) ->
     let rpc = !(tc_ctx.rp) +$. tc_ctx.pc in
-    let (fdec,everhi) =  Env.find_var tc_ctx.fenv f in
+    let (fdec,everhi) =
+      Env.find_var'
+        (fun v -> v)
+        (fun name ->
+           let res = Stdlib.get_stdlib_proto name in
+             Env.add_var tc_ctx.fenv name res;
+             res)
+        tc_ctx.fenv f in
       if rpc = Secret then everhi := true;
       begin
         match fdec.data with

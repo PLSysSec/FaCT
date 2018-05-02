@@ -33,7 +33,7 @@ We also need dependency management for Ocaml.
 
 Then we need the actual dependencies for Ocaml.
 
-```opam install llvm.3.8 core.v0.9.2 ounit.2.0.7 ctypes-foreign.0.4.0 utop.2.1.0 dolog.3.0 menhir.20171222 oasis.0.4.10 ppx_deriving.4.2.1 ANSITerminal.0.8 ocamlgraph.1.8.8 yojson.1.4.0 jbuilder.1.0+beta16```
+```opam install llvm.6.0.0 core.v0.9.2 ounit.2.0.7 ctypes-foreign.0.4.0 utop.2.1.0 dolog.3.0 menhir.20171222 oasis.0.4.10 ppx_deriving.4.2.1 ANSITerminal.0.8 ocamlgraph.1.8.8 yojson.1.4.0 jbuilder.1.0+beta16 batteries.2.8.0```
 
 If you have not setup oasis, then you must do that first.
 

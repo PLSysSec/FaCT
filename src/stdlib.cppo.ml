@@ -458,6 +458,46 @@ let arrcopy_codegen cg_ctx =
       build_ret_void b;
       fn
 
+let structcopy_codegen structname cg_ctx =
+  let name = "_structcopy_" ^ structname in
+  let vt = void_type cg_ctx.llcontext in
+  let bool_ty = i1_type cg_ctx.llcontext in
+  let i8_ty = i8_type cg_ctx.llcontext in
+  let i32_ty = i32_type cg_ctx.llcontext in
+  let ptr_ty = pointer_type i8_ty in
+  let struct_ty,_ = List.assoc structname cg_ctx.sdecs in
+  let sptr_ty = pointer_type struct_ty in
+
+  let arg_types = [| ptr_ty; ptr_ty; i32_ty; i32_ty; bool_ty; |] in
+  let vt = void_type cg_ctx.llcontext in
+  let ft = function_type vt arg_types in
+  let memcpy = declare_function ("llvm.memcpy.p0i8.p0i8.i32") ft cg_ctx.llmodule in
+
+  let arg_types = [| sptr_ty; sptr_ty; |] in
+  let ft = function_type vt arg_types in
+  let fn = declare_function name ft cg_ctx.llmodule in
+      add_function_attr fn cg_ctx.alwaysinline Function;
+    set_linkage Internal fn;
+  let bb = append_block cg_ctx.llcontext "entry" fn in
+  let b = builder cg_ctx.llcontext in
+    position_at_end bb b;
+    let arg1 = param fn 0 in
+    let arg2 = param fn 1 in
+    let arg1' = build_bitcast arg1 ptr_ty "_secret_cast" b in
+    let arg2' = build_bitcast arg2 ptr_ty "_secret_cast" b in
+      print_endline structname;
+    let datalayout' = data_layout cg_ctx.llmodule in
+    let datalayout = Llvm_target.DataLayout.of_string datalayout' in
+    let size' = Llvm_target.DataLayout.abi_size struct_ty datalayout in
+    let size = const_of_int64 i32_ty size' false in
+    let alignment' = Llvm_target.DataLayout.abi_align struct_ty datalayout in
+    let alignment = const_int i32_ty alignment' in
+    let volatility = const_int bool_ty 0 in
+    let args = [| arg1'; arg2'; size; alignment; volatility |] in
+      build_call memcpy args "" b;
+      build_ret_void b;
+      fn
+
 let get_stdlib name cg_ctx =
   match name with
     | "_load32_le" -> load32_le_codegen cg_ctx
@@ -471,6 +511,12 @@ let get_stdlib name cg_ctx =
     | "_memzero32" -> memzero32_codegen cg_ctx
     | "_memzero64" -> memzero64_codegen cg_ctx
     | "_arrcopy" -> arrcopy_codegen cg_ctx
+    | _ ->
+      if Batteries.String.starts_with name "_structcopy_" then
+        let structname = Batteries.String.lchop ~n:12 name in
+          structcopy_codegen structname cg_ctx
+      else
+        raise (Err.InternalCompilerError name)
 
 let functions = [
   load32_le_proto ();
@@ -485,3 +531,25 @@ let functions = [
   memzero64_proto ();
   arrcopy_proto ();
 ]
+
+
+let structcopy_proto structname =
+  let name = mkpos ("_structcopy_" ^ structname.data) in
+  let ft = { export=false; inline=Never } in
+  let rt = None in
+
+  let arg1 = mkpos StructVT(structname, mkpos Mut) in
+  let arg2 = mkpos StructVT(structname, mkpos Mut) in
+
+  let params = [ mkpos Param (mkpos "arg1", arg1);
+                 mkpos Param (mkpos "arg2", arg2); ] in
+
+  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+    fdec, ref false
+
+let get_stdlib_proto name =
+  if Batteries.String.starts_with name.data "_structcopy_" then
+    let structname = Batteries.String.lchop ~n:12 name.data in
+      structcopy_proto {name with data=structname}
+  else
+    raise (Err.errVarNotDefined name)

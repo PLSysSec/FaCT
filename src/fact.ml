@@ -60,6 +60,15 @@ let runner prep args =
           let rlines = List.rev lines in
           List.iter (fun s -> Printf.eprintf "%s\n" s) rlines end;
       error_exit s
+    | _ as e ->
+      begin match args.debug with
+        | false -> ()
+        | true  ->
+          let backtrace = Printexc.get_backtrace () in
+          let lines = Str.split (Str.regexp_string "\n") backtrace in
+          let rlines = List.rev lines in
+            List.iter (fun s -> Printf.eprintf "%s\n" s) rlines end;
+      Printf.eprintf "%s\n" (Printexc.to_string e)
 
 let test_graph () =
   (*let g = Graphf.create_graph () in
