@@ -64,7 +64,6 @@ void _poly1305_blocks(
   state.h[2] = h2;
 }
 
-export
 void _poly1305_init(
     mut struct poly1305_state_internal_t state,
     secret uint8[32] key) {
@@ -116,7 +115,7 @@ void _poly1305_update(
 
   /* process full blocks */
   if (len m - mindex >= 16) {
-    public uint64 want = ((len m - mindex) & ~(16 - 1)); // XXX wat
+    public uint64 want = ((len m - mindex) & ~((uint32)(16 - 1))); // XXX wat
 
     secret uint8[] mview = arrview(m, mindex, want);
     _poly1305_blocks(ref state, mview);
@@ -222,7 +221,6 @@ void _poly1305_finish(
   state.final = 0;
 }
 
-export
 public int32 _crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna from poly1305_donna.c
     secret mut uint8[16] out,
     secret uint8[] m,
@@ -241,7 +239,6 @@ public int32 _crypto_onetimeauth_poly1305( // crypto_onetimeauth_poly1305_donna 
   return 0;
 }
 
-export
 public bool _crypto_onetimeauth_poly1305_verify( // crypto_onetimeauth_poly1305_donna_verify from poly1305.c
     public uint8[16] h,
     public uint8[] in,

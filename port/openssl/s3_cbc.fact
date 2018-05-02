@@ -1,11 +1,6 @@
 extern void _md_transform(public int32 sha_type, secret mut uint8[216] ctx, secret uint8[] in); // `md_transform`
 extern void _md_final_raw(public int32 sha_type, secret mut uint8[216] ctx, secret uint8[] in); // `md_final_raw`
 
-extern void _print(secret uint64 bits);
-extern void _prints(secret uint64 bits);
-extern void _println();
-extern void _printx(secret uint8 b);
-
 export secret int32 __ssl3_cbc_digest_record(
     secret mut uint8[216] md_state,
     secret mut uint8[64] mac_out,
@@ -33,7 +28,7 @@ export secret int32 __ssl3_cbc_digest_record(
   // skipping the prequel stuff in the function since it doesn't really have any ct
 
   public uint64 header_length = is_sslv3 ?
-    (len mac_secret) + sslv3_pad_length + 8 + 1 + 2 :
+    ((len mac_secret) + sslv3_pad_length + 8 + 1 + 2) :
     13;
 
   public uint64 variance_blocks = is_sslv3 ? 2 : 6;
@@ -112,8 +107,6 @@ export secret int32 __ssl3_cbc_digest_record(
     secret mut uint8[128] block = arrzeros(128); // `MAX_HASH_BLOCK_SIZE`
     secret bool is_block_a = (i == index_a);
     secret bool is_block_b = (i == index_b);
-      _print(i);
-      _print(num_starting_blocks + variance_blocks);
     for (uint64 j = 0 to md_block_size) {
       secret mut uint8 b = 0;
       if (k < header_length) {
@@ -143,12 +136,7 @@ export secret int32 __ssl3_cbc_digest_record(
 
     for (uint64 j = 0 to md_size) {
       mac_out[j] |= is_block_b ? block[j] : 0;
-      _printx(mac_out[j]);
-      if ((j & 7) == 7) {
-        _println();
-      }
     }
-    _println();
   }
   return 1;
 }

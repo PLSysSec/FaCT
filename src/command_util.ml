@@ -30,6 +30,7 @@ type args_record = {
   opt_limit   : seconds option;
   verify_opts : string option;
   shared      : bool;
+  noguac      : bool;
 }
 
 let run_command c args ?(exit_on_error=true) =
@@ -143,18 +144,18 @@ let output_assembly opt_level out_file =
   match opt_level with
     | O2 ->
       begin
-        run_command "llc" [|"llc"; "-O2"; "-mcpu=core-avx2"; out_file'|] |> ignore;
-        run_command "llc" [|"llc"; "-O2"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
+        run_command "llc-6.0" [|"llc-6.0"; "-O2"; "-mcpu=core-avx2"; out_file'|] |> ignore;
+        run_command "llc-6.0" [|"llc-6.0"; "-O2"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
       end
     | O3 ->
       begin
-        run_command "llc" [|"llc"; "-O3"; "-mcpu=core-avx2"; out_file'|] |> ignore;
-        run_command "llc" [|"llc"; "-O3"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
+        run_command "llc-6.0" [|"llc-6.0"; "-O3"; "-mcpu=core-avx2"; out_file'|] |> ignore;
+        run_command "llc-6.0" [|"llc-6.0"; "-O3"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
       end
     | _ ->
       begin
-        run_command "llc" [|"llc"; "-mcpu=core-avx2"; out_file'|] |> ignore;
-        run_command "llc" [|"llc"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
+        run_command "llc-6.0" [|"llc-6.0"; "-mcpu=core-avx2"; out_file'|] |> ignore;
+        run_command "llc-6.0" [|"llc-6.0"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
       end
 
 let output_object out_file =
@@ -163,8 +164,8 @@ let output_object out_file =
   let out_file_o = out_file ^ ".o" in
   let out_file_fpic = out_file ^ ".fpic.o" in
   Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang" [|"clang"; "-c"; out_file_s; "-o"; out_file_o|] |> ignore;
-  run_command "clang" [|"clang"; "-c"; out_file_fpic_s; "-o"; out_file_fpic|]
+  run_command "clang-6.0" [|"clang-6.0"; "-c"; out_file_s; "-o"; out_file_o|] |> ignore;
+  run_command "clang-6.0" [|"clang-6.0"; "-c"; out_file_fpic_s; "-o"; out_file_fpic|]
 
 let output_shared_object out_file args =
   if not args.shared then () else
@@ -173,10 +174,10 @@ let output_shared_object out_file args =
   let out_file_o = out_file ^ ".so" in
   let out_file_fpic = out_file ^ ".fpic.so" in
   Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang"
-    [|"clang"; "-shared"; out_file_s; "-o"; out_file_o|] |> ignore;
-  run_command "clang"
-    [|"clang"; "-shared"; out_file_fpic_s; "-o"; out_file_fpic|] |> ignore
+  run_command "clang-6.0"
+    [|"clang-6.0"; "-shared"; out_file_s; "-o"; out_file_o|] |> ignore;
+  run_command "clang-6.0"
+    [|"clang-6.0"; "-shared"; out_file_fpic_s; "-o"; out_file_fpic|] |> ignore
 
 let verify_opt_pass llmod out_file llvm_out = function
   | None       -> Log.info "Not verifying opt passes"
@@ -284,6 +285,7 @@ let compile (in_files,out_file,out_dir) args =
 
   (* Start verify final IR *)
   let errors = Hashtbl.create 100 in
+  if not args.noguac then
   begin
   match Verify.verify errors "NoOpt" llvm_mod with
     | Verify.Secure -> Log.debug "Secure!"
@@ -324,19 +326,3 @@ let compile (in_files,out_file,out_dir) args =
   output_assembly args.opt_level out_file' |> ignore;
   output_shared_object out_file' args;
   output_object out_file' |> ignore
-  (*let core_ir = transform tast in
-  Log.debug "Core IR transform complete";
-  output_core_ir core_ir_out out_file' core_ir;
-
-let run = (fun () -> run_command "lli" [|"lli"; "out.ll"|])
-let link = (fun () -> run_command "llvm-as" [|"llvm-as"; "out.ll"|])
-let assemble = (fun () -> run_command "llc" [|"llc"; "out.bc"|])
-let share = (fun () -> run_command "clang" [|"clang"; "-c"; "out.s"|])
-let compile_harness = (fun () -> run_command "gcc" [|"gcc"; "-c"; "harness.c"|])
-let compile_ssl = (fun () -> run_command "gcc" [|"gcc"; "-c"; "ssl.c"|])
-let compile_c cf =
-  (fun () -> run_command "gcc" [|"gcc"; "Unity/src/unity.c"; "-o"; "final"; cf; "out.o"|])
-let clean = (fun () ->
-    run_command "rm"
-      [|"rm"; "out.ll"; "out.bc"; "out.o"; "out.s"; "final"; "harness.o"|])
-*)

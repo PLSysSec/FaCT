@@ -17,7 +17,20 @@ type codegen_ctx_record = {
   vtenv        : variable_type Env.env;
   sdecs        : (string * (lltype * struct_type')) list;
   verify_llvm  : bool;
+  noinline     : llattribute;
+  alwaysinline : llattribute;
 }
+
+val mk_ctx : llcontext
+          -> llmodule
+          -> llbuilder
+          -> llvalue Env.env
+          -> fenv
+          -> Tast.array_type Env.env
+          -> Tast.variable_type Env.env
+          -> (string * (Llvm.lltype * Tast.struct_type')) list
+          -> bool
+          -> codegen_ctx_record
 
 val bt_to_llvm_ty : llcontext -> base_type' -> lltype
 

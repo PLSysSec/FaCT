@@ -29,15 +29,7 @@ struct SHA_CTX {
     public uint32 num;
 }
 
-void SHA_CTX_cpy(mut struct SHA_CTX dst, struct SHA_CTX src) {
-  for (uint32 i = 0; i < 5; i += 1) {
-    dst.h[i] = src.h[i];
-  }
-  dst.Nl = src.Nl;
-  dst.Nh = src.Nh;
-  _arrcopy(ref dst.data, src.data);
-  dst.num = src.num;
-}
+extern void _structcopy(mut struct SHA_CTX dst, mut struct SHA_CTX src);
 
 struct EVP_AES_HMAC_SHA1 {
     struct AES_KEY ks;
@@ -83,17 +75,9 @@ SHA1_Final(
 extern
 void
 sha1_block_data_order(
-    secret mut uint32 c, // actually struct SHA_CTX
-    secret uint8[64] p,
+    mut struct SHA_CTX ctx,
+    secret uint8[] p,
     public uint32 num);
-
-// this should be in fact's stdlib
-void
-memcpy(secret mut uint8[] dst, secret uint8[] src) {
-  for (uint32 i = 0 to len dst) {
-    dst[i] = src[i];
-  }
-}
 
 // this should be in fact's stdlib
 inline
@@ -122,13 +106,6 @@ store16_be(secret mut uint8[2] buf, secret uint16 n) {
   buf[1] = (uint8)n;
 }
 
-extern void __print(secret int32 bits);
-extern void __prints(secret int32 bits, public int32 chr);
-extern void __println();
-extern void __printx(secret uint8 b);
-extern void __printctx(secret mut uint32 c, public int32 chr); // actually struct SHA_CTX
-extern void __printb(secret uint8[] b, public int32 sz); // actually struct SHA_CTX
-
 // XXX _store32_le should be able to be used (properly!) within a secret context
 inline
 void
@@ -151,7 +128,9 @@ cond_store(
 export
 secret int32
 _aesni_cbc_hmac_sha1_cipher(
-    mut struct evp_cipher_ctx_st ctx,
+    //mut struct evp_cipher_ctx_st ctx,
+    secret mut uint8[16] iv,
+    mut struct EVP_AES_HMAC_SHA1 key,
     secret mut uint8[] _out,
     secret uint8[] _in,
     public uint64 plen) {
@@ -172,14 +151,14 @@ _aesni_cbc_hmac_sha1_cipher(
   secret mut int32 ret = 1;
 
   // XXX I'm assuming that these two bytes are a public version number
-  public uint16 tls_ver = declassify(load16_be(arrview(ctx.key.tls_aad, plen - 4, 2)));
+  public uint16 tls_ver = declassify(load16_be(arrview(key.tls_aad, plen - 4, 2)));
   if (declassify(tls_ver >= TLS1_1_VERSION)) { // this one is bug due to optimizer/verify interaction
     if (_len < (AES_BLOCK_SIZE + SHA_DIGEST_LENGTH + 1)) {
       return 0;
     }
 
     /* omit explicit iv */
-    memcpy(ref ctx.iv, _in);
+    _arrcopy(ref iv, _in);
     inp += AES_BLOCK_SIZE;
     outp += AES_BLOCK_SIZE;
     _len -= AES_BLOCK_SIZE;
@@ -192,16 +171,14 @@ _aesni_cbc_hmac_sha1_cipher(
       arrview(_in, inp, _len),
       ref arrview(_out, outp, _len),
       _len,
-      ctx.key.ks.rd_key,
-      ref ctx.iv, 0);
+      key.ks.rd_key,
+      ref iv, 0);
 
   /* figure out payload length */
   secret mut uint32 pad = _out[len _out - 1];
   public uint32 tmppad = _len - (SHA_DIGEST_LENGTH + 1);
   public uint32 maxpad = tmppad > 255 ? 255 : tmppad;
 
-  secret int32 mask = maxpad >= pad ? (-1) : 0;
-  ret &= mask;
   if (pad > maxpad) {
     /*
      * If pad is invalid then we will fail the above test but we must
@@ -215,33 +192,32 @@ _aesni_cbc_hmac_sha1_cipher(
 
   secret mut uint32 inp_len = _len - (SHA_DIGEST_LENGTH + pad + 1);
 
-  store16_be(ref arrview(ctx.key.tls_aad, plen - 2, 2), (uint16)inp_len);
+  store16_be(ref arrview(key.tls_aad, plen - 2, 2), (uint16)inp_len);
 
   /* calculate HMAC */
-  SHA_CTX_cpy(ref ctx.key.md, ref ctx.key.head);
-  _sha1_update(ref ctx.key.md.h[0], arrview(ctx.key.tls_aad, 0, plen), plen);
+  _structcopy(ref key.md, ref key.head);
+  _sha1_update(ref key.md.h[0], arrview(key.tls_aad, 0, plen), plen);
 
   /* begin post-lucky-13 section */
   _len -= SHA_DIGEST_LENGTH; /* amend mac */
   if (_len >= (256 + SHA_CBLOCK)) {
     public uint32 j = ((_len - (256 + SHA_CBLOCK)) & (0 - SHA_CBLOCK))
-      + SHA_CBLOCK - ctx.key.md.num;
-    _sha1_update(ref ctx.key.md.h[0], arrview(_out, outp, j), j);
+      + SHA_CBLOCK - key.md.num;
+    _sha1_update(ref key.md.h[0], arrview(_out, outp, j), j);
     outp += j;
     _len -= j;
     inp_len -= j;
   }
 
   /* but pretend as if we hashed padded payload */
-  secret uint32 bitlen = bswap4(ctx.key.md.Nl + (inp_len << 3)); /* at most 18 bits */
+  secret uint32 bitlen = bswap4(key.md.Nl + (inp_len << 3)); /* at most 18 bits */
 
   // NOTE: openssl spends extra time aligning this to a 32-byte boundary
-  secret mut uint8[32] _pmac = arrzeros(32); // SHA_DIGEST_LENGTH
-  secret mut uint8[20] pmac = arrview(_pmac, 0, 20);
+  cacheline secret mut uint8[20] pmac = arrzeros(20); // SHA_DIGEST_LENGTH
 
-  public mut uint32 p_res = ctx.key.md.num;
+  public mut uint32 p_res = key.md.num;
   for (uint32 j = 0 to _len) {
-    ctx.key.md.data[p_res] = j  < inp_len ? _out[outp + j] :
+    key.md.data[p_res] = j  < inp_len ? _out[outp + j] :
       j == inp_len ? 0x80
       : 0;
     p_res += 1;
@@ -249,47 +225,47 @@ _aesni_cbc_hmac_sha1_cipher(
     if (p_res == SHA_CBLOCK) {
       /* j is not incremented yet */
       secret bool m1 = inp_len + 7 < j;
-      cond_store(ref arrview(ctx.key.md.data, 4*(SHA_LBLOCK - 1), 4), bitlen, m1);
-      sha1_block_data_order(ref ctx.key.md.h[0], ctx.key.md.data, 1);
+      cond_store(ref arrview(key.md.data, 4*(SHA_LBLOCK - 1), 4), bitlen, m1);
+      sha1_block_data_order(ref key.md, key.md.data, 1);
       secret bool m2 = m1 && (j < inp_len + 72);
-      cond_store(ref arrview(pmac, 0 , 4), ctx.key.md.h[0], m2);
-      cond_store(ref arrview(pmac, 4 , 4), ctx.key.md.h[1], m2);
-      cond_store(ref arrview(pmac, 8 , 4), ctx.key.md.h[2], m2);
-      cond_store(ref arrview(pmac, 12, 4), ctx.key.md.h[3], m2);
-      cond_store(ref arrview(pmac, 16, 4), ctx.key.md.h[4], m2);
+      cond_store(ref arrview(pmac, 0 , 4), key.md.h[0], m2);
+      cond_store(ref arrview(pmac, 4 , 4), key.md.h[1], m2);
+      cond_store(ref arrview(pmac, 8 , 4), key.md.h[2], m2);
+      cond_store(ref arrview(pmac, 12, 4), key.md.h[3], m2);
+      cond_store(ref arrview(pmac, 16, 4), key.md.h[4], m2);
       p_res = 0;
     }
   }
   public mut uint32 j = _len;
 
   for (uint32 i = p_res to SHA_CBLOCK) {
-    ctx.key.md.data[i] = 0;
+    key.md.data[i] = 0;
     j += 1;
   }
 
   if (p_res > SHA_CBLOCK - 8) {
     secret bool m1 = inp_len + 8 < j;
-    cond_store(ref arrview(ctx.key.md.data, 4*(SHA_LBLOCK - 1), 4), bitlen, m1);
-    sha1_block_data_order(ref ctx.key.md.h[0], ctx.key.md.data, 1);
+    cond_store(ref arrview(key.md.data, 4*(SHA_LBLOCK - 1), 4), bitlen, m1);
+    sha1_block_data_order(ref key.md, key.md.data, 1);
     secret bool m2 = m1 && (j < inp_len + 73);
-    cond_store(ref arrview(pmac, 0 , 4), ctx.key.md.h[0], m2);
-    cond_store(ref arrview(pmac, 4 , 4), ctx.key.md.h[1], m2);
-    cond_store(ref arrview(pmac, 8 , 4), ctx.key.md.h[2], m2);
-    cond_store(ref arrview(pmac, 12, 4), ctx.key.md.h[3], m2);
-    cond_store(ref arrview(pmac, 16, 4), ctx.key.md.h[4], m2);
+    cond_store(ref arrview(pmac, 0 , 4), key.md.h[0], m2);
+    cond_store(ref arrview(pmac, 4 , 4), key.md.h[1], m2);
+    cond_store(ref arrview(pmac, 8 , 4), key.md.h[2], m2);
+    cond_store(ref arrview(pmac, 12, 4), key.md.h[3], m2);
+    cond_store(ref arrview(pmac, 16, 4), key.md.h[4], m2);
 
-    _memzero(ref ctx.key.md.data);
+    _memzero(ref key.md.data);
     j += 64;
   }
   // NOTE: block is purely because I don't want to rename `mask`
-  _store32_le(ref arrview(ctx.key.md.data, 4*(SHA_LBLOCK - 1), 4), bitlen);
-  sha1_block_data_order(ref ctx.key.md.h[0], ctx.key.md.data, 1);
+  _store32_le(ref arrview(key.md.data, 4*(SHA_LBLOCK - 1), 4), bitlen);
+  sha1_block_data_order(ref key.md, key.md.data, 1);
   secret bool m2 = j < inp_len + 73;
-  cond_store(ref arrview(pmac, 0 , 4), ctx.key.md.h[0], m2);
-  cond_store(ref arrview(pmac, 4 , 4), ctx.key.md.h[1], m2);
-  cond_store(ref arrview(pmac, 8 , 4), ctx.key.md.h[2], m2);
-  cond_store(ref arrview(pmac, 12, 4), ctx.key.md.h[3], m2);
-  cond_store(ref arrview(pmac, 16, 4), ctx.key.md.h[4], m2);
+  cond_store(ref arrview(pmac, 0 , 4), key.md.h[0], m2);
+  cond_store(ref arrview(pmac, 4 , 4), key.md.h[1], m2);
+  cond_store(ref arrview(pmac, 8 , 4), key.md.h[2], m2);
+  cond_store(ref arrview(pmac, 12, 4), key.md.h[3], m2);
+  cond_store(ref arrview(pmac, 16, 4), key.md.h[4], m2);
 
   _store32_le(ref arrview(pmac, 0 , 4), bswap4(_load32_le(arrview(pmac, 0 , 4))));
   _store32_le(ref arrview(pmac, 4 , 4), bswap4(_load32_le(arrview(pmac, 4 , 4))));
@@ -299,9 +275,9 @@ _aesni_cbc_hmac_sha1_cipher(
   _len += SHA_DIGEST_LENGTH;
   /* end post-lucky-13 section */
 
-  SHA_CTX_cpy(ref ctx.key.md, ref ctx.key.tail);
-  _sha1_update(ref ctx.key.md.h[0], pmac, len pmac);
-  SHA1_Final(ref pmac, ref ctx.key.md.h[0]);
+  _structcopy(ref key.md, ref key.tail);
+  _sha1_update(ref key.md.h[0], pmac, len pmac);
+  SHA1_Final(ref pmac, ref key.md.h[0]);
 
   /* verify HMAC */
   secret uint32 s_outp = outp + inp_len;
@@ -335,5 +311,7 @@ _aesni_cbc_hmac_sha1_cipher(
   }
 
   /* end post-lucky-13 section */
+/*
+  */
   return ret;
 }
