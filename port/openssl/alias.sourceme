@@ -1,8 +1,0 @@
-alias m='make -j4 test TESTS="test_bad_dtls test_dtls_mtu"'
-alias mm='make test TESTS=80'
-alias t='./test/bad_dtls_test'
-alias tt='./test/dtls_mtu_test'
-alias f='cp ../fact/port/openssl/s3_cbc.s ssl/_s3_cbc.s ; cp ../fact/port/openssl/s3_cbc.h ssl/fact_s3_cbc.h'
-
-alias server='./apps/openssl s_server -cert apps/server.pem -www -ssl3'
-alias client='./apps/openssl s_time -connect localhost:4433 -www / -new -ssl3 -cipher AES256-SHA -time'
