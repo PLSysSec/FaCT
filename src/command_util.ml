@@ -33,7 +33,7 @@ type args_record = {
   noguac      : bool;
 }
 
-let run_command c args ?(exit_on_error=true) =
+let run_command c args exit_on_error =
   let process = Lwt_process.exec (c,args) in
   let handler = function
     | Unix.WEXITED s ->
@@ -144,18 +144,18 @@ let output_assembly opt_level out_file =
   match opt_level with
     | O2 ->
       begin
-        run_command "llc-6.0" [|"llc-6.0"; "-O2"; "-mcpu=core-avx2"; out_file'|] |> ignore;
-        run_command "llc-6.0" [|"llc-6.0"; "-O2"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
+        run_command "llc-6.0" [|"llc-6.0"; "-O2"; "-mcpu=core-avx2"; out_file'|] true |> ignore;
+        run_command "llc-6.0" [|"llc-6.0"; "-O2"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|] true
       end
     | O3 ->
       begin
-        run_command "llc-6.0" [|"llc-6.0"; "-O3"; "-mcpu=core-avx2"; out_file'|] |> ignore;
-        run_command "llc-6.0" [|"llc-6.0"; "-O3"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
+        run_command "llc-6.0" [|"llc-6.0"; "-O3"; "-mcpu=core-avx2"; out_file'|] true |> ignore;
+        run_command "llc-6.0" [|"llc-6.0"; "-O3"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|] true
       end
     | _ ->
       begin
-        run_command "llc-6.0" [|"llc-6.0"; "-mcpu=core-avx2"; out_file'|] |> ignore;
-        run_command "llc-6.0" [|"llc-6.0"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|]
+        run_command "llc-6.0" [|"llc-6.0"; "-mcpu=core-avx2"; out_file'|] true |> ignore;
+        run_command "llc-6.0" [|"llc-6.0"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|] true
       end
 
 let output_object out_file =
@@ -164,8 +164,8 @@ let output_object out_file =
   let out_file_o = out_file ^ ".o" in
   let out_file_fpic = out_file ^ ".fpic.o" in
   Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang-6.0" [|"clang-6.0"; "-c"; out_file_s; "-o"; out_file_o|] |> ignore;
-  run_command "clang-6.0" [|"clang-6.0"; "-c"; out_file_fpic_s; "-o"; out_file_fpic|]
+  run_command "clang-6.0" [|"clang-6.0"; "-c"; out_file_s; "-o"; out_file_o|] true |> ignore;
+  run_command "clang-6.0" [|"clang-6.0"; "-c"; out_file_fpic_s; "-o"; out_file_fpic|] true
 
 let output_shared_object out_file args =
   if not args.shared then () else
@@ -175,9 +175,9 @@ let output_shared_object out_file args =
   let out_file_fpic = out_file ^ ".fpic.so" in
   Log.debug "Creating object file at %s" out_file_o;
   run_command "clang-6.0"
-    [|"clang-6.0"; "-shared"; out_file_s; "-o"; out_file_o|] |> ignore;
+    [|"clang-6.0"; "-shared"; out_file_s; "-o"; out_file_o|] true |> ignore;
   run_command "clang-6.0"
-    [|"clang-6.0"; "-shared"; out_file_fpic_s; "-o"; out_file_fpic|] |> ignore
+    [|"clang-6.0"; "-shared"; out_file_fpic_s; "-o"; out_file_fpic|] true |> ignore
 
 let verify_opt_pass llmod out_file llvm_out = function
   | None       -> Log.info "Not verifying opt passes"
@@ -205,7 +205,7 @@ let ctverify (Tast.Module(_,fdecs,_)) out_file llvm_mod
     let verify f wrapper header llvm_file =
       let entrypoint = f ^ "_wrapper" in
       let cmd = [| "verif-ll.sh"; wrapper; header; ll_file; entrypoint|] in
-      let ret_code = try run_command "" cmd ~exit_on_error:false
+      let ret_code = try run_command "" cmd false
         with | _ -> Log.error "Ct-verif failed to run. Please check that `docker/build-ctverif` is in you PATH"; exit 1; in
       Log.info "Ct-verif returned with status %d" ret_code;
       (* TODO: Have verif-ll.sh check if ct-verif passed or not and set the
