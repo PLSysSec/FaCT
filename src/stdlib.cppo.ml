@@ -489,7 +489,6 @@ let structcopy_codegen structname cg_ctx =
     let arg2 = param fn 1 in
     let arg1' = build_bitcast arg1 ptr_ty "_secret_cast" b in
     let arg2' = build_bitcast arg2 ptr_ty "_secret_cast" b in
-      print_endline structname;
     let datalayout' = data_layout cg_ctx.llmodule in
     let datalayout = Llvm_target.DataLayout.of_string datalayout' in
     let size' = Llvm_target.DataLayout.abi_size struct_ty datalayout in
