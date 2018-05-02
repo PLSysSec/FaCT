@@ -124,7 +124,10 @@ and ps_lval' ps_ctx = function
       (ps_lval ps_ctx lval)
       field.data
   | CheckedLval(stms, lval) ->
-    "checked " ^ (ps_lval ps_ctx lval)
+    Printf.sprintf
+      "{%s}%s"
+      (String.concat "" (List.map (ps_stm ps_ctx) stms))
+      (ps_lval ps_ctx lval)
 and ps_lval ps_ctx {data=(lval,_)} = ps_lval' ps_ctx lval
 
 and ps_expr' ps_ctx = function
@@ -174,7 +177,10 @@ and ps_expr' ps_ctx = function
       "%s <- %s" x.data
       (ps_block inc (Env.new_env(), stms))
   | CheckedExpr(stms,e) ->
-    "checked " ^ (ps_expr ps_ctx e)
+    Printf.sprintf
+      "{%s}%s"
+      (String.concat "" (List.map (ps_stm ps_ctx) stms))
+      (ps_expr ps_ctx e)
   | _ -> "<expr>"
 and ps_expr ps_ctx {data=(e,_)} = ps_expr' ps_ctx e
 
@@ -205,7 +211,10 @@ and ps_aexpr' ps_ctx = function
       "noinit(%s)"
       (ps_lexpr lexpr)
   | CheckedArrayExpr(stms, aexpr) ->
-    "checked " ^ (ps_aexpr ps_ctx aexpr)
+    Printf.sprintf
+      "{%s}%s"
+      (String.concat "" (List.map (ps_stm ps_ctx) stms))
+      (ps_aexpr ps_ctx aexpr)
   | _ -> "<arrexpr>"
 and ps_aexpr ps_ctx {data=(ae,_)} = ps_aexpr' ps_ctx ae
 
