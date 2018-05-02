@@ -19,23 +19,30 @@ Many debugging options and intermediate data structures are available. Run ```./
 
 ## Set Up And Build On Local Machine
 
-FaCT is developed using Ocaml and LLVM 3.8. Make sure both of these are installed.
-On OS X it can be done with brew.
+FaCT is developed using Ocaml and LLVM 6.0, and it also requires opam.
+
+On OS X, the prerequisites can be installed using brew:
 
 ```
 brew install ocaml
-brew install llvm38
+brew install llvm@6  # HELP is this right???
+brew install opam
 ```
 
-We also need dependency management for Ocaml.
+Under arch linux, this can be done with:
 
-```brew install opam```
+```pacman -S --needed llvm llvm-ocaml ocaml ocaml-findlib opam cmake```
 
-Then we need the actual dependencies for Ocaml.
+If you have not yet, you must also run ```opam init```.
 
-```opam install llvm.3.8 core.v0.9.2 ounit.2.0.7 ctypes-foreign.0.4.0 utop.2.1.0 dolog.3.0 menhir.20171222 oasis.0.4.10 ppx_deriving.4.2.1 ANSITerminal.0.8 ocamlgraph.1.8.8 yojson.1.4.0 jbuilder.1.0+beta16```
+Next, install the Ocaml library dependencies via:
 
-If you have not setup oasis, then you must do that first.
+```
+eval $(opam config env)
+opam install llvm.6.0.0 core.v0.9.2 ounit.2.0.7 ctypes-foreign.0.4.0 utop.2.1.0 dolog.3.0 menhir.20171222 oasis.0.4.10 ppx_deriving.4.2.1 ANSITerminal.0.8 ocamlgraph.1.8.8 yojson.1.4.0 jbuilder.1.0+beta16
+```
+
+Next,
 
 ```oasis setup```
 
