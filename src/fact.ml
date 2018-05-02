@@ -19,6 +19,7 @@ let opt_level_doc = "level The level of optimization to run (O0, 01, 02, or OF)"
 let opt_limit_doc = "seconds The number of seconds to run the optimizer at OF before quitting and picking the best pipeline"
 let verify_opt_doc = "opt Comma separated list of optimzations to verify on the FaCT program. They are run in the order in which they are provided"
 let shared_opt_doc = "Generate a .so file"
+let noguac_opt_doc = "Don't run the name-based LLVM IR verifier"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -114,6 +115,7 @@ let compile_command =
       flag "-limit" (optional int) ~doc:opt_limit_doc +>
       flag "-verify-opt" (optional string) ~doc:verify_opt_doc +>
       flag "-shared" no_arg ~doc:shared_opt_doc +>
+      flag "-no-guac" no_arg ~doc:noguac_opt_doc +>
       anon (sequence ("filename" %: file)))
     (fun
       out_file
@@ -130,6 +132,7 @@ let compile_command =
       opt_limit
       verify_opts
       shared
+      noguac
       in_files () ->
       let mode = match mode with
         | Some "dev" -> DEV
@@ -147,7 +150,7 @@ let compile_command =
       let args = { in_files; out_file; debug;
                    ast_out; core_ir_out; pseudo_out; smack_out;
                    llvm_out; gen_header; verify_llvm; mode; opt_level;
-                   opt_limit; verify_opts; shared } in
+                   opt_limit; verify_opts; shared; noguac } in
         set_log_level debug;
         let prep = prepare_compile out_file in_files () in
           runner prep args)

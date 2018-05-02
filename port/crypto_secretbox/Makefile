@@ -4,6 +4,12 @@ all: secretbox1.bin secretbox2.bin crypto_secretbox_wrapper.fpic.o
 
 .PRECIOUS: crypto_secretbox.h
 
+libsodium_cref:
+	../../fact.byte -opt O2 -no-guac -llvm-out -generate-header stdlib.fact crypto_poly1305.fact salsa20.fact crypto_secretbox.fact
+
+libsodium_asm:
+	../../fact.byte -opt O2 -no-guac -llvm-out -generate-header stdlib.fact crypto_poly1305.fact u0.fact salsa20-avx2.fact crypto_secretbox.fact
+
 crypto_secretbox.o: stdlib.fact crypto_poly1305.fact u0.fact crypto_secretbox.fact
 	../../fact.byte $(FFLAGS) -ast-out -pseudocode -generate-header -llvm-out -debug $^
 

@@ -17,6 +17,7 @@ type args_record = {
   opt_limit   : seconds option;
   verify_opts : string option;
   shared      : bool;
+  noguac      : bool;
 }
 
 (** Compile a constantc program. *)

@@ -1,15 +1,15 @@
 inline
 public uint64 _u1(
-    secret mut uint8[] x,
+    secret mut uint32[] x,
     secret uint8[] m,
     secret mut uint8[] c) {
   public uint64 bytes = len m;
 
   for (uint32 j = 0; j + 64 <= bytes; j += 64) {
-    secret mut uint32<4> diag0 = _load32_4_le(arrview(x,  0, 16));
-    secret mut uint32<4> diag1 = _load32_4_le(arrview(x, 16, 16));
-    secret mut uint32<4> diag2 = _load32_4_le(arrview(x, 32, 16));
-    secret mut uint32<4> diag3 = _load32_4_le(arrview(x, 48, 16));
+    secret mut uint32<4> diag0 = _load32_4_le(arrview(x,  0, 4));
+    secret mut uint32<4> diag1 = _load32_4_le(arrview(x,  4, 4));
+    secret mut uint32<4> diag2 = _load32_4_le(arrview(x,  8, 4));
+    secret mut uint32<4> diag3 = _load32_4_le(arrview(x, 12, 4));
 
     secret mut uint32<4> a0 = diag1;
 
@@ -159,10 +159,10 @@ public uint64 _u1(
       diag0 = diag0 ^ b7;
     }
 
-    diag0 = diag0 + _load32_4_le(arrview(x,  0, 16));
-    diag1 = diag1 + _load32_4_le(arrview(x, 16, 16));
-    diag2 = diag2 + _load32_4_le(arrview(x, 32, 16));
-    diag3 = diag3 + _load32_4_le(arrview(x, 48, 16));
+    diag0 = diag0 + _load32_4_le(arrview(x,  0, 4));
+    diag1 = diag1 + _load32_4_le(arrview(x,  4, 4));
+    diag2 = diag2 + _load32_4_le(arrview(x,  8, 4));
+    diag3 = diag3 + _load32_4_le(arrview(x, 12, 4));
 
     if (true) {
       public uint32 A =  0;
@@ -253,30 +253,30 @@ public uint64 _u1(
       _store32_le(ref arrview(c, j + D * 4, 4), inD);
     }
 
-    secret mut uint32 in8 = _load32_le(arrview(x,  8 * 4, 4));
-    secret mut uint32 in9 = _load32_le(arrview(x, 13 * 4, 4));
+    secret mut uint32 in8 = x[8];
+    secret mut uint32 in9 = x[13];
     in8 += 1;
     if (in8 == 0) {
       in9 += 1;
     }
-    _store32_le(ref arrview(x,  8 * 4, 4), in8);
-    _store32_le(ref arrview(x, 13 * 4, 4), in9);
+    x[8] = in8;
+    x[13] = in9;
   }
   return (bytes / 64) * 64;
 }
 
 inline
 void _u0(
-    secret mut uint8[] x,
+    secret mut uint32[] x,
     secret uint8[] m,
     secret mut uint8[] c) {
   public uint64 bytes = len m;
 
   if (bytes > 0) {
-    secret mut uint32<4> diag0 = _load32_4_le(arrview(x,  0, 16));
-    secret mut uint32<4> diag1 = _load32_4_le(arrview(x, 16, 16));
-    secret mut uint32<4> diag2 = _load32_4_le(arrview(x, 32, 16));
-    secret mut uint32<4> diag3 = _load32_4_le(arrview(x, 48, 16));
+    secret mut uint32<4> diag0 = _load32_4_le(arrview(x,  0, 4));
+    secret mut uint32<4> diag1 = _load32_4_le(arrview(x,  4, 4));
+    secret mut uint32<4> diag2 = _load32_4_le(arrview(x,  8, 4));
+    secret mut uint32<4> diag3 = _load32_4_le(arrview(x, 12, 4));
 
     secret mut uint32<4> a0 = diag1;
 
@@ -426,10 +426,10 @@ void _u0(
       diag0 = diag0 ^ b7;
     }
 
-    diag0 = diag0 + _load32_4_le(arrview(x,  0, 16));
-    diag1 = diag1 + _load32_4_le(arrview(x, 16, 16));
-    diag2 = diag2 + _load32_4_le(arrview(x, 32, 16));
-    diag3 = diag3 + _load32_4_le(arrview(x, 48, 16));
+    diag0 = diag0 + _load32_4_le(arrview(x,  0, 4));
+    diag1 = diag1 + _load32_4_le(arrview(x,  4, 4));
+    diag2 = diag2 + _load32_4_le(arrview(x,  8, 4));
+    diag3 = diag3 + _load32_4_le(arrview(x, 12, 4));
 
     secret mut uint8[64] partialblock = noinit(64);
 
@@ -497,12 +497,10 @@ void _u0(
   }
 }
 
-export
 void u0(
-    secret mut uint8[] x,
+    secret mut uint32[] x,
     secret uint8[] m,
-    secret mut uint8[] c,
-    public uint64 bytes) {
+    secret mut uint8[] c) {
   public uint64 processed = _u1(ref x, m, ref c);
   _u0(ref x,
       arrview(m, processed, len m - processed),

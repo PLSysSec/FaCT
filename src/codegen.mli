@@ -4,16 +4,6 @@ open Codegen_utils
 exception CodegenError
 
 
-val mk_ctx : llcontext
-          -> llmodule
-          -> llbuilder
-          -> llvalue Env.env
-          -> fenv
-          -> Tast.array_type Env.env
-          -> Tast.variable_type Env.env
-          -> bool
-          -> codegen_ctx_record
-
 val new_fenv : (Tast.function_dec * bool ref) Env.env -> fenv
 
 val codegen : llcontext

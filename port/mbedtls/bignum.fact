@@ -132,7 +132,7 @@ public int32 _mpi_montmul(
 
     //instead of memset use fact_memzero64, so no ciL needed
     //public mut uint64 ciL = 8;
-    _fact_memzero64(ref T_p);
+    _memzero64(ref T_p);
 
     for(uint64 i = 0; i < n; i += 1) {
       secret uint64 u0 = A_p[i];

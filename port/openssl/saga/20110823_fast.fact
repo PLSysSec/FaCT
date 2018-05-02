@@ -7,14 +7,6 @@
  */
 
 // this should be in fact's stdlib
-void
-memcpy(secret mut uint8[] dst, secret uint8[] src) {
-  for (uint32 i = 0 to len dst) {
-    dst[i] = src[i];
-  }
-}
-
-// this should be in fact's stdlib
 inline
 secret uint16
 load16_be(secret uint8[2] buf) {
@@ -54,15 +46,7 @@ struct SHA_CTX {
     public uint32 num;
 }
 
-void SHA_CTX_cpy(mut struct SHA_CTX dst, struct SHA_CTX src) {
-  for (uint32 i = 0; i < 5; i += 1) {
-    dst.h[i] = src.h[i];
-  }
-  dst.Nl = src.Nl;
-  dst.Nh = src.Nh;
-  memcpy(ref dst.data, src.data);
-  dst.num = src.num;
-}
+extern void _structcopy(mut struct SHA_CTX dst, mut struct SHA_CTX src);
 
 struct EVP_AES_HMAC_SHA1 {
     struct AES_KEY ks;
@@ -112,15 +96,15 @@ SHA1_Update_public(
 
   public uint64 l = ((uint64)(len _in)) << 3;
   secret uint64 N = ((((uint64)(ctx.Nh)) << 32) | ctx.Nl) + l;
-  ctx.Nh += ((uint32)(N >> 32));
+  ctx.Nh = ((uint32)(N >> 32));
   ctx.Nl = (uint32)N;
 
   public mut uint32 inp = 0;
   public mut uint32 _len = len _in;
   public uint32 num = ctx.num;
-  if (num > 0) {
+  if (num > 0 && _len > 0) {
     public uint32 res = len _in < SHA_CBLOCK - num ? len _in : SHA_CBLOCK - num;
-    memcpy(ref arrview(ctx.data, num, res), arrview(_in, 0, res));
+    _arrcopy(ref arrview(ctx.data, num, res), arrview(_in, 0, res));
     if (res + num == SHA_CBLOCK) {
       sha1_block_data_order(ref ctx, ctx.data, 1);
       ctx.num = 0;
@@ -133,13 +117,13 @@ SHA1_Update_public(
 
   public uint32 n = _len / SHA_CBLOCK;
   if (n > 0) {
-    sha1_block_data_order(ref ctx, arrview(_in, inp, _len), n);
+    sha1_block_data_order(ref ctx, arrview(_in, inp, n * SHA_CBLOCK), n);
     inp += n * SHA_CBLOCK;
     _len -= n * SHA_CBLOCK;
   }
 
   if (_len > 0) {
-    memcpy(ref arrview(ctx.data, 0, _len), arrview(_in, inp, _len));
+    _arrcopy(ref arrview(ctx.data, 0, _len), arrview(_in, inp, _len));
     ctx.num += _len;
   }
 }
@@ -158,11 +142,12 @@ SHA1_Update_secret(
 
   secret uint64 l = ((uint64)slen) << 3;
   secret uint64 N = ((((uint64)(ctx.Nh)) << 32) | ctx.Nl) + l;
-  ctx.Nh += ((uint32)(N >> 32));
+  ctx.Nh = ((uint32)(N >> 32));
   ctx.Nl = (uint32)N;
 
+  public uint32 num = ctx.num;
   for (uint32 i = 0; i < len _in; i += 1) {
-    public uint32 j = (ctx.num + i) % SHA_CBLOCK; // index into ctx.data
+    public uint32 j = (num + i) % SHA_CBLOCK; // index into ctx.data
     if (i < slen) {
       ctx.data[j] = _in[i];
     }
@@ -177,8 +162,8 @@ SHA1_Update_secret(
       }
     }
   }
-  ctx_num = (ctx.num + slen) & (SHA_CBLOCK - 1);
-  ctx.num = (ctx.num + len _in) % SHA_CBLOCK;
+  ctx_num = (num + slen) & (SHA_CBLOCK - 1);
+  ctx.num = (num + len _in) % SHA_CBLOCK;
 }
 
 inline void
@@ -269,6 +254,64 @@ SHA1_Final_secret(
   SHA1_MAKE_STRING(ref ctx, ref out);
 }
 
+void
+SHA1_Update_Final_secret(
+    mut struct SHA_CTX ctx,
+    secret uint8[] _in,
+    secret uint32 slen,
+    secret mut uint8[20] out) {
+
+  secret uint64 l = ((uint64)slen) << 3;
+  secret uint64 N = ((((uint64)(ctx.Nh)) << 32) | ctx.Nl) + l;
+  ctx.Nh = ((uint32)(N >> 32));
+  ctx.Nl = (uint32)N;
+
+  public uint32 maxlen = len _in + 1 + 8; // ending 0x80 byte + length
+  public uint32 nblocks = maxlen / len ctx.data;
+  public uint32 remain = maxlen % len ctx.data;
+  public uint32 semi_block = remain > 0 ? 1 : 0;
+  public uint32 nbytes = (nblocks + semi_block) * len ctx.data;
+
+  secret uint32 num = slen & ((len ctx.data) - 1);
+  secret bool len_in_first_block = num < ((len ctx.data) - 8);
+  secret mut bool done = false;
+
+  for (uint32 i = 0; i < nbytes; i += 1) {
+    public uint32 j = i % (len ctx.data); // index into ctx.data
+    if (i < slen) {
+      if (i < len _in) {
+        ctx.data[j] = _in[i];
+      }
+    } else if (i == slen) {
+      ctx.data[j] = 0x80;
+    } else if (len_in_first_block || i > slen + len ctx.data) {
+      if (j >= ((len ctx.data) - 8)) {
+        public uint32 shift = (len ctx.data - 1 - j) * 8;
+        ctx.data[j] = ((uint8)(N >> shift));
+      }
+    }
+
+    if (j == (len ctx.data) - 1) {
+      secret uint32[5] h = arrcopy(ctx.h);
+      sha1_block_data_order(ref ctx, ctx.data, 1);
+      if (done) {
+        // roll back state
+        for (uint32 k = 0; k < 5; k += 1) {
+          ctx.h[k] = h[k];
+        }
+      }
+      if (i > slen + (len_in_first_block ? 0 : len ctx.data)) {
+        done = true;
+      }
+    }
+  }
+
+  ctx.num = 0;
+  _memzero(ref ctx.data);
+
+  SHA1_MAKE_STRING(ref ctx, ref out);
+}
+
 /**
  * Implementer's notes:
  *   Assuming only decrypt path
@@ -277,101 +320,105 @@ SHA1_Final_secret(
 export
 secret int32
 _aesni_cbc_hmac_sha1_cipher(
-    mut struct evp_cipher_ctx_st ctx,
+    //mut struct evp_cipher_ctx_st ctx,
+    secret mut uint8[16] iv,
+    mut struct EVP_AES_HMAC_SHA1 key,
     secret mut uint8[] _out,
-    secret uint8[] _in) {
+    secret uint8[] _in,
+    public uint64 plen) {
 
   public uint64 NO_PAYLOAD_LENGTH = (uint64)-1;
   public uint32 AES_BLOCK_SIZE = 16;
   public uint32 SHA_DIGEST_LENGTH = 20;
   public uint32 TLS1_1_VERSION = 0x0302;
+  public uint32 SHA_LBLOCK = 16;
+  public uint32 SHA_CBLOCK = (SHA_LBLOCK*4); /* SHA treats input data as a
+                                              * contiguous array of 32 bit wide
+                                              * big-endian values. */
 
   secret mut int32 ret = 1;
-
-  public uint64 plen = ctx.key.payload_length;
-  ctx.key.payload_length = NO_PAYLOAD_LENGTH;
 
   if (len _in % AES_BLOCK_SIZE != 0) {
     return 0;
   }
 
-  if (plen != NO_PAYLOAD_LENGTH) { /* "TLS" mode of operation */
-    public mut uint32 inp = 0;
-    public mut uint32 outp = 0;
-    public mut uint32 _len = len _out;
+  public mut uint32 inp = 0;
+  public mut uint32 outp = 0;
+  public mut uint32 _len = len _out;
 
-    secret uint16 tls_ver = load16_be(arrview(ctx.key.tls_aad, plen - 4, 2));
-    // I'm assuming that these two bytes are actually a public version number
-    if (declassify(tls_ver >= TLS1_1_VERSION)) {
-      if (_len < (AES_BLOCK_SIZE + SHA_DIGEST_LENGTH + 1)) {
-        return 0;
-      }
-
-      /* omit explicit iv */
-      memcpy(ref ctx.iv, _in);
-      inp += AES_BLOCK_SIZE;
-      outp += AES_BLOCK_SIZE;
-      _len -= AES_BLOCK_SIZE;
-    } else if (_len < (SHA_DIGEST_LENGTH + 1)) {
+  secret uint16 tls_ver = load16_be(arrview(key.tls_aad, plen - 4, 2));
+  // I'm assuming that these two bytes are actually a public version number
+  if (declassify(tls_ver >= TLS1_1_VERSION)) {
+    if (_len < (AES_BLOCK_SIZE + SHA_DIGEST_LENGTH + 1)) {
       return 0;
     }
 
-    /* decrypt HMAC|padding at once */
-    aesni_cbc_encrypt(
-        arrview(_in, inp, _len),
-        ref arrview(_out, outp, _len),
-        _len,
-        ref ctx.key.ks,
-        ref ctx.iv, 0);
+    /* omit explicit iv */
+    _arrcopy(ref iv, _in);
+    inp += AES_BLOCK_SIZE;
+    outp += AES_BLOCK_SIZE;
+    _len -= AES_BLOCK_SIZE;
+  } else if (_len < (SHA_DIGEST_LENGTH + 1)) {
+    return 0;
+  }
 
-    secret mut uint32 pad = _out[len _out - 1];
-    public uint32 tmppad = _len - (SHA_DIGEST_LENGTH + 1);
-    public uint32 maxpad = tmppad > 255 ? 255 : tmppad;
-    public uint32 minlen = _len - maxpad - (SHA_DIGEST_LENGTH + 1);
+  /* decrypt HMAC|padding at once */
+  aesni_cbc_encrypt(
+      arrview(_in, inp, _len),
+      ref arrview(_out, outp, _len),
+      _len,
+      ref key.ks,
+      ref iv, 0);
 
-    if (_len < pad + 1 + SHA_DIGEST_LENGTH) {
-      ret = 0;
-      pad = 0;
-    }
-    if (pad > maxpad) {
-      ret = 0;
-      pad = maxpad;
-    }
+  secret mut uint32 pad = _out[len _out - 1];
+  public uint32 tmppad = _len - (SHA_DIGEST_LENGTH + 1);
+  public uint32 maxpad = tmppad > 255 ? 255 : tmppad;
 
-    secret mut uint32 inp_len = _len - (pad + 1 + SHA_DIGEST_LENGTH);
+  if (pad > maxpad) {
+    ret = 0;
+    pad = maxpad;
+  }
 
-    store16_be(ref arrview(ctx.key.tls_aad, plen - 2, 2), (uint16)inp_len);
+  secret uint32 inp_len = _len - (pad + 1 + SHA_DIGEST_LENGTH);
 
-    /* calculate HMAC and verify it */
-    SHA_CTX_cpy(ref ctx.key.md, ref ctx.key.head);
-    SHA1_Update_public(ref ctx.key.md, arrview(ctx.key.tls_aad, 0, plen));
-    SHA1_Update_public(ref ctx.key.md, arrview(_out, outp, minlen));
-    secret mut uint32 ctx_num = 0;
-    SHA1_Update_secret(ref ctx.key.md, ref ctx_num, arrview(_out, outp + minlen, _len - minlen), inp_len - minlen);
-    cacheline secret mut uint8[20] pmac = noinit(20); // SHA_DIGEST_LENGTH
-    SHA1_Final_secret(ref pmac, ref ctx.key.md, ctx_num);
+  store16_be(ref arrview(key.tls_aad, plen - 2, 2), (uint16)inp_len);
 
-    SHA_CTX_cpy(ref ctx.key.md, ref ctx.key.tail);
-    SHA1_Update_public(ref ctx.key.md, pmac);
-    SHA1_Final_public(ref pmac, ref ctx.key.md);
+  secret mut uint32 ctx_num = 0;
+  cacheline secret mut uint8[20] pmac = noinit(20); // SHA_DIGEST_LENGTH
 
-    public uint32 pub_start = _len < (255 + 1 + SHA_DIGEST_LENGTH) ? 0
-      : _len - (255 + 1 + SHA_DIGEST_LENGTH);
-    if (outp + inp_len + SHA_DIGEST_LENGTH > _len) {
-      ret = 0;
-    }
-    for (uint32 i = outp + pub_start; i < _len; i += 1) {
-      if (i >= outp + inp_len && i < outp + inp_len + SHA_DIGEST_LENGTH) {
-        secret uint32 j = i - (outp + inp_len);
-        if (_out[i] != pmac[declassify(j)]) { // cache tricks (see declaration of pmac)
-          ret = 0;
-        }
+  /* calculate HMAC and verify it */
+  _structcopy(ref key.md, ref key.head);
+  SHA1_Update_public(ref key.md, arrview(key.tls_aad, 0, plen));
+
+  public uint32 minlen =
+    (_len >= 256 + SHA_CBLOCK + SHA_DIGEST_LENGTH) ?
+    (((_len - (256 + SHA_CBLOCK + SHA_DIGEST_LENGTH)) & (0 - SHA_CBLOCK)) + (SHA_CBLOCK - key.md.num)) :
+    0;
+
+  if (minlen > 0) {
+    SHA1_Update_public(ref key.md, arrview(_out, outp, minlen));
+  }
+  SHA1_Update_secret(ref key.md, ref ctx_num, arrview(_out, outp + minlen, _len - minlen), inp_len - minlen);
+  SHA1_Final_secret(ref pmac, ref key.md, ctx_num);
+  //SHA1_Update_Final_secret(ref key.md, arrview(_out, outp + minlen, _len - minlen), inp_len - minlen, ref pmac);
+
+  _structcopy(ref key.md, ref key.tail);
+  SHA1_Update_public(ref key.md, pmac);
+  SHA1_Final_public(ref pmac, ref key.md);
+
+  public uint32 pub_start = _len < (255 + 1 + SHA_DIGEST_LENGTH) ? 0
+    : _len - (255 + 1 + SHA_DIGEST_LENGTH);
+  if (outp + inp_len + SHA_DIGEST_LENGTH > _len) {
+    ret = 0;
+  }
+
+  for (uint32 i = outp + pub_start; i < _len; i += 1) {
+    if (i >= outp + inp_len && i < outp + inp_len + SHA_DIGEST_LENGTH) {
+      secret uint32 j = i - (outp + inp_len);
+      if (_out[i] != pmac[declassify(j)]) { // cache tricks (see declaration of pmac)
+        ret = 0;
       }
     }
-  } else {
-    /* decrypt HMAC|padding at once */
-    aesni_cbc_encrypt(_in, ref _out, len _out, ref ctx.key.ks, ref ctx.iv, 0);
-    SHA1_Update_public(ref ctx.key.md, _out);
   }
 
   return ret;
