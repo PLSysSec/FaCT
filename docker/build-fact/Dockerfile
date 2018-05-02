@@ -44,3 +44,26 @@ RUN apt-get update && \
 
 COPY user-mapping-new.sh /user-mapping.sh
 RUN  chmod u+x /user-mapping.sh
+
+###############################
+
+USER root
+RUN apt-get -y purge clang-3.8 llvm-3.8 
+RUN apt-get -y update && apt-get -y upgrade
+
+RUN echo "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-6.0 main" | tee -a /etc/apt/sources.list
+RUN echo "deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-6.0 main" | tee -a /etc/apt/sources.list
+RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+RUN apt-get update
+RUN apt-get -y install clang-6.0 lldb-6.0 lld-6.0
+RUN apt-get -y autoremove
+RUN apt-get -y install cmake
+
+USER docker
+RUN cd /home/docker/FaCT && opam update && opam upgrade
+RUN cd /home/docker/FaCT && opam install llvm.6.0.0 
+RUN echo "export PATH=/usr/lib/llvm-6.0/bin/:$PATH" | tee -a /home/docker/.profile
+
+USER root
+
+
