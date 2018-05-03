@@ -14,6 +14,7 @@ type intrinsic =
   | Memset
   | Rotl of int
   | Rotr of int
+  | Declass of int
   | CmovAsm of int
   | CmovXor of int
   | CmovSel of int
@@ -24,6 +25,7 @@ let rec string_of_intrinsic = function
   | Memset -> "llvm.memset.p0i8.i64"
   | Rotl n -> "__rotl" ^ (string_of_int n)
   | Rotr n -> "__rotr" ^ (string_of_int n)
+  | Declass n -> "fact.declassify.i" ^ (string_of_int n)
   | CmovAsm n -> "select.cmov.asm.i" ^ (string_of_int n)
   | CmovXor n -> "select.cmov.xor.i" ^ (string_of_int n)
   | CmovSel n -> "select.cmov.sel.i" ^ (string_of_int n)
@@ -92,6 +94,19 @@ let rec declare_intrinsic cg_ctx = function
       let lshift = build_shl e1 subtmp "_secret_lshift" b in
       let rotrtmp = build_or lrshift lshift "_secret_rotrtmp" b in
         build_ret rotrtmp b;
+        fn
+  | Declass n as dec_sz ->
+    let ity = integer_type cg_ctx.llcontext n in
+    let ft = function_type ity [| ity |] in
+    let fn = declare_function (string_of_intrinsic dec_sz) ft cg_ctx.llmodule in
+      add_function_attr fn cg_ctx.noinline Function;
+      set_linkage Internal fn;
+    let bb = append_block cg_ctx.llcontext "entry" fn in
+    let b = builder cg_ctx.llcontext in
+      position_at_end bb b;
+      let e1 = param fn 0 in
+        set_value_name "_declassified_x" e1;
+        build_ret e1 b;
         fn
   | CmovAsm n as cmov_sz ->
     let i1ty = i1_type cg_ctx.llcontext in

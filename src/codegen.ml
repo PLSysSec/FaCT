@@ -566,11 +566,9 @@ and codegen_expr cg_ctx = function
   | DebugFnCall(_,_),_ -> raise CodegenError
   | Declassify(expr), ty ->
     let e = codegen_expr cg_ctx expr.data in
-    let n = value_name e in
-    set_value_name ("_declassified_" ^ n) e;
-    let ast = make_ast fake_pos (value_name e) in
-    (*declassify cg_ctx e;*)
-    e
+    let ty' = expr_ty_to_llvm_ty cg_ctx ty in
+    let fn = Stdlib.get_intrinsic (Declass (integer_bitwidth ty')) cg_ctx in
+      build_call fn [| e |] "_declassified_res" cg_ctx.builder
   | Select(expr1,expr2,expr3), ty ->
     let e1 = codegen_expr cg_ctx expr1.data in
     let e1' = build_is_not_null e1 (make_name_et "condtmp" ty) cg_ctx.builder in
