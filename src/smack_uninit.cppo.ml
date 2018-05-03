@@ -123,10 +123,13 @@ class smack_visitor =
         [ call_assert(binop Ast.GTE lvalinit'
                         (abinop Ast.Plus n l')) ]
 
-    method check_arrset lval n =
+    method cond_arrset lval n =
       let lvalinit,_ = visit#lval_get_init lval in
       let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
-        [ call_assert(binop Ast.GTE lvalinit' n) ]
+        binop Ast.GTE lvalinit' n
+
+    method check_arrset lval n =
+        [ call_assert(visit#cond_arrset lval n) ]
 
     method finish_arrset lval n l =
       let l' = visit#lexpr_to_expr l in
@@ -207,7 +210,8 @@ class smack_visitor =
       match lval with
         | ArrayEl(lval,e) when visit#lval_is_uninit lval ->
           let e' = make_signed e in
-            (mkpos (CheckedLval(visit#check_arrset lval e', super#lval lval_), vty),
+          let cond = visit#cond_arrset lval e' in
+            (super#lval lval_,
              visit#finish_arrset lval e' one)
         | _ -> (super#lval lval_, [])
 
@@ -303,9 +307,13 @@ class smack_visitor =
               begin
                 match lv' with
                   | ArrayEl(lv,e) when visit#lval_is_uninit lv ->
-                    let (lval',fin) = visit#lval_set lval in
                     let e' = visit#expr e in
-                      [mkpos Assign(lval', e')] @ fin
+                    let e'' = make_signed e' in
+                    let cond = visit#cond_arrset lv e'' in
+                    let fin = visit#finish_arrset lv e'' one in
+                    let stms' = (mkpos Assign(lval, e')) :: fin in
+                    let ifblock = mkpos If(cond, (_venv,stms'), (_venv,[])) in
+                      [ifblock]
                   | _ -> super#stm stm_
               end
           | VoidFnCall(f, args) ->
