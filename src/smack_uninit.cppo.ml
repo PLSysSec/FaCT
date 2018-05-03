@@ -61,11 +61,6 @@ let make_signed e =
         {e with data=(e', BaseET(mkfake Num (n, true), mkfake Fixed Public))}
       | Int _ -> e
 
-let is_uninit {data=(ae,_)} =
-  match ae with
-    | ArrayNoinit _ -> true
-    | _ -> false
-
 let one = mkfake LIntLiteral 1
 
 class smack_visitor =
@@ -100,8 +95,8 @@ class smack_visitor =
       let lvalinit = "#" ^ x.data in
       let bvty = mkfake RefVT(mkfake Int 64, mkfake Fixed Public, mkfake Const) in
       let lvalinitlval = (mkfake (Base (mkfake lvalinit), bvty.data)) in
-        _inits <- (lvalinit, lvalinitlval) :: _inits;
       let init_n = mkfake Tast_utils.make_nlit fake_pos 0 in
+        _inits <- (lvalinit, (lvalinitlval, init_n)) :: _inits;
         mkfake BaseDec(mkfake lvalinit, bvty, init_n)
 
     method lexpr_to_expr lexpr =
@@ -121,21 +116,23 @@ class smack_visitor =
 
     method check_arrget lval n l =
       let l' = visit#lexpr_to_expr l in
-      let lvalinit = visit#lval_get_init lval in
+      let lvalinit,_ = visit#lval_get_init lval in
       let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
         [ call_assert(binop Ast.GTE lvalinit'
                         (abinop Ast.Plus n l')) ]
 
     method check_arrset lval n =
-      let lvalinit = visit#lval_get_init lval in
+      let lvalinit,_ = visit#lval_get_init lval in
       let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
         [ call_assert(binop Ast.GTE lvalinit' n) ]
 
     method finish_arrset lval n l =
       let l' = visit#lexpr_to_expr l in
-      let lvalinit = visit#lval_get_init lval in
+      let lvalinit,base = visit#lval_get_init lval in
       let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
       let add = abinop Ast.Plus n l' in
+      let lvalinit' = abinop Ast.Plus lvalinit' base in
+      let add = abinop Ast.Plus add base in
       let cond = binop Ast.GT lvalinit' add in
       let sel = mkfake (TernOp(cond, lvalinit', add), int64ety) in
         [ mkfake Assign(lvalinit, sel) ]
@@ -173,6 +170,10 @@ class smack_visitor =
         _sdecs <- sdecs;
         super#fact_module m'
 
+    method fdec fdec_ =
+      _clobbers <- [];
+      super#fdec fdec_
+
     method block ((venv,stms) as block) =
       _venv <- venv;
       let decinits =
@@ -195,23 +196,17 @@ class smack_visitor =
 
     method lval ({data=(lval,vty); pos=p} as lval_) =
       match lval with
-        | ArrayEl(lval,e) ->
-          if visit#lval_is_uninit lval then
-            let e' = make_signed e in
-              mkpos (CheckedLval(visit#check_arrget lval e' one, super#lval lval_), vty)
-          else
-            super#lval lval_
+        | ArrayEl(lval,e) when visit#lval_is_uninit lval ->
+          let e' = make_signed e in
+            mkpos (CheckedLval(visit#check_arrget lval e' one, super#lval lval_), vty)
         | _ -> super#lval lval_
 
     method lval_set ({data=(lval,vty); pos=p} as lval_) =
       match lval with
-        | ArrayEl(lval,e) ->
-          if visit#lval_is_uninit lval then
-            let e' = make_signed e in
-              (mkpos (CheckedLval(visit#check_arrset lval e', super#lval lval_), vty),
-               visit#finish_arrset lval e' one)
-          else
-            (super#lval lval_, [])
+        | ArrayEl(lval,e) when visit#lval_is_uninit lval ->
+          let e' = make_signed e in
+            (mkpos (CheckedLval(visit#check_arrset lval e', super#lval lval_), vty),
+             visit#finish_arrset lval e' one)
         | _ -> (super#lval lval_, [])
 
     method aexpr ({data=(ae,ety); pos=p} as ae_) =
@@ -236,7 +231,8 @@ class smack_visitor =
               visit#check_arrget lval e' lexpr
           in
             mkpos (CheckedArrayExpr(check, super#aexpr ae_), ety)
-        | _ -> super#aexpr ae_
+        | _ ->
+          _fins <- []; super#aexpr ae_
 
     method do_fn f args =
       let fn,_ = Env.find_var _fenv f in
@@ -257,7 +253,9 @@ class smack_visitor =
                        _arrsetting <- true;
                        let arg' = visit#arg arg in
                          _arrsetting <- old;
-                         (arg', _fins)
+                         let r = (arg', _fins) in
+                           _fins <- [];
+                           r
                    else
                      (visit#arg arg, [])
                  | _ -> (visit#arg arg, [])
@@ -278,13 +276,36 @@ class smack_visitor =
     method stm stm_ =
       let p = stm_.pos in
         match stm_.data with
-          | ArrayDec(v,vty,ae) when is_uninit ae ->
-            let dec = visit#declare_init v vty in
-              dec :: (super#stm stm_)
-          | Assign(lval,e) when visit#lval_is_uninit lval ->
-            let (lval',fin) = visit#lval_set lval in
-            let e' = visit#expr e in
-              [mkpos Assign(lval', e')] @ fin
+          | ArrayDec(v,vty,ae) ->
+            let (ae',_) = ae.data in
+              begin
+                match ae' with
+                  | ArrayNoinit _ ->
+                    let dec = visit#declare_init v vty in
+                      dec :: (super#stm stm_)
+                  | ArrayView(lval,e,_) when visit#lval_is_uninit lval ->
+                    let e' = visit#expr e in
+                    let initname = "#" ^ v.data in
+                    let basename = visit#lval_to_id lval in
+                    let baseinitlval,base = List.assoc basename _inits in
+                      _inits <- (initname, (baseinitlval, abinop Ast.Plus base e')) :: _inits;
+                      let old = _arrsetting in
+                        _arrsetting <- true;
+                        let stm' = super#stm stm_ in
+                          _arrsetting <- old;
+                          stm'
+                  | _ -> super#stm stm_
+              end
+          | Assign(lval,e) ->
+            let lv',_ = lval.data in
+              begin
+                match lv' with
+                  | ArrayEl(lv,e) when visit#lval_is_uninit lv ->
+                    let (lval',fin) = visit#lval_set lval in
+                    let e' = visit#expr e in
+                      [mkpos Assign(lval', e')] @ fin
+                  | _ -> super#stm stm_
+              end
           | VoidFnCall(f, args) ->
             let args',fins = visit#do_fn f args in
               [mkpos VoidFnCall(f, args')] @ fins
@@ -296,7 +317,7 @@ class smack_visitor =
                    let _,vty = Env.find_var _venv x in
                    let lexpr = Tast_utils.refvt_to_lexpr vty in
                    let id = "#" ^ x.data in
-                   let lvalinit = List.assoc id _inits in
+                   let lvalinit,_ = List.assoc id _inits in
                    let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
                    let l' = visit#lexpr_to_expr lexpr in
                      call_assert(binop Ast.GTE lvalinit' l')
@@ -310,13 +331,62 @@ class smack_visitor =
                    let _,vty = Env.find_var _venv x in
                    let lexpr = Tast_utils.refvt_to_lexpr vty in
                    let id = "#" ^ x.data in
-                   let lvalinit = List.assoc id _inits in
+                   let lvalinit,_ = List.assoc id _inits in
                    let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
                    let l' = visit#lexpr_to_expr lexpr in
                      call_assert(binop Ast.GTE lvalinit' l')
                 )
                 _clobbers in
               fins @ [mkpos VoidReturn]
+          | For(i,bty,init,cond,upd,block) as stm ->
+            let do_assert =
+              match cond.data with
+                | BinOp(op,a,b),_ ->
+                  begin
+                    match op with
+                      | Ast.LT
+                      | Ast.LTE
+                      | Ast.GT
+                      | Ast.GTE ->
+                        let a_is_i =
+                          match a.data with
+                            | Lvalue {data=(Base x,_)},_ ->
+                              x.data = i.data
+                            | _ -> false
+                        in
+                        let b_is_i =
+                          match b.data with
+                            | Lvalue {data=(Base y,_)},_ ->
+                              y.data = i.data
+                            | _ -> false
+                        in
+                          a_is_i || b_is_i
+                      | _ -> false
+                  end
+                | _ -> false
+            in
+            let stm' =
+              if do_assert then
+                let BinOp(op,_,_),_ = cond.data in
+                let ebool = BaseET(mkpos Bool, mkpos Fixed Public) in
+
+                let venv,stms = block in
+                let vty = mkp(i) RefVT(bty, mkp(i) Fixed Public, mkp(i) Const) in
+                let ety = BaseET(bty, mkp(i) Fixed Public) in
+                let nondet = mkpos (FnCall(get_nondet bty, []), ety) in
+                let idec = mkpos BaseDec(i, vty, nondet) in
+                let ivar = mkpos (Lvalue(mkpos (Base i, vty.data)), ety) in
+
+                let progress = call_assert(binop op ivar upd) in
+                let lobound = call_assume(binop Ast.LogicalOr
+                                            (binop op init ivar)
+                                            (binop Ast.Equal init ivar)) in
+
+                let stms' = [progress; lobound] @ stms in
+                let ifblock = mkpos If(cond, (venv,stms'), (venv,[])) in
+                  mkpos Block(venv, [idec; ifblock])
+              else stm_ in
+              super#stm stm'
           | _ -> super#stm stm_
 
     method param param_ =
