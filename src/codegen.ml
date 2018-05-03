@@ -235,10 +235,31 @@ let rec allocate_stack cg_ctx stms =
       (*let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
       add_var cg_ctx.venv var_name alloca*)
     | {data=StructDec(var_name,var_type)} ->
+      let i32_ty = i32_type cg_ctx.llcontext in
+      let i64_ty = i64_type cg_ctx.llcontext in
+      let i8_ty = i8_type cg_ctx.llcontext in
+      let p8_ty = pointer_type i8_ty in
+      let bool_ty = i1_type cg_ctx.llcontext in
       let llvm_ty = vt_to_llvm_ty cg_ctx var_type.data in
       let ptr_ty = pointer_type llvm_ty in
       let name = make_name_vt var_name.data var_type.data in
       let alloca = build_alloca llvm_ty name cg_ctx.builder in
+
+      let name = "_public_sourcecasted" in
+      let bitcast = build_bitcast alloca p8_ty name cg_ctx.builder in
+
+      let datalayout' = data_layout cg_ctx.llmodule in
+      let datalayout = Llvm_target.DataLayout.of_string datalayout' in
+      let size' = Llvm_target.DataLayout.abi_size llvm_ty datalayout in
+      let size = const_of_int64 i64_ty size' false in
+      let alignment' = Llvm_target.DataLayout.abi_align llvm_ty datalayout in
+      let alignment = const_int i32_ty alignment' in
+      let volatility = const_int bool_ty 0 in
+      let zero = const_int (i8_type cg_ctx.llcontext) 0 in
+      let args = [| bitcast; zero; size; alignment; volatility |] in
+      let memset = Stdlib.get_intrinsic Memset cg_ctx in
+        build_call memset args "" cg_ctx.builder;
+
       Env.add_var cg_ctx.venv var_name alloca;
       Env.add_var cg_ctx.vtenv var_name var_type
     | {data=Assign(lv,expr)} -> allocate_lval lv; allocate_inject expr

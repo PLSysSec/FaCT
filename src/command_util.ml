@@ -103,8 +103,6 @@ let output_llvm llvm_out out_file llvm_mod =
       Llvm.print_module out_file' llvm_mod
 
 let generate_smack args out_file xftast =
-  if args.smack_out then
-    Log.debug "Generating Smack output";
   let do_output out_file_name tast =
     generate_pseudo args.pseudo_out out_file_name tast;
     let llvm_ctx = Llvm.create_context () in
@@ -128,12 +126,16 @@ let generate_smack args out_file xftast =
         let outfile = open_out (out_file_name ^ ".ll") in
           output_string outfile @@ String.concat "\n" !lines;
           close_out outfile in
-  let out_file' = out_file ^ ".smack" in
-  let smacktast = Smack.transform xftast in
-    do_output out_file' smacktast;
-    let out_file' = out_file ^ ".smack.uninit" in
-    let smacktast = Smack_uninit.transform xftast in
-      do_output out_file' smacktast
+    if args.smack_out then
+      begin
+        Log.debug "Generating Smack output";
+        let out_file' = out_file ^ ".smack" in
+        let smacktast = Smack.transform xftast in
+          do_output out_file' smacktast;
+          let out_file' = out_file ^ ".smack.uninit" in
+          let smacktast = Smack_uninit.transform xftast in
+            do_output out_file' smacktast
+      end
 
 
 let output_bitcode out_file llvm_mod =
