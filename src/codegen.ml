@@ -99,7 +99,7 @@ let expr_ty_to_llvm_ty cg_ctx = function
 let rec byte_size_of_expr_ty = function
   | BaseET({data=UInt(n)},_)  -> n / 8
   | BaseET({data=Int(n)},_)   -> n / 8
-  | BaseET({data=Bool},_)     -> raise CodegenError
+  | BaseET({data=Bool},_)     -> 1
   | BaseET({data=Num(n,_)},_) -> raise CodegenError
   | ArrayET({data=ArrayAT(bt,_)},_,_) ->
     byte_size_of_expr_ty (BaseET(bt, (make_ast fake_pos (Fixed Unknown))))
@@ -678,7 +678,30 @@ and codegen_array_expr cg_ctx arr_name = function
           let memset = Stdlib.get_intrinsic Memset cg_ctx in
           build_call memset args "" cg_ctx.builder |> ignore;
           alloca,false
-        | LDynamic x -> raise @@ CodegenErrorMsg (Err.("hi" << lexpr.pos))
+        | LDynamic x ->
+          let x_cell = Env.find_var cg_ctx.venv x in
+          let x' = build_load x_cell "_public_load" cg_ctx.builder in
+          let ty' = expr_ty_to_base_ty ty in
+          let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
+          let arr_ty = pointer_type ll_ty in
+          let name = make_name_et "zerodarray" ty in
+          let alloca' = build_array_alloca ll_ty x' name cg_ctx.builder in
+          let alloca = build_alloca arr_ty name cg_ctx.builder in
+          let pointer_ty = pointer_type (i8_type cg_ctx.llcontext) in
+          let name = make_name_et "sourcecasted" ty in
+          let source_casted =
+            build_bitcast alloca' pointer_ty name cg_ctx.builder in
+          let zero = const_int (i8_type cg_ctx.llcontext) 0 in
+          let sz' = const_int (i32_type cg_ctx.llcontext) (byte_size_of_expr_ty ty) in
+          let sz = build_mul x' sz' "_public_size" cg_ctx.builder in
+          let sz = build_zext sz (i64_type cg_ctx.llcontext) "_public_size" cg_ctx.builder in
+          let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
+          let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
+          let args = [| source_casted; zero; sz; alignment; volatility |] in
+          let memset = Stdlib.get_intrinsic Memset cg_ctx in
+          build_call memset args "" cg_ctx.builder |> ignore;
+          build_store alloca' alloca cg_ctx.builder |> ignore;
+          alloca,false
     end
   | ArrayCopy lval,ty ->
     let ll_ty = expr_ty_to_llvm_ty cg_ctx ty in
