@@ -760,7 +760,15 @@ and codegen_array_expr cg_ctx arr_name = function
           let name = make_name_et "noinitarray" ty in
           let alloca = build_alloca arr_ty name cg_ctx.builder in
             alloca,false
-        | LDynamic x -> raise CodegenError
+        | LDynamic x ->
+          let x_cell = Env.find_var cg_ctx.venv x in
+          let x' = build_load x_cell "_public_load" cg_ctx.builder in
+          let ty' = expr_ty_to_base_ty ty in
+          let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
+          let arr_ty = pointer_type ll_ty in
+          let name = make_name_et "noinitarray" ty in
+          let alloca = build_array_alloca arr_ty x' name cg_ctx.builder in
+            alloca,false
     end
   | CheckedArrayExpr(stms,ae),_ ->
     List.map (codegen_stm cg_ctx None) stms |> ignore;
