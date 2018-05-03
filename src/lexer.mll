@@ -44,6 +44,7 @@ let keywords = [
   ("secret",SECRET);
   ("const",CONST);
   ("mut",MUT);
+  ("clobber",CLOBBER);
   ("ref",REF);
   ("len",LEN);
   ("declassify",DECLASSIFY);

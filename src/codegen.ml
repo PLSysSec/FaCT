@@ -210,6 +210,7 @@ let rec allocate_stack cg_ctx stms =
       | Declassify e -> allocate_inject e
       | Inject(_,stms) -> List.iter allocate_stack' stms
       | CheckedExpr(_,e) -> allocate_inject e
+      | PostCheckedExpr(e,_) -> allocate_inject e
       | Shuffle(e,_) -> allocate_inject e
       | _ -> ()
   and allocate_lval {data=(lval,_)} =
@@ -565,6 +566,10 @@ and codegen_expr cg_ctx = function
   | CheckedExpr(stms,e),_ ->
     List.map (codegen_stm cg_ctx None) stms |> ignore;
     codegen_expr cg_ctx e.data
+  | PostCheckedExpr(e,stms),_ ->
+    let e' = codegen_expr cg_ctx e.data in
+      List.map (codegen_stm cg_ctx None) stms |> ignore;
+      e'
   | Shuffle(expr,mask),ty ->
     let e = codegen_expr cg_ctx expr.data in
     let llty = element_type (type_of e) in

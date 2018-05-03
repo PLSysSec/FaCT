@@ -34,42 +34,50 @@ class ast_visitor =
       | Param(x,vty,attr) -> Param(x,vty,attr)
 
     method block (venv,stms) =
-      (venv,List.map visit#stm stms)
+      (venv,visit#stms stms)
 
-    method stm = pfunction
+    method stm' = xfunction
       | BaseDec(x,vty,e) ->
         let e' = visit#expr e in
-          BaseDec(x,vty,e')
+          [BaseDec(x,vty,e')]
       | ArrayDec(x,vty,ae) ->
         let ae' = visit#aexpr ae in
-          ArrayDec(x,vty,ae')
-      | StructDec _ as stm -> stm
+          [ArrayDec(x,vty,ae')]
+      | StructDec _ as stm -> [stm]
       | Assign(lval,e) ->
         let lval' = visit#lval lval in
         let e' = visit#expr e in
-          Assign(lval', e')
+          [Assign(lval', e')]
       | If(cond,tblock,fblock) ->
         let cond' = visit#expr cond in
         let tblock' = visit#block tblock in
         let fblock' = visit#block fblock in
-          If(cond',tblock',fblock')
+          [If(cond',tblock',fblock')]
       | For(i,bty,init,cond,upd,block) ->
         let init' = visit#expr init in
         let cond' = visit#expr cond in
         let upd' = visit#expr upd in
         let block' = visit#block block in
-          For(i,bty,init',cond',upd',block')
+          [For(i,bty,init',cond',upd',block')]
       | VoidFnCall(fname,args) ->
         let args' = List.map visit#arg args in
-          VoidFnCall(fname, args')
-      | DebugVoidFnCall _ as stm -> stm
+          [VoidFnCall(fname, args')]
+      | DebugVoidFnCall _ as stm -> [stm]
       | Return e ->
         let e' = visit#expr e in
-          Return e'
-      | VoidReturn as stm -> stm
+          [Return e']
+      | VoidReturn as stm -> [stm]
       | Block block ->
         let block' = visit#block block in
-          Block block'
+          [Block block']
+
+    method stm stm_ =
+      let p = stm_.pos in
+      let stms' = visit#stm' stm_ in
+        List.map (fun s -> mkpos s) stms'
+
+    method stms stms_ =
+      List.flatten @@ List.map visit#stm stms_
 
     method aexpr {data=(ae,ety); pos=p} =
       let ae' =
@@ -93,7 +101,7 @@ class ast_visitor =
               ArrayComp(bty, lexpr, x, e')
           | ArrayNoinit lexpr -> ae
           | CheckedArrayExpr(stms, subae) ->
-            let stms' = List.map visit#stm stms in
+            let stms' = visit#stms stms in
             let subae' = visit#aexpr subae in
               CheckedArrayExpr(stms', subae')
       in
@@ -133,7 +141,7 @@ class ast_visitor =
             let e' = visit#expr e in
               Declassify e'
           | Inject(x,stms) ->
-            let stms' = List.map visit#stm stms in
+            let stms' = visit#stms stms in
               Inject(x,stms')
           | Shuffle(e,mask) ->
             let e' = visit#expr e in
@@ -154,7 +162,7 @@ class ast_visitor =
             let lval' = visit#lval lval in
               StructEl(lval',field)
           | CheckedLval(stms, sublval) ->
-            let stms' = List.map visit#stm stms in
+            let stms' = visit#stms stms in
             let sublval' = visit#lval sublval in
               CheckedLval(stms', sublval')
       in

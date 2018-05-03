@@ -104,30 +104,37 @@ let output_llvm llvm_out out_file llvm_mod =
 
 let generate_smack args out_file xftast =
   if args.smack_out then
-    let out_file' = out_file ^ ".smack" in
-      Log.debug "Generating Smack output";
-      let smacktast = Smack.transform xftast in
-        generate_pseudo args.pseudo_out out_file' smacktast;
-        let llvm_ctx = Llvm.create_context () in
-        let llvm_mod = Llvm.create_module llvm_ctx "SmackModule" in
-        let llvm_builder = Llvm.builder llvm_ctx in
-          codegen llvm_ctx llvm_mod llvm_builder false smacktast;
-          output_llvm true out_file' llvm_mod;
-          let lines = ref [] in
-          let chan = open_in (out_file' ^ ".ll") in
-            begin
-              try
-                while true; do
-                  lines := input_line chan :: !lines
-                done
-              with End_of_file ->
-                close_in chan
-            end;
-            lines := List.rev !lines;
-            lines := "; verify with: smack --bit-precise --entry-point=[...]" :: !lines;
-            let outfile = open_out (out_file' ^ ".ll") in
-              output_string outfile @@ String.concat "\n" !lines;
-              close_out outfile
+    Log.debug "Generating Smack output";
+  let do_output out_file_name tast =
+    generate_pseudo args.pseudo_out out_file_name tast;
+    let llvm_ctx = Llvm.create_context () in
+    let llvm_mod = Llvm.create_module llvm_ctx "SmackModule" in
+    let llvm_builder = Llvm.builder llvm_ctx in
+    let tast = Transform_args.xf_module tast in
+      codegen llvm_ctx llvm_mod llvm_builder false tast;
+      output_llvm true out_file_name llvm_mod;
+      let lines = ref [] in
+      let chan = open_in (out_file_name ^ ".ll") in
+        begin
+          try
+            while true; do
+              lines := input_line chan :: !lines
+            done
+          with End_of_file ->
+            close_in chan
+        end;
+        lines := List.rev !lines;
+        lines := "; verify with: smack --bit-precise --entry-point=[...]" :: !lines;
+        let outfile = open_out (out_file_name ^ ".ll") in
+          output_string outfile @@ String.concat "\n" !lines;
+          close_out outfile in
+  let out_file' = out_file ^ ".smack" in
+  let smacktast = Smack.transform xftast in
+    do_output out_file' smacktast;
+    let out_file' = out_file ^ ".smack.uninit" in
+    let smacktast = Smack_uninit.transform xftast in
+      do_output out_file' smacktast
+
 
 let output_bitcode out_file llvm_mod =
   let out_file' = out_file ^ ".bc" in
@@ -247,9 +254,8 @@ let compile (in_files,out_file,out_dir) args =
   let all_sdecs = List.fold_left (fun sdecs (Ast.Module (_,more_sdecs)) -> sdecs @ more_sdecs) [] asts in
   let ast = Ast.Module (all_fdecs,all_sdecs) in
   output_ast args.ast_out out_file' ast;
-  let tast' = Typecheck.tc_module ast in
-  generate_header (args.gen_header || args.verify_llvm) out_file' tast';
-  let tast = Transform_args.xf_module tast' in
+  let tast = Typecheck.tc_module ast in
+  generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   output_tast args.ast_out out_file' tast;
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast args.mode in
@@ -258,6 +264,7 @@ let compile (in_files,out_file,out_dir) args =
   output_xftast args.core_ir_out out_file' xftast;
   generate_pseudo args.pseudo_out out_file' xftast;
   generate_smack args out_file' xftast;
+  let xftast = Transform_args.xf_module xftast in
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in
   let llvm_builder = Llvm.builder llvm_ctx in

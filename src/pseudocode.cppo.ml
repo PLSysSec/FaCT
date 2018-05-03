@@ -125,8 +125,8 @@ and ps_lval' ps_ctx = function
       field.data
   | CheckedLval(stms, lval) ->
     Printf.sprintf
-      "{%s}%s"
-      (String.concat "" (List.map (ps_stm ps_ctx) stms))
+      "%s %s"
+      (ps_stms inc stms)
       (ps_lval ps_ctx lval)
 and ps_lval ps_ctx {data=(lval,_)} = ps_lval' ps_ctx lval
 
@@ -178,9 +178,14 @@ and ps_expr' ps_ctx = function
       (ps_block inc (Env.new_env(), stms))
   | CheckedExpr(stms,e) ->
     Printf.sprintf
-      "{%s}%s"
-      (String.concat "" (List.map (ps_stm ps_ctx) stms))
+      "%s %s"
+      (ps_stms inc stms)
       (ps_expr ps_ctx e)
+  | PostCheckedExpr(e,stms) ->
+    Printf.sprintf
+      "%s %s"
+      (ps_expr ps_ctx e)
+      (ps_stms inc stms)
   | _ -> "<expr>"
 and ps_expr ps_ctx {data=(e,_)} = ps_expr' ps_ctx e
 
@@ -212,8 +217,8 @@ and ps_aexpr' ps_ctx = function
       (ps_lexpr lexpr)
   | CheckedArrayExpr(stms, aexpr) ->
     Printf.sprintf
-      "{%s}%s"
-      (String.concat "" (List.map (ps_stm ps_ctx) stms))
+      "%s %s"
+      (ps_stms inc stms)
       (ps_aexpr ps_ctx aexpr)
   | _ -> "<arrexpr>"
 and ps_aexpr ps_ctx {data=(ae,_)} = ps_aexpr' ps_ctx ae
@@ -272,10 +277,13 @@ and ps_stm ps_ctx = xfunction
     ps_block inc stms
   | _ -> "<stm>;"
 
-and ps_block ps_ctx (_,stms) =
+and ps_stms ps_ctx stms =
   let stms' = List.map (ps_stm ps_ctx) stms in
   let stms' = List.map (fun s -> ind1 ^ s) stms' in
   "{" ^ (String.concat "" stms') ^ ind ^ "}"
+
+and ps_block ps_ctx (_,stms) =
+  ps_stms ps_ctx stms
 
 let ps_rty = function
   | None -> "void"
@@ -288,8 +296,11 @@ let ps_fnattr ft =
           | Never -> "noinline "
           | Default -> "")
 
-let ps_param { data=Param(x,vty,_) } =
-  "\n    " ^ ps_vty vty ^ " " ^ x.data
+let ps_paramattr attr =
+  if attr.output_only then "clobber " else ""
+
+let ps_param { data=Param(x,vty,attr) } =
+  "\n    " ^ ps_paramattr attr ^ ps_vty vty ^ " " ^ x.data
 
 let ps_fdec = xfunction
   | FunDec(f,ft,rt,params,body) ->

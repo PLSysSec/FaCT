@@ -42,7 +42,7 @@ let to_type { data=t; pos=p } =
 %token LBRACE RBRACE
 
 %token SECRET PUBLIC
-%token CONST MUT
+%token CONST MUT CLOBBER
 %token REF
 %token RETURN
 %token DECLASSIFY
@@ -310,6 +310,8 @@ param_type:
 param:
   | t=param_type x=var_name
     { mkpos (Param(x, t, default_param_attr)) }
+  | CLOBBER t=param_type x=var_name
+    { mkpos (Param(x, t, { default_param_attr with output_only = true })) }
 
 field_type:
   | l=label b=base_type

@@ -18,8 +18,6 @@ let fake_pos = { file=""; line=0; lpos=0; rpos=0 }
 let smack_assume = "__VERIFIER_assume"
 let smack_assert = "__VERIFIER_assert"
 
-let nondet_32 = "__VERIFIER_nondet_int"
-
 let get_nondet = pfunction
   | Int 8   -> "__VERIFIER_nondet_signed_char"
   | Int 16  -> "__VERIFIER_nondet_signed_short"
