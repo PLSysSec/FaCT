@@ -15,16 +15,11 @@ let fake_pos = { file=""; line=0; lpos=0; rpos=0 }
 (* x for 'eXtract' *)
 #define xfunction xwrap @@ fun p -> function
 
-let new_temp_var =
-  let ctr = ref 0 in
-  let new_temp_var' () =
-    ctr := !ctr + 1;
-    "__i" ^ (string_of_int !ctr)
-  in
-  new_temp_var'
-
 let smack_assume = "__VERIFIER_assume"
 let smack_assert = "__VERIFIER_assert"
+let smack_requires = "__CONTRACT_requires"
+let smack_ensures = "__CONTRACT_ensures"
+let smack_invariant = "__CONTRACT_invariant"
 
 let get_nondet = pfunction
   | Int 8   -> "__VERIFIER_nondet_signed_char"
@@ -36,13 +31,11 @@ let get_nondet = pfunction
   | UInt 32 -> "__VERIFIER_nondet_unsigned_int"
   | UInt 64 -> "__VERIFIER_nondet_unsigned_long_long"
 
-let uint64ety = BaseET(mkfake UInt 64, mkfake Fixed Public)
+let int64ety = BaseET(mkfake Int 64, mkfake Fixed Public)
 
 let abinop op e1 e2 =
   let p = e1.pos in
-    mkpos (BinOp(op, e1, e2), uint64ety)
-
-let add e1 e2 = abinop Ast.Plus e1 e2
+    mkpos (BinOp(op, e1, e2), int64ety)
 
 let binop op e1 e2 =
   let p = e1.pos in
@@ -59,6 +52,21 @@ let call_assert cond =
   let arg = mkpos ByValue cond in
     mkpos VoidFnCall(mkpos smack_assert, [arg])
 
+let call_requires cond =
+  let p = cond.pos in
+  let arg = mkpos ByValue cond in
+    mkpos VoidFnCall(mkpos smack_requires, [arg])
+
+let call_ensures cond =
+  let p = cond.pos in
+  let arg = mkpos ByValue cond in
+    mkpos VoidFnCall(mkpos smack_ensures, [arg])
+
+let call_invariant cond =
+  let p = cond.pos in
+  let arg = mkpos ByValue cond in
+    mkpos VoidFnCall(mkpos smack_invariant, [arg])
+
 let make_signed e =
   let e',ety = e.data in
   let BaseET(bty,ml) = ety in
@@ -72,10 +80,6 @@ let make_signed e =
       | Int _ -> e
 
 let one = mkfake LIntLiteral 1
-let mkblval lval =
-  mkfake (lval, RefVT(mkfake Bool, mkfake Fixed Public, mkfake Const))
-let mkbool lval =
-  mkfake (Lvalue (mkblval lval), BaseET(mkfake Bool, mkfake Fixed Public))
 
 class smack_visitor =
   object (visit)
@@ -109,19 +113,17 @@ class smack_visitor =
 
     method declare_init x vty =
       let lvalinit = "#" ^ x.data in
-      let lexpr = Tast_utils.refvt_to_lexpr vty in
-      let bvty = mkfake ArrayVT(mkfake ArrayAT(mkfake Bool, lexpr), mkfake Fixed Public, mkfake Const, default_var_attr) in
+      let bvty = mkfake RefVT(mkfake Int 64, mkfake Fixed Public, mkfake Const) in
       let lvalinitlval = (mkfake (Base (mkfake lvalinit), bvty.data)) in
-      let init_n = mkfake (ArrayZeros lexpr, ArrayET(mkfake ArrayAT(mkfake Bool, lexpr), mkfake Fixed Public, mkfake Const)) in
-      let base = mkfake Tast_utils.make_nlit fake_pos 0 in
-        _inits <- (lvalinit, (lvalinitlval, base)) :: _inits;
-        mkfake ArrayDec(mkfake lvalinit, bvty, init_n)
+      let init_n = mkfake Tast_utils.make_nlit fake_pos 0 in
+        _inits <- (lvalinit, (lvalinitlval, init_n)) :: _inits;
+        mkfake BaseDec(mkfake lvalinit, bvty, init_n)
 
     method lexpr_to_expr lexpr =
       match lexpr.data with
         | LIntLiteral n ->
           (* assuming x64 architecture *)
-          mkfake (IntLiteral n, uint64ety)
+          mkfake (IntLiteral n, int64ety)
         | LDynamic len ->
           let _,len_vty = Env.find_var _venv len in
           let RefVT(bty,ml,_) = len_vty.data in
@@ -129,14 +131,42 @@ class smack_visitor =
           let base = mkfake (Base len, len_vty.data) in
           let expr = mkfake (Lvalue base, len_ety) in
           (* assuming x64 architecture *)
-          let bty = mkfake (UInt 64) in
+          let bty = mkfake (Int 64) in
             mkfake (IntCast(bty, expr), BaseET(bty, mkfake (Fixed Public)))
+
+    method check_arrget lval n l =
+      let l' = visit#lexpr_to_expr l in
+      let lvalinit,_ = visit#lval_get_init lval in
+      let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
+        [ call_assert(binop Ast.GTE lvalinit'
+                        (abinop Ast.Plus n l')) ]
+
+    method cond_arrset lval n =
+      let lvalinit,_ = visit#lval_get_init lval in
+      let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
+        binop Ast.GTE lvalinit' n
+
+    method check_arrset lval n =
+        [ call_assert(visit#cond_arrset lval n) ]
+
+    method finish_arrset lval n l =
+      let l' = visit#lexpr_to_expr l in
+      let lvalinit,base = visit#lval_get_init lval in
+      let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
+      let add = abinop Ast.Plus n l' in
+      let lvalinit' = abinop Ast.Plus lvalinit' base in
+      let add = abinop Ast.Plus add base in
+      let cond = binop Ast.GT lvalinit' add in
+      let sel = mkfake (TernOp(cond, lvalinit', add), int64ety) in
+        [ mkfake Assign(lvalinit, sel) ]
+
 
     method fact_module m =
       let Module(fenv,fdecs,sdecs) = m in
         _fenv <- fenv;
       let p = fake_pos in (* for mkpos macro *)
       let i32param = mkpos Param(mkpos "predicate", mkpos RefVT(mkpos Int 32, mkpos Fixed Public, mkpos Const), default_param_attr) in
+      let i1param = mkpos Param(mkpos "predicate", mkpos RefVT(mkpos Bool, mkpos Fixed Public, mkpos Const), default_param_attr) in
 
       let fdecs' = fdecs in
 
@@ -147,6 +177,18 @@ class smack_visitor =
       let fdec = mkpos CExtern(mkpos smack_assert, None, [i32param]) in
       let fdecs' = fdec::fdecs' in
         (*Env.add_var fenv (mkpos smack_assert) (fdec, ref false);*)
+
+      let fdec = mkpos CExtern(mkpos smack_requires, None, [i1param]) in
+      let fdecs' = fdec::fdecs' in
+        Env.add_var fenv (mkpos smack_requires) (fdec, ref false);
+
+      let fdec = mkpos CExtern(mkpos smack_ensures, None, [i1param]) in
+      let fdecs' = fdec::fdecs' in
+        Env.add_var fenv (mkpos smack_ensures) (fdec, ref false);
+
+      let fdec = mkpos CExtern(mkpos smack_invariant, None, [i1param]) in
+      let fdecs' = fdec::fdecs' in
+        Env.add_var fenv (mkpos smack_invariant) (fdec, ref false);
 
         let fdecs' = List.fold_left
                        (fun fdecs ty ->
@@ -178,8 +220,15 @@ class smack_visitor =
                   | Param(x,({data=ArrayVT _} as vty),attr) ->
                     if attr.output_only then
                       begin
-                        _clobbers <- x :: _clobbers;
-                        [visit#declare_init x vty]
+                        let dec = visit#declare_init x vty in
+
+                        let lexpr = Tast_utils.refvt_to_lexpr vty in
+                        let id = "#" ^ x.data in
+                        let lvalinit,_ = List.assoc id _inits in
+                        let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
+                        let l' = visit#lexpr_to_expr lexpr in
+                        let ensures = call_ensures(binop Ast.GTE lvalinit' l') in
+                          [ dec; ensures ]
                       end
                     else [])
              _paraminits) in
@@ -191,12 +240,18 @@ class smack_visitor =
     method lval ({data=(lval,vty); pos=p} as lval_) =
       match lval with
         | ArrayEl(lval,e) when visit#lval_is_uninit lval ->
-          let e' = visit#expr e in
-          let init,base = visit#lval_get_init lval in
-          let cond = mkbool (ArrayEl(init,add base e')) in
-          let check = call_assert cond in
-            mkpos (CheckedLval([check], super#lval lval_), vty)
+          let e' = make_signed e in
+            mkpos (CheckedLval(visit#check_arrget lval e' one, super#lval lval_), vty)
         | _ -> super#lval lval_
+
+    method lval_set ({data=(lval,vty); pos=p} as lval_) =
+      match lval with
+        | ArrayEl(lval,e) when visit#lval_is_uninit lval ->
+          let e' = make_signed e in
+          let cond = visit#cond_arrset lval e' in
+            (super#lval lval_,
+             visit#finish_arrset lval e' one)
+        | _ -> (super#lval lval_, [])
 
     method aexpr ({data=(ae,ety); pos=p} as ae_) =
       match ae with
@@ -205,17 +260,19 @@ class smack_visitor =
           let lexpr = Tast_utils.refvt_to_lexpr (mkfake vty) in
           let zero = (mkfake Tast_utils.make_nlit fake_pos 0) in
           let check = if (Stack.top _arrsetting) then
-              []
+              (_fins <- visit#finish_arrset lval zero lexpr;
+               visit#check_arrset lval zero)
             else
-              []
+              visit#check_arrget lval zero lexpr
           in
             mkpos (CheckedArrayExpr(check, super#aexpr ae_), ety)
         | ArrayView(lval,e,lexpr) when visit#lval_is_uninit lval ->
           let e' = make_signed e in
           let check = if Stack.top _arrsetting then
-              []
+              (_fins <- visit#finish_arrset lval e' lexpr;
+               visit#check_arrset lval e')
             else
-              []
+              visit#check_arrget lval e' lexpr
           in
             mkpos (CheckedArrayExpr(check, super#aexpr ae_), ety)
         | _ ->
@@ -251,33 +308,6 @@ class smack_visitor =
           pairs in
       let args', fins = List.split args' in
         args', List.flatten fins
-
-    method do_return () =
-      List.flatten
-        (List.map
-           (fun x ->
-              let _,vty = Env.find_var _venv x in
-              let lexpr = Tast_utils.refvt_to_lexpr vty in
-              let lexpre = visit#lexpr_to_expr lexpr in
-              let id = "#" ^ x.data in
-              let lvalinit,base = List.assoc id _inits in
-              let lvalinit' = mkfake (Lvalue lvalinit, uint64ety) in
-              let l' = visit#lexpr_to_expr lexpr in
-              let i = mkfake new_temp_var () in
-              let ity = mkfake BaseET(mkfake UInt 64, mkfake Fixed Public) in
-              let ivty = mkfake RefVT(mkfake UInt 64, mkfake Fixed Public, mkfake Const) in
-              let ivar = mkfake (Lvalue (mkfake (Base i, ivty.data)), ity.data) in
-              let nondet = mkfake (FnCall(get_nondet (mkfake UInt 64), []), ity.data) in
-              let idec = mkfake BaseDec(i, ivty, nondet) in
-              let limit = call_assume(binop Ast.LogicalAnd
-                                        (binop Ast.GTE ivar base)
-                                        (binop Ast.LT
-                                           ivar
-                                           (add base lexpre))) in
-              let check = call_assert(mkbool (ArrayEl(lvalinit,add base ivar))) in
-                [ idec; limit; check; ]
-           )
-           _clobbers)
 
     method expr expr_ =
       let p = expr_.pos in
@@ -316,9 +346,13 @@ class smack_visitor =
                 match lv' with
                   | ArrayEl(lv,e) when visit#lval_is_uninit lv ->
                     let e' = visit#expr e in
-                    let init,base = visit#lval_get_init lv in
-                    let assn = mkpos Assign(mkblval (ArrayEl(init, add base e')), mkpos Tast_utils.make_blit fake_pos true) in
-                      assn :: [mkpos Assign(lval,e')]
+                    let e'' = make_signed e' in
+                    let cond = visit#cond_arrset lv e'' in
+                    let invar = call_invariant(cond) in
+                    let fin = visit#finish_arrset lv e'' one in
+                    let stms' = (mkpos Assign(lval, e')) :: fin in
+                    let ifblock = mkpos If(cond, (_venv,stms'), (_venv,[])) in
+                      invar :: stms'
                   | _ -> super#stm stm_
               end
           | VoidFnCall(f, args) ->
@@ -326,10 +360,32 @@ class smack_visitor =
               [mkpos VoidFnCall(f, args')] @ fins
           | Return e ->
             let e' = visit#expr e in
-            let fins = visit#do_return () in
+            let fins =
+              List.map
+                (fun x ->
+                   let _,vty = Env.find_var _venv x in
+                   let lexpr = Tast_utils.refvt_to_lexpr vty in
+                   let id = "#" ^ x.data in
+                   let lvalinit,_ = List.assoc id _inits in
+                   let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
+                   let l' = visit#lexpr_to_expr lexpr in
+                     call_assert(binop Ast.GTE lvalinit' l')
+                )
+                _clobbers in
               fins @ [mkpos Return e']
           | VoidReturn ->
-            let fins = visit#do_return () in
+            let fins =
+              List.map
+                (fun x ->
+                   let _,vty = Env.find_var _venv x in
+                   let lexpr = Tast_utils.refvt_to_lexpr vty in
+                   let id = "#" ^ x.data in
+                   let lvalinit,_ = List.assoc id _inits in
+                   let lvalinit' = mkfake (Lvalue lvalinit, int64ety) in
+                   let l' = visit#lexpr_to_expr lexpr in
+                     call_assert(binop Ast.GTE lvalinit' l')
+                )
+                _clobbers in
               fins @ [mkpos VoidReturn]
           (*| For(i,bty,init,cond,upd,block) as stm ->
             let do_assert =
