@@ -84,25 +84,25 @@ class smack_visitor =
       let (lval',_) = lval.data in
         match lval' with
           | Base n -> "#" ^ n.data
+          | ArrayEl _ -> "####" (* XXX *)
           | StructEl(_lval,field) ->
             visit#lval_to_id _lval ^ "#" ^ field.data
+
+    method lval_is_uninit lval =
+      let id = visit#lval_to_id lval in
+        List.mem_assoc id _inits
 
     method lval_get_init lval =
       let id = visit#lval_to_id lval in
         List.assoc id _inits
 
-    method declare_init x vty is_uninit =
+    method declare_init x vty =
       let lvalinit = "#" ^ x.data in
       let bvty = mkfake RefVT(mkfake Int 64, mkfake Fixed Public, mkfake Const) in
       let lvalinitlval = (mkfake (Base (mkfake lvalinit), bvty.data)) in
         _inits <- (lvalinit, lvalinitlval) :: _inits;
-        let init_n =
-          if is_uninit
-          then mkfake Tast_utils.make_nlit fake_pos 0
-          else
-            let lexpr = Tast_utils.refvt_to_lexpr vty in
-              visit#lexpr_to_expr lexpr in
-          mkfake BaseDec(mkfake lvalinit, bvty, init_n)
+      let init_n = mkfake Tast_utils.make_nlit fake_pos 0 in
+        mkfake BaseDec(mkfake lvalinit, bvty, init_n)
 
     method lexpr_to_expr lexpr =
       match lexpr.data with
@@ -182,27 +182,11 @@ class smack_visitor =
                 match param.data with
                   | Param(x,({data=ArrayVT _} as vty),attr) ->
                     if attr.output_only then
-                      _clobbers <- x :: _clobbers;
-                    [visit#declare_init x vty attr.output_only]
-                  | Param(sx,({data=StructVT(sname,_)} as vty),attr) ->
-                    let Struct(_,fields) = (Tast_utils.find_struct _sdecs sname).data in
-                    let arrfields =
-                      List.filter
-                        (fun fld ->
-                           match fld.data with
-                             | Field(x,({data=ArrayVT _} as vty),_) -> true
-                             | _ -> false)
-                        fields in
-                      List.map
-                        (fun fld ->
-                           match fld.data with
-                             | Field(x,({data=ArrayVT _} as vty),_) ->
-                               let x' = mkfake sx.data ^ "#" ^ x.data in
-                                 if attr.output_only then
-                                   _clobbers <- x :: _clobbers;
-                                 visit#declare_init x' vty attr.output_only)
-                        arrfields
-             )
+                      begin
+                        _clobbers <- x :: _clobbers;
+                        [visit#declare_init x vty]
+                      end
+                    else [])
              _paraminits) in
         _paraminits <- [];
         let stms' =
@@ -212,21 +196,27 @@ class smack_visitor =
     method lval ({data=(lval,vty); pos=p} as lval_) =
       match lval with
         | ArrayEl(lval,e) ->
-          let e' = make_signed e in
-            mkpos (CheckedLval(visit#check_arrget lval e' one, super#lval lval_), vty)
+          if visit#lval_is_uninit lval then
+            let e' = make_signed e in
+              mkpos (CheckedLval(visit#check_arrget lval e' one, super#lval lval_), vty)
+          else
+            super#lval lval_
         | _ -> super#lval lval_
 
     method lval_set ({data=(lval,vty); pos=p} as lval_) =
       match lval with
         | ArrayEl(lval,e) ->
-          let e' = make_signed e in
-            (mkpos (CheckedLval(visit#check_arrset lval e', super#lval lval_), vty),
-             visit#finish_arrset lval e' one)
+          if visit#lval_is_uninit lval then
+            let e' = make_signed e in
+              (mkpos (CheckedLval(visit#check_arrset lval e', super#lval lval_), vty),
+               visit#finish_arrset lval e' one)
+          else
+            (super#lval lval_, [])
         | _ -> (super#lval lval_, [])
 
     method aexpr ({data=(ae,ety); pos=p} as ae_) =
       match ae with
-        | ArrayVar lval ->
+        | ArrayVar lval when visit#lval_is_uninit lval ->
           let _,vty = lval.data in
           let lexpr = Tast_utils.refvt_to_lexpr (mkfake vty) in
           let zero = (mkfake Tast_utils.make_nlit fake_pos 0) in
@@ -237,7 +227,7 @@ class smack_visitor =
               visit#check_arrget lval zero lexpr
           in
             mkpos (CheckedArrayExpr(check, super#aexpr ae_), ety)
-        | ArrayView(lval,e,lexpr) ->
+        | ArrayView(lval,e,lexpr) when visit#lval_is_uninit lval ->
           let e' = make_signed e in
           let check = if _arrsetting then
               (_fins <- visit#finish_arrset lval e' lexpr;
@@ -288,10 +278,10 @@ class smack_visitor =
     method stm stm_ =
       let p = stm_.pos in
         match stm_.data with
-          | ArrayDec(v,vty,ae) ->
-            let dec = visit#declare_init v vty (is_uninit ae) in
+          | ArrayDec(v,vty,ae) when is_uninit ae ->
+            let dec = visit#declare_init v vty in
               dec :: (super#stm stm_)
-          | Assign(lval,e) ->
+          | Assign(lval,e) when visit#lval_is_uninit lval ->
             let (lval',fin) = visit#lval_set lval in
             let e' = visit#expr e in
               [mkpos Assign(lval', e')] @ fin
