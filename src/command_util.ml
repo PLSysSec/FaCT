@@ -122,7 +122,7 @@ let generate_smack args out_file xftast =
             close_in chan
         end;
         lines := List.rev !lines;
-        lines := "; verify with: smack --bit-precise --entry-point=[...]" :: !lines;
+        lines := "; verify with: smack --bit-precise --verifier=boogie --modular --entry-point=[...]" :: !lines;
         let outfile = open_out (out_file_name ^ ".ll") in
           output_string outfile @@ String.concat "\n" !lines;
           close_out outfile in
@@ -132,9 +132,9 @@ let generate_smack args out_file xftast =
         let out_file' = out_file ^ ".smack" in
         let smacktast = Smack.transform xftast in
           do_output out_file' smacktast;
-          let out_file' = out_file ^ ".smack.uninit" in
+          (*let out_file' = out_file ^ ".smack.uninit" in
           let smacktast = Smack_uninit.transform xftast in
-            do_output out_file' smacktast
+            do_output out_file' smacktast*)
       end
 
 
@@ -278,7 +278,7 @@ let compile (in_files,out_file,out_dir) args =
   List.map (fun wrapper ->
     match wrapper with
       | None -> ()
-      | Some (_,c) -> Log.debug "C-wrapper:\n%s" c)
+      | Some (_,c) -> ()(*Log.debug "C-wrapper:\n%s" c*))
     c_wrappers |> ignore;
   
   (* Verify the opt passes via the command line. This doesn't affect llvm_mod *)
