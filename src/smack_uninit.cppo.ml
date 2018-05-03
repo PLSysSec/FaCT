@@ -71,9 +71,11 @@ class smack_visitor =
     val mutable _sdecs = []
     val mutable _inits = []
     val mutable _paraminits = []
-    val mutable _arrsetting = false
     val mutable _fins = []
     val mutable _clobbers = []
+    val _arrsetting =
+      let stk = Stack.create () in
+        Stack.push false stk; stk
 
     method lval_to_id lval =
       let (lval',_) = lval.data in
@@ -215,7 +217,7 @@ class smack_visitor =
           let _,vty = lval.data in
           let lexpr = Tast_utils.refvt_to_lexpr (mkfake vty) in
           let zero = (mkfake Tast_utils.make_nlit fake_pos 0) in
-          let check = if _arrsetting then
+          let check = if (Stack.top _arrsetting) then
               (_fins <- visit#finish_arrset lval zero lexpr;
                visit#check_arrset lval zero)
             else
@@ -224,7 +226,7 @@ class smack_visitor =
             mkpos (CheckedArrayExpr(check, super#aexpr ae_), ety)
         | ArrayView(lval,e,lexpr) when visit#lval_is_uninit lval ->
           let e' = make_signed e in
-          let check = if _arrsetting then
+          let check = if Stack.top _arrsetting then
               (_fins <- visit#finish_arrset lval e' lexpr;
                visit#check_arrset lval e')
             else
@@ -249,13 +251,14 @@ class smack_visitor =
                match vty.data with
                  | ArrayVT(_,_,m,_) ->
                    if m.data = Mut && attr.output_only then
-                     let old = _arrsetting in
-                       _arrsetting <- true;
+                     begin
+                       Stack.push true _arrsetting;
                        let arg' = visit#arg arg in
-                         _arrsetting <- old;
+                         Stack.pop _arrsetting;
                          let r = (arg', _fins) in
                            _fins <- [];
                            r
+                     end
                    else
                      (visit#arg arg, [])
                  | _ -> (visit#arg arg, [])
@@ -289,10 +292,9 @@ class smack_visitor =
                     let basename = visit#lval_to_id lval in
                     let baseinitlval,base = List.assoc basename _inits in
                       _inits <- (initname, (baseinitlval, abinop Ast.Plus base e')) :: _inits;
-                      let old = _arrsetting in
-                        _arrsetting <- true;
+                      Stack.push true _arrsetting;
                         let stm' = super#stm stm_ in
-                          _arrsetting <- old;
+                          Stack.pop _arrsetting;
                           stm'
                   | _ -> super#stm stm_
               end
