@@ -280,7 +280,7 @@ and ps_stm ps_ctx = xfunction
 and ps_stms ps_ctx stms =
   let stms' = List.map (ps_stm ps_ctx) stms in
   let stms' = List.map (fun s -> ind1 ^ s) stms' in
-  "{" ^ (String.concat "" stms') ^ ind ^ "}"
+    "{" ^ (String.concat "" stms') ^ (if stms' = [] then " " else ind) ^ "}"
 
 and ps_block ps_ctx (_,stms) =
   ps_stms ps_ctx stms
