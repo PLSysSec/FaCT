@@ -145,7 +145,7 @@ class oob_visitor =
               | Some (Some cond_op, endlimit), Some (Some upd_op, step) ->
                 (match check_isrange init cond_op endlimit upd_op step with
                   | Some (n, l) ->
-                    _ranges <- (i, Some (n, N l)) :: _ranges
+                    _ranges <- (i, Some (N n, N l)) :: _ranges
                   | None ->
                     (*Printf.eprintf
                       "  -->  %s  <--\n"
