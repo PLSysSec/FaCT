@@ -17,35 +17,92 @@ let fake_pos = { file=""; line=0; lpos=0; rpos=0 }
 (* x for 'eXtract' *)
 #define xfunction xwrap @@ fun p -> function
 
-type range = int * int (* [lo, hi) *)
 type arrcheck = Ok | Warn | Error
+
+
+(* [base : length] *)
+type range = (int * int) option
+let show_range n =
+  match n with
+    | Some (n,l) -> Printf.sprintf "[%d : %d]" n l
+    | None -> "[none]"
+
+let is_contained_in n m =
+  match n,m with
+    | Some (n1,l1),Some (n2,l2) ->
+      Some (n1 >= n2 && (n1 + l1) <= (n2 + l2))
+    | _ -> None
+
+let add_range n m =
+  match n,m with
+    | Some (n1,l1),Some (n2,l2) ->
+      Some (n1 + n2, l1 + l2 - 1)
+    | _ -> None
+
+let mul_range n m =
+  match n,m with
+    | Some (n1,l1),Some (n2,l2) ->
+      let (lo1,hi1) = (n1,n1+l1-1) in
+      let (lo2,hi2) = (n2,n2+l2-1) in
+      let vals = [lo1*lo2;
+                  lo1*hi2;
+                  hi1*lo2;
+                  hi1*hi2] in
+      let lo = List.fold_left min (List.hd vals) vals in
+      let hi = List.fold_left max (List.hd vals) vals in
+      Some (lo, hi - lo + 1)
+    | _ -> None
+
+let neg_range n =
+  match n with
+    | Some (n,l) -> Some (-n, 1 - n - l)
+    | _ -> None
+
+let check_contained n m =
+  match is_contained_in n m with
+    | Some true -> Ok
+    | Some false ->
+      Printf.eprintf "    n : %s\n    m : %s\n"
+        (show_range n)
+        (show_range m);
+      Error
+    | None -> Warn
+
 
 class oob_visitor =
   object (visit)
     inherit Astmap.ast_visitor as super
-    val mutable _venv = []
+    val mutable _ranges : (var_name * range) list = []
+
+    method lexpr_to_range lexpr =
+      match lexpr.data with
+        | LIntLiteral n -> Some (0, n)
+        | _ -> None
+
+    method expr_to_range (e : expr) =
+      match e.data with
+        | IntLiteral n,_ -> Some (n, 1)
+        | Lvalue {data=(Base n,_)},_
+          when List.mem_assoc n _ranges ->
+          List.assoc n _ranges
+        | BinOp(op,e1,e2),_ ->
+          let e1' = visit#expr_to_range e1 in
+          let e2' = visit#expr_to_range e2 in
+            (match op with
+              | Ast.Plus -> add_range e1' e2'
+              | Ast.Minus -> add_range e1' (neg_range e2')
+              | Ast.Multiply -> mul_range e1' e2'
+              | _ -> None)
+        | _ -> None
 
     method lval ({data=(lval',_); pos=p} as lval_) =
       (match lval' with
         | ArrayEl(lval, e) ->
           let _,vty = lval.data in
           let lexpr = refvt_to_lexpr (mkpos vty) in
-          let res =
-            (match lexpr.data with
-              | LIntLiteral m ->
-                (match e.data with
-                  | IntLiteral n,_ ->
-                    if n >= m then Error else Ok
-                  | Lvalue {data=(Base n,_)},_ ->
-                    if List.mem_assoc n _venv then
-                      let lo, hi = List.assoc n _venv in
-                        if lo < 0 || hi > m then (
-                          Printf.eprintf "lo %d hi %d : %d\n" lo hi m; Error
-                        ) else Ok
-                    else Warn
-                  | _ -> Warn)
-              | _ -> Warn)
-          in
+          let m = visit#lexpr_to_range lexpr in
+          let n = visit#expr_to_range e in
+          let res = check_contained n m in
             (match res with
               | Warn ->
                 Printf.eprintf "    %s : %s\n"
@@ -63,9 +120,14 @@ class oob_visitor =
 
     method aexpr ({data=(ae',_); pos=p} as ae_) =
       (match ae' with
-        | ArrayView _ ->
-          let res = Warn
-          in
+        | ArrayView(lval, e, nlexpr) ->
+          let _,vty = lval.data in
+          let lexpr = refvt_to_lexpr (mkpos vty) in
+          let m = visit#lexpr_to_range lexpr in
+          let n' = visit#lexpr_to_range nlexpr in
+          let off = visit#expr_to_range e in
+          let n = add_range n' off in
+          let res = check_contained n m in
             (match res with
               | Warn ->
                 Printf.eprintf "    %s\n"
@@ -82,9 +144,6 @@ class oob_visitor =
     method stm stm_ =
       (match stm_.data with
         | For(i,bty,init,cond,upd,_) ->
-          let add_i lo hi =
-            _venv <-
-              (i, (lo, hi)) :: _venv in
           let xbase e =
             match e.data with
               | Lvalue {data=(Base x,_)},_ ->
@@ -139,27 +198,27 @@ class oob_visitor =
                   (match cond_op with
                     | Ast.LT ->
                       if init' < endlimit' && upward
-                      then Some (init', endlimit')
+                      then Some (init', endlimit' - init')
                       else None
                     | Ast.LTE ->
                       if init' <= endlimit' && upward
-                      then Some (init', endlimit' + 1)
+                      then Some (init', endlimit' - init' + 1)
                       else None
                     | Ast.GT ->
                       if init' > endlimit' && upward
-                      then Some (endlimit' + 1, init' + 1)
+                      then Some (endlimit' + 1, init' - endlimit')
                       else None
                     | Ast.GTE ->
                       if init' >= endlimit' && upward
-                      then Some (endlimit', init' + 1)
+                      then Some (endlimit', init' - endlimit' + 1)
                       else None
                     | _ -> None)
               | _ -> None) in
             (match cond_check,upd_check with
               | Some (Some cond_op, endlimit), Some (Some upd_op, step) ->
                 (match check_isrange init cond_op endlimit upd_op step with
-                  | Some (lo, hi) ->
-                    _venv <- (i, (lo, hi)) :: _venv
+                  | Some (n, l) ->
+                    _ranges <- (i, Some (n, l)) :: _ranges
                   | None ->
                     (*Printf.eprintf
                       "  -->  %s  <--\n"
