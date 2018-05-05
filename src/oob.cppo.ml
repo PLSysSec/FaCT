@@ -8,8 +8,6 @@ open Range
 #define cwarn(msg, p) InternalCompilerError("warning: " ^ msg << p)
 #define err(p) cerr("internal compiler error", p)
 
-let fake_pos = { file=""; line=0; lpos=0; rpos=0 }
-
 #define mkpos make_ast p @@
 #define mkp(pa) make_ast pa.pos @@
 #define mkfake make_ast fake_pos @@

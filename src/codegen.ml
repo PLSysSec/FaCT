@@ -10,8 +10,6 @@ exception FunctionAlreadyDefined
 
 let counter = ref 0
 
-let fake_pos = { file=""; line=0; lpos=0; rpos=0 }
-
 (* Start env functionality. This is here because of circular dependencies. TODO: move it out *)
 
 let has_fn = Hashtbl.mem
