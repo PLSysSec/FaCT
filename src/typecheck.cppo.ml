@@ -174,7 +174,7 @@ let tc_binop' p op e1 e2 =
               | Ast.BitwiseXor  -> make_nlit p (n lxor m)
               | Ast.BitwiseAnd  -> make_nlit p (n land m)
               | Ast.Equal       -> make_blit p (n = m)
-              | Ast.NEqual      -> make_blit p (n != m)
+              | Ast.NEqual      -> make_blit p (n <> m)
               | Ast.GT          -> make_blit p (n > m)
               | Ast.GTE         -> make_blit p (n >= m)
               | Ast.LT          -> make_blit p (n < m)
@@ -228,11 +228,11 @@ let params_all_refs_above tc_ctx rpc params =
         match vty' with
           | RefVT(_,{data=Fixed l},{data=mut})
           | ArrayVT(_,{data=Fixed l},{data=mut},_) ->
-            if (mut != Mut) || (rpc <$. l)
+            if (mut <> Mut) || (rpc <$. l)
             then (checker (n+1) params)
             else n
           | StructVT(s,{data=mut}) ->
-            if (rpc = Public) || (mut != Mut) || (not @@ struct_has_secrets tc_ctx.sdecs s)
+            if (rpc = Public) || (mut <> Mut) || (not @@ struct_has_secrets tc_ctx.sdecs s)
             then (checker (n+1) params)
             else n
       end
