@@ -3,14 +3,15 @@ open Tast
 
 type arrcheck = Ok | Warn | Error
 
+(* all values must be non-negative *)
 type len =
   | N of int
-  | X of string * int * int (* varname * multiplier + offset *)
+  | X of string * Q.t * int (* varname * multiplier + offset *)
   | None
 
 let show_len = function
   | N n -> string_of_int n
-  | X(x,m,p) -> Printf.sprintf "(%d%s + %d)" m x p
+  | X(x,m,p) -> Printf.sprintf "(%s%s + %d)" Q.(to_string m) x p
 
 (* [base : length] *)
 type t = (int * len) option
@@ -20,7 +21,7 @@ let show_range n =
     | Some (n,l) -> Printf.sprintf "[%d : %s]" n (show_len l)
     | None -> "[none]"
 
-let (+.) n l =
+let (+.) l n =
   match l with
     | N l -> N(n + l)
     | X(x,m,p) -> X(x,m,p + n)
@@ -29,7 +30,7 @@ let (+@) l1 l2 =
   match l1,l2 with
     | N l1,N l2 -> N(l1 + l2)
     | X(x1,m1,p1),X(x2,m2,p2)
-      when x1 = x2 && m1 = m2 ->
+      when x1 = x2 && Q.(m1 = m2) ->
       X(x1,m1,p1 + p2)
     | _ -> None
 
@@ -37,21 +38,24 @@ let (<@) l1 l2 =
   match l1,l2 with
     | N l1,N l2 -> l1 < l2
     | X(x1,m1,p1),X(x2,m2,p2)
-      when x1 = x2 && m1 = m2 ->
+      when x1 = x2 && Q.(m1 = m2) ->
         p1 < p2
+    | X(x1,m1,p1),X(x2,m2,p2)
+      when x1 = x2 && p1 = 0 && p2 = 0 ->
+      Q.(m1 < m2)
     | _ -> false
 let (<=@) l1 l2 = (l1 <@ l2) || (l1 = l2)
 
 let is_contained_in n m =
   match n,m with
     | Some (n1,l1),Some (n2,l2) ->
-      Some (n1 >= n2 && (n1 +. l1) <=@ (n2 +. l2))
+      Some (n1 >= n2 && (l1 +. n1) <=@ (l2 +. n2))
     | _ -> None
 
 let add_range n m =
   match n,m with
     | Some (n1,l1),Some (n2,l2) ->
-      Some (n1 + n2, (-1) +. (l1 +@ l2))
+      Some (n1 + n2, (l1 +@ l2) +. (-1))
     | _ -> None
 
 let mul_range n m =
