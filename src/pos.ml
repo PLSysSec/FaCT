@@ -3,6 +3,8 @@ open Lexing
 type pos = { file:string; line:int; lpos:int; rpos:int }
 [@@deriving show]
 
+let fake_pos = { file=""; line=0; lpos=0; rpos=0 }
+
 type 'a pos_ast = { pos:pos; data:'a }
 [@@deriving show]
 
