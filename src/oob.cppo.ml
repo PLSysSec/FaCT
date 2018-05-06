@@ -34,7 +34,7 @@ class oob_visitor =
         | ArrayEl(lval, e) ->
           let _,vty = lval.data in
           let lexpr = refvt_to_lexpr (mkpos vty) in
-          let m = Range.of_lexpr lexpr in
+          let m = Range.of_lexpr _ranges lexpr in
           let n = Range.of_expr _ranges e in
           let res = check_contained n m in
             (match res with
@@ -57,8 +57,8 @@ class oob_visitor =
         | ArrayView(lval, e, nlexpr) ->
           let _,vty = lval.data in
           let lexpr = refvt_to_lexpr (mkpos vty) in
-          let m = Range.of_lexpr lexpr in
-          let n' = Range.of_lexpr nlexpr in
+          let m = Range.of_lexpr _ranges lexpr in
+          let n' = Range.of_lexpr _ranges nlexpr in
           let off = Range.of_expr _ranges e in
           let n = add_range n' off in
           let res = check_contained n m in
@@ -83,9 +83,9 @@ class oob_visitor =
               | RefVT({data=(UInt _ | Int _)}, {data=Fixed Public}, {data=Const}) ->
                 let e' = Range.of_expr _ranges e in
                   if e' <> None then
-                    dprintf
-                      "%s <- %s\n" x.data (show_range e');
-                    _ranges <- (x, e') :: _ranges
+                    (dprintf
+                       "%s <- %s\n" x.data (show_range e');
+                     _ranges <- (x, e') :: _ranges)
               | _ -> ())
           | For(i,bty,init,cond,upd,_) ->
             let xbase e =
