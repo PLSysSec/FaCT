@@ -266,7 +266,8 @@ let compile (in_files,out_file,out_dir) args =
   output_xftast args.core_ir_out out_file' xftast;
   generate_pseudo args.pseudo_out out_file' xftast;
   generate_smack args out_file' xftast;
-    Oob.transform xftast;
+  let xftast = Oob.transform xftast in
+    (* XXX *) generate_pseudo args.pseudo_out out_file' xftast;
   let xftast = Transform_args.xf_module xftast in
   let llvm_ctx = Llvm.create_context () in
   let llvm_mod = Llvm.create_module llvm_ctx "Module" in

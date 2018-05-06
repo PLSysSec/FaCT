@@ -103,7 +103,8 @@ let label_module errors pass () instr =
     | Call,""
     | Store,_
     | Br, _
-    | Ret, _ -> None
+    | Ret, _
+    | Unreachable, _ -> None
     | s  -> Some instr in
   let label instr =
     let inferred = label_inference pass instr in

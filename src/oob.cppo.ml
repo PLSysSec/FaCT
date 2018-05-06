@@ -24,56 +24,113 @@ open Range
 #define xfunction xwrap @@ fun p -> function
 
 
+let uint64ety = BaseET(mkfake Int 64, mkfake Fixed Public)
+
+let abinop op e1 e2 =
+  let p = e1.pos in
+    mkpos (BinOp(op, e1, e2), uint64ety)
+
+let binop op e1 e2 =
+  let p = e1.pos in
+  let ebool = BaseET(mkpos Bool, mkpos Fixed Public) in
+    mkpos (BinOp(op, e1, e2), ebool)
+
+
 class oob_visitor =
   object (visit)
     inherit Astmap.ast_visitor as super
     val mutable _ranges : (var_name * Range.t) list = []
+    val mutable _venv = Env.new_env ()
 
-    method lval ({data=(lval',_); pos=p} as lval_) =
-      (match lval' with
-        | ArrayEl(lval, e) ->
-          let _,vty = lval.data in
-          let lexpr = refvt_to_lexpr (mkpos vty) in
-          let m = Range.of_lexpr _ranges lexpr in
-          let n = Range.of_expr _ranges e in
-          let res = check_contained n m in
-            (match res with
-              | Warn ->
-                dprintf "    %s : %s\n"
-                  Pseudocode.(ps_lval {indent=0} lval_)
-                  Pseudocode.(ps_lexpr lexpr);
-                warn @@ cwarn("unchecked array access", p)
-              | Error ->
-                dprintf "    %s : %s\n"
-                  Pseudocode.(ps_lval {indent=0} lval_)
-                  Pseudocode.(ps_lexpr lexpr);
-                raise @@ cerr("invalid array access", p)
-              | Ok -> ())
-        | _ -> ());
-      super#lval lval_
+    method lexpr_to_expr lexpr =
+      match lexpr.data with
+        | LIntLiteral n ->
+          (* assuming x64 architecture *)
+          mkfake (IntLiteral n, uint64ety)
+        | LDynamic len ->
+          let _,len_vty = Env.find_var _venv len in
+          let RefVT(bty,ml,_) = len_vty.data in
+          let len_ety = BaseET(bty, mkfake (Fixed Public)) in
+          let base = mkfake (Base len, len_vty.data) in
+            mkfake (Lvalue base, len_ety)
 
-    method aexpr ({data=(ae',_); pos=p} as ae_) =
-      (match ae' with
-        | ArrayView(lval, e, nlexpr) ->
-          let _,vty = lval.data in
-          let lexpr = refvt_to_lexpr (mkpos vty) in
-          let m = Range.of_lexpr _ranges lexpr in
-          let n' = Range.of_lexpr _ranges nlexpr in
-          let off = Range.of_expr _ranges e in
-          let n = add_range n' off in
-          let res = check_contained n m in
-            (match res with
-              | Warn ->
-                dprintf "    %s\n"
-                  Pseudocode.(ps_aexpr {indent=0} ae_);
-                warn @@ cwarn("unchecked array access", p)
-              | Error ->
-                dprintf "    %s\n"
-                  Pseudocode.(ps_aexpr {indent=0} ae_);
-                raise @@ cerr("invalid array access", p)
-              | Ok -> ())
-        | _ -> ());
-      super#aexpr ae_
+    method check_lval lval e =
+      let _,vty = lval.data in
+      let lexpr = refvt_to_lexpr (mkfake vty) in
+      let expr = visit#lexpr_to_expr lexpr in
+      let cond = binop Ast.LT e expr in
+      let _assert = mkfake VoidFnCall(mkfake "_assert", [mkfake ByValue cond]) in
+        [ _assert; ]
+
+    method check_aexpr lval e nlexpr =
+      let _,vty = lval.data in
+      let lexpr = refvt_to_lexpr (mkfake vty) in
+      let expr = visit#lexpr_to_expr lexpr in
+      let nexpr = visit#lexpr_to_expr nlexpr in
+      let add = abinop Ast.Plus e nexpr in
+      let cond = binop Ast.LTE add expr in
+      let _assert = mkfake VoidFnCall(mkfake "_assert", [mkfake ByValue cond]) in
+        [ _assert; ]
+
+    method lval ({data=(lval',vty_); pos=p} as lval_) =
+      let new_lval =
+        (match lval' with
+          | ArrayEl(lval, e) ->
+            let _,vty = lval.data in
+            let lexpr = refvt_to_lexpr (mkpos vty) in
+            let m = Range.of_lexpr _ranges lexpr in
+            let n = Range.of_expr _ranges e in
+            let res = check_contained n m in
+              (match res with
+                | Warn ->
+                  dprintf "    %s : %s\n"
+                    Pseudocode.(ps_lval {indent=0} lval_)
+                    Pseudocode.(ps_lexpr lexpr);
+                  warn @@ cwarn("unchecked array access, inserting runtime check", p);
+                  let lval'' = visit#lval lval in
+                  let e' = visit#expr e in
+                    Some (CheckedLval(visit#check_lval lval'' e',
+                                      {lval_ with data=(ArrayEl(lval'',e'),vty_)}))
+                | Error ->
+                  dprintf "    %s : %s\n"
+                    Pseudocode.(ps_lval {indent=0} lval_)
+                    Pseudocode.(ps_lexpr lexpr);
+                  raise @@ cerr("invalid array access", p)
+                | Ok -> None)
+          | _ -> None) in
+        match new_lval with
+          | Some new_lval' -> mkpos (new_lval',vty_)
+          | None -> super#lval lval_
+
+    method aexpr ({data=(ae',vty_); pos=p} as ae_) =
+      let new_ae =
+        (match ae' with
+          | ArrayView(lval, e, nlexpr) ->
+            let _,vty = lval.data in
+            let lexpr = refvt_to_lexpr (mkpos vty) in
+            let m = Range.of_lexpr _ranges lexpr in
+            let n' = Range.of_lexpr _ranges nlexpr in
+            let off = Range.of_expr _ranges e in
+            let n = add_range n' off in
+            let res = check_contained n m in
+              (match res with
+                | Warn ->
+                  dprintf "    %s\n"
+                    Pseudocode.(ps_aexpr {indent=0} ae_);
+                  warn @@ cwarn("unchecked array access, inserting runtime check", p);
+                  let lval' = visit#lval lval in
+                  let e' = visit#expr e in
+                    Some (CheckedArrayExpr(visit#check_aexpr lval' e' nlexpr,
+                                           {ae_ with data=(ArrayView(lval',e',nlexpr),vty_)}))
+                | Error ->
+                  dprintf "    %s\n"
+                    Pseudocode.(ps_aexpr {indent=0} ae_);
+                  raise @@ cerr("invalid array access", p)
+                | Ok -> None)
+          | _ -> None) in
+        match new_ae with
+          | Some new_ae' -> mkpos (new_ae',vty_)
+          | None -> super#aexpr ae_
 
     method stm stm_ =
       let p = stm_.pos in
@@ -187,6 +244,10 @@ class oob_visitor =
 
     method fdec =
       _ranges <- []; super#fdec
+
+    method block ((venv,_) as block) =
+      _venv <- venv;
+      super#block block
 
   end
 

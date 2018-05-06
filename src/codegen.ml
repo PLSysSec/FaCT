@@ -920,7 +920,7 @@ and codegen_stm cg_ctx ret_ty = function
       | None -> Stdlib.get_stdlib fun_name.data cg_ctx in
     let codegen_arg' = codegen_arg cg_ctx in
     let args' = List.map2 codegen_arg' arg_exprs fun_dec.args in
-    build_call callee (Array.of_list args') "" cg_ctx.builder |> ignore;
+    let call = build_call callee (Array.of_list args') "" cg_ctx.builder in
     false
   | {data=DebugVoidFnCall(fun_name,arg_exprs)} ->
     let f = 

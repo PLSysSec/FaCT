@@ -19,6 +19,7 @@ type intrinsic =
   | CmovXor of int
   | CmovSel of int
   | CmovAsm8 of int
+  | Trap
 
 let rec string_of_intrinsic = function
   | Memcpy -> "llvm.memcpy.p0i8.p0i8.i64"
@@ -34,6 +35,7 @@ let rec string_of_intrinsic = function
       string_of_intrinsic (CmovAsm n)
     else
       string_of_intrinsic (CmovSel n)
+  | Trap -> "llvm.trap"
 
 let rec declare_intrinsic cg_ctx = function
   | Memcpy ->
@@ -202,6 +204,11 @@ let rec declare_intrinsic cg_ctx = function
       declare_intrinsic cg_ctx (CmovAsm n)
     else
       declare_intrinsic cg_ctx (CmovSel n)
+  | Trap ->
+    let arg_types = [| |] in
+    let vt = void_type cg_ctx.llcontext in
+    let ft = function_type vt arg_types in
+      declare_function (string_of_intrinsic Trap) ft cg_ctx.llmodule
 
 let get_intrinsic intrinsic cg_ctx =
   match lookup_function (string_of_intrinsic intrinsic) cg_ctx.llmodule with
@@ -321,6 +328,17 @@ let arrcopy_proto () =
 
   let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
   name,fdec
+
+let assert_proto () =
+  let name = mkpos "_assert" in
+  let ft = { export=false; inline=Always } in
+  let rt = None in
+
+  let cond = mkpos RefVT(mkpos Bool, mkpos Fixed Public, mkpos Const) in
+  let params = [ mkpos Param (mkpos "cond", cond, default_param_attr) ] in
+
+  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+    name,fdec
 
 let load_le_codegen' n name cg_ctx =
   let ity = integer_type cg_ctx.llcontext n in
@@ -477,6 +495,37 @@ let arrcopy_codegen cg_ctx =
       build_ret_void b;
       fn
 
+let assert_codegen cg_ctx =
+  let trap = get_intrinsic Trap cg_ctx in
+  let bool_ty = i1_type cg_ctx.llcontext in
+
+  let arg_types = [| bool_ty |] in
+  let vt = void_type cg_ctx.llcontext in
+  let ft = function_type vt arg_types in
+  let fn = declare_function "_assert" ft cg_ctx.llmodule in
+      add_function_attr fn cg_ctx.alwaysinline Function;
+    set_linkage Internal fn;
+  let bb = append_block cg_ctx.llcontext "entry" fn in
+  let b = builder cg_ctx.llcontext in
+    position_at_end bb b;
+    let start_bb = insertion_block b in
+
+    let then_bb = append_block cg_ctx.llcontext "thenbranch" fn in
+    position_at_end then_bb b;
+    build_ret_void b;
+
+    let else_bb = append_block cg_ctx.llcontext "elsebranch" fn in
+    position_at_end else_bb b;
+    let call = build_call trap [||] "" b in
+    add_call_site_attr call (create_enum_attr cg_ctx.llcontext "noreturn" 0L) Function;
+    build_ret_void b;
+
+    position_at_end start_bb b;
+    let cond = param fn 0 in
+    build_cond_br cond then_bb else_bb b;
+
+    fn
+
 let structcopy_codegen structname cg_ctx =
   let name = "_structcopy_" ^ structname in
   let vt = void_type cg_ctx.llcontext in
@@ -529,6 +578,7 @@ let get_stdlib name cg_ctx =
     | "_memzero32" -> memzero32_codegen cg_ctx
     | "_memzero64" -> memzero64_codegen cg_ctx
     | "_arrcopy" -> arrcopy_codegen cg_ctx
+    | "_assert" -> assert_codegen cg_ctx
     | _ ->
       if Batteries.String.starts_with name "_structcopy_" then
         let structname = Batteries.String.lchop ~n:12 name in
@@ -548,6 +598,7 @@ let functions = [
   memzero32_proto ();
   memzero64_proto ();
   arrcopy_proto ();
+  assert_proto ();
 ]
 
 
