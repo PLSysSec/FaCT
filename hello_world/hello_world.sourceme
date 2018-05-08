@@ -1,7 +1,0 @@
-cd ..
-eval $(opam config env)
-oasis setup
-make
-cd hello_world
-make
-./hello_world
