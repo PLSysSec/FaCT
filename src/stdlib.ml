@@ -1,13 +1,11 @@
-open Tast
 open Pos
 open Llvm
+open Llvm.AttrIndex
+open Llvm.Linkage
+open Tast
 open Codegen_utils
 
-#define cerr(msg, p) InternalCompilerError("error: " ^ msg << p)
-#define err(p) cerr("internal compiler error", p)
-
 let p : pos = {file=""; line=0; lpos=0; rpos=0}
-#define mkpos make_ast p @@
 
 type intrinsic = 
   | Memcpy
@@ -75,7 +73,7 @@ let rec declare_intrinsic cg_ctx = function
       let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
       let lrshift = build_lshr e1 subtmp "_secret_lrshift" b in
       let rotltmp = build_or lshift lrshift "_secret_rotltmp" b in
-        build_ret rotltmp b;
+        build_ret rotltmp b |> ignore;
         fn
   | Rotr n as rotr_sz ->
     (* we expect this function to get inlined and disappear at high optimization levels *)
@@ -95,7 +93,7 @@ let rec declare_intrinsic cg_ctx = function
       let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
       let lshift = build_shl e1 subtmp "_secret_lshift" b in
       let rotrtmp = build_or lrshift lshift "_secret_rotrtmp" b in
-        build_ret rotrtmp b;
+        build_ret rotrtmp b |> ignore;
         fn
   | Declass n as dec_sz ->
     let ity = integer_type cg_ctx.llcontext n in
@@ -108,7 +106,7 @@ let rec declare_intrinsic cg_ctx = function
       position_at_end bb b;
       let e1 = param fn 0 in
         set_value_name "_declassified_x" e1;
-        build_ret e1 b;
+        build_ret e1 b |> ignore;
         fn
   | CmovAsm n as cmov_sz ->
     let i1ty = i1_type cg_ctx.llcontext in
@@ -150,7 +148,7 @@ let rec declare_intrinsic cg_ctx = function
                     false false in
         let ret' = build_call asm [| cond; x; y; |] "_secret_asm" b in
         let ret = trunc ret' in
-          build_ret ret b;
+          build_ret ret b |> ignore;
           fn
   | CmovXor n as cmov_sz ->
     let i1ty = i1_type cg_ctx.llcontext in
@@ -175,7 +173,7 @@ let rec declare_intrinsic cg_ctx = function
         let xor = build_xor x y "_secret_xor" b in
         let t = build_and m xor "_secret_t" b in
         let ret = build_xor y t "_secret_res" b in
-          build_ret ret b;
+          build_ret ret b |> ignore;
           fn
   | CmovSel n as cmov_sz ->
     let i1ty = i1_type cg_ctx.llcontext in
@@ -197,9 +195,9 @@ let rec declare_intrinsic cg_ctx = function
         set_value_name "_secret_a" x;
         set_value_name "_secret_b" y;
         let ret = build_select cond x y "_secret_select" b in
-          build_ret ret b;
+          build_ret ret b |> ignore;
           fn
-  | CmovAsm8 n as cmov_sz ->
+  | CmovAsm8 n ->
     if n < 32 then
       declare_intrinsic cg_ctx (CmovAsm n)
     else
@@ -217,31 +215,31 @@ let get_intrinsic intrinsic cg_ctx =
 
 
 let load_le_proto' n name' =
-  let name = mkpos name' in
+  let name = p @> name' in
   let ft = { export=false; inline=Always } in
 
-  let rt' = mkpos BaseET(mkpos UInt n, mkpos Fixed Secret) in
+  let rt' = p @> BaseET(p @> UInt n, p @> Fixed Secret) in
   let rt = Some rt' in
 
-  let arr = mkpos ArrayAT(mkpos UInt 8, mkpos LIntLiteral (n / 8)) in
-  let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Const, default_var_attr) in
-  let params = [mkpos Param (mkpos "src", arg, default_param_attr)] in
+  let arr = p @> ArrayAT(p @> UInt 8, p @> LIntLiteral (n / 8)) in
+  let arg = p @> ArrayVT(arr, p @> Fixed Secret, p @> Const, default_var_attr) in
+  let params = [p @> Param (p @> "src", arg, default_param_attr)] in
 
-  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
 
 let load_vec_le_proto' bw n name' =
-  let name = mkpos name' in
+  let name = p @> name' in
   let ft = { export=false; inline=Always } in
 
-  let rt' = mkpos BaseET(mkpos UVec(bw,n), mkpos Fixed Secret) in
+  let rt' = p @> BaseET(p @> UVec(bw,n), p @> Fixed Secret) in
   let rt = Some rt' in
 
-  let arr = mkpos ArrayAT(mkpos UInt bw, mkpos LIntLiteral n) in
-  let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Const, default_var_attr) in
-  let params = [mkpos Param (mkpos "src", arg, default_param_attr)] in
+  let arr = p @> ArrayAT(p @> UInt bw, p @> LIntLiteral n) in
+  let arg = p @> ArrayVT(arr, p @> Fixed Secret, p @> Const, default_var_attr) in
+  let params = [p @> Param (p @> "src", arg, default_param_attr)] in
 
-  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
 
 let load32_le_proto () =
@@ -252,33 +250,33 @@ let load32_4_le_proto () =
   load_vec_le_proto' 32 4 "_load32_4_le"
 
 let store_le_proto' n lbl name' =
-  let name = mkpos name' in
+  let name = p @> name' in
   let ft = { export=false; inline=Always } in
   let rt = None in
 
-  let arr = mkpos ArrayAT(mkpos UInt 8, mkpos LIntLiteral (n / 8)) in
-  let arg = mkpos ArrayVT(arr, mkpos Fixed lbl, mkpos Mut, default_var_attr) in
+  let arr = p @> ArrayAT(p @> UInt 8, p @> LIntLiteral (n / 8)) in
+  let arg = p @> ArrayVT(arr, p @> Fixed lbl, p @> Mut, default_var_attr) in
 
-  let w = mkpos RefVT(mkpos UInt n, mkpos Fixed Secret, mkpos Const) in
+  let w = p @> RefVT(p @> UInt n, p @> Fixed Secret, p @> Const) in
   let out_attr = { default_param_attr with output_only = true } in
-  let params = [mkpos Param (mkpos "dst", arg, out_attr); mkpos Param (mkpos "w", w, default_param_attr)] in
+  let params = [p @> Param (p @> "dst", arg, out_attr); p @> Param (p @> "w", w, default_param_attr)] in
 
-  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
 
 let store_vec_le_proto' bw n name' =
-  let name = mkpos name' in
+  let name = p @> name' in
   let ft = { export=false; inline=Always } in
   let rt = None in
 
-  let arr = mkpos ArrayAT(mkpos UInt bw, mkpos LIntLiteral n) in
-  let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Mut, default_var_attr) in
+  let arr = p @> ArrayAT(p @> UInt bw, p @> LIntLiteral n) in
+  let arg = p @> ArrayVT(arr, p @> Fixed Secret, p @> Mut, default_var_attr) in
 
-  let w = mkpos RefVT(mkpos UVec(bw,n), mkpos Fixed Secret, mkpos Const) in
+  let w = p @> RefVT(p @> UVec(bw,n), p @> Fixed Secret, p @> Const) in
   let out_attr = { default_param_attr with output_only = true } in
-  let params = [mkpos Param (mkpos "dst", arg, out_attr); mkpos Param (mkpos "w", w, default_param_attr)] in
+  let params = [p @> Param (p @> "dst", arg, out_attr); p @> Param (p @> "w", w, default_param_attr)] in
 
-  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
 
 let store32_le_proto () =
@@ -291,18 +289,18 @@ let store32_4_le_proto () =
   store_vec_le_proto' 32 4 "_store32_4_le"
 
 let memzero_proto' n name' () =
-  let name = mkpos name' in
+  let name = p @> name' in
   let ft = { export=false; inline=Never } in
   let rt = None in
 
-  let arr = mkpos ArrayAT(mkpos UInt n, mkpos LDynamic (mkpos "_len")) in
-  let arg = mkpos ArrayVT(arr, mkpos Fixed Secret, mkpos Mut, default_var_attr) in
+  let arr = p @> ArrayAT(p @> UInt n, p @> LDynamic (p @> "_len")) in
+  let arg = p @> ArrayVT(arr, p @> Fixed Secret, p @> Mut, default_var_attr) in
 
-  let len = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
+  let len = p @> RefVT(p @> UInt 32, p @> Fixed Public, p @> Const) in
   let out_attr = { default_param_attr with output_only = true } in
-  let params = [mkpos Param (mkpos "arr", arg, out_attr); mkpos Param (mkpos "_len", len, default_param_attr)] in
+  let params = [p @> Param (p @> "arr", arg, out_attr); p @> Param (p @> "_len", len, default_param_attr)] in
 
-  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
 
 let memzero_proto = memzero_proto' 8 "_memzero"
@@ -310,34 +308,34 @@ let memzero32_proto = memzero_proto' 32 "_memzero32"
 let memzero64_proto = memzero_proto' 64 "_memzero64"
 
 let arrcopy_proto () =
-  let name = mkpos "_arrcopy" in
+  let name = p @> "_arrcopy" in
   let ft = { export=false; inline=Never } in
   let rt = None in
 
-  let arr1 = mkpos ArrayAT(mkpos UInt 8, mkpos LDynamic (mkpos "_len1")) in
-  let arr2 = mkpos ArrayAT(mkpos UInt 8, mkpos LDynamic (mkpos "_len2")) in
-  let arg1 = mkpos ArrayVT(arr1, mkpos Fixed Secret, mkpos Mut, default_var_attr) in
-  let arg2 = mkpos ArrayVT(arr2, mkpos Fixed Secret, mkpos Const, default_var_attr) in
+  let arr1 = p @> ArrayAT(p @> UInt 8, p @> LDynamic (p @> "_len1")) in
+  let arr2 = p @> ArrayAT(p @> UInt 8, p @> LDynamic (p @> "_len2")) in
+  let arg1 = p @> ArrayVT(arr1, p @> Fixed Secret, p @> Mut, default_var_attr) in
+  let arg2 = p @> ArrayVT(arr2, p @> Fixed Secret, p @> Const, default_var_attr) in
 
-  let len = mkpos RefVT(mkpos UInt 32, mkpos Fixed Public, mkpos Const) in
+  let len = p @> RefVT(p @> UInt 32, p @> Fixed Public, p @> Const) in
   let out_attr = { default_param_attr with output_only = true } in
-  let params = [ mkpos Param (mkpos "arr1", arg1, out_attr);
-                 mkpos Param (mkpos "_len1", len, default_param_attr);
-                 mkpos Param (mkpos "arr2", arg2, default_param_attr);
-                 mkpos Param (mkpos "_len2", len, default_param_attr); ] in
+  let params = [ p @> Param (p @> "arr1", arg1, out_attr);
+                 p @> Param (p @> "_len1", len, default_param_attr);
+                 p @> Param (p @> "arr2", arg2, default_param_attr);
+                 p @> Param (p @> "_len2", len, default_param_attr); ] in
 
-  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
   name,fdec
 
 let assert_proto () =
-  let name = mkpos "_assert" in
+  let name = p @> "_assert" in
   let ft = { export=false; inline=Always } in
   let rt = None in
 
-  let cond = mkpos RefVT(mkpos Bool, mkpos Fixed Public, mkpos Const) in
-  let params = [ mkpos Param (mkpos "cond", cond, default_param_attr) ] in
+  let cond = p @> RefVT(p @> Bool, p @> Fixed Public, p @> Const) in
+  let params = [ p @> Param (p @> "cond", cond, default_param_attr) ] in
 
-  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
     name,fdec
 
 let load_le_codegen' n name cg_ctx =
@@ -528,7 +526,6 @@ let assert_codegen cg_ctx =
 
 let structcopy_codegen structname cg_ctx =
   let name = "_structcopy_" ^ structname in
-  let vt = void_type cg_ctx.llcontext in
   let bool_ty = i1_type cg_ctx.llcontext in
   let i8_ty = i8_type cg_ctx.llcontext in
   let i32_ty = i32_type cg_ctx.llcontext in
@@ -603,18 +600,18 @@ let functions = [
 
 
 let structcopy_proto structname =
-  let name = mkpos ("_structcopy_" ^ structname.data) in
+  let name = p @> ("_structcopy_" ^ structname.data) in
   let ft = { export=false; inline=Never } in
   let rt = None in
 
-  let arg1 = mkpos StructVT(structname, mkpos Mut) in
-  let arg2 = mkpos StructVT(structname, mkpos Mut) in
+  let arg1 = p @> StructVT(structname, p @> Mut) in
+  let arg2 = p @> StructVT(structname, p @> Mut) in
 
   let out_attr = { default_param_attr with output_only = true } in
-  let params = [ mkpos Param (mkpos "arg1", arg1, out_attr);
-                 mkpos Param (mkpos "arg2", arg2, default_param_attr); ] in
+  let params = [ p @> Param (p @> "arg1", arg1, out_attr);
+                 p @> Param (p @> "arg2", arg2, default_param_attr); ] in
 
-  let fdec = mkpos (StdlibFunDec(name,ft,rt,params)) in
+  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
     fdec, ref false
 
 let get_stdlib_proto name =

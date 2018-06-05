@@ -3,33 +3,24 @@ open Err
 open Tast
 open Pseudocode
 
-#define cerr(msg, p) InternalCompilerError("error: " ^ msg << p)
-#define err(p) cerr("internal compiler error", p)
-
-#define mkpos make_ast p @@
-(* p for 'uses Position' *)
-#define pfunction wrap @@ fun p -> function
-(* x for 'eXtract' *)
-#define xfunction xwrap @@ fun p -> function
-
-
 (* Convenience *)
 
 let make_blit p n =
-  ((if n then True else False), BaseET(mkpos Bool, mkpos Fixed Public))
+  ((if n then True else False), BaseET(p @> Bool, p @> Fixed Public))
 
 let make_nlit p n =
-  (IntLiteral n, BaseET(mkpos Num(abs n, n < 0), mkpos Fixed Public))
+  (IntLiteral n, BaseET(p @> Num(abs n, n < 0), p @> Fixed Public))
 
 
 (* Simple Predicates *)
 
-let is_int = xfunction
-  | UInt _ -> true
-  | Int _ -> true
-  | Num _ -> true
-  | Bool -> false
-  | UVec _ -> true
+let is_int =
+  xwrap @@ fun p -> function
+    | UInt _ -> true
+    | Int _ -> true
+    | Num _ -> true
+    | Bool -> false
+    | UVec _ -> true
 
 let is_signed' = function
   | Int _ -> true
@@ -58,99 +49,119 @@ let numbits' = function
         numbits_helper i
 let numbits = unpack numbits'
 
-let is_bool = xfunction
-  | Bool -> true
-  | _ -> false
+let is_bool =
+  xwrap @@ fun p -> function
+    | Bool -> true
+    | _ -> false
 
-let is_vec = xfunction
-  | UVec _ -> true
-  | _ -> false
+let is_vec =
+  xwrap @@ fun p -> function
+    | UVec _ -> true
+    | _ -> false
 
-let is_array = xfunction
-  | BaseET _ -> false
-  | ArrayET _ -> true
+let is_array =
+  xwrap @@ fun p -> function
+    | BaseET _ -> false
+    | ArrayET _ -> true
 
 
 (* Extraction *)
 
-let type_of' : (expr -> expr_type') = xfunction
-  | (_,ty) -> ty
+let type_of' : (expr -> expr_type') =
+  xwrap @@ fun p -> function
+    | (_,ty) -> ty
 let type_of = rebind type_of'
 
-let atype_of : (array_expr -> expr_type) = xfunction
-  | (_,ty) -> mkpos ty
+let atype_of : (array_expr -> expr_type) =
+  xwrap @@ fun p -> function
+    | (_,ty) -> p @> ty
 
-let atype_to_btype = xfunction
-  | ArrayAT(b,_) -> b
+let atype_to_btype =
+  xwrap @@ fun p -> function
+    | ArrayAT(b,_) -> b
 
-let type_out = xfunction
-  | BaseET(b,ml) -> (b,ml)
-  | ArrayET(a,ml,_) -> (atype_to_btype a,ml)
+let type_out =
+  xwrap @@ fun p -> function
+    | BaseET(b,ml) -> (b,ml)
+    | ArrayET(a,ml,_) -> (atype_to_btype a,ml)
 
-let expr_to_btype : (expr -> base_type) = xfunction
-  | (_,BaseET(b,_)) -> b
-  | (_,ArrayET _) -> raise @@ cerr("expected a base type, got an array instead", p)
+let expr_to_btype : (expr -> base_type) =
+  xwrap @@ fun p -> function
+    | (_,BaseET(b,_)) -> b
+    | (_,ArrayET _) -> raise @@ cerr("expected a base type, got an array instead", p)
 
-let expr_to_ml : (expr -> maybe_label) = xfunction
-  | (_,BaseET(_,ml)) -> ml
+let expr_to_ml : (expr -> maybe_label) =
+  xwrap @@ fun p -> function
+    | (_,BaseET(_,ml)) -> ml
 
-let expr_to_types : (expr -> base_type * maybe_label) = xfunction
-  | (_,BaseET(b,ml)) -> b,ml
-  | (_,ArrayET _) -> raise @@ cerr("expected a base type, got an array instead", p)
+let expr_to_types : (expr -> base_type * maybe_label) =
+  xwrap @@ fun p -> function
+    | (_,BaseET(b,ml)) -> b,ml
+    | (_,ArrayET _) -> raise @@ cerr("expected a base type, got an array instead", p)
 
-let atype_out = xfunction
-  | ArrayET(a,ml,_) -> a,ml
+let atype_out =
+  xwrap @@ fun p -> function
+    | ArrayET(a,ml,_) -> a,ml
 
-let aetype_to_lexpr' = xfunction
-  | ArrayET(a,ml,m) ->
-    let ArrayAT(bt,lexpr) = a.data in
-      lexpr.data
+let aetype_to_lexpr' =
+  xwrap @@ fun p -> function
+    | ArrayET(a,ml,m) ->
+      let ArrayAT(bt,lexpr) = a.data in
+        lexpr.data
 
-let refvt_to_betype' = xfunction
-  | ArrayVT(a,ml,m,_) ->
-    let ArrayAT(bt,lexpr) = a.data in
-      BaseET(bt,ml)
+let refvt_to_betype' =
+  xwrap @@ fun p -> function
+    | ArrayVT(a,ml,m,_) ->
+      let ArrayAT(bt,lexpr) = a.data in
+        BaseET(bt,ml)
 let refvt_to_betype = rebind refvt_to_betype'
 
-let arrayvt_to_refvt = pfunction
-  | RefVT _ -> raise @@ cerr("expected an array, got a base type instead", p)
-  | ArrayVT(a,ml,m,_) ->
-    let ArrayAT(bt,lexpr) = a.data in
-      RefVT(bt,ml,m)
+let arrayvt_to_refvt =
+  wrap @@ fun p -> function
+    | RefVT _ -> raise @@ cerr("expected an array, got a base type instead", p)
+    | ArrayVT(a,ml,m,_) ->
+      let ArrayAT(bt,lexpr) = a.data in
+        RefVT(bt,ml,m)
 
-let refvt_type_out = xfunction
-  | RefVT(b,ml,m) -> b,ml,m
-  | ArrayVT(a,ml,m,_) -> (atype_to_btype a),ml,m
+let refvt_type_out =
+  xwrap @@ fun p -> function
+    | RefVT(b,ml,m) -> b,ml,m
+    | ArrayVT(a,ml,m,_) -> (atype_to_btype a),ml,m
 
 let refvt_mut_out' = function
   | RefVT(_,_,m) -> m
   | ArrayVT(_,_,m,_) -> m
   | StructVT(_,m) -> m
 
-let refvt_to_lexpr = xfunction
-  | ArrayVT(a,ml,m,_) ->
-    let ArrayAT(bt,lexpr) = a.data in
-      lexpr
+let refvt_to_lexpr =
+  xwrap @@ fun p -> function
+    | ArrayVT(a,ml,m,_) ->
+      let ArrayAT(bt,lexpr) = a.data in
+        lexpr
 
-let refvt_to_lexpr_option = xfunction
-  | RefVT _ -> None
-  | ArrayVT(a,ml,m,_) ->
-    let ArrayAT(bt,lexpr) = a.data in
-      Some lexpr.data
-  | StructVT _ -> None
+let refvt_to_lexpr_option =
+  xwrap @@ fun p -> function
+    | RefVT _ -> None
+    | ArrayVT(a,ml,m,_) ->
+      let ArrayAT(bt,lexpr) = a.data in
+        Some lexpr.data
+    | StructVT _ -> None
 
-let refvt_to_etype' = xfunction
-  | RefVT(b,ml,_) -> BaseET(b, ml)
-  | ArrayVT(a,ml,m,_) -> ArrayET(a, ml, m)
+let refvt_to_etype' =
+  xwrap @@ fun p -> function
+    | RefVT(b,ml,_) -> BaseET(b, ml)
+    | ArrayVT(a,ml,m,_) -> ArrayET(a, ml, m)
 let refvt_to_etype = rebind refvt_to_etype'
 
-let fname_of = xfunction
-  | FunDec(fname,_,_,_,_)
-  | CExtern(fname,_,_)
-  | DebugFunDec(fname,_,_) -> fname
+let fname_of =
+  xwrap @@ fun p -> function
+    | FunDec(fname,_,_,_,_)
+    | CExtern(fname,_,_)
+    | DebugFunDec(fname,_,_) -> fname
 
-let sname_of = xfunction
-  | Struct(sname,_) -> sname
+let sname_of =
+  xwrap @@ fun p -> function
+    | Struct(sname,_) -> sname
 
 (* Subtyping *)
 
@@ -184,7 +195,7 @@ let (<::) { data=ArrayAT(b1,lx1) } { data=ArrayAT(b2,lx2) } =
     lxmatch && (b1 =: b2)
 
 let joinable_bt b1 b2 =
-  (b1 <: b2) or (b2 <: b1)
+  (b1 <: b2) || (b2 <: b1)
 
 let join_bt p { data=b1 } { data=b2 } =
   let b' =
@@ -200,7 +211,7 @@ let join_bt p { data=b1 } { data=b2 } =
       | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2) (* XXX max k1 k2 makes no sense *)
       | a, b when a = b -> a
       | _ -> raise @@ cerr("type mismatch: " ^ show_base_type' b1 ^ " <> " ^ show_base_type' b2, p);
-  in mkpos b'
+  in p @> b'
 
 let min_bt p { data=b1 } { data=b2 } =
   let b' =
@@ -217,7 +228,7 @@ let min_bt p { data=b1 } { data=b2 } =
           UInt (min n m)
       | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2) (* XXX max k1 k2 makes no sense *)
       | _ -> raise @@ cerr("invalid types for min_bt: " ^ show_base_type' b1 ^ " <> " ^ show_base_type' b2, p);
-  in mkpos b'
+  in p @> b'
 
 let meet_bt p { data=b1 } { data=b2 } =
   let b' =
@@ -232,7 +243,7 @@ let meet_bt p { data=b1 } { data=b2 } =
       | String, String -> b1
       | Num(k1,s1), Num(k2,s2) -> Num(max k1 k2,s1 || s2)
       | _ -> raise @@ err(p)
-  in mkpos b'
+  in p @> b'
 
 let (<$.) l1 l2 =
   match l1,l2 with
@@ -257,7 +268,7 @@ let join_ml p { data=ml1 } { data=ml2 } =
     match ml1,ml2 with
       | Fixed x, Fixed y -> Fixed (x +$. y)
       | _ -> raise @@ err(p)
-  in mkpos ml'
+  in p @> ml'
 
 let (<:$) ty1 ty2 =
   match (is_array ty1),(is_array ty2) with
@@ -288,8 +299,8 @@ let check_can_be_passed_to { pos=p; data=argty} {data=paramty} =
                       (ps_mut_full m1)
                       (ps_mut_full m2)
                       (if m2.data = Mut then
-                        " (did you forget a `ref`?)"
-                      else ""), p)
+                         " (did you forget a `ref`?)"
+                       else ""), p)
     | RefVT(b1,l1,_), RefVT(b2,l2,_) ->
       if not (b1 <: b2) then
         raise @@ cerr(Printf.sprintf
@@ -338,8 +349,8 @@ let check_can_be_passed_to { pos=p; data=argty} {data=paramty} =
                                    (ps_mut_full m1)
                                    (ps_mut_full m2)
                                    (if m2.data = Mut then
-                                     " (did you forget a `ref`?)"
-                                   else ""), p)
+                                      " (did you forget a `ref`?)"
+                                    else ""), p)
         end
     | StructVT _, StructVT _ -> () (* XXX fix this later *)
     | _ -> raise @@ cerr("attempting to pass incompatible type", p)
@@ -370,31 +381,35 @@ let is_expr_secret e =
   let { data=(_,BaseET(_,{data=Fixed l})) } = e in
     l = Secret
 
-let param_is_ldynamic = xfunction
-  | Param(_,{data=vty'},_) ->
-    begin
-      match vty' with
-        | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_,_) -> true
-        | _ -> false
-    end
+let param_is_ldynamic =
+  xwrap @@ fun p -> function
+    | Param(_,{data=vty'},_) ->
+      begin
+        match vty' with
+          | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_,_) -> true
+          | _ -> false
+      end
 
 
 (* Simple Manipulation *)
 
-let atype_update_lexpr lexpr' = pfunction
-  | ArrayAT(bt,_) -> ArrayAT(bt, mkpos lexpr')
+let atype_update_lexpr lexpr' =
+  wrap @@ fun p -> function
+    | ArrayAT(bt,_) -> ArrayAT(bt, p @> lexpr')
 
-let aetype_update_lexpr' lexpr' = xfunction
-  | ArrayET(a,ml,m) ->
-    ArrayET(atype_update_lexpr lexpr' a, ml, m)
+let aetype_update_lexpr' lexpr' =
+  xwrap @@ fun p -> function
+    | ArrayET(a,ml,m) ->
+      ArrayET(atype_update_lexpr lexpr' a, ml, m)
 
 let aetype_update_mut' mut = function
   | ArrayET(a,ml,_) -> ArrayET(a, ml, mut)
 
-let refvt_update_mut' mut = xfunction
-  | RefVT(b,ml,_) -> RefVT(b, ml, mut)
-  | ArrayVT(a,ml,_,attr) -> ArrayVT(a, ml, mut, attr)
-  | StructVT(s,_) -> StructVT(s, mut)
+let refvt_update_mut' mut =
+  xwrap @@ fun p -> function
+    | RefVT(b,ml,_) -> RefVT(b, ml, mut)
+    | ArrayVT(a,ml,_,attr) -> ArrayVT(a, ml, mut, attr)
+    | StructVT(s,_) -> StructVT(s, mut)
 
 
 (* Structs *)
