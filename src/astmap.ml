@@ -2,14 +2,7 @@ open Pos
 open Err
 open Tast
 
-#define cerr(msg, p) InternalCompilerError("error: " ^ msg << p)
-#define err(p) cerr("internal compiler error", p)
-
-#define mkpos make_ast p @@
-(* p for 'uses Position' *)
-#define pfunction wrap @@ fun p -> function
-(* x for 'eXtract' *)
-#define xfunction xwrap @@ fun p -> function
+let mkp ast p = make_ast p ast
 
 type map_ctx_record = {
   ssenv : string Env.env;
@@ -23,58 +16,61 @@ class ast_visitor =
       let fdecs' = List.map visit#fdec fdecs in
         Module(fenv,fdecs',sdecs)
 
-    method fdec = pfunction
-      | FunDec(f,ft,rt,params,body) ->
-        let params' = List.map visit#param params in
-        let body' = visit#block body in
-          FunDec(f,ft,rt,params',body')
-      | _ as f -> f
+    method fdec =
+      wrap @@ fun p -> function
+        | FunDec(f,ft,rt,params,body) ->
+          let params' = List.map visit#param params in
+          let body' = visit#block body in
+            FunDec(f,ft,rt,params',body')
+        | _ as f -> f
 
-    method param = pfunction
-      | Param(x,vty,attr) -> Param(x,vty,attr)
+    method param =
+      wrap @@ fun p -> function
+        | Param(x,vty,attr) -> Param(x,vty,attr)
 
     method block (venv,stms) =
       (venv,visit#stms stms)
 
-    method stm' = xfunction
-      | BaseDec(x,vty,e) ->
-        let e' = visit#expr e in
-          [BaseDec(x,vty,e')]
-      | ArrayDec(x,vty,ae) ->
-        let ae' = visit#aexpr ae in
-          [ArrayDec(x,vty,ae')]
-      | StructDec _ as stm -> [stm]
-      | Assign(lval,e) ->
-        let lval' = visit#lval lval in
-        let e' = visit#expr e in
-          [Assign(lval', e')]
-      | If(cond,tblock,fblock) ->
-        let cond' = visit#expr cond in
-        let tblock' = visit#block tblock in
-        let fblock' = visit#block fblock in
-          [If(cond',tblock',fblock')]
-      | For(i,bty,init,cond,upd,block) ->
-        let init' = visit#expr init in
-        let cond' = visit#expr cond in
-        let upd' = visit#expr upd in
-        let block' = visit#block block in
-          [For(i,bty,init',cond',upd',block')]
-      | VoidFnCall(fname,args) ->
-        let args' = List.map visit#arg args in
-          [VoidFnCall(fname, args')]
-      | DebugVoidFnCall _ as stm -> [stm]
-      | Return e ->
-        let e' = visit#expr e in
-          [Return e']
-      | VoidReturn as stm -> [stm]
-      | Block block ->
-        let block' = visit#block block in
-          [Block block']
+    method stm' =
+      xwrap @@ fun p -> function
+        | BaseDec(x,vty,e) ->
+          let e' = visit#expr e in
+            [BaseDec(x,vty,e')]
+        | ArrayDec(x,vty,ae) ->
+          let ae' = visit#aexpr ae in
+            [ArrayDec(x,vty,ae')]
+        | StructDec _ as stm -> [stm]
+        | Assign(lval,e) ->
+          let lval' = visit#lval lval in
+          let e' = visit#expr e in
+            [Assign(lval', e')]
+        | If(cond,tblock,fblock) ->
+          let cond' = visit#expr cond in
+          let tblock' = visit#block tblock in
+          let fblock' = visit#block fblock in
+            [If(cond',tblock',fblock')]
+        | For(i,bty,init,cond,upd,block) ->
+          let init' = visit#expr init in
+          let cond' = visit#expr cond in
+          let upd' = visit#expr upd in
+          let block' = visit#block block in
+            [For(i,bty,init',cond',upd',block')]
+        | VoidFnCall(fname,args) ->
+          let args' = List.map visit#arg args in
+            [VoidFnCall(fname, args')]
+        | DebugVoidFnCall _ as stm -> [stm]
+        | Return e ->
+          let e' = visit#expr e in
+            [Return e']
+        | VoidReturn as stm -> [stm]
+        | Block block ->
+          let block' = visit#block block in
+            [Block block']
 
     method stm stm_ =
       let p = stm_.pos in
       let stms' = visit#stm' stm_ in
-        List.map (fun s -> mkpos s) stms'
+        List.map (fun s -> (mkp s p)) stms'
 
     method stms stms_ =
       List.flatten @@ List.map visit#stm stms_
@@ -105,7 +101,7 @@ class ast_visitor =
             let subae' = visit#aexpr subae in
               CheckedArrayExpr(stms', subae')
       in
-        mkpos (ae',ety)
+        (mkp (ae',ety) p)
 
     method expr {data=(expr,ety); pos=p} : Tast.expr =
       let expr' =
@@ -148,7 +144,7 @@ class ast_visitor =
               Shuffle(e', mask)
           | _ -> expr
       in
-        mkpos (expr',ety)
+        (mkp (expr',ety) p)
 
     method lval {data=(lval,vty); pos=p} =
       let lval' =
@@ -166,16 +162,17 @@ class ast_visitor =
             let sublval' = visit#lval sublval in
               CheckedLval(stms', sublval')
       in
-        mkpos (lval',vty)
+        (mkp (lval',vty) p)
 
-    method arg = pfunction
-      | ByValue e ->
-        let e' = visit#expr e in
-          ByValue e'
-      | ByRef lval ->
-        let lval' = visit#lval lval in
-          ByRef lval'
-      | ByArray(ae,mut) ->
-        let ae' = visit#aexpr ae in
-          ByArray(ae', mut)
+    method arg =
+      wrap @@ fun p -> function
+        | ByValue e ->
+          let e' = visit#expr e in
+            ByValue e'
+        | ByRef lval ->
+          let lval' = visit#lval lval in
+            ByRef lval'
+        | ByArray(ae,mut) ->
+          let ae' = visit#aexpr ae in
+            ByArray(ae', mut)
   end

@@ -19,6 +19,9 @@ exception TransformError of string
 
 val ( << ) : string -> Pos.pos -> string
 
+val cerr : string * Pos.pos -> exn
+val err : Pos.pos -> exn
+
 val warn : exn -> unit
 
 val errParseType : Pos.pos -> string -> exn

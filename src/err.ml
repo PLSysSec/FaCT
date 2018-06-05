@@ -21,6 +21,9 @@ exception TransformError of string
 
 let ( << ) s p = Pos.pos_string p ^ ": " ^ s
 
+let cerr (msg, p) = InternalCompilerError("error: " ^ msg << p)
+let err p = cerr("internal compiler error", p)
+
 let warn (InternalCompilerError s) =
   let ss = Str.bounded_split (Str.regexp_string " ") s 3 in
     ANSITerminal.(eprintf [white]         "%s " (List.nth ss 0));
