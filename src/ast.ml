@@ -36,6 +36,8 @@ and basic_type' =
   | BaseBool
   | BaseUInt of size
   | BaseInt of size
+[@@deriving show]
+and basic_type = basic_type' pos_ast [@@deriving show]
 
 and base_type' =
   | Bool of label
@@ -60,10 +62,11 @@ and expr' =
   (* Blessable *)
   | True
   | False
-  | IntLiteral of int * basic_type'
+  | UntypedIntLiteral of int
+  | IntLiteral of int * basic_type
   | Variable of var_name
   | ArrayLen of expr
-  | Cast of basic_type' * expr
+  | Cast of basic_type * expr
   | UnOp of unop * expr
   | BinOp of binop * expr * expr
   | TernOp of expr * expr * expr
@@ -129,15 +132,20 @@ and statement' =
   | VoidFnCall of fun_name * args
   | Assign of expr * expr
   | If of cond * thenblock * elseblock
-  | RangeFor of var_name * expr * expr * block
-  | ArrayFor of var_name * expr * block
+  | RangeFor of var_name * basic_type * expr * expr * block
+  | ArrayFor of var_name * basic_type * expr * block
   | Return of expr
   | VoidReturn
 [@@deriving show]
 and statement = statement' pos_ast [@@deriving show]
 and statements = statement list [@@deriving show]
 
-and params = base_type list [@@deriving show]
+and param' =
+  | Param of var_name * base_type
+[@@deriving show]
+and param = param' pos_ast [@@deriving show]
+and params = param list [@@deriving show]
+
 and ret_type = base_type option [@@deriving show]
 
 and fn_type = { export : bool; inline : inline }

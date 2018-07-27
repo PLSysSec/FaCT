@@ -5,38 +5,40 @@ open Err
 open Ast
 
 let to_type { data=t; pos=p } =
-  match t with
-    | "bool" -> BaseBool
-    | "int8" -> BaseInt 8
-    | "int16" -> BaseInt 16
-    | "int32" -> BaseInt 32
-    | "int64" -> BaseInt 64
-    | "uint8" -> BaseUInt 8
-    | "uint16" -> BaseUInt 16
-    | "uint32" -> BaseUInt 32
-    | "uint64" -> BaseUInt 64
-    | "uint128" -> BaseUInt 128
-    | _ as t -> raise (errParseType p t)
+  { pos=p; data=
+    match t with
+      | "bool" -> BaseBool
+      | "int8" -> BaseInt 8
+      | "int16" -> BaseInt 16
+      | "int32" -> BaseInt 32
+      | "int64" -> BaseInt 64
+      | "uint8" -> BaseUInt 8
+      | "uint16" -> BaseUInt 16
+      | "uint32" -> BaseUInt 32
+      | "uint64" -> BaseUInt 64
+      | "uint128" -> BaseUInt 128
+      | _ as t -> raise (errParseType p t) }
 
 let to_base_type l ({ pos=p } as t) =
   { pos=p; data=
-    match to_type t with
+    match (to_type t).data with
       | BaseBool -> Bool l
       | BaseUInt s -> UInt(s, l)
       | BaseInt s -> Int(s, l) }
 
 let lit_to_type { data=t; pos=p } =
-  match t with
-    | "i8" -> BaseInt 8
-    | "i16" -> BaseInt 16
-    | "i32" -> BaseInt 32
-    | "i64" -> BaseInt 64
-    | "u8" -> BaseUInt 8
-    | "u16" -> BaseUInt 16
-    | "u32" -> BaseUInt 32
-    | "u64" -> BaseUInt 64
-    | "u128" -> BaseUInt 128
-    | _ as t -> raise (errParseType p t)
+  { pos=p; data=
+    match t with
+      | "i8" -> BaseInt 8
+      | "i16" -> BaseInt 16
+      | "i32" -> BaseInt 32
+      | "i64" -> BaseInt 64
+      | "u8" -> BaseUInt 8
+      | "u16" -> BaseUInt 16
+      | "u32" -> BaseUInt 32
+      | "u64" -> BaseUInt 64
+      | "u128" -> BaseUInt 128
+      | _ as t -> raise (errParseType p t) }
 %}
 
 %token <int> INT
@@ -134,6 +136,9 @@ label:
   | PUBLIC { mkpos Public }
   | SECRET { mkpos Secret }
 
+basic_type:
+  | t=TYPE { to_type (mkpos t) }
+
 base_type:
   | l=label t=TYPE { to_base_type l (mkpos t) }
   | l=label MUT t=TYPE { mkpos (Ref(to_base_type l (mkpos t), mkpos RW)) }
@@ -213,10 +218,11 @@ fieldassign:
 expr:
   | e=paren(expr) { mkpos e.data }
   | b=BOOL { mkpos (if b then True else False) }
+  | n=INT { mkpos (UntypedIntLiteral n) }
   | n=INT t=LIT { mkpos (IntLiteral(n, lit_to_type(mkpos t))) }
   | x=var_name { mkpos (Variable x) }
   | LEN e=expr { mkpos (ArrayLen e) }
-  | t=TYPE e=paren(expr) { mkpos (Cast(to_type(mkpos t), e)) }
+  | t=basic_type e=paren(expr) { mkpos (Cast(t, e)) }
   | op=unop e=expr %prec UNARYOP { mkpos (UnOp(op, e)) }
   | e1=expr op=binop e2=expr { mkpos (BinOp(op, e1, e2)) }
   | e1=expr QUESTION e2=expr COLON e3=expr { mkpos (TernOp(e1, e2, e3)) }
@@ -260,12 +266,16 @@ statement:
     { mkpos (VoidFnCall(fn, args)) }
   | e1=expr ASSIGN e2=expr SEMICOLON
     { mkpos (Assign(e1, e2)) }
+  | e1=expr op=binopeq e2=expr SEMICOLON
+    { let deref = mkposof(e1) (Deref e1) in
+      let binop = mkpos (BinOp(op, deref, e2)) in
+        mkpos (Assign(e1, binop)) }
   | iff=if_clause (* takes care of else ifs and elses too! *)
     { iff }
-  | a=FOR LPAREN x=var_name FROM e1=expr TO e2=expr z=RPAREN stms=block
-    { mkposrange(a,z) (RangeFor(x, e1, e2, stms)) }
-  | a=FOR LPAREN x=var_name IN e=expr z=RPAREN stms=block
-    { mkposrange(a,z) (ArrayFor(x, e, stms)) }
+  | a=FOR LPAREN t=basic_type x=var_name FROM e1=expr TO e2=expr z=RPAREN stms=block
+    { mkposrange(a,z) (RangeFor(x, t, e1, e2, stms)) }
+  | a=FOR LPAREN t=basic_type x=var_name IN e=expr z=RPAREN stms=block
+    { mkposrange(a,z) (ArrayFor(x, t, e, stms)) }
   | RETURN e=expr SEMICOLON
     { mkpos (Return e) }
   | RETURN SEMICOLON
@@ -277,14 +287,18 @@ ret_type:
   | VOID { None }
   | b=base_type { Some b }
 
+param:
+  | t=base_type x=var_name
+    { mkpos (Param(x, t)) }
+
 function_dec:
-  | export=boption(EXPORT) r=ret_type fn=fun_name params=plist(base_type) body=block
+  | export=boption(EXPORT) r=ret_type fn=fun_name params=plist(param) body=block
     { mkpos (FunDec(fn, {export; inline=Default}, r, params, body)) }
-  | INLINE r=ret_type fn=fun_name params=plist(base_type) body=block
+  | INLINE r=ret_type fn=fun_name params=plist(param) body=block
     { mkpos (FunDec(fn, {export=false; inline=Always}, r, params, body)) }
-  | NOINLINE r=ret_type fn=fun_name params=plist(base_type) body=block
+  | NOINLINE r=ret_type fn=fun_name params=plist(param) body=block
     { mkpos (FunDec(fn, {export=false; inline=Never}, r, params, body)) }
-  | EXTERN r=ret_type fn=fun_name params=plist(base_type) SEMICOLON
+  | EXTERN r=ret_type fn=fun_name params=plist(param) SEMICOLON
     { mkpos (CExtern(fn, r, params)) }
 
 field:
