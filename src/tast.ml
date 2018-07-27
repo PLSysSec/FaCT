@@ -56,14 +56,16 @@ and expr' =
   | False
   | IntLiteral of int
   | Variable of var_name
-  (* | ArrayElLen of lvalue  not in Tast since it's a compile time expression *)
+  (* | ArrayLen of lvalue not in Tast since it's a compile time expression *)
   | Cast of base_type * expr
   | UnOp of Ast.unop * expr
   | BinOp of Ast.binop * expr * expr
   | TernOp of expr * expr * expr
   | Select of expr * expr * expr  (* ct version of TernOp *)
   | Declassify of expr
+  | Assume of expr
   (* Non-blessable *)
+  | Ref of var_name
   | Deref of expr
   | ArrayGet of expr * lexpr
   | ArrayLit of expr list
@@ -84,8 +86,6 @@ and cond = expr [@@deriving show]
 and thenblock = block [@@deriving show]
 and elseblock = block [@@deriving show]
 and block = (var_name * base_type) Env.env * statements [@@deriving show]
-and init_expr = expr [@@deriving show]
-and upd_expr = expr [@@deriving show]
 
 and args = expr list [@@deriving show]
 
@@ -96,7 +96,7 @@ and statement' =
   | VoidFnCall of fun_name * args
   | Assign of expr * expr
   | If of cond * thenblock * elseblock
-  | RangeFor of var_name * expr * block
+  | RangeFor of var_name * expr * expr* block
   | ArrayFor of var_name * expr * block
   | Return of expr
   | VoidReturn
@@ -134,13 +134,6 @@ and structs = struct_type list
 
 and fact_module =
   | Module of structs * function_decs
-[@@deriving show]
-
-(* Used to parse a top level value in the REPL *)
-and top_level =
-| FunctionDec of function_dec
-| Statement of statement
-| Expression of expr
 [@@deriving show]
 
 let default_var_attr = { cache_aligned=false; }

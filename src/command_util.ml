@@ -2,16 +2,14 @@ open Lwt
 open Pos
 open Err
 open Lexing
+
+(*
 open Typecheck
 open Codegen
 open Debugfun
 open Opt
 open Jank
 open Sys
-
-(*
-open Cast
-open Transform
 *)
 
 type args_record = {
@@ -25,12 +23,12 @@ type args_record = {
   llvm_out    : bool;
   gen_header  : bool;
   verify_llvm : bool;
-  mode        : mode;
+(*  mode        : mode;
   opt_level   : opt_level;
   opt_limit   : seconds option;
   verify_opts : string option;
   shared      : bool;
-  noguac      : bool;
+  noguac      : bool;*)
 }
 
 let run_command c args exit_on_error =
@@ -62,6 +60,7 @@ let output_ast ast_out out_file ast =
         Core.Out_channel.write_all ast_out_file
           ~data:((Ast.show_fact_module ast)^"\n")
 
+(*
 let output_tast ast_out out_file tast =
   match ast_out with
     | false -> Log.debug "Not outputting TAST"
@@ -229,13 +228,13 @@ let ctverify (Tast.Module(_,fdecs,_)) out_file llvm_mod
           verify fun_name wrapper_name (out_file ^ ".h") llvm_mod
     ) wrappers |> ignore;
     ()
+*)
 
 let compile (in_files,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in
-  Log.debug "Compiling program in %s mode" (show_mode args.mode);
+  (*Log.debug "Compiling program in %s mode" (show_mode args.mode);*)
   let lex_and_parse in_file =
     Log.debug "Compiling %s" in_file;
-    (*ignore(Llvm_X86.initialize());*)
     Lexer.file := Some in_file;
     let lexbuf =
       (try Lexing.from_channel (open_in in_file) with
@@ -256,7 +255,7 @@ let compile (in_files,out_file,out_dir) args =
   let all_sdecs = List.fold_left (fun sdecs (Ast.Module (_,more_sdecs)) -> sdecs @ more_sdecs) [] asts in
   let ast = Ast.Module (all_fdecs,all_sdecs) in
   output_ast args.ast_out out_file' ast;
-  let tast = Typecheck.tc_module ast in
+  (*let tast = Typecheck.tc_module ast in
   generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   output_tast args.ast_out out_file' tast;
   Log.debug "Typecheck complete";
@@ -336,4 +335,4 @@ let compile (in_files,out_file,out_dir) args =
   output_bitcode out_file' llvm_mod;
   output_assembly args.opt_level out_file' |> ignore;
   output_shared_object out_file' args;
-  output_object out_file' |> ignore
+  output_object out_file' |> ignore*)

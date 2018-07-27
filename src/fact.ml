@@ -1,6 +1,6 @@
 open Command_util
-open Debugfun
-open Opt
+(*open Debugfun
+open Opt*)
 
 let summary = "Compile the given const file."
 let readme = "Compile a const file. Pass the relative path to the file " ^
@@ -143,7 +143,7 @@ let compile_command =
       shared
       noguac
       in_files () ->
-      let mode = match mode with
+      (*let mode = match mode with
         | Some "dev" -> DEV
         | Some "prod" -> PROD
         | Some m -> error_exit ("Unknown mode: " ^ m ^". Expected dev or prod")
@@ -155,11 +155,11 @@ let compile_command =
         | Some "O3" -> O3
         | Some "OF" -> OF
         | Some o -> error_exit ("Unknown optimization level: " ^ o ^ ". Expected O0, O1, O2, O3, or OF")
-        | None -> O0 in
+        | None -> O0 in*)
       let args = { in_files; out_file; debug;
                    ast_out; core_ir_out; pseudo_out; smack_out;
-                   llvm_out; gen_header; verify_llvm; mode; opt_level;
-                   opt_limit; verify_opts; shared; noguac } in
+                   llvm_out; gen_header; verify_llvm; (*mode; opt_level;
+                   opt_limit; verify_opts; shared; noguac*) } in
         set_log_level debug;
         let prep = prepare_compile out_file in_files () in
           runner prep args)
