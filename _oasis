@@ -15,8 +15,3 @@ Executable fact
   Path:       src
   BuildTools: ocamlbuild
   MainIs:     fact.ml
-
-Executable facti
-  Path:       src
-  BuildTools: ocamlbuild
-  MainIs:     facti.ml
