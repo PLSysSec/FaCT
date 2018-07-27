@@ -32,6 +32,11 @@ and field' =
 and field = field' pos_ast [@@deriving show]
 and fields = field list [@@deriving show]
 
+and basic_type' =
+  | BaseBool
+  | BaseUInt of size
+  | BaseInt of size
+
 and base_type' =
   | Bool of label
   | UInt of size * label
@@ -55,10 +60,10 @@ and expr' =
   (* Blessable *)
   | True
   | False
-  | IntLiteral of int
+  | IntLiteral of int * basic_type'
   | Variable of var_name
   | ArrayLen of expr
-  | Cast of base_type * expr
+  | Cast of basic_type' * expr
   | UnOp of unop * expr
   | BinOp of binop * expr * expr
   | TernOp of expr * expr * expr
@@ -128,7 +133,6 @@ and statement' =
   | ArrayFor of var_name * expr * block
   | Return of expr
   | VoidReturn
-  | DebugVoidFnCall of fun_name * args
 [@@deriving show]
 and statement = statement' pos_ast [@@deriving show]
 and statements = statement list [@@deriving show]
