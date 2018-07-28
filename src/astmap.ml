@@ -4,6 +4,7 @@ open Ast
 
 class ast_visitor =
   object (visit)
+
     method fact_module m =
       let Module(sdecs,fdecs) = m in
       let fdecs' = List.map visit#fdec fdecs in
@@ -75,10 +76,12 @@ class ast_visitor =
           | False
           | UntypedIntLiteral _
           | IntLiteral (_,_)
-          | Variable _
+          | Variable _ -> e_.data
           | ArrayLen _
           | Cast (_,_) -> raise @@ err p
-          | UnOp (_,_) -> raise @@ err p
+          | UnOp (op,e) ->
+            let e' = visit#expr e in
+              UnOp (op,e')
           | BinOp (op,e1,e2) ->
             let e1' = visit#expr e1 in
             let e2' = visit#expr e2 in

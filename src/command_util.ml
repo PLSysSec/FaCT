@@ -255,6 +255,8 @@ let compile (in_files,out_file,out_dir) args =
   let all_sdecs = List.fold_left (fun sdecs (Ast.Module (_,more_sdecs)) -> sdecs @ more_sdecs) [] asts in
   let ast = Ast.Module (all_fdecs,all_sdecs) in
   output_ast args.ast_out out_file' ast;
+  let ast = Constfold.transform ast in
+  output_ast args.ast_out out_file' ast;
   (*let tast = Typecheck.tc_module ast in
   generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   output_tast args.ast_out out_file' tast;
