@@ -117,6 +117,9 @@ main:
 %inline plist(X):
   | LPAREN xs=separated_list(COMMA, X) RPAREN { xs }
 
+%inline slist(X):
+  | LBRACK xs=separated_list(COMMA, X) RBRACK { xs }
+
 %inline blist(X):
   | LBRACE xs=list(X) RBRACE { xs }
 
@@ -233,7 +236,7 @@ expr:
   | REF x=var_name { mkpos (Enref x) }
   | TIMES e=expr %prec UNARYOP { mkpos (Deref e) }
   | e=expr i=brack(lexpr) { mkpos (ArrayGet(e, i)) }
-  | es=alist(expr) { mkpos (ArrayLit es) }
+  | es=slist(expr) { mkpos (ArrayLit es) }
   | ARRZEROS l=paren(lexpr) { mkpos (ArrayZeros l) }
   | ARRCOPY e=paren(expr) { mkpos (ArrayCopy e) }
   | ARRVIEW LPAREN e=expr COMMA i=lexpr COMMA l=lexpr RPAREN { mkpos (ArrayView(e, i, l)) }
