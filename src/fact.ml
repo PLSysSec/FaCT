@@ -105,7 +105,7 @@ let test_graph () =
   error_exit "Testing graph"
 
 let compile_command =
-  Core.Command.basic
+  Core.Command.basic_spec
     ~summary:summary
     ~readme:(fun () -> readme)
     Core.Command.Spec.(

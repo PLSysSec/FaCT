@@ -3,7 +3,7 @@ true: use_menhir, bin_annot, debug
 <*.{byte,native}>: g++, use_llvm, use_llvm_analysis, use_llvm_bitwriter, use_llvm_irreader, use_llvm_linker, use_llvm_target, use_llvm_X86, use_llvm_bitreader, use_llvm_executionengine
 
 # OASIS_START
-# DO NOT EDIT (digest: f61c99d121d4fafae99ac190d09e2aca)
+# DO NOT EDIT (digest: f2cbe7e31d28567133ae76ffcada8016)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -20,10 +20,7 @@ true: annot, bin_annot
 "_darcs": not_hygienic
 # Executable fact
 "src/fact.byte": package(ANSITerminal)
-"src/fact.byte": package(batteries)
 "src/fact.byte": package(core)
-"src/fact.byte": package(ctypes)
-"src/fact.byte": package(ctypes.foreign)
 "src/fact.byte": package(dolog)
 "src/fact.byte": package(llvm)
 "src/fact.byte": package(llvm.analysis)
@@ -37,19 +34,12 @@ true: annot, bin_annot
 "src/fact.byte": package(llvm.target)
 "src/fact.byte": package(llvm.transform_utils)
 "src/fact.byte": package(llvm.vectorize)
-"src/fact.byte": package(lwt.ppx)
 "src/fact.byte": package(lwt.unix)
-"src/fact.byte": package(oUnit)
-"src/fact.byte": package(ocamlgraph)
 "src/fact.byte": package(ppx_deriving.std)
 "src/fact.byte": package(str)
 "src/fact.byte": package(threads)
-"src/fact.byte": package(zarith)
 <src/*.ml{,i,y}>: package(ANSITerminal)
-<src/*.ml{,i,y}>: package(batteries)
 <src/*.ml{,i,y}>: package(core)
-<src/*.ml{,i,y}>: package(ctypes)
-<src/*.ml{,i,y}>: package(ctypes.foreign)
 <src/*.ml{,i,y}>: package(dolog)
 <src/*.ml{,i,y}>: package(llvm)
 <src/*.ml{,i,y}>: package(llvm.analysis)
@@ -63,14 +53,10 @@ true: annot, bin_annot
 <src/*.ml{,i,y}>: package(llvm.target)
 <src/*.ml{,i,y}>: package(llvm.transform_utils)
 <src/*.ml{,i,y}>: package(llvm.vectorize)
-<src/*.ml{,i,y}>: package(lwt.ppx)
 <src/*.ml{,i,y}>: package(lwt.unix)
-<src/*.ml{,i,y}>: package(oUnit)
-<src/*.ml{,i,y}>: package(ocamlgraph)
 <src/*.ml{,i,y}>: package(ppx_deriving.std)
 <src/*.ml{,i,y}>: package(str)
 <src/*.ml{,i,y}>: package(threads)
-<src/*.ml{,i,y}>: package(zarith)
 # OASIS_STOP
 "perf": -traverse
 "perf": not_hygienic

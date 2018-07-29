@@ -7,14 +7,9 @@ PKG llvm
 PKG Llvm_executionengine
 PKG ounit
 PKG core
-PKG dolog
 PKG ppx_deriving.std
-PKG ctypes
-PKG ctype.foreign
 PKG ocamlgraph
 PKG lwt
 PKG ANSITerminal
-PKG str
-PKG batteries
 
 EXT lwt
