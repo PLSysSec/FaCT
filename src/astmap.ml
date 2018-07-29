@@ -20,10 +20,12 @@ class ast_visitor =
 
     method param =
       wrap @@ fun p -> function
-        | Param(x,bty) -> Param(x,bty)
+        | Param(x,bty) -> Param(visit#varname x,bty)
 
-    method block stms =
-      visit#stms stms
+    method varname x = x
+
+    method block blk =
+      visit#stms blk
 
     method stms stms_ =
       List.flatten @@ List.map visit#stm stms_
@@ -32,11 +34,13 @@ class ast_visitor =
       xwrap @@ fun p -> function
         | Block blk -> [Block (visit#block blk)]
         | VarDec (x,bty,e) ->
+          let x' = visit#varname x in
           let e' = visit#expr e in
-            [VarDec (x,bty,e')]
+            [VarDec (x',bty,e')]
         | FnCall (x,bty,fn,args) ->
+          let x' = visit#varname x in
           let args' = List.map visit#expr args in
-            [FnCall (x,bty,fn,args')]
+            [FnCall (x',bty,fn,args')]
         | VoidFnCall (fn,args) ->
           let args' = List.map visit#expr args in
             [VoidFnCall (fn,args')]
@@ -50,14 +54,16 @@ class ast_visitor =
           let elses' = visit#block elses in
             [If (cond',thens',elses')]
         | RangeFor (x,bty,e1,e2,blk) ->
+          let x' = visit#varname x in
           let e1' = visit#expr e1 in
           let e2' = visit#expr e2 in
           let blk' = visit#block blk in
-            [RangeFor (x,bty,e1',e2',blk')]
+            [RangeFor (x',bty,e1',e2',blk')]
         | ArrayFor (x,bty,e,blk) ->
+          let x' = visit#varname x in
           let e' = visit#expr e in
           let blk' = visit#block blk in
-            [ArrayFor (x,bty,e',blk')]
+            [ArrayFor (x',bty,e',blk')]
         | Return e ->
           let e' = visit#expr e in
             [Return e']
@@ -66,7 +72,9 @@ class ast_visitor =
     method stm stm_ =
       let p = stm_.pos in
       let stms' = visit#stm' stm_ in
-        List.map (fun s -> (make_ast p s)) stms'
+      let stms' = List.map (fun s -> (make_ast p s)) stms' in
+        List.map visit#stm_post stms'
+    method stm_post stm = stm
 
     method expr e_ =
       let p = e_.pos in
@@ -75,10 +83,14 @@ class ast_visitor =
           | True
           | False
           | UntypedIntLiteral _
-          | IntLiteral (_,_)
-          | Variable _ -> e_.data
-          | ArrayLen _
-          | Cast (_,_) -> raise @@ err p
+          | IntLiteral (_,_) -> e_.data
+          | Variable x -> Variable (visit#varname x)
+          | ArrayLen e ->
+            let e' = visit#expr e in
+              ArrayLen e'
+          | Cast (bty,e) ->
+            let e' = visit#expr e in
+              Cast (bty,e')
           | UnOp (op,e) ->
             let e' = visit#expr e in
               UnOp (op,e')
@@ -86,12 +98,27 @@ class ast_visitor =
             let e1' = visit#expr e1 in
             let e2' = visit#expr e2 in
               BinOp (op,e1',e2')
-          | TernOp (_,_,_)
-          | Select (_,_,_)
-          | Declassify _
-          | Assume _
-          | Enref _
-          | Deref _
+          | TernOp (e1,e2,e3) ->
+            let e1' = visit#expr e1 in
+            let e2' = visit#expr e2 in
+            let e3' = visit#expr e3 in
+              TernOp (e1',e2',e3')
+          | Select (e1,e2,e3) ->
+            let e1' = visit#expr e1 in
+            let e2' = visit#expr e2 in
+            let e3' = visit#expr e3 in
+              Select (e1',e2',e3')
+          | Declassify e ->
+            let e' = visit#expr e in
+              Declassify e'
+          | Assume e ->
+            let e' = visit#expr e in
+              Assume e'
+          | Enref x ->
+            Enref (visit#varname x)
+          | Deref e ->
+            let e' = visit#expr e in
+              Deref e'
           | ArrayGet (_,_)
           | ArrayLit _
           | ArrayZeros _

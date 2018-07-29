@@ -257,6 +257,8 @@ let compile (in_files,out_file,out_dir) args =
   output_ast args.ast_out out_file' ast;
   let ast = Constfold.transform ast in
   output_ast args.ast_out out_file' ast;
+  let ast = Varrename.transform ast in
+  output_ast args.ast_out out_file' ast;
   (*let tast = Typecheck.tc_module ast in
   generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   output_tast args.ast_out out_file' tast;

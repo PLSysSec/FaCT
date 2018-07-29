@@ -1,3 +1,4 @@
+open Util
 open Pos
 open Err
 open Ast
@@ -6,22 +7,6 @@ open Astmap
 let is_untyped_int {data=e} =
   match e with
     | UntypedIntLiteral n -> Some n
-    | _ -> None
-
-let bind f = function
-  | Some n -> Some (f n)
-  | None -> None
-
-let (>>=) x f = bind f x
-
-let (>!>) x y =
-  match x with
-    | Some z -> z
-    | None -> y
-
-let (>&>) n m =
-  match n,m with
-    | Some x, Some y -> Some (x, y)
     | _ -> None
 
 class constant_folder =
