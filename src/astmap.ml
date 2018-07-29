@@ -119,17 +119,40 @@ class ast_visitor =
           | Deref e ->
             let e' = visit#expr e in
               Deref e'
-          | ArrayGet (_,_)
-          | ArrayLit _
-          | ArrayZeros _
-          | ArrayCopy _
-          | ArrayView (_,_,_)
-          | Shuffle (_,_)
-          | StructLit _
-          | StructGet (_,_)
+          | ArrayGet (e,lexpr) ->
+            let e' = visit#expr e in
+            let lexpr' = visit#lexpr lexpr in
+              ArrayGet (e', lexpr')
+          | ArrayLit es ->
+            ArrayLit (List.map visit#expr es)
+          | ArrayZeros lexpr ->
+            ArrayZeros (visit#lexpr lexpr)
+          | ArrayCopy e ->
+            ArrayCopy (visit#expr e)
+          | ArrayView (e,index,len) ->
+            ArrayView (visit#expr e,
+                       visit#lexpr index,
+                       visit#lexpr len)
+          | Shuffle (e,ns) ->
+            Shuffle (visit#expr e, ns)
+          | StructLit entries ->
+            StructLit (List.map
+                         (fun (field,e) ->
+                            (field,visit#expr e))
+                         entries)
+          | StructGet (e,field) ->
+            StructGet (visit#expr e,field)
           | StringLiteral _ -> raise @@ err p
       in
         visit#expr_post e_'
     method expr_post e = e
+
+    method lexpr =
+      wrap @@ fun p -> function
+        | LIntLiteral _ as e -> e
+        | LExpression e ->
+          let e' = visit#expr e in
+            LExpression e'
+        | LUnspecified as e -> e
 
   end
