@@ -21,6 +21,35 @@ let findvar vmap x =
                               "variable not defined: '%s'"
                               x.data, x.pos)
 
+let is_integral =
+  xwrap @@ fun p -> function
+    | UInt _ -> true
+    | Int _ -> true
+    | _ -> false
+
+let is_bool =
+  xwrap @@ fun p -> function
+    | Bool _ -> true
+    | _ -> false
+
+let rec label_of =
+  xwrap @@ fun p -> function
+    | Bool l
+    | UInt (_,l)
+    | Int (_,l)
+    | UVec (_,_,l) -> l
+    | Ref (bty,_)
+    | Arr (bty,_,_) -> label_of bty
+    | Struct _ -> ____ p
+    | String -> p@>Public
+
+let (<$) l1 l2 =
+  match l1.data,l2.data with
+    | Secret,Public -> false
+    | _ -> true
+
+
+
 class typechecker =
   object (visit)
     val mutable _vmap : (var_name * base_type) list = []
@@ -120,9 +149,13 @@ class typechecker =
         | Ast.False -> False, make_ast p @@ Bool (make_ast p Public)
         | Ast.UntypedIntLiteral n ->
           let bty = get p lookahead_bty in
+            if not @@ is_integral bty then
+              raise @@ err p;
             IntLiteral n, bty
         | Ast.IntLiteral (n,bty) ->
           let bty' = visit#basic (make_ast p Public) bty in
+            if not @@ is_integral bty' then
+              raise @@ err p;
             IntLiteral n, bty'
         | Ast.Variable x ->
           let bty = findvar _vmap x in
@@ -143,7 +176,17 @@ class typechecker =
             end
         | Ast.Cast (bty,e) ->
           let e' = visit#expr e in
-            Cast (visit#basic (____ p) bty,e'), ____ p
+          let e_bty = type_of e' in
+          let e_lbl = label_of e_bty in
+          let c_bty = visit#basic (label_of e_bty) bty in
+          let c_lbl = label_of c_bty in
+            if not (is_integral e_bty || is_bool e_bty) then
+              raise @@ err p;
+            if not (is_integral c_bty || is_bool c_bty) then
+              raise @@ err p;
+            if not (e_lbl <$ c_lbl) then
+              raise @@ err p;
+            Cast (c_bty,e'), c_bty
         | Ast.UnOp (op,e) ->
           let e' = visit#expr e in
             e' |> ignore;
