@@ -35,4 +35,5 @@ let xwrap f pa = f pa.pos pa.data
 
 let rebind f pa = { pa with data=f pa }
 
-let (@>) p ast = make_ast p ast
+let ( @> ) p ast = make_ast p ast
+let ( << ) s p = pos_string p ^ ": " ^ s

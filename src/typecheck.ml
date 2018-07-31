@@ -17,9 +17,9 @@ let vequal x y = x.data = y.data
 let findvar vmap x =
   match Core.List.Assoc.find vmap x ~equal:vequal with
     | Some bty -> bty
-    | None -> raise @@ cerr(Printf.sprintf
-                              "variable not defined: '%s'"
-                              x.data, x.pos)
+    | None -> raise @@ cerr x.pos
+                         "variable not defined: '%s'"
+                         x.data
 
 let is_integral =
   xwrap @@ fun p -> function
@@ -32,16 +32,17 @@ let is_bool =
     | Bool _ -> true
     | _ -> false
 
-let rec label_of =
-  xwrap @@ fun p -> function
-    | Bool l
-    | UInt (_,l)
-    | Int (_,l)
-    | UVec (_,_,l) -> l
-    | Ref (bty,_)
-    | Arr (bty,_,_) -> label_of bty
-    | Struct _ -> ____ p
-    | String -> p@>Public
+let rec label_of bty_ =
+  let p = bty_.pos in
+    match bty_.data with
+      | Bool l
+      | UInt (_,l)
+      | Int (_,l)
+      | UVec (_,_,l) -> l
+      | Ref (bty,_)
+      | Arr (bty,_,_) -> label_of bty
+      | Struct _ -> ____ p
+      | String -> p@>Public
 
 let (<$) l1 l2 =
   match l1.data,l2.data with

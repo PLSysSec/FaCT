@@ -29,9 +29,9 @@ class var_renamer =
 
     method _newvar p x =
       if List.mem x.data !(Stack.top _vthisblock) then
-        raise @@ cerr(Printf.sprintf
-                        "redefinition of '%s'"
-                        x.data, p)
+        raise @@ cerr p
+                   "redefinition of '%s'"
+                   x.data
       else
         let x' = make_fresh x.data in
           _vmap <- (x', x) :: _vmap ;
@@ -42,9 +42,9 @@ class var_renamer =
     method _getvar p x =
       match Core.List.Assoc.find !(Stack.top _vstack) x ~equal:vequal with
         | Some x' -> { x with data=x' }
-        | None -> raise @@ cerr(Printf.sprintf
-                                  "variable not defined: '%s'"
-                                  x.data, p)
+        | None -> raise @@ cerr p
+                             "variable not defined: '%s'"
+                             x.data
 
     method block blk =
       Stack.push (ref !(Stack.top _vstack)) _vstack ;
