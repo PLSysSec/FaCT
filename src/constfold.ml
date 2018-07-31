@@ -2,12 +2,8 @@ open Util
 open Pos
 open Err
 open Ast
+open Ast_util
 open Astmap
-
-let is_untyped_int {data=e} =
-  match e with
-    | UntypedIntLiteral n -> Some n
-    | _ -> None
 
 class constant_folder =
   object (visit)

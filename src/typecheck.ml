@@ -2,7 +2,7 @@ open Util
 open Pos
 open Err
 open Tast
-open Astmap
+open Tast_util
 
 let ____ p = raise @@ err p
 
@@ -10,45 +10,12 @@ let get p = function
   | Some x -> x
   | None -> raise @@ err p
 
-let type_of (e_, bty) = bty
-
-let vequal x y = x.data = y.data
-
 let findvar vmap x =
   match Core.List.Assoc.find vmap x ~equal:vequal with
     | Some bty -> bty
     | None -> raise @@ cerr x.pos
                          "variable not defined: '%s'"
                          x.data
-
-let is_integral =
-  xwrap @@ fun p -> function
-    | UInt _ -> true
-    | Int _ -> true
-    | _ -> false
-
-let is_bool =
-  xwrap @@ fun p -> function
-    | Bool _ -> true
-    | _ -> false
-
-let rec label_of bty_ =
-  let p = bty_.pos in
-    match bty_.data with
-      | Bool l
-      | UInt (_,l)
-      | Int (_,l)
-      | UVec (_,_,l) -> l
-      | Ref (bty,_)
-      | Arr (bty,_,_) -> label_of bty
-      | Struct _ -> ____ p
-      | String -> p@>Public
-
-let (<$) l1 l2 =
-  match l1.data,l2.data with
-    | Secret,Public -> false
-    | _ -> true
-
 
 
 class typechecker =
@@ -129,16 +96,21 @@ class typechecker =
     method stms stms_ =
       List.flatten @@ List.map visit#stm stms_
 
-    method stm' =
-      xwrap @@ fun p -> function
-        | Ast.Block blk -> [Block (visit#block blk)]
-
     method stm stm_ =
       let p = stm_.pos in
       let stms' = visit#stm' stm_ in
       let stms' = List.map (fun s -> (make_ast p s)) stms' in
         List.map visit#stm_post stms'
     method stm_post stm = stm
+
+    method lexpr =
+      wrap @@ fun p -> function
+        | Ast.LIntLiteral n -> LIntLiteral n
+        | Ast.LExpression e ->
+          let e' = visit#expr e in
+            e' |> ignore;
+            ____ p
+        | Ast.LUnspecified -> ____ p
 
     method expr ?lookahead_bty e_ =
       let {data=(e',bty); pos} = visit#expr' lookahead_bty e_ in
@@ -176,7 +148,8 @@ class typechecker =
                     Variable x, x_bty
             end
         | Ast.Cast (bty,e) ->
-          let e' = visit#expr e in
+          let lookahead_bty = visit#basic (p@>Public) bty in
+          let e' = visit#expr ~lookahead_bty e in
           let e_bty = type_of e' in
           let e_lbl = label_of e_bty in
           let c_bty = visit#basic (label_of e_bty) bty in
@@ -190,13 +163,20 @@ class typechecker =
             Cast (c_bty,e'), c_bty
         | Ast.UnOp (op,e) ->
           let e' = visit#expr e in
-            e' |> ignore;
-            ____ p
+            UnOp(op,e'), visit#unop op e'
         | Ast.BinOp (op,e1,e2) ->
-          let e1' = visit#expr e1 in
-          let e2' = visit#expr e2 in
-            (e1', e2') |> ignore;
-            ____ p
+          let e1',e2' =
+            match Ast_util.is_untyped_int e1 with
+              | Some _ ->
+                let e2' = visit#expr e2 in
+                let e1' = visit#expr ~lookahead_bty:(type_of e2') e1 in
+                  e1',e2'
+              | None ->
+                let e1' = visit#expr e1 in
+                let e2' = visit#expr ~lookahead_bty:(type_of e1') e2 in
+                  e1',e2'
+          in
+            BinOp(op,e1',e2'), visit#binop op e1' e2'
         | Ast.TernOp (e1,e2,e3) ->
           let e1' = visit#expr e1 in
           let e2' = visit#expr e2 in
@@ -242,14 +222,128 @@ class typechecker =
           StructGet (visit#expr e,field), ____ p
         | Ast.StringLiteral _ -> ____ p
 
-    method lexpr =
-      wrap @@ fun p -> function
-        | Ast.LIntLiteral n -> LIntLiteral n
-        | Ast.LExpression e ->
-          let e' = visit#expr e in
-            e' |> ignore;
-            ____ p
-        | Ast.LUnspecified -> ____ p
+    method unop op e =
+      let bty = type_of e in
+        match op with
+          | Ast.Neg ->
+            if not @@ is_integral bty then
+              raise @@ err bty.pos;
+            bty
+          | Ast.LogicalNot ->
+            if not @@ is_bool bty then
+              raise @@ err bty.pos;
+            bty
+          | Ast.BitwiseNot ->
+            if not @@ is_integral bty then
+              raise @@ err bty.pos;
+            bty
+
+    method binop op e1 e2 =
+      let bty1 = type_of e1 in
+      let bty2 = type_of e2 in
+        match op with
+          | Ast.Plus
+          | Ast.Minus
+          | Ast.Multiply
+          | Ast.Divide
+          | Ast.Modulo ->
+            if not @@ (is_integral bty1 || is_vec bty1) then
+              raise @@ err bty1.pos;
+            if not @@ (is_integral bty2 || is_vec bty2) then
+              raise @@ err bty2.pos;
+            if not (bty1 <: bty2) then
+              raise @@ err bty2.pos;
+            bty1 +: bty2
+          | Ast.Equal
+          | Ast.NEqual ->
+            if not (is_integral bty1 || is_bool bty1 || is_vec bty1) then
+              raise @@ err bty1.pos;
+            if not (is_integral bty2 || is_bool bty2 || is_vec bty2) then
+              raise @@ err bty2.pos;
+            if not (bty1 <: bty2 || bty2 <: bty1) then
+              raise @@ err bty1.pos;
+            let l1 = label_of bty1 in
+            let l2 = label_of bty2 in
+              bty1.pos@>Bool (l1 +$ l2)
+          | Ast.GT
+          | Ast.GTE
+          | Ast.LT
+          | Ast.LTE ->
+            if not (is_integral bty1) then
+              raise @@ err bty1.pos;
+            if not (is_integral bty2) then
+              raise @@ err bty2.pos;
+            if not (bty1 <: bty2 || bty2 <: bty1) then
+              raise @@ err bty1.pos;
+            let l1 = label_of bty1 in
+            let l2 = label_of bty2 in
+              bty1.pos@>Bool (l1 +$ l2)
+          | Ast.LogicalAnd
+          | Ast.LogicalOr ->
+            if not (is_bool bty1) then
+              raise @@ err bty1.pos;
+            if not (is_bool bty2) then
+              raise @@ err bty2.pos;
+            bty1 +: bty2
+          | Ast.BitwiseAnd ->
+            begin
+              match bty1.data,bty2.data with
+                | UInt (n,l1),UInt (m,l2) ->
+                  bty1.pos@>UInt (min n m,l1 +$ l2)
+                | Int (n,l1),Int (m,l2) ->
+                  bty1.pos@>Int (min n m,l1 +$ l2)
+                | UVec (n,bw1,l1),UVec (m,bw2,l2)
+                  when n = m && bw1 = bw2 ->
+                  bty1.pos@>UVec (n,bw1,l1 +$ l2)
+                | _ -> raise @@ err bty1.pos
+            end
+          | Ast.BitwiseOr
+          | Ast.BitwiseXor ->
+            begin
+              match bty1.data,bty2.data with
+                | UInt (n,l1),UInt (m,l2) ->
+                  bty1.pos@>UInt (max n m,l1 +$ l2)
+                | Int (n,l1),Int (m,l2) ->
+                  bty1.pos@>Int (max n m,l1 +$ l2)
+                | UVec (n,bw1,l1),UVec (m,bw2,l2)
+                  when n = m && bw1 = bw2 ->
+                  bty1.pos@>UVec (n,bw1,l1 +$ l2)
+                | _ -> raise @@ err bty1.pos
+            end
+          | Ast.LeftShift
+          | Ast.RightShift ->
+            begin
+              match bty1.data,bty2.data with
+                | UInt (n,l1),UInt (_,l2) ->
+                  bty1.pos@>UInt (n,l1 +$ l2)
+                | Int (n,l1),UInt (_,l2) ->
+                  bty1.pos@>Int (n,l1 +$ l2)
+                | UVec (n,bw1,l1),UInt (_,l2) ->
+                  bty1.pos@>UVec (n,bw1,l1 +$ l2)
+                | _ -> raise @@ err bty1.pos
+            end
+          | Ast.LeftRotate
+          | Ast.RightRotate ->
+            begin
+              match bty1.data,bty2.data with
+                | UInt (n,l1),UInt (_,l2) ->
+                  bty1.pos@>UInt (n,l1 +$ l2)
+                | _ -> raise @@ err bty1.pos
+            end
+
+    method stm' =
+      xwrap @@ fun p -> function
+        | Ast.Block blk -> [Block (visit#block blk)]
+        | Ast.VoidReturn
+        | Ast.VarDec (_,_,_)
+        | Ast.FnCall (_,_,_,_)
+        | Ast.VoidFnCall (_,_)
+        | Ast.Assign (_,_)
+        | Ast.If (_,_,_)
+        | Ast.RangeFor (_,_,_,_,_)
+        | Ast.ArrayFor (_,_,_,_) | Ast.Return _ | Ast.Assume _
+          -> ____ p
+
   end
 
 let transform m =

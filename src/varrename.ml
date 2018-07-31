@@ -2,9 +2,8 @@ open Util
 open Pos
 open Err
 open Ast
+open Ast_util
 open Astmap
-
-let vequal x y = x.data = y.data
 
 let make_fresh =
   let ctr = ref 0 in

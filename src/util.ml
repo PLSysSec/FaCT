@@ -9,6 +9,11 @@ let (>!>) x y =
     | Some z -> z
     | None -> y
 
+let (>!!>) x exn =
+  match x with
+    | Some z -> z
+    | None -> raise exn
+
 let (>&>) n m =
   match n,m with
     | Some x, Some y -> Some (x, y)
