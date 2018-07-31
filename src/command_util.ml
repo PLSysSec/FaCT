@@ -60,7 +60,6 @@ let output_ast ast_out out_file ast =
         Core.Out_channel.write_all ast_out_file
           ~data:((Ast.show_fact_module ast)^"\n")
 
-(*
 let output_tast ast_out out_file tast =
   match ast_out with
     | false -> Log.debug "Not outputting TAST"
@@ -70,6 +69,7 @@ let output_tast ast_out out_file tast =
         Core.Out_channel.write_all tast_out_file
           ~data:((Tast.show_fact_module tast)^"\n")
 
+(*
 let output_xftast xftast_out out_file tast =
   match xftast_out with
     | false -> Log.debug "Not outputting transformed TAST"
@@ -259,9 +259,9 @@ let compile (in_files,out_file,out_dir) args =
   output_ast args.ast_out out_file' ast;
   let ast = Varrename.transform ast in
   output_ast args.ast_out out_file' ast;
-  (*let tast = Typecheck.tc_module ast in
-  generate_header (args.gen_header || args.verify_llvm) out_file' tast;
+  let tast = Typecheck.transform ast in ();
   output_tast args.ast_out out_file' tast;
+  (*generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast args.mode in
   Log.debug "Tast transform complete";

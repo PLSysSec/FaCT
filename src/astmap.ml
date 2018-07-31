@@ -68,6 +68,9 @@ class ast_visitor =
           let e' = visit#expr e in
             [Return e']
         | VoidReturn -> [VoidReturn]
+        | Assume e ->
+          let e' = visit#expr e in
+            [Assume e']
 
     method stm stm_ =
       let p = stm_.pos in
@@ -111,9 +114,6 @@ class ast_visitor =
           | Declassify e ->
             let e' = visit#expr e in
               Declassify e'
-          | Assume e ->
-            let e' = visit#expr e in
-              Assume e'
           | Enref x ->
             Enref (visit#varname x)
           | Deref e ->

@@ -14,8 +14,17 @@ class constant_folder =
     inherit Astmap.ast_visitor as super
 
     method expr_post =
-      wrap @@ fun p e ->
-      match e with
+      wrap @@ fun p e_ ->
+      match e_ with
+        | Cast (bty,e) ->
+          is_untyped_int e >>=
+          begin
+            fun n ->
+              match bty.data with
+                | BaseBool -> raise @@ err p
+                | BaseUInt s -> IntLiteral(n, make_ast bty.pos (BaseUInt s))
+                | BaseInt s -> IntLiteral(n, make_ast bty.pos (BaseInt s))
+          end >!> e_
         | UnOp (op,e1) ->
           is_untyped_int e1 >>=
           begin
@@ -24,7 +33,7 @@ class constant_folder =
                 | Neg        -> UntypedIntLiteral (~-n)
                 | BitwiseNot -> UntypedIntLiteral (lnot n)
                 | _          -> raise @@ err p
-          end >!> e
+          end >!> e_
         | BinOp (op,e1,e2) ->
           (is_untyped_int e1 >&> is_untyped_int e2) >>=
           begin
@@ -47,8 +56,8 @@ class constant_folder =
                 | LT         -> if n <  m then True else False
                 | LTE        -> if n <= m then True else False
                 | _          -> raise @@ err p
-          end >!> e
-        | _ -> e
+          end >!> e_
+        | _ -> e_
 
   end
 

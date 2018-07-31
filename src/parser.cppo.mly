@@ -231,7 +231,6 @@ expr:
   | e1=expr QUESTION e2=expr COLON e3=expr { mkpos (TernOp(e1, e2, e3)) }
   | e1=expr QUESTION QUESTION e2=expr COLON COLON e3=expr { mkpos (Select(e1, e2, e3)) }
   | DECLASSIFY e=paren(expr) { mkpos (Declassify e) }
-  | ASSUME e=paren(expr) { mkpos (Assume e) }
 
   | REF x=var_name { mkpos (Enref x) }
   | TIMES e=expr %prec UNARYOP { mkpos (Deref e) }
@@ -283,6 +282,8 @@ statement:
     { mkpos (Return e) }
   | RETURN SEMICOLON
     { mkpos VoidReturn }
+  | ASSUME e=paren(expr)
+    { mkpos (Assume e) }
 
 %inline block: xs=blist(statement) { xs }
 

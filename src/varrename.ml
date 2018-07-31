@@ -15,6 +15,7 @@ let make_fresh =
     make_fresh'
 
 type 'a mlist = 'a list ref
+type 'a stack = 'a Stack.t
 
 let mlist_push el alist =
   alist := el :: !alist
@@ -23,8 +24,8 @@ class var_renamer =
   object (visit)
     inherit Astmap.ast_visitor as super
     val mutable _vmap : (string * var_name) list = []
-    val _vstack : (var_name * string) list ref Stack.t = Stack.create ()
-    val _vthisblock : string list ref Stack.t = Stack.create ()
+    val _vstack : (var_name * string) mlist stack = Stack.create ()
+    val _vthisblock : string mlist stack = Stack.create ()
 
     method _newvar p x =
       if List.mem x.data !(Stack.top _vthisblock) then

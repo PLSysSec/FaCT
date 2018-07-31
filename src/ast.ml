@@ -72,7 +72,6 @@ and expr' =
   | TernOp of expr * expr * expr
   | Select of expr * expr * expr  (* ct version of TernOp *)
   | Declassify of expr
-  | Assume of expr
   (* Non-blessable *)
   | Enref of var_name
   | Deref of expr
@@ -136,6 +135,7 @@ and statement' =
   | ArrayFor of var_name * basic_type * expr * block
   | Return of expr
   | VoidReturn
+  | Assume of expr
 [@@deriving show]
 and statement = statement' pos_ast [@@deriving show]
 and statements = statement list [@@deriving show]
@@ -159,9 +159,7 @@ and function_dec' =
   | CExtern of fun_name * ret_type * params
 [@@deriving show]
 and function_dec = function_dec' pos_ast [@@deriving show]
-
-and function_decs = function_dec list
-[@@deriving show]
+and function_decs = function_dec list [@@deriving show]
 
 and struct_type' =
   | StructDef of struct_name * fields

@@ -11,5 +11,7 @@ PKG ppx_deriving.std
 PKG ocamlgraph
 PKG lwt
 PKG ANSITerminal
+PKG dolog
+PKG lwt.unix
 
 EXT lwt
