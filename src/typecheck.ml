@@ -318,12 +318,32 @@ class typechecker =
               | _ -> raise @@ err p in
             Shuffle (e', ns), e_bty.pos @> new_ty
         | Ast.StructLit entries ->
-          StructLit (List.map
-                       (fun (field,e) ->
-                          (field,visit#expr e))
-                       entries), ____
+          let entries' = List.map
+                           (fun (field,e) ->
+                              (field,visit#expr e))
+                           entries in
+          let fields = List.map
+                         (fun (field,e) ->
+                            field.pos @> Field (field,type_of e))
+                         entries' in
+            StructLit entries', p@>Struct fields
         | Ast.StructGet (e,field) ->
-          StructGet (visit#expr e,field), ____
+          let e' = visit#expr e in
+          let e_bty = type_of e' in
+          let f_bty =
+            begin
+              match e_bty.data with
+                | Struct fields ->
+                  List.find_opt
+                    (fun {data=Field (fieldname,f_bty)} ->
+                       vequal field fieldname)
+                    fields >>= fun x ->
+                  let {data=Field (_,f_bty)} = x in
+                    f_bty
+                | _ -> None
+            end >!!> err p
+          in
+            StructGet (visit#expr e,field), f_bty
         | Ast.StringLiteral _ -> ____
 
     method unop op e =
