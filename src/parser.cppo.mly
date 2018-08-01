@@ -266,7 +266,7 @@ statement:
     { mkpos (FnCall(x, b, fn, args)) }
   | fn=fun_name args=plist(expr) SEMICOLON
     { mkpos (VoidFnCall(fn, args)) }
-  | e1=expr ASSIGN e2=expr SEMICOLON
+  | TIMES e1=expr ASSIGN e2=expr SEMICOLON
     { mkpos (Assign(e1, e2)) }
   | e1=expr op=binopeq e2=expr SEMICOLON
     { let deref = mkposof(e1) (Deref e1) in
