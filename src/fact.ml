@@ -50,25 +50,23 @@ let error_exit s =
 
 let runner prep args =
   try compile prep args with
-    | (Err.VariableNotDefined s)
-    | (Err.InternalCompilerError s) ->
-      begin match args.debug with
-        | false -> ()
-        | true  ->
-          let backtrace = Printexc.get_backtrace () in
-          let lines = Str.split (Str.regexp_string "\n") backtrace in
-          let rlines = List.rev lines in
-          List.iter (fun s -> Printf.eprintf "%s\n" s) rlines end;
-      error_exit s
-    | _ as e ->
-      begin match args.debug with
-        | false -> ()
-        | true  ->
-          let backtrace = Printexc.get_backtrace () in
-          let lines = Str.split (Str.regexp_string "\n") backtrace in
-          let rlines = List.rev lines in
-            List.iter (fun s -> Printf.eprintf "%s\n" s) rlines end;
-      Printf.eprintf "%s\n" (Printexc.to_string e)
+    | _ as exn ->
+      begin
+        match args.debug with
+          | false -> ()
+          | true  ->
+            let backtrace = Printexc.get_backtrace () in
+            let lines = Str.split (Str.regexp_string "\n") backtrace in
+            let rlines = List.rev lines in
+              List.iter (fun s -> Printf.eprintf "%s\n" s) rlines
+      end;
+      begin match exn with
+        | (Err.VariableNotDefined s)
+        | (Err.InternalCompilerError s) ->
+          error_exit s
+        | _ as e ->
+          Printf.eprintf "%s\n" (Printexc.to_string e)
+      end
 
 let test_graph () =
   (*let g = Graphf.create_graph () in
