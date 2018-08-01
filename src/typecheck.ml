@@ -116,6 +116,41 @@ class typechecker =
       let {data=(e',bty); pos} = visit#expr' lookahead_bty e_ in
         (make_ast pos e', bty)
 
+    method _ternop p e1 e2 e3 =
+      let e1' = visit#expr e1 in
+      let e2',e3' =
+        match Ast_util.is_untyped_int e2 with
+          | Some _ ->
+            let e3' = visit#expr e3 in
+            let e2' = visit#expr ~lookahead_bty:(type_of e3') e2 in
+              e2',e3'
+          | None ->
+            let e2' = visit#expr e2 in
+            let e3' = visit#expr ~lookahead_bty:(type_of e2') e3 in
+              e2',e3' in
+      let bty1 = type_of e1' in
+      let bty2 = type_of e2' in
+      let bty3 = type_of e3' in
+        if not (is_bool bty1) then
+          raise @@ err p;
+        if not (bty2 <: bty3 || bty3 <: bty2) then
+          raise @@ err p;
+        let l1 = label_of bty1 in
+        let new_bty = bty2 +: bty3 in
+        let new_bty =
+          match l1.data with
+            | Public -> new_bty
+            | Secret -> p @>
+              begin
+                match new_bty.data with
+                  | Bool _ -> Bool l1
+                  | UInt (n,_) -> UInt (n,l1)
+                  | Int (n,_) -> Int (n,l1)
+                  | UVec (n,bw,_) -> UVec (n,bw,l1)
+              end
+        in
+          (e1',e2',e3'), new_bty
+
     method expr' lookahead_bty =
       wrap @@ fun p -> function
         | Ast.True -> True, make_ast p @@ Bool (make_ast p Public)
@@ -178,17 +213,11 @@ class typechecker =
           in
             BinOp(op,e1',e2'), visit#binop op e1' e2'
         | Ast.TernOp (e1,e2,e3) ->
-          let e1' = visit#expr e1 in
-          let e2' = visit#expr e2 in
-          let e3' = visit#expr e3 in
-            (e1', e2', e3') |> ignore;
-            ____ p
+          let (e1',e2',e3'),new_bty = visit#_ternop p e1 e2 e3 in
+            TernOp(e1',e2',e3'), new_bty
         | Ast.Select (e1,e2,e3) ->
-          let e1' = visit#expr e1 in
-          let e2' = visit#expr e2 in
-          let e3' = visit#expr e3 in
-            (e1', e2', e3') |> ignore;
-            ____ p
+          let (e1',e2',e3'),new_bty = visit#_ternop p e1 e2 e3 in
+            Select(e1',e2',e3'), new_bty
         | Ast.Declassify e ->
           let e' = visit#expr e in
             Declassify e', type_of e'
