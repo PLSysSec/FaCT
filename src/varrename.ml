@@ -74,9 +74,6 @@ class var_renamer =
         | Variable x ->
           let x' = visit#_getvar p x in
             Variable x'
-        | Enref x ->
-          let x' = visit#_getvar p x in
-            Enref x'
         | e -> e
 
     method fdec fdec =

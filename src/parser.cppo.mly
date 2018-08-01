@@ -232,7 +232,7 @@ expr:
   | e1=expr QUESTION QUESTION e2=expr COLON COLON e3=expr { mkpos (Select(e1, e2, e3)) }
   | DECLASSIFY e=paren(expr) { mkpos (Declassify e) }
 
-  | REF x=var_name { mkpos (Enref x) }
+  | REF e=expr { mkpos (Enref e) }
   | TIMES e=expr %prec UNARYOP { mkpos (Deref e) }
   | e=expr i=brack(lexpr) { mkpos (ArrayGet(e, i)) }
   | es=slist(expr) { mkpos (ArrayLit es) }

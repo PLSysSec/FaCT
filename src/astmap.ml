@@ -114,8 +114,8 @@ class ast_visitor =
           | Declassify e ->
             let e' = visit#expr e in
               Declassify e'
-          | Enref x ->
-            Enref (visit#varname x)
+          | Enref e ->
+            Enref (visit#expr e)
           | Deref e ->
             let e' = visit#expr e in
               Deref e'

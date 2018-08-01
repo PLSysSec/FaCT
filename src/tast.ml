@@ -63,7 +63,7 @@ and expr' =
   | Select of expr * expr * expr  (* ct version of TernOp *)
   | Declassify of expr
   (* Non-blessable *)
-  | Enref of var_name
+  | Enref of expr
   | Deref of expr
   | ArrayGet of expr * lexpr
   | ArrayLit of expr list

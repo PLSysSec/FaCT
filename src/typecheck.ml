@@ -4,7 +4,7 @@ open Err
 open Tast
 open Tast_util
 
-let ____ p = raise @@ err p
+let ____ = raise @@ InternalCompilerError "incomplete"
 
 let get p = function
   | Some x -> x
@@ -109,8 +109,8 @@ class typechecker =
         | Ast.LExpression e ->
           let e' = visit#expr e in
             e' |> ignore;
-            ____ p
-        | Ast.LUnspecified -> ____ p
+            ____
+        | Ast.LUnspecified -> ____
 
     method expr ?lookahead_bty e_ =
       let {data=(e',bty); pos} = visit#expr' lookahead_bty e_ in
@@ -220,36 +220,57 @@ class typechecker =
             Select(e1',e2',e3'), new_bty
         | Ast.Declassify e ->
           let e' = visit#expr e in
-            Declassify e', type_of e'
-        | Ast.Enref x ->
-          Enref x, p@>Ref (____ p, p@>RW)
+          let e_bty = type_of e' in
+          let pub = e_bty.pos@>Public in
+          let rec pub_bty bty_ =
+            let newty =
+              match bty_.data with
+                | Bool _ -> Bool pub
+                | UInt (s,_) -> UInt (s,pub)
+                | Int (s,_) -> Int (s,pub)
+                | UVec (s,bw,_) -> UVec (s,bw,pub)
+                | Ref (bty,m) -> Ref (pub_bty bty,m)
+                | Arr (bty,lexpr,vattr) -> Arr (pub_bty bty,lexpr,vattr)
+                | _ -> raise @@ err p in
+              bty_.pos @> newty
+          in
+            Declassify e', pub_bty e_bty
+        | Ast.Enref e ->
+          let e' = visit#expr e in
+          let e_bty = type_of e' in
+            Enref e', p@>Ref (e_bty, p@>RW)
         | Ast.Deref e ->
           let e' = visit#expr e in
-            Deref e', ____ p
+          let e_bty = type_of e' in
+          let unref_bty =
+            match e_bty.data with
+              | Ref (bty,{data=R|RW}) -> bty
+              | _ -> raise @@ err p in
+            Deref e', unref_bty
         | Ast.ArrayGet (e,lexpr) ->
           let e' = visit#expr e in
           let lexpr' = visit#lexpr lexpr in
-            ArrayGet (e', lexpr'), ____ p
+            ArrayGet (e', lexpr'), ____
         | Ast.ArrayLit es ->
-          ArrayLit (List.map visit#expr es), ____ p
+          ArrayLit (List.map visit#expr es), ____
         | Ast.ArrayZeros lexpr ->
-          ArrayZeros (visit#lexpr lexpr), ____ p
+          ArrayZeros (visit#lexpr lexpr), ____
         | Ast.ArrayCopy e ->
-          ArrayCopy (visit#expr e), ____ p
+          ArrayCopy (visit#expr e), ____
         | Ast.ArrayView (e,index,len) ->
           ArrayView (visit#expr e,
                      visit#lexpr index,
-                     visit#lexpr len), ____ p
+                     visit#lexpr len), ____
         | Ast.Shuffle (e,ns) ->
-          Shuffle (visit#expr e, ns), ____ p
+          Shuffle (visit#expr e, ns), ____
         | Ast.StructLit entries ->
           StructLit (List.map
                        (fun (field,e) ->
                           (field,visit#expr e))
-                       entries), ____ p
+                       entries), ____
         | Ast.StructGet (e,field) ->
-          StructGet (visit#expr e,field), ____ p
-        | Ast.StringLiteral _ -> ____ p
+          StructGet (visit#expr e,field), ____
+        | Ast.StringLiteral _ -> ____
 
     method unop op e =
       let bty = type_of e in
@@ -371,7 +392,7 @@ class typechecker =
         | Ast.If (_,_,_)
         | Ast.RangeFor (_,_,_,_,_)
         | Ast.ArrayFor (_,_,_,_) | Ast.Return _ | Ast.Assume _
-          -> ____ p
+          -> ____
 
   end
 
