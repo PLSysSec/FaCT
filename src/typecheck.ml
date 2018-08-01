@@ -108,6 +108,7 @@ class typechecker =
         | Ast.LIntLiteral n -> LIntLiteral n
         | Ast.LExpression e ->
           let e' = visit#expr e in
+            (* XXX ensure that type_of e' is Public *)
             e' |> ignore;
             ____
         | Ast.LUnspecified -> ____
@@ -295,7 +296,27 @@ class typechecker =
               | _ -> raise @@ err p in
             ArrayView (e',index',len'), e_bty.pos @> new_ty
         | Ast.Shuffle (e,ns) ->
-          Shuffle (visit#expr e, ns), ____
+          let e' = visit#expr e in
+          let e_bty = type_of e' in
+          let new_bw = List.length ns in
+          let new_ty =
+            match e_bty.data with
+              | UVec (s,bw,l) ->
+                if new_bw > bw then
+                  raise @@ err p;
+                List.iter
+                  (fun n ->
+                     if n < 0 || n >= bw then
+                       raise @@ err p)
+                  ns;
+                begin
+                  match new_bw with
+                    | 0 -> raise @@ err p
+                    | 1 -> UInt (s,l)
+                    | _ -> UVec (s,new_bw,l)
+                end
+              | _ -> raise @@ err p in
+            Shuffle (e', ns), e_bty.pos @> new_ty
         | Ast.StructLit entries ->
           StructLit (List.map
                        (fun (field,e) ->
