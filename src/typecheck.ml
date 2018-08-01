@@ -247,20 +247,53 @@ class typechecker =
               | Ref (bty,{data=R|RW}) -> bty
               | _ -> raise @@ err p in
             Deref e', unref_bty
-        | Ast.ArrayGet (e,lexpr) ->
+        | Ast.ArrayGet (e,index) ->
           let e' = visit#expr e in
-          let lexpr' = visit#lexpr lexpr in
-            ArrayGet (e', lexpr'), ____
+          let index' = visit#lexpr index in
+          let e_bty = type_of e' in
+          let el_bty =
+            match e_bty.data with
+              | Arr ({data=Ref (bty,{data=R|RW})},_,_)
+              | Arr (bty,_,_) -> bty
+              | _ -> raise @@ err p in
+            ArrayGet (e', index'), el_bty
         | Ast.ArrayLit es ->
-          ArrayLit (List.map visit#expr es), ____
+          if List.length es = 0 then
+            raise @@ err p;
+          let es' = List.map visit#expr es in
+          let btys = List.map type_of es' in
+          let bty = Core.List.fold btys ~init:(List.hd btys) ~f:(+:) in
+            ArrayLit es', bty
         | Ast.ArrayZeros lexpr ->
-          ArrayZeros (visit#lexpr lexpr), ____
+          let bty = get p lookahead_bty in
+            begin
+              match bty.data with
+                | Arr ({data=Ref (bty,_)},_,_)
+                | Arr (bty,_,_) ->
+                  if not @@ is_integral bty then
+                    raise @@ err p;
+                | _ -> raise @@ err p
+            end;
+            ArrayZeros (visit#lexpr lexpr), bty
         | Ast.ArrayCopy e ->
-          ArrayCopy (visit#expr e), ____
+          let e' = visit#expr e in
+          let e_bty = type_of e' in
+            begin
+              match e_bty.data with
+                | Arr _ -> ()
+                | _ -> raise @@ err p
+            end;
+            ArrayCopy e', e_bty
         | Ast.ArrayView (e,index,len) ->
-          ArrayView (visit#expr e,
-                     visit#lexpr index,
-                     visit#lexpr len), ____
+          let e' = visit#expr e in
+          let index' = visit#lexpr index in
+          let len' = visit#lexpr len in
+          let e_bty = type_of e' in
+          let new_ty =
+            match e_bty.data with
+              | Arr (el_ty,_,_) -> Arr (el_ty,len',default_var_attr)
+              | _ -> raise @@ err p in
+            ArrayView (e',index',len'), e_bty.pos @> new_ty
         | Ast.Shuffle (e,ns) ->
           Shuffle (visit#expr e, ns), ____
         | Ast.StructLit entries ->
