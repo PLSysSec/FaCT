@@ -554,10 +554,31 @@ class typechecker =
             let thens' = visit#block thens in
             let elses' = visit#block elses in
               If (cond',thens',elses')
-        | Ast.RangeFor (_,_,_,_,_) ->
-          ____
-        | Ast.ArrayFor (_,_,_,_) ->
-          ____
+        | Ast.RangeFor (x,bty,e1,e2,blk) ->
+          let bty' = visit#basic (p@>Public) bty in
+            if not (is_integral bty') then
+              raise @@ err p;
+            let e1' = visit#expr ~lookahead_bty:bty' e1 in
+            let e2' = visit#expr ~lookahead_bty:bty' e2 in
+              if not (type_of e1' <: bty') then
+                raise @@ err p;
+              if not (type_of e2' <: bty') then
+                raise @@ err p;
+              _vmap <- (x,bty') :: _vmap;
+              let blk' = visit#block blk in
+                RangeFor(x,bty',e1',e2',blk')
+        | Ast.ArrayFor (x,bty,e,blk) ->
+          let bty' = visit#basic (p@>Public) bty in
+          let e' = visit#expr e in
+          let el_ty =
+            match (type_of e').data with
+              | Arr (el_ty,_,_) -> el_ty
+              | _ -> raise @@ err p in
+            if not (el_ty <: bty') then
+              raise @@ err p;
+            _vmap <- (x,bty') :: _vmap;
+            let blk' = visit#block blk in
+              ArrayFor(x,bty',e',blk')
         | Ast.Return _ ->
           ____
         | Ast.VoidReturn ->
