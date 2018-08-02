@@ -29,6 +29,7 @@ class typechecker =
   object (visit)
     val mutable _vmap : (var_name * base_type) list = []
     val mutable _fmap : (fun_name * (ret_type * params)) list = []
+    val mutable _cur_rt : ret_type = None
 
     method fact_module m =
       let Ast.Module(sdecs,fdecs) = m in
@@ -100,8 +101,9 @@ class typechecker =
           let ft' = visit#fntype ft in
           let rt' = rt >>= visit#bty in
           let params' = List.map visit#param params in
-          let body' = visit#block body in
-            FunDec(fn,ft',rt',params',body')
+            _cur_rt <- rt';
+            let body' = visit#block body in
+              FunDec(fn,ft',rt',params',body')
         | Ast.CExtern (fn,rt,params) ->
           let params' = List.map visit#param params in
             CExtern(fn,rt >>= visit#bty,params')
@@ -546,11 +548,8 @@ class typechecker =
             Assign (e1',e2')
         | Ast.If (cond,thens,elses) ->
           let cond' = visit#expr cond in
-            begin
-              match (type_of cond').data with
-                | Bool _ -> ()
-                | _ -> raise @@ err p
-            end;
+            if not (is_bool (type_of cond')) then
+              raise @@ err p;
             let thens' = visit#block thens in
             let elses' = visit#block elses in
               If (cond',thens',elses')
@@ -579,12 +578,26 @@ class typechecker =
             _vmap <- (x,bty') :: _vmap;
             let blk' = visit#block blk in
               ArrayFor(x,bty',e',blk')
-        | Ast.Return _ ->
-          ____
+        | Ast.Return e ->
+          _cur_rt >>=
+          (fun fn_rt ->
+             let e' = visit#expr ~lookahead_bty:fn_rt e in
+               if not (type_of e' <: fn_rt) then
+                 raise @@ err p;
+               Return e')
+          >!!> err p
         | Ast.VoidReturn ->
-          ____
-        | Ast.Assume _ ->
-          ____
+          begin
+            match _cur_rt with
+              | Some _ -> raise @@ err p
+              | None -> ()
+          end;
+          VoidReturn
+        | Ast.Assume e ->
+          let e' = visit#expr e in
+            if not (is_bool (type_of e')) then
+              raise @@ err p;
+            Assume e'
 
   end
 
