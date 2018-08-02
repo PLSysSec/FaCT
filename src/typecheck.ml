@@ -544,8 +544,16 @@ class typechecker =
             if not (e2_ty <: unref_ty) then
               raise @@ err p;
             Assign (e1',e2')
-        | Ast.If (_,_,_) ->
-          ____
+        | Ast.If (cond,thens,elses) ->
+          let cond' = visit#expr cond in
+            begin
+              match (type_of cond').data with
+                | Bool _ -> ()
+                | _ -> raise @@ err p
+            end;
+            let thens' = visit#block thens in
+            let elses' = visit#block elses in
+              If (cond',thens',elses')
         | Ast.RangeFor (_,_,_,_,_) ->
           ____
         | Ast.ArrayFor (_,_,_,_) ->
