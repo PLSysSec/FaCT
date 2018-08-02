@@ -532,8 +532,18 @@ class typechecker =
                   | None -> ()
               end;
               VoidFnCall (fn,args')
-        | Ast.Assign (_,_) ->
-          ____
+        | Ast.Assign (e1,e2) ->
+          let e1' = visit#expr e1 in
+          let e1_ty = type_of e1' in
+          let unref_ty =
+            match e1_ty.data with
+              | Ref (bty,{data=W|RW}) -> bty
+              | _ -> raise @@ err p in
+          let e2' = visit#expr ~lookahead_bty:unref_ty e2 in
+          let e2_ty = type_of e2' in
+            if not (e2_ty <: unref_ty) then
+              raise @@ err p;
+            Assign (e1',e2')
         | Ast.If (_,_,_) ->
           ____
         | Ast.RangeFor (_,_,_,_,_) ->
