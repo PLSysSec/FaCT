@@ -17,16 +17,34 @@ let findvar vmap x =
                          "variable not defined: '%s'"
                          x.data
 
+let findfn fmap fname =
+  match Core.List.Assoc.find fmap fname ~equal:vequal with
+    | Some fnty -> fnty
+    | None -> raise @@ cerr fname.pos
+                         "function not defined: '%s'"
+                         fname.data
+
 
 class typechecker =
   object (visit)
     val mutable _vmap : (var_name * base_type) list = []
+    val mutable _fmap : (fun_name * (ret_type * params)) list = []
 
     method fact_module m =
       let Ast.Module(sdecs,fdecs) = m in
       let sdecs' = List.map visit#sdec sdecs in
-      let fdecs' = List.map visit#fdec fdecs in
-        Module(sdecs',fdecs')
+        (* pre-scan function defs for out-of-order definitions *)
+        List.iter
+          (fun fdec ->
+             match fdec.data with
+               | Ast.FunDec(fn,_,rt,params,_)
+               | Ast.CExtern(fn,rt,params) ->
+                 let rt' = rt >>= visit#bty in
+                 let params' = List.map visit#param params in
+                   _fmap <- (fn,(rt',params')) :: _fmap)
+          fdecs;
+        let fdecs' = List.map visit#fdec fdecs in
+          Module(sdecs',fdecs')
 
     method sdec =
       wrap @@ fun p -> function
@@ -79,9 +97,11 @@ class typechecker =
     method fdec =
       wrap @@ fun p -> function
         | Ast.FunDec(fn,ft,rt,params,body) ->
+          let ft' = visit#fntype ft in
+          let rt' = rt >>= visit#bty in
           let params' = List.map visit#param params in
           let body' = visit#block body in
-            FunDec(fn,visit#fntype ft,rt >>= visit#bty,params',body')
+            FunDec(fn,ft',rt',params',body')
         | Ast.CExtern (fn,rt,params) ->
           let params' = List.map visit#param params in
             CExtern(fn,rt >>= visit#bty,params')
@@ -94,14 +114,7 @@ class typechecker =
       visit#stms blk
 
     method stms stms_ =
-      List.flatten @@ List.map visit#stm stms_
-
-    method stm stm_ =
-      let p = stm_.pos in
-      let stms' = visit#stm' stm_ in
-      let stms' = List.map (fun s -> (make_ast p s)) stms' in
-        List.map visit#stm_post stms'
-    method stm_post stm = stm
+      List.map visit#stm stms_
 
     method lexpr =
       wrap @@ fun p -> function
@@ -318,6 +331,7 @@ class typechecker =
               | _ -> raise @@ err p in
             Shuffle (e', ns), e_bty.pos @> new_ty
         | Ast.StructLit entries ->
+          (* pre-parse the fieldnames to match to a struct for lookaheading *)
           let entries' = List.map
                            (fun (field,e) ->
                               (field,visit#expr e))
@@ -344,7 +358,7 @@ class typechecker =
             end >!!> err p
           in
             StructGet (visit#expr e,field), f_bty
-        | Ast.StringLiteral _ -> ____
+        | Ast.StringLiteral _ -> raise @@ cerr p "strings are not implemented yet"
 
     method unop op e =
       let bty = type_of e in
@@ -455,18 +469,83 @@ class typechecker =
                 | _ -> raise @@ err bty1.pos
             end
 
-    method stm' =
-      xwrap @@ fun p -> function
-        | Ast.Block blk -> [Block (visit#block blk)]
-        | Ast.VoidReturn
-        | Ast.VarDec (_,_,_)
-        | Ast.FnCall (_,_,_,_)
-        | Ast.VoidFnCall (_,_)
-        | Ast.Assign (_,_)
-        | Ast.If (_,_,_)
-        | Ast.RangeFor (_,_,_,_,_)
-        | Ast.ArrayFor (_,_,_,_) | Ast.Return _ | Ast.Assume _
-          -> ____
+    method stm =
+      wrap @@ fun p -> function
+        | Ast.Block blk ->
+          Block (visit#block blk)
+        | Ast.VarDec (x,bty,e) ->
+          let bty' = visit#bty bty in
+          let e' = visit#expr ~lookahead_bty:bty' e in
+          let e_bty = type_of e' in
+            if not (e_bty <: bty') then
+              raise @@ err p;
+            _vmap <- (x,bty') :: _vmap;
+            VarDec (x,bty',e')
+        | Ast.FnCall (x,bty,fn,args) ->
+          let bty' = visit#bty bty in
+          let rt,params = findfn _fmap fn in
+            if not (List.length args <> List.length params) then
+              raise @@ err p;
+            let args' =
+              List.map2
+                (fun arg param ->
+                   let Param (_,param_ty) = param.data in
+                     visit#expr ~lookahead_bty:param_ty arg)
+                args params in
+              List.iter2
+                (fun arg param ->
+                   let arg_ty = type_of arg in
+                   let Param (_,param_ty) = param.data in
+                     if not (arg_ty <: param_ty) then
+                       raise @@ err p)
+                args' params;
+              begin
+                match rt with
+                  | Some rt ->
+                    if not (rt <: bty') then
+                      raise @@ err p
+                  | None -> raise @@ err p
+              end;
+              _vmap <- (x,bty') :: _vmap;
+              FnCall (x,bty',fn,args')
+        | Ast.VoidFnCall (fn,args) ->
+          let rt,params = findfn _fmap fn in
+            if not (List.length args <> List.length params) then
+              raise @@ err p;
+            let args' =
+              List.map2
+                (fun arg param ->
+                   let Param (_,param_ty) = param.data in
+                     visit#expr ~lookahead_bty:param_ty arg)
+                args params in
+              List.iter2
+                (fun arg param ->
+                   let arg_ty = type_of arg in
+                   let Param (_,param_ty) = param.data in
+                     if not (arg_ty <: param_ty) then
+                       raise @@ err p)
+                args' params;
+              begin
+                match rt with
+                  | Some rt ->
+                    raise @@ err p
+                  | None -> ()
+              end;
+              VoidFnCall (fn,args')
+        | Ast.Assign (_,_) ->
+          ____
+        | Ast.If (_,_,_) ->
+          ____
+        | Ast.RangeFor (_,_,_,_,_) ->
+          ____
+        | Ast.ArrayFor (_,_,_,_) ->
+          ____
+        | Ast.Return _ ->
+          ____
+        | Ast.VoidReturn ->
+          ____
+        | Ast.Assume _ ->
+          ____
 
   end
 
