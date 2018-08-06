@@ -13,7 +13,7 @@ for ((i=2; i<=$#; ++i)); do
 done
 
 # Start docker container
-ID=$(docker run -it -d --rm new_ctverif_img /bin/bash)
+ID=$(docker run -it -d --rm bjohannesmeyer/ctverif /bin/bash)
 
 # Copy files into container (apparently `docker cp` can't handle multiple files)
 for ((i=2; i<=$#; ++i)); do
