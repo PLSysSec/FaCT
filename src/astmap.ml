@@ -1,3 +1,4 @@
+open Util
 open Pos
 open Err
 open Ast
@@ -5,18 +6,22 @@ open Ast
 class ast_visitor =
   object (visit)
 
+    method module_pre m = m
     method fact_module m =
+      let m = visit#module_pre m in
       let Module(sdecs,fdecs) = m in
       let fdecs' = List.map visit#fdec fdecs in
         Module(sdecs,fdecs')
 
     method fdec =
-      wrap @@ fun p -> function
-        | FunDec(fn,ft,rt,params,body) ->
-          let params' = List.map visit#param params in
-          let body' = visit#block body in
-            FunDec(fn,ft,rt,params',body')
-        | _ as f -> f
+      (wrap @@ fun p -> function
+          | FunDec(fn,ft,rt,params,body) ->
+            let params' = List.map visit#param params in
+            let body' = visit#block body in
+              FunDec(fn,ft,rt,params',body')
+          | _ as f -> f)
+      %> visit#fdec_post
+    method fdec_post fdec = fdec
 
     method param =
       wrap @@ fun p -> function

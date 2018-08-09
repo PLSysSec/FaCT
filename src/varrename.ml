@@ -5,14 +5,6 @@ open Ast
 open Ast_util
 open Astmap
 
-let make_fresh =
-  let ctr = ref 0 in
-  let make_fresh' name =
-    ctr := !ctr + 1;
-    "__v" ^ (string_of_int !ctr) ^ "_" ^ name
-  in
-    make_fresh'
-
 type 'a mlist = 'a list ref
 type 'a stack = 'a Stack.t
 

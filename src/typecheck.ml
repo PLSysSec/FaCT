@@ -4,8 +4,6 @@ open Err
 open Tast
 open Tast_util
 
-let ____ = raise @@ InternalCompilerError "incomplete"
-
 let get p = function
   | Some x -> x
   | None -> raise @@ err p
@@ -30,6 +28,7 @@ class typechecker =
     val mutable _vmap : (var_name * base_type) list = []
     val mutable _fmap : (fun_name * (ret_type * params)) list = []
     val mutable _cur_rt : ret_type = None
+    val mutable _inject : statement list = []
 
     method fact_module m =
       let Ast.Module(sdecs,fdecs) = m in
@@ -40,9 +39,15 @@ class typechecker =
              match fdec.data with
                | Ast.FunDec(fn,_,rt,params,_)
                | Ast.CExtern(fn,rt,params) ->
-                 let rt' = rt >>= visit#bty in
-                 let params' = List.map visit#param params in
-                   _fmap <- (fn,(rt',params')) :: _fmap)
+                 let rt' = rt >>= visit#bty ?lookahead_lexpr:None in
+                   begin
+                     match rt' with
+                       | Some {data=(Bool _ | UInt _ | Int _)}
+                       | None -> ()
+                       | _ -> raise @@ err fdec.pos
+                   end;
+                   let params' = List.map visit#param params in
+                     _fmap <- (fn,(rt',params')) :: _fmap)
           fdecs;
         let fdecs' = List.map visit#fdec fdecs in
           Module(sdecs',fdecs')
@@ -84,16 +89,19 @@ class typechecker =
       wrap @@ fun p -> function
         | Ast.Field (x,bty) -> Field (x,visit#bty bty)
 
-    method bty =
-      wrap @@ fun p -> function
-        | Ast.Bool l -> Bool (visit#lbl l)
-        | Ast.UInt (s,l) -> UInt (s,visit#lbl l)
-        | Ast.Int (s,l) -> Int (s,visit#lbl l)
-        | Ast.Ref (bty,m) -> Ref (visit#bty bty,visit#mut m)
-        | Ast.Arr (bty,lexpr,vattr) -> Arr (visit#bty bty,visit#lexpr lexpr,visit#vattr vattr)
-        | Ast.Struct fields -> Struct (List.map visit#field fields)
-        | Ast.UVec (s,n,l) -> UVec (s,n,visit#lbl l)
-        | Ast.String -> String
+    (* Note: we explicitly do not recursively pass down the lookahead *)
+    method bty ?lookahead_lexpr {pos=p; data} =
+      make_ast p begin
+        match data with
+          | Ast.Bool l -> Bool (visit#lbl l)
+          | Ast.UInt (s,l) -> UInt (s,visit#lbl l)
+          | Ast.Int (s,l) -> Int (s,visit#lbl l)
+          | Ast.Ref (bty,m) -> Ref (visit#bty bty,visit#mut m)
+          | Ast.Arr (bty,lexpr,vattr) -> Arr (visit#bty bty,visit#lexpr ?lookahead_lexpr lexpr,visit#vattr vattr)
+          | Ast.Struct fields -> Struct (List.map visit#field fields)
+          | Ast.UVec (s,n,l) -> UVec (s,n,visit#lbl l)
+          | Ast.String -> String
+      end
 
     method fdec =
       wrap @@ fun p -> function
@@ -116,17 +124,26 @@ class typechecker =
       visit#stms blk
 
     method stms stms_ =
-      List.map visit#stm stms_
+      stms_ |> List.map visit#stm |> List.flatten
 
-    method lexpr =
-      wrap @@ fun p -> function
-        | Ast.LIntLiteral n -> LIntLiteral n
-        | Ast.LExpression e ->
-          let e' = visit#expr e in
-            (* XXX ensure that type_of e' is Public *)
-            e' |> ignore;
-            ____
-        | Ast.LUnspecified -> ____
+    method lexpr ?lookahead_lexpr {pos=p; data} =
+      make_ast p begin
+        match data with
+          | Ast.LIntLiteral n -> LIntLiteral n
+          | Ast.LExpression e ->
+            let e' = visit#expr e in
+            let e_bty = type_of e' in
+            let e_lbl = label_of e_bty in
+              if not @@ is_integral e_bty then
+                raise @@ err p;
+              if e_lbl.data <> Public then
+                raise @@ err p;
+              let x = p @> make_fresh "lexpr" in
+              let var_dec = p@>VarDec(x,e_bty,e') in
+                _inject <- var_dec :: _inject;
+                LDynamic x
+          | Ast.LUnspecified -> (get p lookahead_lexpr).data
+      end
 
     method expr ?lookahead_bty e_ =
       let {data=(e',bty); pos} = visit#expr' lookahead_bty e_ in
@@ -193,7 +210,7 @@ class typechecker =
               | _ -> raise @@ err p in
             begin
               match lexpr.data with
-                | LIntLiteral n -> IntLiteral n, p@>UInt (32, p@>Public)
+                | LIntLiteral n -> IntLiteral n, p@>UInt (64, p@>Public)
                 | LDynamic x ->
                   let x_bty = findvar _vmap x in
                     Variable x, x_bty
@@ -333,7 +350,7 @@ class typechecker =
               | _ -> raise @@ err p in
             Shuffle (e', ns), e_bty.pos @> new_ty
         | Ast.StructLit entries ->
-          (* pre-parse the fieldnames to match to a struct for lookaheading *)
+          (* XXX pre-parse the fieldnames to match to a struct for lookaheading *)
           let entries' = List.map
                            (fun (field,e) ->
                               (field,visit#expr e))
@@ -471,133 +488,138 @@ class typechecker =
                 | _ -> raise @@ err bty1.pos
             end
 
-    method stm =
-      wrap @@ fun p -> function
-        | Ast.Block blk ->
-          Block (visit#block blk)
-        | Ast.VarDec (x,bty,e) ->
-          let bty' = visit#bty bty in
-          let e' = visit#expr ~lookahead_bty:bty' e in
-          let e_bty = type_of e' in
-            if not (e_bty <: bty') then
-              raise @@ err p;
-            _vmap <- (x,bty') :: _vmap;
-            VarDec (x,bty',e')
-        | Ast.FnCall (x,bty,fn,args) ->
-          let bty' = visit#bty bty in
-          let rt,params = findfn _fmap fn in
-            if not (List.length args <> List.length params) then
-              raise @@ err p;
-            let args' =
-              List.map2
-                (fun arg param ->
-                   let Param (_,param_ty) = param.data in
-                     visit#expr ~lookahead_bty:param_ty arg)
-                args params in
-              List.iter2
-                (fun arg param ->
-                   let arg_ty = type_of arg in
-                   let Param (_,param_ty) = param.data in
-                     if not (arg_ty <: param_ty) then
-                       raise @@ err p)
-                args' params;
-              begin
-                match rt with
-                  | Some rt ->
-                    if not (rt <: bty') then
-                      raise @@ err p
-                  | None -> raise @@ err p
-              end;
+    method _fncall p expected_rt fn args =
+      let rt,params = findfn _fmap fn in
+        if not (List.length args <> List.length params) then
+          raise @@ err p;
+        let args' =
+          List.map2
+            (fun arg param ->
+               let Param (_,param_ty) = param.data in
+                 visit#expr ~lookahead_bty:param_ty arg)
+            args params in
+          List.iter2
+            (fun arg param ->
+               let arg_ty = type_of arg in
+               let Param (_,param_ty) = param.data in
+                 if not (arg_ty <: param_ty) then
+                   raise @@ err p)
+            args' params;
+          begin
+            match expected_rt,rt with
+              | Some ert,Some rt ->
+                if not (rt <: ert) then
+                  raise @@ err p
+              | None,None -> ()
+              | _ -> raise @@ err p
+          end;
+          args'
+
+    method stm stm_ =
+      let p = stm_.pos in
+      let stm' =
+        match stm_.data with
+          | Ast.Block blk ->
+            Block (visit#block blk)
+          | Ast.VarDec (x,bty,e) ->
+            let e',e_bty,bty' =
+              if Ast_util.is_unspec_arr bty then
+                let e' = visit#expr e in
+                let e_bty = type_of e' in
+                  begin
+                    match e_bty.data with
+                      | Arr (_,lexpr,_) ->
+                        let bty' = visit#bty ~lookahead_lexpr:lexpr bty in
+                          e',e_bty,bty'
+                      | _ ->
+                        raise @@ err p
+                  end
+              else
+                let bty' = visit#bty bty in
+                let e' = visit#expr ~lookahead_bty:bty' e in
+                let e_bty = type_of e' in
+                  e',e_bty,bty'
+            in
+              if not (e_bty <: bty') then
+                raise @@ err p;
+              _vmap <- (x,bty') :: _vmap;
+              VarDec (x,bty',e')
+          | Ast.FnCall (x,bty,fn,args) ->
+            let bty' = visit#bty bty in
+            let args' = visit#_fncall p (Some bty') fn args in
               _vmap <- (x,bty') :: _vmap;
               FnCall (x,bty',fn,args')
-        | Ast.VoidFnCall (fn,args) ->
-          let rt,params = findfn _fmap fn in
-            if not (List.length args <> List.length params) then
-              raise @@ err p;
-            let args' =
-              List.map2
-                (fun arg param ->
-                   let Param (_,param_ty) = param.data in
-                     visit#expr ~lookahead_bty:param_ty arg)
-                args params in
-              List.iter2
-                (fun arg param ->
-                   let arg_ty = type_of arg in
-                   let Param (_,param_ty) = param.data in
-                     if not (arg_ty <: param_ty) then
-                       raise @@ err p)
-                args' params;
-              begin
-                match rt with
-                  | Some rt ->
-                    raise @@ err p
-                  | None -> ()
-              end;
+          | Ast.VoidFnCall (fn,args) ->
+            let args' = visit#_fncall p None fn args in
               VoidFnCall (fn,args')
-        | Ast.Assign (e1,e2) ->
-          let e1' = visit#expr e1 in
-          let e1_ty = type_of e1' in
-          let unref_ty =
-            match e1_ty.data with
-              | Ref (bty,{data=W|RW}) -> bty
-              | _ -> raise @@ err p in
-          let e2' = visit#expr ~lookahead_bty:unref_ty e2 in
-          let e2_ty = type_of e2' in
-            if not (e2_ty <: unref_ty) then
-              raise @@ err p;
-            Assign (e1',e2')
-        | Ast.If (cond,thens,elses) ->
-          let cond' = visit#expr cond in
-            if not (is_bool (type_of cond')) then
-              raise @@ err p;
-            let thens' = visit#block thens in
-            let elses' = visit#block elses in
-              If (cond',thens',elses')
-        | Ast.RangeFor (x,bty,e1,e2,blk) ->
-          let bty' = visit#basic (p@>Public) bty in
-            if not (is_integral bty') then
-              raise @@ err p;
-            let e1' = visit#expr ~lookahead_bty:bty' e1 in
-            let e2' = visit#expr ~lookahead_bty:bty' e2 in
-              if not (type_of e1' <: bty') then
+          | Ast.Assign (e1,e2) ->
+            let e1' = visit#expr e1 in
+            let e1_ty = type_of e1' in
+            let unref_ty =
+              match e1_ty.data with
+                | Ref (bty,{data=W|RW}) -> bty
+                | _ -> raise @@ err p in
+            let e2' = visit#expr ~lookahead_bty:unref_ty e2 in
+            let e2_ty = type_of e2' in
+              if not (e2_ty <: unref_ty) then
                 raise @@ err p;
-              if not (type_of e2' <: bty') then
+              Assign (e1',e2')
+          | Ast.If (cond,thens,elses) ->
+            let cond' = visit#expr cond in
+              if not (is_bool (type_of cond')) then
+                raise @@ err p;
+              let thens' = visit#block thens in
+              let elses' = visit#block elses in
+                If (cond',thens',elses')
+          | Ast.RangeFor (x,bty,e1,e2,blk) ->
+            let bty' = visit#basic (p@>Public) bty in
+              if not (is_integral bty') then
+                raise @@ err p;
+              let e1' = visit#expr ~lookahead_bty:bty' e1 in
+              let e2' = visit#expr ~lookahead_bty:bty' e2 in
+                if not (type_of e1' <: bty') then
+                  raise @@ err p;
+                if not (type_of e2' <: bty') then
+                  raise @@ err p;
+                _vmap <- (x,bty') :: _vmap;
+                let blk' = visit#block blk in
+                  RangeFor(x,bty',e1',e2',blk')
+          | Ast.ArrayFor (x,bty,e,blk) ->
+            let bty' = visit#basic (p@>Public) bty in
+            let e' = visit#expr e in
+            let el_ty =
+              match (type_of e').data with
+                | Arr (el_ty,_,_) -> el_ty
+                | _ -> raise @@ err p in
+              if not (el_ty <: bty') then
                 raise @@ err p;
               _vmap <- (x,bty') :: _vmap;
               let blk' = visit#block blk in
-                RangeFor(x,bty',e1',e2',blk')
-        | Ast.ArrayFor (x,bty,e,blk) ->
-          let bty' = visit#basic (p@>Public) bty in
-          let e' = visit#expr e in
-          let el_ty =
-            match (type_of e').data with
-              | Arr (el_ty,_,_) -> el_ty
-              | _ -> raise @@ err p in
-            if not (el_ty <: bty') then
-              raise @@ err p;
-            _vmap <- (x,bty') :: _vmap;
-            let blk' = visit#block blk in
-              ArrayFor(x,bty',e',blk')
-        | Ast.Return e ->
-          _cur_rt >>=
-          (fun fn_rt ->
-             let e' = visit#expr ~lookahead_bty:fn_rt e in
-               if not (type_of e' <: fn_rt) then
-                 raise @@ err p;
-               Return e')
-          >!!> err p
-        | Ast.VoidReturn ->
-          begin
-            match _cur_rt with
-              | Some _ -> raise @@ err p
-              | None -> ()
-          end;
-          VoidReturn
-        | Ast.Assume e ->
-          let e' = visit#expr e in
-            if not (is_bool (type_of e')) then
-              raise @@ err p;
-            Assume e'
+                ArrayFor(x,bty',e',blk')
+          | Ast.Return e ->
+            _cur_rt >>=
+            (fun fn_rt ->
+               let e' = visit#expr ~lookahead_bty:fn_rt e in
+                 if not (type_of e' <: fn_rt) then
+                   raise @@ err p;
+                 Return e')
+            >!!> err p
+          | Ast.VoidReturn ->
+            begin
+              match _cur_rt with
+                | Some _ -> raise @@ err p
+                | None -> ()
+            end;
+            VoidReturn
+          | Ast.Assume e ->
+            let e' = visit#expr e in
+              if not (is_bool (type_of e')) then
+                raise @@ err p;
+              Assume e'
+      in
+      let stm' = _inject @ [p@>stm'] in
+        _inject <- [];
+        stm'
 
   end
 
