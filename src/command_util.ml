@@ -254,13 +254,17 @@ let compile (in_files,out_file,out_dir) args =
   let all_fdecs = List.fold_left (fun fdecs (Ast.Module (more_fdecs,_)) -> fdecs @ more_fdecs) [] asts in
   let all_sdecs = List.fold_left (fun sdecs (Ast.Module (_,more_sdecs)) -> sdecs @ more_sdecs) [] asts in
   let ast = Ast.Module (all_fdecs,all_sdecs) in
-  output_ast args.ast_out out_file' ast;
+    output_ast args.ast_out out_file' ast;
   let ast = Constfold.transform ast in
-  output_ast args.ast_out out_file' ast;
+    output_ast args.ast_out out_file' ast;
   let ast = Varrename.transform ast in
-  output_ast args.ast_out out_file' ast;
-  let tast = Typecheck.transform ast in ();
-  output_tast args.ast_out out_file' tast;
+    output_ast args.ast_out out_file' ast;
+  let ast = Arr_speccer.transform ast in
+    output_ast args.ast_out out_file' ast;
+  let tast = Typecheck.transform ast in
+    output_tast args.ast_out out_file' tast;
+  let tast = Cyclecheck.transform tast in
+    output_tast args.ast_out out_file' tast;
   (*generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast args.mode in

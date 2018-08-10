@@ -50,7 +50,7 @@ class typechecker =
                      _fmap <- (fn,(rt',params')) :: _fmap)
           fdecs;
         let fdecs' = List.map visit#fdec fdecs in
-          Module(sdecs',fdecs')
+          Module(sdecs',fdecs',{ fmap=_fmap })
 
     method sdec =
       wrap @@ fun p -> function
@@ -490,7 +490,7 @@ class typechecker =
 
     method _fncall p expected_rt fn args =
       let rt,params = findfn _fmap fn in
-        if not (List.length args <> List.length params) then
+        if (List.length args <> List.length params) then
           raise @@ err p;
         let args' =
           List.map2
