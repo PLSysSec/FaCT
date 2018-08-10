@@ -13,7 +13,7 @@ class cyclechecker m =
 
     method _edges () = _edges
 
-    method stm stm_ =
+    method stm (stm_,lbl) =
       begin
         match stm_.data with
           | FnCall (fn,_,_,_)
@@ -26,8 +26,9 @@ class cyclechecker m =
                           _cur_fn.data
                           (fn :: fns)
                           _edges;
+          | _ -> ()
       end;
-      super#stm stm_
+      super#stm (stm_,lbl)
 
   end
 
@@ -61,6 +62,7 @@ let transform m =
       (fun caller _ -> visit fake_pos [caller])
       edges;
     let fdecs' =
+      (* topological sort, callers first *)
       List.map
         (fun fn ->
            List.find
@@ -69,4 +71,9 @@ let transform m =
                | _ -> false)
              fdecs)
         !sorted in
-      Module(sdecs,fdecs',minfo)
+    let standalones =
+      List.filter
+        (fun {data=FunDec(fn',_,_,_,_)|CExtern(fn',_,_)} ->
+           not @@ List.mem fn'.data !sorted)
+        fdecs in
+      Module(sdecs,fdecs' @ standalones,minfo)

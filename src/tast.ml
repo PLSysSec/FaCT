@@ -76,7 +76,7 @@ and expr' =
   (* Auxilliary *)
   | StringLiteral of string
 [@@deriving show]
-and expr = (expr' pos_ast) * (base_type' pos_ast) [@@deriving show]
+and expr = expr' pos_ast * base_type [@@deriving show]
 
 and cond = expr [@@deriving show]
 and thenblock = block [@@deriving show]
@@ -98,7 +98,7 @@ and statement' =
   | VoidReturn
   | Assume of expr
 [@@deriving show]
-and statement = statement' pos_ast [@@deriving show]
+and statement = statement' pos_ast * label [@@deriving show]
 and statements = statement list [@@deriving show]
 
 and param' =

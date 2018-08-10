@@ -253,17 +253,19 @@ let compile (in_files,out_file,out_dir) args =
   let asts = List.map lex_and_parse in_files in
   let all_fdecs = List.fold_left (fun fdecs (Ast.Module (more_fdecs,_)) -> fdecs @ more_fdecs) [] asts in
   let all_sdecs = List.fold_left (fun sdecs (Ast.Module (_,more_sdecs)) -> sdecs @ more_sdecs) [] asts in
-  let ast = Ast.Module (all_fdecs,all_sdecs) in
+  let ast = Ast.Module (all_fdecs,all_sdecs) in (* all files combined *)
     output_ast args.ast_out out_file' ast;
-  let ast = Constfold.transform ast in
+  let ast = Constfold.transform ast in (* constant folding *)
     output_ast args.ast_out out_file' ast;
-  let ast = Varrename.transform ast in
+  let ast = Varrename.transform ast in (* unique named vars *)
     output_ast args.ast_out out_file' ast;
-  let ast = Arr_speccer.transform ast in
+  let ast = Arr_speccer.transform ast in (* array lengths filled in *)
     output_ast args.ast_out out_file' ast;
-  let tast = Typecheck.transform ast in
+  let tast = Typecheck.transform ast in (* transition to tast; exprs have types *)
     output_tast args.ast_out out_file' tast;
-  let tast = Cyclecheck.transform tast in
+  let tast = Cyclecheck.transform tast in (* fns sorted topologically, callers first *)
+    output_tast args.ast_out out_file' tast;
+  let tast = Pclabel.transform tast in (* statements labelled with pc label *)
     output_tast args.ast_out out_file' tast;
   (*generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   Log.debug "Typecheck complete";

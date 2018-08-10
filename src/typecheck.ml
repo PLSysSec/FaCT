@@ -139,7 +139,7 @@ class typechecker =
               if e_lbl.data <> Public then
                 raise @@ err p;
               let x = p @> make_fresh "lexpr" in
-              let var_dec = p@>VarDec(x,e_bty,e') in
+              let var_dec = (p@>VarDec(x,e_bty,e'),p@>Secret) in (* stm label doesn't matter b/c it will be overwritten later *)
                 _inject <- var_dec :: _inject;
                 LDynamic x
           | Ast.LUnspecified -> (get p lookahead_lexpr).data
@@ -617,7 +617,7 @@ class typechecker =
                 raise @@ err p;
               Assume e'
       in
-      let stm' = _inject @ [p@>stm'] in
+      let stm' = _inject @ [(p@>stm',p@>Secret)] in (* stm label doesn't matter b/c it will be overwritten later *)
         _inject <- [];
         stm'
 

@@ -29,18 +29,16 @@ class tast_visitor (m : fact_module) =
         Field (x,bty)
 
     method fdec =
-      (wrap @@ fun p -> function
-          | FunDec(fn,ft,rt,params,body) ->
-            _cur_fn <- fn;
-            let params' = List.map visit#param params in
-            let body' = visit#block body in
-              _cur_fn <- fake_pos @> "";
-              FunDec(fn,ft,rt,params',body')
-          | CExtern(fn,rt,params) ->
-            let params' = List.map visit#param params in
-              CExtern(fn,rt,params'))
-      %> visit#fdec_post
-    method fdec_post fdec = fdec
+      wrap @@ fun p -> function
+        | FunDec(fn,ft,rt,params,body) ->
+          _cur_fn <- fn;
+          let params' = List.map visit#param params in
+          let body' = visit#block body in
+            _cur_fn <- fake_pos @> "";
+            FunDec(fn,ft,rt,params',body')
+        | CExtern(fn,rt,params) ->
+          let params' = List.map visit#param params in
+            CExtern(fn,rt,params')
 
     method param param = param
 
@@ -48,49 +46,52 @@ class tast_visitor (m : fact_module) =
       visit#stms blk
 
     method stms stms_ =
-      List.flatten @@ List.map visit#stm stms_
+      List.flatten @@ List.map visit#stm_wrapper stms_
 
-    method stm' =
-      xwrap @@ fun p -> function
-        | Block blk -> Block (visit#block blk)
-        | VarDec (x,bty,e) ->
-          let e' = visit#expr e in
-            VarDec (x,bty,e')
-        | FnCall (x,bty,fn,args) ->
-          let args' = List.map visit#expr args in
-            FnCall (x,bty,fn,args')
-        | VoidFnCall (fn,args) ->
-          let args' = List.map visit#expr args in
-            VoidFnCall (fn,args')
-        | Assign (e1,e2) ->
-          let e1' = visit#expr e1 in
-          let e2' = visit#expr e2 in
-            Assign (e1',e2')
-        | If (cond,thens,elses) ->
-          let cond' = visit#expr cond in
-          let thens' = visit#block thens in
-          let elses' = visit#block elses in
-            If (cond',thens',elses')
-        | RangeFor (x,bty,e1,e2,blk) ->
-          let e1' = visit#expr e1 in
-          let e2' = visit#expr e2 in
-          let blk' = visit#block blk in
-            RangeFor (x,bty,e1',e2',blk')
-        | ArrayFor (x,bty,e,blk) ->
-          let e' = visit#expr e in
-          let blk' = visit#block blk in
-            ArrayFor (x,bty,e',blk')
-        | Return e ->
-          let e' = visit#expr e in
-            Return e'
-        | VoidReturn -> VoidReturn
-        | Assume e ->
-          let e' = visit#expr e in
-            Assume e'
-
-    method stm stm_ =
+    method stm (stm_,lbl_) =
       let p = stm_.pos in
-      let stm' = p @> visit#stm' stm_ in
+      let stm_' =
+        match stm_.data with
+          | Block blk -> Block (visit#block blk)
+          | VarDec (x,bty,e) ->
+            let e' = visit#expr e in
+              VarDec (x,bty,e')
+          | FnCall (x,bty,fn,args) ->
+            let args' = List.map visit#expr args in
+              FnCall (x,bty,fn,args')
+          | VoidFnCall (fn,args) ->
+            let args' = List.map visit#expr args in
+              VoidFnCall (fn,args')
+          | Assign (e1,e2) ->
+            let e1' = visit#expr e1 in
+            let e2' = visit#expr e2 in
+              Assign (e1',e2')
+          | If (cond,thens,elses) ->
+            let cond' = visit#expr cond in
+            let thens' = visit#block thens in
+            let elses' = visit#block elses in
+              If (cond',thens',elses')
+          | RangeFor (x,bty,e1,e2,blk) ->
+            let e1' = visit#expr e1 in
+            let e2' = visit#expr e2 in
+            let blk' = visit#block blk in
+              RangeFor (x,bty,e1',e2',blk')
+          | ArrayFor (x,bty,e,blk) ->
+            let e' = visit#expr e in
+            let blk' = visit#block blk in
+              ArrayFor (x,bty,e',blk')
+          | Return e ->
+            let e' = visit#expr e in
+              Return e'
+          | VoidReturn -> VoidReturn
+          | Assume e ->
+            let e' = visit#expr e in
+              Assume e'
+      in
+        (p @> stm_',lbl_)
+
+    method stm_wrapper stm_ =
+      let stm' = visit#stm stm_ in
       let stms' = visit#stm_post stm' in
       let stms' = _pre_inject @ stms' @ _post_inject in
         _pre_inject <- [];
