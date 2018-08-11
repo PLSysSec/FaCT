@@ -2,12 +2,12 @@ ANSITerminal	0.8	root
 base	v0.11.1	installed
 base-bigarray	base	root
 base-bytes	base	installed
-base-num	base	installed
 base-threads	base	root
 base-unix	base	root
 bin_prot	v0.11.0	installed
 biniou	1.2.0	installed
 conf-cmake	1	installed
+conf-gmp	1	installed
 conf-llvm	6.0.0	installed
 conf-m4	1	installed
 conf-pkg-config	1.1	installed
@@ -32,7 +32,7 @@ lwt	4.1.0	root
 lwt_ppx	1.2.1	root
 menhir	20180703	root
 merlin	3.1.0	root
-num	0	installed
+num	1.1	installed
 oasis	0.4.11	root
 ocaml-compiler-libs	v0.11.0	installed
 ocaml-migrate-parsetree	1.0.11	installed
@@ -66,7 +66,7 @@ ppx_pipebang	v0.11.0	installed
 ppx_sexp_conv	v0.11.2	installed
 ppx_sexp_message	v0.11.0	installed
 ppx_sexp_value	v0.11.0	installed
-ppx_tools	5.0+4.05.0	installed
+ppx_tools	5.1+4.06.0	installed
 ppx_tools_versioned	5.2	installed
 ppx_typerep_conv	v0.11.1	installed
 ppx_variants_conv	v0.11.1	installed
@@ -82,3 +82,4 @@ topkg	0.9.1	installed
 typerep	v0.11.0	installed
 variantslib	v0.11.0	installed
 yojson	1.4.1	installed
+z3	4.7.1	root
