@@ -6,7 +6,6 @@ open Ast_util
 open Astmap
 
 type 'a mlist = 'a list ref
-type 'a stack = 'a Stack.t
 
 let mlist_push el alist =
   alist := el :: !alist
@@ -19,34 +18,34 @@ class var_renamer =
     val _vthisblock : string mlist stack = Stack.create ()
 
     method _newvar p x =
-      if List.mem x.data !(Stack.top _vthisblock) then
+      if List.mem x.data !(top _vthisblock) then
         raise @@ cerr p
                    "redefinition of '%s'"
                    x.data
       else
-      if Core.List.Assoc.mem !(Stack.top _vstack) x ~equal:vequal then
+      if Core.List.Assoc.mem !(top _vstack) x ~equal:vequal then
         warn @@ cerr p
                   "shadowing of '%s'"
                   x.data;
       let x' = make_fresh x.data in
         _vmap <- (x', x) :: _vmap ;
-        mlist_push (x, x') (Stack.top _vstack) ;
-        mlist_push x.data (Stack.top _vthisblock) ;
+        mlist_push (x, x') (top _vstack) ;
+        mlist_push x.data (top _vthisblock) ;
         { x with data=x' }
 
     method _getvar p x =
-      match Core.List.Assoc.find !(Stack.top _vstack) x ~equal:vequal with
+      match Core.List.Assoc.find !(top _vstack) x ~equal:vequal with
         | Some x' -> { x with data=x' }
         | None -> raise @@ cerr p
                              "variable not defined: '%s'"
                              x.data
 
     method fdec fdec =
-      Stack.push (ref []) _vstack ;
-      Stack.push (ref []) _vthisblock ;
+      push (ref []) _vstack ;
+      push (ref []) _vthisblock ;
       let res = super#fdec fdec in
-        Stack.pop _vthisblock |> ignore ;
-        Stack.pop _vstack |> ignore ;
+        pop _vthisblock |> ignore ;
+        pop _vstack |> ignore ;
         res
 
     method param param_ =
@@ -60,11 +59,11 @@ class var_renamer =
         end |> make_ast p
 
     method block blk =
-      Stack.push (ref !(Stack.top _vstack)) _vstack ;
-      Stack.push (ref []) _vthisblock ;
+      push (ref !(top _vstack)) _vstack ;
+      push (ref []) _vthisblock ;
       let res = super#block blk in
-        Stack.pop _vthisblock |> ignore ;
-        Stack.pop _vstack |> ignore ;
+        pop _vthisblock |> ignore ;
+        pop _vstack |> ignore ;
         res
 
     method stm_post =

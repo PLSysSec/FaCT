@@ -29,3 +29,8 @@ let make_fresh =
     "__v" ^ (string_of_int !ctr) ^ "_" ^ name
   in
     make_fresh'
+
+type 'a stack = 'a Stack.t
+let push = Stack.push
+let pop = Stack.pop
+let top = Stack.top

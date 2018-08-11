@@ -69,6 +69,13 @@ let output_tast ast_out out_file tast =
         Core.Out_channel.write_all tast_out_file
           ~data:((Tast.show_fact_module tast)^"\n")
 
+let generate_pseudo gen_pseudo out_file tast =
+  if gen_pseudo then
+    let pseudo_out_file = out_file ^ ".pseudo.fact" in
+      Log.debug "Outputting pseudocode file to %s" pseudo_out_file;
+      Core_kernel.Out_channel.write_all pseudo_out_file
+        ~data:(Pseudocode.transform tast)
+
 (*
 let output_xftast xftast_out out_file tast =
   match xftast_out with
@@ -85,13 +92,6 @@ let generate_header gen_header out_file xftast =
       Log.debug "Outputting header file to %s" header_out_file;
       Core_kernel.Out_channel.write_all header_out_file
         ~data:(Header.generate_header out_file xftast)
-
-let generate_pseudo gen_pseudo out_file xftast =
-  if gen_pseudo then
-    let pseudo_out_file = out_file ^ ".pseudo.fact" in
-      Log.debug "Outputting pseudocode file to %s" pseudo_out_file;
-      Core_kernel.Out_channel.write_all pseudo_out_file
-        ~data:(Pseudocode.generate_pseudo out_file xftast)
 
 let output_llvm llvm_out out_file llvm_mod =
   match llvm_out with
@@ -267,6 +267,7 @@ let compile (in_files,out_file,out_dir) args =
     output_tast args.ast_out out_file' tast;
   let tast = Pclabel.transform tast in (* statements labelled with pc label *)
     output_tast args.ast_out out_file' tast;
+    generate_pseudo args.pseudo_out out_file' tast;
   (*generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast args.mode in

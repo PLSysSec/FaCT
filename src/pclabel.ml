@@ -4,11 +4,6 @@ open Err
 open Tast
 open Tast_util
 
-type 'a stack = 'a Stack.t
-let push = Stack.push
-let pop = Stack.pop
-let top = Stack.top
-
 class pclabeler m =
   object (visit)
     inherit Tastmap.tast_visitor m as super
