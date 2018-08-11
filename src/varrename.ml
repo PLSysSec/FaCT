@@ -24,11 +24,15 @@ class var_renamer =
                    "redefinition of '%s'"
                    x.data
       else
-        let x' = make_fresh x.data in
-          _vmap <- (x', x) :: _vmap ;
-          mlist_push (x, x') (Stack.top _vstack) ;
-          mlist_push x.data (Stack.top _vthisblock) ;
-          { x with data=x' }
+      if Core.List.Assoc.mem !(Stack.top _vstack) x ~equal:vequal then
+        warn @@ cerr p
+                  "shadowing of '%s'"
+                  x.data;
+      let x' = make_fresh x.data in
+        _vmap <- (x', x) :: _vmap ;
+        mlist_push (x, x') (Stack.top _vstack) ;
+        mlist_push x.data (Stack.top _vthisblock) ;
+        { x with data=x' }
 
     method _getvar p x =
       match Core.List.Assoc.find !(Stack.top _vstack) x ~equal:vequal with
@@ -36,6 +40,24 @@ class var_renamer =
         | None -> raise @@ cerr p
                              "variable not defined: '%s'"
                              x.data
+
+    method fdec fdec =
+      Stack.push (ref []) _vstack ;
+      Stack.push (ref []) _vthisblock ;
+      let res = super#fdec fdec in
+        Stack.pop _vthisblock |> ignore ;
+        Stack.pop _vstack |> ignore ;
+        res
+
+    method param param_ =
+      let param' = super#param param_ in
+      let p = param'.pos in
+        begin
+          match param'.data with
+            | Param (x,bty) ->
+              let x' = visit#_newvar p x in
+                Param (x',bty)
+        end |> make_ast p
 
     method block blk =
       Stack.push (ref !(Stack.top _vstack)) _vstack ;
@@ -67,14 +89,6 @@ class var_renamer =
           let x' = visit#_getvar p x in
             Variable x'
         | e -> e
-
-    method fdec fdec =
-      Stack.push (ref []) _vstack ;
-      Stack.push (ref []) _vthisblock ;
-      let res = super#fdec fdec in
-        Stack.pop _vthisblock |> ignore ;
-        Stack.pop _vstack |> ignore ;
-        res
 
   end
 

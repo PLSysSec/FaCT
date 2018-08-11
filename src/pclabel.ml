@@ -16,10 +16,22 @@ class pclabeler m =
       let pc = Stack.create () in
         push (fake_pos@>Public) pc; pc
     val mutable _rp : label ref = ref (fake_pos@>Public)
+    val mutable everhis : fun_name' list = []
 
     method fdec fdec_ =
       _rp <- ref (fake_pos@>Public);
-      super#fdec fdec_
+      let fdec' = super#fdec fdec_ in
+        match fdec'.data with
+          | FunDec (fn,fnty,rt,params,body) ->
+            let fnty' =
+              if List.mem fn.data everhis then
+                { fnty with everhi = true }
+              else fnty in
+              fdec'.pos @> FunDec (fn,fnty',rt,params,body)
+          | CExtern (fn,rt,params) ->
+            if List.mem fn.data everhis then
+              raise @@ cerr fdec'.pos "calling function '%s' from secret control flow" fn.data
+            else fdec'
 
     method stm (stm_,lbl_) =
       let old_rp = !_rp in
@@ -37,6 +49,11 @@ class pclabeler m =
             | If _ ->
               pop _pc |> ignore;
               stm'
+            | FnCall (_,_,fn,_)
+            | VoidFnCall (fn,_) ->
+              if (top _pc +$ !_rp).data = Secret then
+                everhis <- fn.data :: everhis;
+              stm'
             | RangeFor (_,_,_,_,blk)
             | ArrayFor (_,_,_,blk) ->
               if old_rp.data = Public && !_rp.data = Secret then
@@ -50,7 +67,10 @@ class pclabeler m =
               stm'
             | _ -> stm'
         in
-          (stm',top _pc +$ !_rp)
+          (stm',
+           if List.mem _cur_fn.data everhis
+           then fake_pos @> Secret
+           else top _pc +$ !_rp)
 
   end
 

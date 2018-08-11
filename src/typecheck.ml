@@ -46,7 +46,8 @@ class typechecker =
                        | None -> ()
                        | _ -> raise @@ err fdec.pos
                    end;
-                   let params' = List.map visit#param params in
+                   (* rev so that array lengths get added to vmap before their corresponding arrays need their type visited *)
+                   let params' = List.rev_map visit#param (List.rev params) in
                      _fmap <- (fn,(rt',params')) :: _fmap)
           fdecs;
         let fdecs' = List.map visit#fdec fdecs in
@@ -118,7 +119,16 @@ class typechecker =
 
     method param =
       wrap @@ fun p -> function
-        | Ast.Param(x,bty) -> Param(x,visit#bty bty)
+        | Ast.Param(x,bty) ->
+          let lookahead_lexpr =
+            match bty.data with
+              | Ast.Arr (_,{data=Ast.LExpression {data=Ast.Variable x_len}},_) ->
+                Some (p @> LDynamic x_len)
+              | _ -> None
+          in
+          let bty' = visit#bty ?lookahead_lexpr bty in
+            _vmap <- (x,bty') :: _vmap;
+            Param(x,bty')
 
     method block blk =
       visit#stms blk
@@ -128,21 +138,26 @@ class typechecker =
 
     method lexpr ?lookahead_lexpr {pos=p; data} =
       make_ast p begin
-        match data with
-          | Ast.LIntLiteral n -> LIntLiteral n
-          | Ast.LExpression e ->
-            let e' = visit#expr e in
-            let e_bty = type_of e' in
-            let e_lbl = label_of e_bty in
-              if not @@ is_integral e_bty then
-                raise @@ err p;
-              if e_lbl.data <> Public then
-                raise @@ err p;
-              let x = p @> make_fresh "lexpr" in
-              let var_dec = (p@>VarDec(x,e_bty,e'),p@>Secret) in (* stm label doesn't matter b/c it will be overwritten later *)
-                _inject <- var_dec :: _inject;
-                LDynamic x
-          | Ast.LUnspecified -> (get p lookahead_lexpr).data
+        match lookahead_lexpr with
+          | Some lexpr -> lexpr.data
+          | None -> begin
+              match data with
+                | Ast.LIntLiteral n -> LIntLiteral n
+                | Ast.LExpression e ->
+                  let e' = visit#expr e in
+                  let e_bty = type_of e' in
+                  let e_lbl = label_of e_bty in
+                    if not @@ is_integral e_bty then
+                      raise @@ err p;
+                    if e_lbl.data <> Public then
+                      raise @@ err p;
+                    let x = p @> make_fresh "lexpr" in
+                      _vmap <- (x,e_bty) :: _vmap;
+                      let var_dec = (p@>VarDec(x,e_bty,e'),p@>Secret) in (* stm label doesn't matter b/c it will be overwritten later *)
+                        _inject <- var_dec :: _inject;
+                        LDynamic x
+                | Ast.LUnspecified -> raise @@ err p
+            end
       end
 
     method expr ?lookahead_bty e_ =
@@ -325,7 +340,9 @@ class typechecker =
           let new_ty =
             match e_bty.data with
               | Arr (el_ty,_,_) -> Arr (el_ty,len',default_var_attr)
-              | _ -> raise @@ err p in
+              | _ -> raise @@ cerr p
+                                "expected array, instead got %s"
+                                (show_base_type' e_bty.data) in
             ArrayView (e',index',len'), e_bty.pos @> new_ty
         | Ast.Shuffle (e,ns) ->
           let e' = visit#expr e in
@@ -502,8 +519,12 @@ class typechecker =
             (fun arg param ->
                let arg_ty = type_of arg in
                let Param (_,param_ty) = param.data in
-                 if not (arg_ty <: param_ty) then
-                   raise @@ err p)
+                 if not (passable_to param_ty arg_ty) then
+                   raise @@ cerr p
+                              "argument type mismatch when calling '%s': expected %s, got %s"
+                              fn.data
+                              (show_base_type' param_ty.data)
+                              (show_base_type' arg_ty.data))
             args' params;
           begin
             match expected_rt,rt with
@@ -541,7 +562,10 @@ class typechecker =
                   e',e_bty,bty'
             in
               if not (e_bty <: bty') then
-                raise @@ err p;
+                raise @@ cerr p
+                           "expected %s, got %s"
+                           (show_base_type' bty'.data)
+                           (show_base_type' e_bty.data);
               _vmap <- (x,bty') :: _vmap;
               VarDec (x,bty',e')
           | Ast.FnCall (x,bty,fn,args) ->

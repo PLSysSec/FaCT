@@ -146,10 +146,10 @@ base_type:
   | l=label t=TYPE { to_base_type l (mkpos t) }
   | l=label MUT t=TYPE { mkpos (Ref(to_base_type l (mkpos t), mkpos RW)) }
 
-  | l=label t=TYPE len=brack(lexpr) { mkpos (Arr(to_base_type l (mkpos t), len, default_var_attr)) }
+  | l=label t=TYPE len=brack(lexpr) { mkpos (Arr(mkpos (Ref(to_base_type l (mkpos t), mkpos R)), len, default_var_attr)) }
   | l=label MUT t=TYPE len=brack(lexpr) { mkpos (Arr(mkpos (Ref(to_base_type l (mkpos t), mkpos RW)), len, default_var_attr)) }
 
-  | l=label t=TYPE LBRACK RBRACK { mkpos (Arr(to_base_type l (mkpos t), mkpos LUnspecified, default_var_attr)) }
+  | l=label t=TYPE LBRACK RBRACK { mkpos (Arr(mkpos (Ref(to_base_type l (mkpos t), mkpos R)), mkpos LUnspecified, default_var_attr)) }
   | l=label MUT t=TYPE LBRACK RBRACK { mkpos (Arr(mkpos (Ref(to_base_type l (mkpos t), mkpos RW)), mkpos LUnspecified, default_var_attr)) }
 
   | CACHELINE b=base_type {
@@ -224,7 +224,7 @@ expr:
   | n=INT { mkpos (UntypedIntLiteral n) }
   | n=INT t=LIT { mkpos (IntLiteral(n, lit_to_type(mkpos t))) }
   | x=var_name { mkpos (Variable x) }
-  | LEN e=expr { mkpos (ArrayLen e) }
+  | LEN e=expr %prec UNARYOP { mkpos (ArrayLen e) }
   | t=basic_type e=paren(expr) { mkpos (Cast(t, e)) }
   | op=unop e=expr %prec UNARYOP { mkpos (UnOp(op, e)) }
   | e1=expr op=binop e2=expr { mkpos (BinOp(op, e1, e2)) }

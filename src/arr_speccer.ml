@@ -13,6 +13,48 @@ let findfn fmap fname =
                          fname.data
 
 
+class array_spec_fncall =
+  object (visit)
+    inherit Astmap.ast_visitor as super
+    val mutable _fmap : (fun_name * params) list = []
+
+    method module_pre m =
+      let Module(_,fdecs) = m in
+        List.iter
+          (fun fdec ->
+             match fdec.data with
+               | FunDec(fn,_,_,params,_)
+               | CExtern(fn,_,params) ->
+                 _fmap <- (fn,params) :: _fmap)
+          fdecs;
+        super#module_pre m
+
+    method _fncall fn args =
+      let params = findfn _fmap fn in
+      let args' =
+        try List.map2
+              (fun arg param ->
+                 let Param (x,bty) = param.data in
+                   if is_unspec_arr bty then
+                     [arg ; arg.pos @> ArrayLen arg]
+                   else [arg])
+              args
+              params
+        with Invalid_argument _ ->
+          raise @@ cerr fn.pos "arity mismatch on call to '%s'" fn.data
+      in
+        List.flatten args'
+
+    method stm_post ({pos=p;data} as stm_) =
+      match data with
+        | FnCall (x,bty,fn,args) ->
+          p @> FnCall (x,bty,fn,visit#_fncall fn args)
+        | VoidFnCall (fn,args) ->
+          p @> VoidFnCall (fn,visit#_fncall fn args)
+        | _ -> super#stm_post stm_
+
+  end
+
 class array_spec_fdec =
   object (visit)
     inherit Astmap.ast_visitor as super
@@ -33,49 +75,17 @@ class array_spec_fdec =
               params
           in
             FunDec(fn,ft,rt,List.flatten params',body)
-        | _ as fdec -> fdec
+        | CExtern (fn,rt,params) as fdec ->
+          List.iter
+            (fun param ->
+               match param.data with
+                 | Param (x,{pos;data=Arr (bty,{data=LUnspecified},vattr)}) ->
+                   raise @@ NotImplemented("extern with unspec arr" << pos)
+                 | _ -> ())
+            params;
+          fdec
 
     end
-
-class array_spec_fncall =
-  object (visit)
-    inherit Astmap.ast_visitor as super
-    val mutable _fmap : (fun_name * params) list = []
-
-    method module_pre m =
-      let Module(_,fdecs) = m in
-        List.iter
-          (fun fdec ->
-             match fdec.data with
-               | FunDec(fn,_,_,params,_) ->
-                 _fmap <- (fn,params) :: _fmap
-               | _ -> ())
-          fdecs;
-        super#module_pre m
-
-    method _fncall fn args =
-      let params = findfn _fmap fn in
-      let args' =
-        List.map2
-          (fun arg param ->
-             let Param (x,bty) = param.data in
-               if is_unspec_arr bty then
-                 [arg ; arg.pos @> ArrayLen arg]
-               else [arg])
-          args
-          params
-      in
-        List.flatten args'
-
-    method stm_post ({pos=p;data} as stm_) =
-      match data with
-        | FnCall (x,bty,fn,args) ->
-          p @> FnCall (x,bty,fn,visit#_fncall fn args)
-        | VoidFnCall (fn,args) ->
-          p @> VoidFnCall (fn,visit#_fncall fn args)
-        | _ -> super#stm_post stm_
-
-  end
 
 let transform m =
   let visit_fncall = new array_spec_fncall in
