@@ -126,4 +126,7 @@ let ( +: ) b1 b2 =
       b1.pos@>UInt (max n m, l1 +$ l2)
     | Int (n,l1),Int (m,l2) ->
       b1.pos@>Int (max n m, l1 +$ l2)
+    | UVec (n,bw1,l1),UVec (m,bw2,l2)
+      when n = m && bw1 = bw2 ->
+      b1.pos@>UVec (n, bw1, l1 +$ l2)
     | _ -> raise @@ cerr b1.pos "XXX" (*XXX*)
