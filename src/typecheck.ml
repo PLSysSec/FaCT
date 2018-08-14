@@ -8,6 +8,21 @@ let get p = function
   | Some x -> x
   | None -> raise @@ err p
 
+let expr_fix p bty e =
+  if (is_integral bty) && (is_integral (type_of e)) then
+    let bty_s = bitsize bty in
+    let e_s = bitsize (type_of e) in
+      if e_s <> bty_s then
+        let upcast =
+          make_ast p
+            (match bty.data with
+              | UInt (_,l) -> UInt (bty_s,l)
+              | Int (_,l) -> Int (bty_s,l))
+        in
+          (p@>Cast (upcast, e), upcast)
+      else e
+  else e
+
 let findvar vmap x =
   match Core.List.Assoc.find vmap x ~equal:vequal with
     | Some bty -> bty
@@ -164,41 +179,6 @@ class typechecker =
       let {data=(e',bty); pos} = visit#expr' lookahead_bty e_ in
         (make_ast pos e', bty)
 
-    method _ternop p e1 e2 e3 =
-      let e1' = visit#expr e1 in
-      let e2',e3' =
-        match Ast_util.is_untyped_int e2 with
-          | Some _ ->
-            let e3' = visit#expr e3 in
-            let e2' = visit#expr ~lookahead_bty:(type_of e3') e2 in
-              e2',e3'
-          | None ->
-            let e2' = visit#expr e2 in
-            let e3' = visit#expr ~lookahead_bty:(type_of e2') e3 in
-              e2',e3' in
-      let bty1 = type_of e1' in
-      let bty2 = type_of e2' in
-      let bty3 = type_of e3' in
-        if not (is_bool bty1) then
-          raise @@ err p;
-        if not (bty2 <: bty3 || bty3 <: bty2) then
-          raise @@ err p;
-        let l1 = label_of bty1 in
-        let new_bty = bty2 +: bty3 in
-        let new_bty =
-          match l1.data with
-            | Public -> new_bty
-            | Secret -> p @>
-              begin
-                match new_bty.data with
-                  | Bool _ -> Bool l1
-                  | UInt (n,_) -> UInt (n,l1)
-                  | Int (n,_) -> Int (n,l1)
-                  | UVec (n,bw,_) -> UVec (n,bw,l1)
-              end
-        in
-          (e1',e2',e3'), new_bty
-
     method expr' lookahead_bty =
       wrap @@ fun p -> function
         | Ast.True -> True, make_ast p @@ Bool (make_ast p Public)
@@ -259,12 +239,13 @@ class typechecker =
                 let e2' = visit#expr ~lookahead_bty:(type_of e1') e2 in
                   e1',e2'
           in
-            BinOp(op,e1',e2'), visit#binop p op e1' e2'
+          let bty, e1', e2' = visit#binop p op e1' e2' in
+            BinOp(op,e1',e2'), bty
         | Ast.TernOp (e1,e2,e3) ->
-          let (e1',e2',e3'),new_bty = visit#_ternop p e1 e2 e3 in
+          let (e1',e2',e3'),new_bty = visit#ternop p e1 e2 e3 in
             TernOp(e1',e2',e3'), new_bty
         | Ast.Select (e1,e2,e3) ->
-          let (e1',e2',e3'),new_bty = visit#_ternop p e1 e2 e3 in
+          let (e1',e2',e3'),new_bty = visit#ternop p e1 e2 e3 in
             Select(e1',e2',e3'), new_bty
         | Ast.Declassify e ->
           let e' = visit#expr e in
@@ -427,7 +408,9 @@ class typechecker =
               raise @@ err p;
             if not (bty1 <: bty2) then
               raise @@ err p;
-            bty1 +: bty2
+            let bty = bty1 +: bty2 in
+            let fix = expr_fix p bty in
+              bty, fix e1, fix e2
           | Ast.Equal
           | Ast.NEqual ->
             if not (is_integral bty1 || is_bool bty1 || is_vec bty1) then
@@ -438,7 +421,9 @@ class typechecker =
               raise @@ err p;
             let l1 = label_of bty1 in
             let l2 = label_of bty2 in
-              bty1.pos@>Bool (l1 +$ l2)
+            let bty = bty1.pos@>Bool (l1 +$ l2) in
+            let fix = expr_fix p (bty1 +: bty2) in
+              bty, fix e1, fix e2
           | Ast.GT
           | Ast.GTE
           | Ast.LT
@@ -451,16 +436,17 @@ class typechecker =
               raise @@ err p;
             let l1 = label_of bty1 in
             let l2 = label_of bty2 in
-              bty1.pos@>Bool (l1 +$ l2)
+            let fix = expr_fix p (bty1 +: bty2) in
+              bty1.pos@>Bool (l1 +$ l2), fix e1, fix e2
           | Ast.LogicalAnd
           | Ast.LogicalOr ->
             if not (is_bool bty1) then
               raise @@ err p;
             if not (is_bool bty2) then
               raise @@ err p;
-            bty1 +: bty2
+            bty1 +: bty2, e1, e2
           | Ast.BitwiseAnd ->
-            begin
+            let bty =
               match bty1.data,bty2.data with
                 | UInt (n,l1),UInt (m,l2) ->
                   bty1.pos@>UInt (min n m,l1 +$ l2)
@@ -470,10 +456,12 @@ class typechecker =
                   when n = m && bw1 = bw2 ->
                   bty1.pos@>UVec (n,bw1,l1 +$ l2)
                 | _ -> raise @@ err p;
-            end
+            in
+            let fix = expr_fix p bty in
+              bty, fix e1, fix e2
           | Ast.BitwiseOr
           | Ast.BitwiseXor ->
-            begin
+            let bty =
               match bty1.data,bty2.data with
                 | UInt (n,l1),UInt (m,l2) ->
                   bty1.pos@>UInt (max n m,l1 +$ l2)
@@ -483,10 +471,12 @@ class typechecker =
                   when n = m && bw1 = bw2 ->
                   bty1.pos@>UVec (n,bw1,l1 +$ l2)
                 | _ -> raise @@ err p;
-            end
+            in
+            let fix = expr_fix p bty in
+              bty, fix e1, fix e2
           | Ast.LeftShift
           | Ast.RightShift ->
-            begin
+            let bty =
               match bty1.data,bty2.data with
                 | UInt (n,l1),(UInt (_,l2) | Int (_,l2)) ->
                   bty1.pos@>UInt (n,l1 +$ l2)
@@ -495,15 +485,55 @@ class typechecker =
                 | UVec (n,bw1,l1),(UInt (_,l2) | Int (_,l2)) ->
                   bty1.pos@>UVec (n,bw1,l1 +$ l2)
                 | _ -> raise @@ err p;
-            end
+            in
+            let fix = expr_fix p bty in
+              bty, fix e1, fix e2
           | Ast.LeftRotate
           | Ast.RightRotate ->
-            begin
+            let bty =
               match bty1.data,bty2.data with
                 | UInt (n,l1),UInt (_,l2) ->
                   bty1.pos@>UInt (n,l1 +$ l2)
                 | _ -> raise @@ err p;
-            end
+            in
+            let fix = expr_fix p bty in
+              bty, fix e1, fix e2
+
+    method ternop p e1 e2 e3 =
+      let e1' = visit#expr e1 in
+      let e2',e3' =
+        match Ast_util.is_untyped_int e2 with
+          | Some _ ->
+            let e3' = visit#expr e3 in
+            let e2' = visit#expr ~lookahead_bty:(type_of e3') e2 in
+              e2',e3'
+          | None ->
+            let e2' = visit#expr e2 in
+            let e3' = visit#expr ~lookahead_bty:(type_of e2') e3 in
+              e2',e3' in
+      let bty1 = type_of e1' in
+      let bty2 = type_of e2' in
+      let bty3 = type_of e3' in
+        if not (is_bool bty1) then
+          raise @@ err p;
+        if not (bty2 <: bty3 || bty3 <: bty2) then
+          raise @@ err p;
+        let l1 = label_of bty1 in
+        let new_bty = bty2 +: bty3 in
+        let new_bty =
+          match l1.data with
+            | Public -> new_bty
+            | Secret -> p @>
+              begin
+                match new_bty.data with
+                  | Bool _ -> Bool l1
+                  | UInt (n,_) -> UInt (n,l1)
+                  | Int (n,_) -> Int (n,l1)
+                  | UVec (n,bw,_) -> UVec (n,bw,l1)
+              end
+        in
+        let fix = expr_fix p new_bty in
+          (e1',fix e2',fix e3'), new_bty
 
     method _fncall p expected_rt fn args =
       let rt,params = findfn _fmap fn in
@@ -515,26 +545,30 @@ class typechecker =
                let Param (_,param_ty) = param.data in
                  visit#expr ~lookahead_bty:param_ty arg)
             args params in
-          List.iter2
+        let args' =
+          List.map2
             (fun arg param ->
                let arg_ty = type_of arg in
                let Param (_,param_ty) = param.data in
-                 if not (passable_to param_ty arg_ty) then
+                 if passable_to param_ty arg_ty then
+                   expr_fix p param_ty arg
+                 else
                    raise @@ cerr p
                               "argument type mismatch when calling '%s': expected %s, got %s"
                               fn.data
                               (show_base_type' param_ty.data)
                               (show_base_type' arg_ty.data))
-            args' params;
-          begin
-            match expected_rt,rt with
-              | Some ert,Some rt ->
-                if not (rt <: ert) then
-                  raise @@ err p
-              | None,None -> ()
-              | _ -> raise @@ err p
-          end;
-          args'
+            args' params in
+        let rt_needs_fixing =
+          match expected_rt,rt with
+            | Some ert,Some rt ->
+              if not (rt <: ert) then
+                raise @@ err p;
+              not (rt =: ert)
+            | None,None -> false
+            | _ -> raise @@ err p
+        in
+          args', rt_needs_fixing
 
     method stm stm_ =
       let p = stm_.pos in
@@ -561,20 +595,32 @@ class typechecker =
                 let e_bty = type_of e' in
                   e',e_bty,bty'
             in
-              if not (e_bty <: bty') then
+            let e_fixed =
+              if (e_bty <: bty') then
+                expr_fix p bty' e'
+              else
                 raise @@ cerr p
                            "expected %s, got %s"
                            (show_base_type' bty'.data)
-                           (show_base_type' e_bty.data);
+                           (show_base_type' e_bty.data) in
               _vmap <- (x,bty') :: _vmap;
-              VarDec (x,bty',e')
+              VarDec (x,bty',e_fixed)
           | Ast.FnCall (x,bty,fn,args) ->
             let bty' = visit#bty bty in
-            let args' = visit#_fncall p (Some bty') fn args in
+            let args',rt_needs_fixing = visit#_fncall p (Some bty') fn args in
               _vmap <- (x,bty') :: _vmap;
-              FnCall (x,bty',fn,args')
+              if rt_needs_fixing then
+                begin
+                  let fresh = p@> make_fresh x.data in
+                  let (Some rt),_ = findfn _fmap fn in
+                    (* stm label doesn't matter b/c it will be overwritten later *)
+                    _inject <- (p@>FnCall (fresh,rt,fn,args'),p@>Secret) :: _inject;
+                    VarDec (x,bty',expr_fix p bty' (p@>Variable fresh,rt))
+                end
+              else
+                FnCall (x,bty',fn,args')
           | Ast.VoidFnCall (fn,args) ->
-            let args' = visit#_fncall p None fn args in
+            let args',_ = visit#_fncall p None fn args in
               VoidFnCall (fn,args')
           | Ast.Assign (e1,e2) ->
             let e1' = visit#expr e1 in
