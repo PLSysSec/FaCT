@@ -10,5 +10,5 @@ let is_untyped_int {data=e} =
 
 let is_unspec_arr {data=bty} =
   match bty with
-    | Arr (_,{data=LUnspecified},_) -> true
-    | _ -> false
+    | Arr ({data=Ref(e_bty,_)},{data=LUnspecified},_) -> Some e_bty
+    | _ -> None

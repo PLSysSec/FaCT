@@ -34,6 +34,10 @@ let is_vec =
     | UVec _ -> true
     | _ -> false
 
+let element_type =
+  xwrap @@ fun p -> function
+    | Arr ({data=Ref (bty,_)},_,_) -> bty
+
 let rec label_of bty_ =
   let p = bty_.pos in
     match bty_.data with

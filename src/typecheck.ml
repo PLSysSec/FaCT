@@ -289,10 +289,11 @@ class typechecker =
         | Ast.ArrayLit es ->
           if List.length es = 0 then
             raise @@ err p;
-          let es' = List.map visit#expr es in
+          let es' = List.map (visit#expr ?lookahead_bty) es in
           let btys = List.map type_of es' in
           let bty = Core.List.fold btys ~init:(List.hd btys) ~f:(+:) in
-            ArrayLit es', bty
+          let a_bty = p@>Arr (p@>Ref (bty,p@>R),p@>LIntLiteral (List.length es),default_var_attr) in
+            ArrayLit es', a_bty
         | Ast.ArrayZeros lexpr ->
           let bty = get p lookahead_bty in
             begin
@@ -578,22 +579,24 @@ class typechecker =
             Block (visit#block blk)
           | Ast.VarDec (x,bty,e) ->
             let e',e_bty,bty' =
-              if Ast_util.is_unspec_arr bty then
-                let e' = visit#expr e in
-                let e_bty = type_of e' in
-                  begin
-                    match e_bty.data with
-                      | Arr (_,lexpr,_) ->
-                        let bty' = visit#bty ~lookahead_lexpr:lexpr bty in
-                          e',e_bty,bty'
-                      | _ ->
-                        raise @@ err p
-                  end
-              else
-                let bty' = visit#bty bty in
-                let e' = visit#expr ~lookahead_bty:bty' e in
-                let e_bty = type_of e' in
-                  e',e_bty,bty'
+              match Ast_util.is_unspec_arr bty with
+                | Some pre_bty ->
+                  let pre_bty' = visit#bty pre_bty in
+                  let e' = visit#expr ~lookahead_bty:pre_bty' e in
+                  let e_bty = type_of e' in
+                    begin
+                      match e_bty.data with
+                        | Arr (_,lexpr,_) ->
+                          let bty' = visit#bty ~lookahead_lexpr:lexpr bty in
+                            e',e_bty,bty'
+                        | _ ->
+                          raise @@ err p
+                    end
+                | None ->
+                  let bty' = visit#bty bty in
+                  let e' = visit#expr ~lookahead_bty:bty' e in
+                  let e_bty = type_of e' in
+                    e',e_bty,bty'
             in
             let e_fixed =
               if (e_bty <: bty') then

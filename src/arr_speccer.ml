@@ -35,9 +35,10 @@ class array_spec_fncall =
         try List.map2
               (fun arg param ->
                  let Param (x,bty) = param.data in
-                   if is_unspec_arr bty then
-                     [arg ; arg.pos @> ArrayLen arg]
-                   else [arg])
+                   match is_unspec_arr bty with
+                     | Some _ ->
+                       [arg ; arg.pos @> ArrayLen arg]
+                     | None -> [arg])
               args
               params
         with Invalid_argument _ ->

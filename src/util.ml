@@ -21,6 +21,10 @@ let (>&>) n m =
     | Some x, Some y -> Some (x, y)
     | _ -> None
 
+let consume = function
+  | Some () -> ()
+  | None -> ()
+
 let (%>) f g =
   Core.Fn.compose g f
 

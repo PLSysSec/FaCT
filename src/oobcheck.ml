@@ -60,7 +60,7 @@ class oobchecker m =
                   | _ -> None
               end >>= fun zdec ->
               return @@ mlist_push (x,zdec) _vmap
-        end |> ignore; res
+        end |> consume; res
 
     method unop op bty e =
       BitVector.(
@@ -206,7 +206,12 @@ class oobchecker m =
             | Declassify _
             | Enref _
             | Deref _
-            | ArrayGet (_,_)
+              -> ()
+            | ArrayGet (e,lexpr) ->
+              begin
+                zpop _expr e >>= fun z ->
+                return @@ ()
+              end >!!> err p
             | ArrayLit _
             | ArrayZeros _
             | ArrayCopy _
@@ -225,7 +230,7 @@ class oobchecker m =
         match stm_.data with
           | VarDec (x,bty,e) ->
             let res = super#stm (stm_,lbl_) in
-              begin
+              (begin
                 match bty.data with
                   | Bool _ ->
                     Some (Boolean.mk_const_s ctx x.data)
@@ -234,14 +239,14 @@ class oobchecker m =
                     Some (BitVector.mk_const_s ctx x.data s)
                   | _ -> None
               end >>= fun zdec ->
-              mlist_push (x,zdec) _vmap;
-              zpop _expr e >>= fun ze ->
-              let zassign = mk_eq ctx zdec ze in
-                Solver.add _solver [zassign];
-                return res
+               mlist_push (x,zdec) _vmap;
+               zpop _expr e >>= fun ze ->
+               let zassign = mk_eq ctx zdec ze in
+                 return @@ Solver.add _solver [zassign]) |> consume;
+              return res
           | FnCall (x,bty,fn,args) ->
             let res = super#stm (stm_,lbl_) in
-              begin
+              (begin
                 match bty.data with
                   | Bool _ ->
                     Some (Boolean.mk_const_s ctx x.data)
@@ -250,7 +255,7 @@ class oobchecker m =
                     Some (BitVector.mk_const_s ctx x.data s)
                   | _ -> None
               end >>= fun zdec ->
-              mlist_push (x,zdec) _vmap;
+               return @@ mlist_push (x,zdec) _vmap) |> consume;
               return res
 
           | If (cond,thens,elses) ->
@@ -312,7 +317,7 @@ class oobchecker m =
           | Assume _
             -> return @@ super#stm (stm_,lbl_)
       in
-        res >!!> err p
+        res >!!> cerr p "error from oob#stm"
 
   end
 
