@@ -62,6 +62,16 @@ class oobchecker m =
               return @@ mlist_push (x,zdec) _vmap
         end |> ignore; res
 
+    method unop op bty e =
+      BitVector.(
+        zpop _expr e >>= fun z ->
+        return @@
+        (match op with
+          | Ast.Neg -> mk_neg ctx z
+          | Ast.LogicalNot -> Boolean.mk_not ctx z
+          | Ast.BitwiseNot -> mk_not ctx z)
+      )
+
     method binop op bty e1 e2 =
       BitVector.(
         zpop _expr e2 >>= fun z2 ->
@@ -123,7 +133,23 @@ class oobchecker m =
 
     method expr ((e_,bty_) as e__) =
       let p = e_.pos in
-      let res = super#expr (e_,bty_) in
+      let res =
+        match e_.data with
+          | TernOp ((_, cty) as cond,e1,e2) when (label_of cty).data = Public ->
+            begin
+              let cond' = visit#expr cond in
+                zpop _expr cond >>= fun zcond ->
+                Solver.push _solver;
+                Solver.add _solver [zcond];
+                let e1' = visit#expr e1 in
+                  Solver.pop _solver 1;
+                  Solver.add _solver [Boolean.mk_not ctx zcond];
+                  Solver.push _solver;
+                  let e2' = visit#expr e2 in
+                    Solver.pop _solver 1;
+                    return @@ (p@>TernOp (cond',e1',e2'),bty_)
+            end >!!> err p
+          | _ -> super#expr (e_,bty_) in
         begin
           match e_.data with
             (* Blessable *)
@@ -157,14 +183,25 @@ class oobchecker m =
                       | _ -> z in
                     return @@ zpush _expr e__ casted
                 end >!!> err p
-            | UnOp (_,_) -> ()
+            | UnOp (op,e) ->
+              begin
+                visit#unop op bty_ e >>= fun zexpr ->
+                return @@ zpush _expr e__ zexpr
+              end >!!> err p
             | BinOp (op,e1,e2) ->
               begin
-                visit#binop op bty_ e1 e2 >>= fun thinger ->
-                return @@ zpush _expr e__ thinger
+                visit#binop op bty_ e1 e2 >>= fun zexpr ->
+                return @@ zpush _expr e__ zexpr
               end >!!> err p
-            | TernOp (_,_,_)
-            | Select (_,_,_)
+            | TernOp (cond,e1,e2)
+            | Select (cond,e1,e2) ->
+              begin
+                zpop _expr e2 >>= fun z2 ->
+                zpop _expr e1 >>= fun z1 ->
+                zpop _expr cond >>= fun zcond ->
+                let zexpr = Boolean.mk_ite ctx zcond z1 z2 in
+                  return @@ zpush _expr e__ zexpr
+              end >!!> err p
             (* Non-blessable *)
             | Declassify _
             | Enref _
@@ -218,22 +255,58 @@ class oobchecker m =
 
           | If (cond,thens,elses) ->
             let cond' = visit#expr cond in
-              zpop _expr cond >>= fun zcond ->
-              Solver.push _solver;
-              Solver.add _solver [zcond];
-              let thens' = visit#block thens in
-                Solver.pop _solver 1;
-                Solver.add _solver [Boolean.mk_not ctx zcond];
+            let cty = type_of cond' in
+              if (label_of cty).data = Public then
+                zpop _expr cond >>= fun zcond ->
                 Solver.push _solver;
-                let elses' = visit#block elses in
+                Solver.add _solver [zcond];
+                let thens' = visit#block thens in
                   Solver.pop _solver 1;
+                  Solver.add _solver [Boolean.mk_not ctx zcond];
+                  Solver.push _solver;
+                  let elses' = visit#block elses in
+                    Solver.pop _solver 1;
+                    return (p@>If (cond',thens',elses'),lbl_)
+              else
+                (* secret ifs don't guard statements! *)
+                let thens' = visit#block thens in
+                let elses' = visit#block elses in
                   return (p@>If (cond',thens',elses'),lbl_)
+          (* XXX need to collect join information post if-block? *)
+          (* maybe not, since side-effects (refs) aren't blessable *)
+
+          | RangeFor (x,bty,lo,hi,blk) ->
+            let lo' = visit#expr lo in
+            let hi' = visit#expr hi in
+              zpop _expr hi' >>= fun zhi ->
+              zpop _expr lo' >>= fun zlo ->
+              begin
+                match bty.data with
+                  | UInt (s,_)
+                  | Int (s,_) ->
+                    Some (BitVector.mk_const_s ctx x.data s)
+                  | _ -> None
+              end >>= fun zdec ->
+              let zconstraint =
+                Boolean.mk_and ctx
+                  (if is_signed bty then
+                     [ BitVector.mk_sle ctx zlo zdec ;
+                       BitVector.mk_slt ctx zdec zhi ]
+                   else
+                     [ BitVector.mk_ule ctx zlo zdec ;
+                       BitVector.mk_ult ctx zdec zhi ]) in
+                Solver.push _solver;
+                Solver.add _solver [zconstraint];
+                let blk' = visit#block blk in
+                  Solver.pop _solver 1;
+                  return (p@>RangeFor (x,bty,lo',hi',blk'),lbl_)
+          (* XXX need to collect join information post for-block? *)
+          (* maybe not, since side-effects (refs) aren't blessable *)
 
           | Block _
           | VoidFnCall (_,_)
-          | Assign (_,_)
-          | RangeFor (_,_,_,_,_)
-          | ArrayFor (_,_,_,_)
+          | Assign (_,_) (* update info? or no since refs are not blessable? *)
+          | ArrayFor (_,_,_,_) (* collect join info? *)
           | Return _
           | VoidReturn
           | Assume _
