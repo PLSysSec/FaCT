@@ -631,9 +631,10 @@ class typechecker =
                 | _ -> raise @@ err p in
             let e2' = visit#expr ~lookahead_bty:unref_ty e2 in
             let e2_ty = type_of e2' in
-              if not (e2_ty <: unref_ty) then
-                raise @@ err p;
-              Assign (e1',e2')
+              if e2_ty <: unref_ty then
+                Assign (e1',expr_fix p unref_ty e2')
+              else
+                raise @@ err p
           | Ast.If (cond,thens,elses) ->
             let cond' = visit#expr cond in
               if not (is_bool (type_of cond')) then
@@ -647,10 +648,16 @@ class typechecker =
                 raise @@ err p;
               let e1' = visit#expr ~lookahead_bty:bty' e1 in
               let e2' = visit#expr ~lookahead_bty:bty' e2 in
-                if not (type_of e1' <: bty') then
-                  raise @@ err p;
-                if not (type_of e2' <: bty') then
-                  raise @@ err p;
+              let e1' =
+                if type_of e1' <: bty' then
+                  expr_fix p bty' e1'
+                else
+                  raise @@ err p in
+              let e2' =
+                if type_of e2' <: bty' then
+                  expr_fix p bty' e2'
+                else
+                  raise @@ err p in
                 _vmap <- (x,bty') :: _vmap;
                 let blk' = visit#block blk in
                   RangeFor(x,bty',e1',e2',blk')
@@ -661,7 +668,7 @@ class typechecker =
               match (type_of e').data with
                 | Arr (el_ty,_,_) -> el_ty
                 | _ -> raise @@ err p in
-              if not (el_ty <: bty') then
+              if not (el_ty =: bty') then
                 raise @@ err p;
               _vmap <- (x,bty') :: _vmap;
               let blk' = visit#block blk in
@@ -671,8 +678,11 @@ class typechecker =
             begin
               fun fn_rt ->
                 let e' = visit#expr ~lookahead_bty:fn_rt e in
-                  if not (type_of e' <: fn_rt) then
-                    raise @@ err p;
+                let e' =
+                  if type_of e' <: fn_rt then
+                    expr_fix p fn_rt e'
+                  else
+                    raise @@ err p in
                   return @@ Return e'
             end >!!> err p
           | Ast.VoidReturn ->
