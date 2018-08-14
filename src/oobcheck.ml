@@ -11,14 +11,19 @@ let mk_eq = Boolean.mk_eq
 let ctx = mk_context []
 let bv = BitVector.mk_sort ctx
 
-let zpush stack e = push (Some e) stack
-let zpop stack = pop stack
+let zpush exprs e z =
+  if mlist_mem !exprs e ~equal:(=) then
+    (let ({pos=p},_) = e in
+       raise @@ cerr p "NOPE");
+  mlist_push (e,z) exprs
+let zpop exprs e =
+  mlist_find !exprs e ~equal:(=)
 
 class oobchecker m =
   object (visit)
     inherit Tastmap.tast_visitor m as super
     val _solver = Solver.mk_solver ctx None
-    val _expr : Z3.Expr.expr option stack = Stack.create ()
+    val _expr : (expr * Z3.Expr.expr) mlist = ref []
     val _vmap : (var_name * Z3.Expr.expr) mlist = ref []
 
     method _assert zexpr =
@@ -59,10 +64,9 @@ class oobchecker m =
 
     method binop op bty e1 e2 =
       BitVector.(
-        zpop _expr >>= fun z2 ->
-        zpop _expr >>= fun z1 ->
+        zpop _expr e2 >>= fun z2 ->
+        zpop _expr e1 >>= fun z1 ->
         return @@
-        zpush _expr
           (match op with
             | Ast.Plus ->
               mk_add ctx z1 z2
@@ -115,30 +119,50 @@ class oobchecker m =
             | Ast.LeftRotate
             | Ast.RightRotate
               -> raise @@ err fake_pos)
-      ) |> ignore
+      )
 
-    method expr (e_,bty_) =
+    method expr ((e_,bty_) as e__) =
       let p = e_.pos in
       let res = super#expr (e_,bty_) in
         begin
           match e_.data with
             (* Blessable *)
             | True ->
-              zpush _expr (Boolean.mk_true ctx)
+              zpush _expr e__ (Boolean.mk_true ctx)
             | False ->
-              zpush _expr (Boolean.mk_false ctx)
+              zpush _expr e__ (Boolean.mk_false ctx)
             | IntLiteral n ->
               let (UInt (s,_) | Int (s,_)) = bty_.data in
-                zpush _expr (Expr.mk_numeral_int ctx n (bv s))
+                zpush _expr e__ (Expr.mk_numeral_int ctx n (bv s))
             | Variable x ->
               begin
                 Core.List.Assoc.find ~equal:vequal !_vmap x >>= fun zdec ->
-                return @@ zpush _expr zdec
+                return @@ zpush _expr e__ zdec
               end >!!> cerr p "couldn't find '%s'" x.data
-            | Cast (_,_)
-            | UnOp (_,_) -> (* XXX *) push None _expr
+            | Cast (bty,e) ->
+              let e_bty = type_of e in
+              let old_size = bitsize e_bty in
+              let new_size = bitsize bty in
+                begin
+                  zpop _expr e >>= fun z ->
+                  let casted =
+                    match compare old_size new_size with
+                      | res when res < 0 ->
+                        (if is_signed e_bty
+                         then BitVector.mk_sign_ext
+                         else BitVector.mk_zero_ext)
+                          ctx (new_size - old_size) z
+                      | res when res > 0 ->
+                        BitVector.mk_extract ctx (new_size - 1) 0 z
+                      | _ -> z in
+                    return @@ zpush _expr e__ casted
+                end >!!> err p
+            | UnOp (_,_) -> ()
             | BinOp (op,e1,e2) ->
-              visit#binop op bty_ e1 e2
+              begin
+                visit#binop op bty_ e1 e2 >>= fun thinger ->
+                return @@ zpush _expr e__ thinger
+              end >!!> err p
             | TernOp (_,_,_)
             | Select (_,_,_)
             (* Non-blessable *)
@@ -154,7 +178,7 @@ class oobchecker m =
             | StructLit _
             | StructGet (_,_)
             | StringLiteral _
-              -> push None _expr
+              -> ()
         end;
         res
 
@@ -174,15 +198,27 @@ class oobchecker m =
                   | _ -> None
               end >>= fun zdec ->
               mlist_push (x,zdec) _vmap;
-              zpop _expr >>= fun ze ->
+              zpop _expr e >>= fun ze ->
               let zassign = mk_eq ctx zdec ze in
                 Solver.add _solver [zassign];
                 return res
-
+          | FnCall (x,bty,fn,args) ->
+            let res = super#stm (stm_,lbl_) in
+              begin
+                match bty.data with
+                  | Bool _ ->
+                    Some (Boolean.mk_const_s ctx x.data)
+                  | UInt (s,_)
+                  | Int (s,_) ->
+                    Some (BitVector.mk_const_s ctx x.data s)
+                  | _ -> None
+              end >>= fun zdec ->
+              mlist_push (x,zdec) _vmap;
+              return res
 
           | If (cond,thens,elses) ->
             let cond' = visit#expr cond in
-              zpop _expr >>= fun zcond ->
+              zpop _expr cond >>= fun zcond ->
               Solver.push _solver;
               Solver.add _solver [zcond];
               let thens' = visit#block thens in
@@ -194,7 +230,6 @@ class oobchecker m =
                   return (p@>If (cond',thens',elses'),lbl_)
 
           | Block _
-          | FnCall (_,_,_,_)
           | VoidFnCall (_,_)
           | Assign (_,_)
           | RangeFor (_,_,_,_,_)
