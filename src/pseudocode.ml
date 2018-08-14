@@ -95,6 +95,15 @@ class pseudocode (m : fact_module) =
         | Arr (bt,lexpr,vattr) -> sprintf "%s%s[%s]" (visit#vattr vattr) (visit#bty bt) (visit#lexpr lexpr)
         | _ -> "X[bty]X"
 
+    method bty_nolbl =
+      xwrap @@ fun p -> function
+        | Bool l -> "bool"
+        | UInt (s,l) -> sprintf "uint%d" s
+        | Int (s,l) -> sprintf "int%d" s
+        | Ref (bt,m) -> sprintf "%s*%s" (visit#bty bt) (visit#mut m)
+        | Arr (bt,lexpr,vattr) -> sprintf "%s%s[%s]" (visit#vattr vattr) (visit#bty bt) (visit#lexpr lexpr)
+        | _ -> "X[bty]X"
+
     method lexpr =
       xwrap @@ fun p -> function
         | LIntLiteral n -> string_of_int n
@@ -192,7 +201,7 @@ class pseudocode (m : fact_module) =
         | Cast (bty,e) ->
           let e' = visit#expr e in
             sprintf "%s(%s)"
-              (visit#bty bty)
+              (visit#bty_nolbl bty)
               e'
         | UnOp (op,e) ->
           let e' = visit#expr e in
