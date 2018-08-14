@@ -12,6 +12,18 @@ let is_integral =
     | Int _ -> true
     | _ -> false
 
+let bitsize =
+  xwrap @@ fun p -> function
+    | UInt (s,_)
+    | Int (s,_) -> s
+    | _ -> raise @@ err p
+
+let is_signed =
+  xwrap @@ fun p -> function
+    | UInt _ -> false
+    | Int _ -> true
+    | _ -> raise @@ err p
+
 let is_bool =
   xwrap @@ fun p -> function
     | Bool _ -> true

@@ -1,5 +1,7 @@
+let return n = Some n
+
 let bind f = function
-  | Some n -> Some (f n)
+  | Some n -> f n
   | None -> None
 
 let (>>=) x f = bind f x
@@ -34,3 +36,7 @@ type 'a stack = 'a Stack.t
 let push = Stack.push
 let pop = Stack.pop
 let top = Stack.top
+
+type 'a mlist = 'a list ref
+let mlist_push el alist =
+  alist := el :: !alist

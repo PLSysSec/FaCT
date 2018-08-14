@@ -5,11 +5,6 @@ open Ast
 open Ast_util
 open Astmap
 
-type 'a mlist = 'a list ref
-
-let mlist_push el alist =
-  alist := el :: !alist
-
 class var_renamer =
   object (visit)
     inherit Astmap.ast_visitor as super

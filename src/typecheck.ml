@@ -39,7 +39,7 @@ class typechecker =
              match fdec.data with
                | Ast.FunDec(fn,_,rt,params,_)
                | Ast.CExtern(fn,rt,params) ->
-                 let rt' = rt >>= visit#bty ?lookahead_lexpr:None in
+                 let rt' = rt >>= visit#bty %> return in
                    begin
                      match rt' with
                        | Some {data=(Bool _ | UInt _ | Int _)}
@@ -91,7 +91,7 @@ class typechecker =
         | Ast.Field (x,bty) -> Field (x,visit#bty bty)
 
     (* Note: we explicitly do not recursively pass down the lookahead *)
-    method bty ?lookahead_lexpr {pos=p; data} =
+    method bty ?lookahead_lexpr {pos=p; data} : Tast.base_type =
       make_ast p begin
         match data with
           | Ast.Bool l -> Bool (visit#lbl l)
@@ -108,14 +108,14 @@ class typechecker =
       wrap @@ fun p -> function
         | Ast.FunDec(fn,ft,rt,params,body) ->
           let ft' = visit#fntype ft in
-          let rt' = rt >>= visit#bty in
+          let rt' = rt >>= visit#bty %> return in
           let params' = List.map visit#param params in
             _cur_rt <- rt';
             let body' = visit#block body in
               FunDec(fn,ft',rt',params',body')
         | Ast.CExtern (fn,rt,params) ->
           let params' = List.map visit#param params in
-            CExtern(fn,rt >>= visit#bty,params')
+            CExtern(fn,rt >>= visit#bty %> return,params')
 
     method param =
       wrap @@ fun p -> function
@@ -259,7 +259,7 @@ class typechecker =
                 let e2' = visit#expr ~lookahead_bty:(type_of e1') e2 in
                   e1',e2'
           in
-            BinOp(op,e1',e2'), visit#binop op e1' e2'
+            BinOp(op,e1',e2'), visit#binop p op e1' e2'
         | Ast.TernOp (e1,e2,e3) ->
           let (e1',e2',e3'),new_bty = visit#_ternop p e1 e2 e3 in
             TernOp(e1',e2',e3'), new_bty
@@ -389,7 +389,7 @@ class typechecker =
                        vequal field fieldname)
                     fields >>= fun x ->
                   let {data=Field (_,f_bty)} = x in
-                    f_bty
+                    Some f_bty
                 | _ -> None
             end >!!> err p
           in
@@ -412,7 +412,7 @@ class typechecker =
               raise @@ err bty.pos;
             bty
 
-    method binop op e1 e2 =
+    method binop p op e1 e2 =
       let bty1 = type_of e1 in
       let bty2 = type_of e2 in
         match op with
@@ -422,20 +422,20 @@ class typechecker =
           | Ast.Divide
           | Ast.Modulo ->
             if not @@ (is_integral bty1 || is_vec bty1) then
-              raise @@ err bty1.pos;
+              raise @@ err p;
             if not @@ (is_integral bty2 || is_vec bty2) then
-              raise @@ err bty2.pos;
+              raise @@ err p;
             if not (bty1 <: bty2) then
-              raise @@ err bty2.pos;
+              raise @@ err p;
             bty1 +: bty2
           | Ast.Equal
           | Ast.NEqual ->
             if not (is_integral bty1 || is_bool bty1 || is_vec bty1) then
-              raise @@ err bty1.pos;
+              raise @@ err p;
             if not (is_integral bty2 || is_bool bty2 || is_vec bty2) then
-              raise @@ err bty2.pos;
+              raise @@ err p;
             if not (bty1 <: bty2 || bty2 <: bty1) then
-              raise @@ err bty1.pos;
+              raise @@ err p;
             let l1 = label_of bty1 in
             let l2 = label_of bty2 in
               bty1.pos@>Bool (l1 +$ l2)
@@ -444,20 +444,20 @@ class typechecker =
           | Ast.LT
           | Ast.LTE ->
             if not (is_integral bty1) then
-              raise @@ err bty1.pos;
+              raise @@ err p;
             if not (is_integral bty2) then
-              raise @@ err bty2.pos;
+              raise @@ err p;
             if not (bty1 <: bty2 || bty2 <: bty1) then
-              raise @@ err bty1.pos;
+              raise @@ err p;
             let l1 = label_of bty1 in
             let l2 = label_of bty2 in
               bty1.pos@>Bool (l1 +$ l2)
           | Ast.LogicalAnd
           | Ast.LogicalOr ->
             if not (is_bool bty1) then
-              raise @@ err bty1.pos;
+              raise @@ err p;
             if not (is_bool bty2) then
-              raise @@ err bty2.pos;
+              raise @@ err p;
             bty1 +: bty2
           | Ast.BitwiseAnd ->
             begin
@@ -469,7 +469,7 @@ class typechecker =
                 | UVec (n,bw1,l1),UVec (m,bw2,l2)
                   when n = m && bw1 = bw2 ->
                   bty1.pos@>UVec (n,bw1,l1 +$ l2)
-                | _ -> raise @@ err bty1.pos
+                | _ -> raise @@ err p;
             end
           | Ast.BitwiseOr
           | Ast.BitwiseXor ->
@@ -482,19 +482,19 @@ class typechecker =
                 | UVec (n,bw1,l1),UVec (m,bw2,l2)
                   when n = m && bw1 = bw2 ->
                   bty1.pos@>UVec (n,bw1,l1 +$ l2)
-                | _ -> raise @@ err bty1.pos
+                | _ -> raise @@ err p;
             end
           | Ast.LeftShift
           | Ast.RightShift ->
             begin
               match bty1.data,bty2.data with
-                | UInt (n,l1),UInt (_,l2) ->
+                | UInt (n,l1),(UInt (_,l2) | Int (_,l2)) ->
                   bty1.pos@>UInt (n,l1 +$ l2)
-                | Int (n,l1),UInt (_,l2) ->
+                | Int (n,l1),(UInt (_,l2) | Int (_,l2)) ->
                   bty1.pos@>Int (n,l1 +$ l2)
-                | UVec (n,bw1,l1),UInt (_,l2) ->
+                | UVec (n,bw1,l1),(UInt (_,l2) | Int (_,l2)) ->
                   bty1.pos@>UVec (n,bw1,l1 +$ l2)
-                | _ -> raise @@ err bty1.pos
+                | _ -> raise @@ err p;
             end
           | Ast.LeftRotate
           | Ast.RightRotate ->
@@ -502,7 +502,7 @@ class typechecker =
               match bty1.data,bty2.data with
                 | UInt (n,l1),UInt (_,l2) ->
                   bty1.pos@>UInt (n,l1 +$ l2)
-                | _ -> raise @@ err bty1.pos
+                | _ -> raise @@ err p;
             end
 
     method _fncall p expected_rt fn args =
@@ -622,12 +622,13 @@ class typechecker =
                 ArrayFor(x,bty',e',blk')
           | Ast.Return e ->
             _cur_rt >>=
-            (fun fn_rt ->
-               let e' = visit#expr ~lookahead_bty:fn_rt e in
-                 if not (type_of e' <: fn_rt) then
-                   raise @@ err p;
-                 Return e')
-            >!!> err p
+            begin
+              fun fn_rt ->
+                let e' = visit#expr ~lookahead_bty:fn_rt e in
+                  if not (type_of e' <: fn_rt) then
+                    raise @@ err p;
+                  return @@ Return e'
+            end >!!> err p
           | Ast.VoidReturn ->
             begin
               match _cur_rt with
