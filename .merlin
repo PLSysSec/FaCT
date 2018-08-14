@@ -13,5 +13,6 @@ PKG lwt
 PKG ANSITerminal
 PKG dolog
 PKG lwt.unix
+PKG z3
 
 EXT lwt

@@ -3,7 +3,7 @@ true: use_menhir, bin_annot, debug
 <*.{byte,native}>: g++, use_llvm, use_llvm_analysis, use_llvm_bitwriter, use_llvm_irreader, use_llvm_linker, use_llvm_target, use_llvm_X86, use_llvm_bitreader, use_llvm_executionengine
 
 # OASIS_START
-# DO NOT EDIT (digest: f2cbe7e31d28567133ae76ffcada8016)
+# DO NOT EDIT (digest: be84367006abea1c6aa9be4a8cc99ec3)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -38,6 +38,7 @@ true: annot, bin_annot
 "src/fact.byte": package(ppx_deriving.std)
 "src/fact.byte": package(str)
 "src/fact.byte": package(threads)
+"src/fact.byte": package(z3)
 <src/*.ml{,i,y}>: package(ANSITerminal)
 <src/*.ml{,i,y}>: package(core)
 <src/*.ml{,i,y}>: package(dolog)
@@ -57,6 +58,7 @@ true: annot, bin_annot
 <src/*.ml{,i,y}>: package(ppx_deriving.std)
 <src/*.ml{,i,y}>: package(str)
 <src/*.ml{,i,y}>: package(threads)
+<src/*.ml{,i,y}>: package(z3)
 # OASIS_STOP
 "perf": -traverse
 "perf": not_hygienic

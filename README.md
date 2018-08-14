@@ -41,6 +41,10 @@ If you have not setup oasis, then you must do that first.
 
 ```oasis setup```
 
+Make sure the Z3 lib is in the path:
+
+```export LD_LIBRARY_PATH="$HOME/.opam/4.06.0/lib/z3"```
+
 Finally we can build the compiler.
 
 ```make```
