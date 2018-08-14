@@ -16,7 +16,7 @@ class cyclechecker m =
     method stm (stm_,lbl) =
       begin
         match stm_.data with
-          | FnCall (fn,_,_,_)
+          | FnCall (_,_,fn,_)
           | VoidFnCall (fn,_) ->
             let fns = StringMap.find_opt
                         _cur_fn.data
