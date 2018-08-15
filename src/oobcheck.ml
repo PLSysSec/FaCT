@@ -208,6 +208,15 @@ class oobchecker m =
                   mk_ext_rotate_right ctx z1 z2
         end)
 
+    method _lexpr lexpr_ =
+      let p = lexpr_.pos in
+        match lexpr_.data with
+          | LIntLiteral n ->
+            Expr.mk_numeral_int ctx n (bv 64)
+          | LDynamic x ->
+            mlist_find ~equal:vequal !_vmap x
+            >!!> err p
+
     method expr ((e_,bty_) as e__) =
       let p = e_.pos in
       let res =
@@ -239,9 +248,9 @@ class oobchecker m =
                 zpush _expr e__ (Expr.mk_numeral_int ctx n (bv s))
             | Variable x ->
               begin
-                Core.List.Assoc.find ~equal:vequal !_vmap x >>= fun zdec ->
+                mlist_find ~equal:vequal !_vmap x >>= fun zdec ->
                 return @@ zpush _expr e__ zdec
-              end >!!> cerr p "couldn't find '%s'" x.data
+              end |> consume
             | Cast (bty,e) ->
               let e_bty = type_of e in
               let old_size = bitsize e_bty in
@@ -259,17 +268,17 @@ class oobchecker m =
                         BitVector.mk_extract ctx (new_size - 1) 0 z
                       | _ -> z in
                     return @@ zpush _expr e__ casted
-                end >!!> err p
+                end |> consume
             | UnOp (op,e) ->
               begin
                 visit#unop op bty_ e >>= fun zexpr ->
                 return @@ zpush _expr e__ zexpr
-              end >!!> err p
+              end |> consume
             | BinOp (op,e1,e2) ->
               begin
                 visit#binop op bty_ e1 e2 >>= fun zexpr ->
                 return @@ zpush _expr e__ zexpr
-              end >!!> err p
+              end |> consume
             | TernOp (cond,e1,e2)
             | Select (cond,e1,e2) ->
               begin
@@ -278,7 +287,7 @@ class oobchecker m =
                 zpop _expr cond >>= fun zcond ->
                 let zexpr = Boolean.mk_ite ctx zcond z1 z2 in
                   return @@ zpush _expr e__ zexpr
-              end >!!> err p
+              end |> consume
             (* Non-blessable *)
             | Declassify _
             | Enref _
@@ -286,9 +295,18 @@ class oobchecker m =
               -> ()
             | ArrayGet (e,lexpr) ->
               begin
-                zpop _expr e >>= fun z ->
-                return @@ ()
-              end >!!> err p
+                let e_bty = type_of e in
+                let Arr (_,e_len,_) = e_bty.data in
+                let zlen = visit#_lexpr e_len in
+                let zi = visit#_lexpr lexpr in
+                let zdec = Expr.mk_fresh_const ctx "arrayget" (bv 64) in
+                let zeq = mk_eq ctx zdec zi in
+                  Solver.add _solver [zeq];
+                  let boundscheck_bot = BitVector.mk_ule ctx (Expr.mk_numeral_int ctx 0 (bv 64)) zi in
+                  let boundscheck_top = BitVector.mk_ult ctx zi zlen in
+                  let boundscheck = Boolean.mk_and ctx [boundscheck_bot; boundscheck_top] in
+                    return @@ visit#_assert boundscheck
+              end |> consume
             | ArrayLit _
             | ArrayZeros _
             | ArrayCopy _
