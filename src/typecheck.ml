@@ -151,24 +151,31 @@ class typechecker =
     method stms stms_ =
       stms_ |> List.map visit#stm |> List.flatten
 
+    (* lexprs will always have type UInt64 in this implementation *)
     method lexpr ?lookahead_lexpr {pos=p; data} =
       make_ast p begin
         match lookahead_lexpr with
           | Some lexpr -> lexpr.data
           | None -> begin
               match data with
-                | Ast.LIntLiteral n -> LIntLiteral n
+                | Ast.LIntLiteral n ->
+                  if n < 0 then
+                    raise @@ err p;
+                  if n > max_int then
+                    (* this is probably signed int31 or int63 max or something and not uint64 max,
+                       but it's still a reasonable limit in my opinion *)
+                    raise @@ err p;
+                  LIntLiteral n
                 | Ast.LExpression e ->
                   let e' = visit#expr e in
                   let e_bty = type_of e' in
-                  let e_lbl = label_of e_bty in
-                    if not @@ is_integral e_bty then
-                      raise @@ err p;
-                    if e_lbl.data <> Public then
-                      raise @@ err p;
+                  let u64 = p@>UInt (64, p@>Public) in
+                    if not (e_bty <: u64) then
+                      raise @@ cerr p "cannot use index of type %s" (show_base_type e_bty);
+                    let e' = expr_fix p u64 e' in
                     let x = p @> make_fresh "lexpr" in
-                      _vmap <- (x,e_bty) :: _vmap;
-                      let var_dec = (p@>VarDec(x,e_bty,e'),p@>Secret) in (* stm label doesn't matter b/c it will be overwritten later *)
+                      _vmap <- (x,u64) :: _vmap;
+                      let var_dec = (p@>VarDec(x,u64,e'),p@>Secret) in (* stm label doesn't matter b/c it will be overwritten later *)
                         _inject <- var_dec :: _inject;
                         LDynamic x
                 | Ast.LUnspecified -> raise @@ err p
