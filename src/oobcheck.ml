@@ -77,39 +77,72 @@ class oobchecker m =
         zpop _expr e2 >>= fun z2 ->
         zpop _expr e1 >>= fun z1 ->
         return @@
-          (match op with
+        begin
+          match op with
             | Ast.Plus ->
               mk_add ctx z1 z2
-            | Ast.Minus
-            | Ast.Multiply
-            | Ast.Divide
-            | Ast.Modulo
-            | Ast.Equal
-            | Ast.NEqual
-              -> raise @@ err fake_pos
+            | Ast.Minus ->
+              mk_sub ctx z1 z2
+            | Ast.Multiply ->
+              mk_mul ctx z1 z2
+            | Ast.Divide ->
+              let bvec_sort = bty |> bitsize |> bv in
+              let zdec = Expr.mk_fresh_const ctx "divisor" bvec_sort in
+              let zeq = mk_eq ctx zdec z2 in
+                Solver.add _solver [zeq];
+                let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
+                  visit#_assert divcheck;
+                  (if is_signed bty
+                   then mk_sdiv
+                   else mk_udiv) ctx z1 z2
+            | Ast.Modulo ->
+              let bvec_sort = bty |> bitsize |> bv in
+              let zdec = Expr.mk_fresh_const ctx "divisor" bvec_sort in
+              let zeq = mk_eq ctx zdec z2 in
+                Solver.add _solver [zeq];
+                let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
+                  visit#_assert divcheck;
+                  (if is_signed bty
+                   then mk_srem
+                   else mk_urem) ctx z1 z2
+            | Ast.Equal ->
+              mk_eq ctx z1 z2
+            | Ast.NEqual ->
+              Boolean.mk_not ctx @@ mk_eq ctx z1 z2
             | Ast.GT ->
               let cmp =
                 if is_signed ((type_of e1) +: (type_of e2))
                 then mk_sgt
                 else mk_ugt in
                 cmp ctx z1 z2
-            | Ast.GTE
-              -> raise @@ err fake_pos
+            | Ast.GTE ->
+              let cmp =
+                if is_signed ((type_of e1) +: (type_of e2))
+                then mk_sge
+                else mk_uge in
+                cmp ctx z1 z2
             | Ast.LT ->
               let cmp =
                 if is_signed ((type_of e1) +: (type_of e2))
                 then mk_slt
                 else mk_ult in
                 cmp ctx z1 z2
-            | Ast.LTE
-              -> raise @@ err fake_pos
+            | Ast.LTE ->
+              let cmp =
+                if is_signed ((type_of e1) +: (type_of e2))
+                then mk_sle
+                else mk_ule in
+                cmp ctx z1 z2
             | Ast.LogicalAnd ->
               Boolean.mk_and ctx [z1; z2]
-            | Ast.LogicalOr
-            | Ast.BitwiseAnd
-            | Ast.BitwiseOr
-            | Ast.BitwiseXor
-              -> raise @@ err fake_pos
+            | Ast.LogicalOr ->
+              Boolean.mk_or ctx [z1; z2]
+            | Ast.BitwiseAnd ->
+              mk_and ctx z1 z2
+            | Ast.BitwiseOr ->
+              mk_or ctx z1 z2
+            | Ast.BitwiseXor ->
+              mk_xor ctx z1 z2
             | Ast.LeftShift ->
               let cmp,cmpe =
                 if is_signed (type_of e2)
@@ -125,11 +158,55 @@ class oobchecker m =
                 let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
                   visit#_assert shiftcheck;
                   mk_shl ctx z1 z2
-            | Ast.RightShift
-            | Ast.LeftRotate
-            | Ast.RightRotate
-              -> raise @@ err fake_pos)
-      )
+            | Ast.RightShift ->
+              let cmp,cmpe =
+                if is_signed (type_of e2)
+                then mk_slt,mk_sle
+                else mk_ult,mk_ule in
+              let e1size = bitsize (type_of e1) in
+              let e2size = bitsize (type_of e2) in
+              let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
+              let zeq = mk_eq ctx zdec z2 in
+                Solver.add _solver [zeq];
+                let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
+                let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
+                let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
+                  visit#_assert shiftcheck;
+                  (if is_signed (type_of e1)
+                   then mk_ashr
+                   else mk_lshr)
+                    ctx z1 z2
+            | Ast.LeftRotate ->
+              let cmp,cmpe =
+                if is_signed (type_of e2)
+                then mk_slt,mk_sle
+                else mk_ult,mk_ule in
+              let e1size = bitsize (type_of e1) in
+              let e2size = bitsize (type_of e2) in
+              let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
+              let zeq = mk_eq ctx zdec z2 in
+                Solver.add _solver [zeq];
+                let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
+                let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
+                let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
+                  visit#_assert shiftcheck;
+                  mk_ext_rotate_left ctx z1 z2
+            | Ast.RightRotate ->
+              let cmp,cmpe =
+                if is_signed (type_of e2)
+                then mk_slt,mk_sle
+                else mk_ult,mk_ule in
+              let e1size = bitsize (type_of e1) in
+              let e2size = bitsize (type_of e2) in
+              let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
+              let zeq = mk_eq ctx zdec z2 in
+                Solver.add _solver [zeq];
+                let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
+                let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
+                let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
+                  visit#_assert shiftcheck;
+                  mk_ext_rotate_right ctx z1 z2
+        end)
 
     method expr ((e_,bty_) as e__) =
       let p = e_.pos in
