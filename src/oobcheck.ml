@@ -143,8 +143,8 @@ class oobchecker m =
                 Solver.add _solver [zcond];
                 let e1' = visit#expr e1 in
                   Solver.pop _solver 1;
-                  Solver.add _solver [Boolean.mk_not ctx zcond];
                   Solver.push _solver;
+                  Solver.add _solver [Boolean.mk_not ctx zcond];
                   let e2' = visit#expr e2 in
                     Solver.pop _solver 1;
                     return @@ (p@>TernOp (cond',e1',e2'),bty_)
@@ -267,8 +267,8 @@ class oobchecker m =
                 Solver.add _solver [zcond];
                 let thens' = visit#block thens in
                   Solver.pop _solver 1;
-                  Solver.add _solver [Boolean.mk_not ctx zcond];
                   Solver.push _solver;
+                  Solver.add _solver [Boolean.mk_not ctx zcond];
                   let elses' = visit#block elses in
                     Solver.pop _solver 1;
                     return (p@>If (cond',thens',elses'),lbl_)
