@@ -83,7 +83,9 @@ let lit_to_type { data=t; pos=p } =
 
 (* precedence based on C operator precedence
  * http://en.cppreference.com/w/c/language/operator_precedence *)
+%nonassoc TERNOP
 %left QUESTION
+%left COLON
 %left LOGOR
 %left LOGAND
 %left BITOR
@@ -228,8 +230,8 @@ expr:
   | t=basic_type e=paren(expr) { mkpos (Cast(t, e)) }
   | op=unop e=expr %prec UNARYOP { mkpos (UnOp(op, e)) }
   | e1=expr op=binop e2=expr { mkpos (BinOp(op, e1, e2)) }
-  | e1=expr QUESTION e2=expr COLON e3=expr { mkpos (TernOp(e1, e2, e3)) }
-  | e1=expr QUESTION QUESTION e2=expr COLON COLON e3=expr { mkpos (Select(e1, e2, e3)) }
+  | e1=expr QUESTION e2=expr COLON e3=expr %prec TERNOP { mkpos (TernOp(e1, e2, e3)) }
+  | e1=expr QUESTION QUESTION e2=expr COLON COLON e3=expr %prec TERNOP { mkpos (Select(e1, e2, e3)) }
   | DECLASSIFY e=paren(expr) { mkpos (Declassify e) }
 
   | REF e=expr { mkpos (Enref e) }
