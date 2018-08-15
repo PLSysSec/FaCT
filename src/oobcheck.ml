@@ -310,7 +310,24 @@ class oobchecker m =
             | ArrayLit _
             | ArrayZeros _
             | ArrayCopy _
-            | ArrayView (_,_,_)
+              -> ()
+            | ArrayView (e,start,new_len) ->
+              begin
+                let e_bty = type_of e in
+                let Arr (_,e_len,_) = e_bty.data in
+                let zlen = visit#_lexpr e_len in
+                let zi = visit#_lexpr start in
+                let znewlen = visit#_lexpr new_len in
+                let zend = BitVector.mk_add ctx zi znewlen in
+                let zdec = Expr.mk_fresh_const ctx "arrayview" (bv 64) in
+                let zeq = mk_eq ctx zdec zend in
+                  Solver.add _solver [zeq];
+                  let boundscheck_bot = BitVector.mk_ule ctx (Expr.mk_numeral_int ctx 0 (bv 64)) zi in
+                  let boundscheck_mid = BitVector.mk_ule ctx zi zend in
+                  let boundscheck_top = BitVector.mk_ule ctx zend zlen in
+                  let boundscheck = Boolean.mk_and ctx [boundscheck_bot; boundscheck_mid; boundscheck_top] in
+                    return @@ visit#_assert boundscheck
+              end |> consume
             | Shuffle (_,_)
             | StructLit _
             | StructGet (_,_)
