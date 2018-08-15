@@ -41,8 +41,16 @@ class constant_folder =
                   | Plus       -> UntypedIntLiteral (n + m)
                   | Minus      -> UntypedIntLiteral (n - m)
                   | Multiply   -> UntypedIntLiteral (n * m)
-                  | Divide     -> UntypedIntLiteral (n / m)
-                  | Modulo     -> UntypedIntLiteral (n mod m)
+                  | Divide     ->
+                    begin
+                      try UntypedIntLiteral (n / m) with
+                        | Division_by_zero -> raise @@ cerr p "division by zero"
+                    end
+                  | Modulo     ->
+                    begin
+                      try UntypedIntLiteral (n mod m) with
+                        | Division_by_zero -> raise @@ cerr p "division by zero"
+                    end
                   | BitwiseAnd -> UntypedIntLiteral (n land m)
                   | BitwiseOr  -> UntypedIntLiteral (n lor m)
                   | BitwiseXor -> UntypedIntLiteral (n lxor m)
