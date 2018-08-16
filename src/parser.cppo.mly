@@ -284,7 +284,7 @@ statement:
     { mkpos (Return e) }
   | RETURN SEMICOLON
     { mkpos VoidReturn }
-  | ASSUME e=paren(expr)
+  | ASSUME e=paren(expr) SEMICOLON
     { mkpos (Assume e) }
 
 %inline block: xs=blist(statement) { xs }
