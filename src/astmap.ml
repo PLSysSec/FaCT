@@ -5,6 +5,7 @@ open Ast
 
 class ast_visitor =
   object (visit)
+    val mutable _cur_fn : fun_name = fake_pos @> ""
 
     method module_pre m = m
     method fact_module m =
@@ -16,10 +17,14 @@ class ast_visitor =
     method fdec =
       (wrap @@ fun p -> function
           | FunDec(fn,ft,rt,params,body) ->
+            _cur_fn <- fn;
             let params' = List.map visit#param params in
             let body' = visit#block body in
               FunDec(fn,ft,rt,params',body')
-          | _ as f -> f)
+          | CExtern(fn,rt,params) ->
+            _cur_fn <- fn;
+            let params' = List.map visit#param params in
+              CExtern(fn,rt,params'))
       %> visit#fdec_post
     method fdec_post fdec = fdec
 

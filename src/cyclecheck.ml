@@ -1,19 +1,19 @@
 open Util
 open Pos
 open Err
-open Tast
+open Ast
 
 module StringMap = Map.Make(String)
 module StringSet = Set.Make(String)
 
 class cyclechecker m =
   object (visit)
-    inherit Tastmap.tast_visitor m as super
+    inherit Astmap.ast_visitor as super
     val mutable _edges : fun_name list StringMap.t = StringMap.empty
 
     method _edges () = _edges
 
-    method stm (stm_,lbl) =
+    method stm_post stm_ =
       begin
         match stm_.data with
           | FnCall (_,_,fn,_)
@@ -28,14 +28,14 @@ class cyclechecker m =
                           _edges;
           | _ -> ()
       end;
-      super#stm (stm_,lbl)
+      super#stm_post stm_
 
   end
 
 let transform m =
-  let visit = new cyclechecker m in
-  let m' = visit#fact_module () in
-  let Module(sdecs,fdecs,minfo) = m' in
+  let visit = new cyclechecker () in
+  let m' = visit#fact_module m in
+  let Module(sdecs,fdecs) = m' in
   let edges = visit#_edges () in
   let sorted = ref [] in
   let perm_marked  = ref StringSet.empty in
@@ -76,4 +76,4 @@ let transform m =
         (fun {data=FunDec(fn',_,_,_,_)|CExtern(fn',_,_)} ->
            not @@ List.mem fn'.data !sorted)
         fdecs in
-      Module(sdecs,fdecs' @ standalones,minfo)
+      Module(sdecs,fdecs' @ standalones)
