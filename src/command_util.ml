@@ -266,9 +266,6 @@ let compile (in_files,out_file,out_dir) args =
   let tast = Typecheck.transform ast in (* transition to tast; exprs have types *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
-  let tast = Unreturn.transform tast in (* early returns turned into variables + extra conditionals *)
-    output_tast args.ast_out out_file' tast;
-    generate_pseudo args.pseudo_out out_file' tast;
   let _ = Oobcheck.transform tast in (* array accesses validated *)
     ();
   (*generate_header (args.gen_header || args.verify_llvm) out_file' tast;
