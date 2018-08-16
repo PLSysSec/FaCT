@@ -159,10 +159,15 @@ class pseudocode (m : fact_module) =
             let cond' = visit#expr cond in
             let thens' = visit#block thens in
             let elses' = visit#block elses in
+            let str =
               sprintf "if (%s) %s%s"
                 cond'
                 thens'
                 (if elses' = "{ }" then "" else " else " ^ elses')
+            in
+            let hd :: rest = String.split_on_char '\n' str in
+            let hd' = hd ^ (sprintf "  // %s" (visit#lbl lbl_)) in
+              concat "\n" (hd' :: rest)
           | RangeFor (x,bty,e1,e2,blk) ->
             let e1' = visit#expr e1 in
             let e2' = visit#expr e2 in
