@@ -6,15 +6,33 @@ open Tast_util
 
 open Z3
 
+(** TODO:
+    - if (e1) {
+        if (e2) {
+          ...
+          return;
+        } else {
+          ...
+          return;
+        }
+      }
+      constraints do not propagate properly
+    - if (e_always_true) {
+        ...
+        return;
+      }
+      will still be treated as a possible-return instead of an always-return
+*)
+
 let mk_eq = Boolean.mk_eq
 
 let ctx = mk_context []
 let bv = BitVector.mk_sort ctx
 
 let zpush exprs e z =
-  if mlist_mem !exprs e ~equal:(=) then
+  (*if mlist_mem !exprs e ~equal:(=) then
     (let ({pos=p},_) = e in
-       raise @@ cerr p "NOPE");
+       raise @@ cerr p "NOPE");*)
   mlist_push (e,z) exprs
 let zpop exprs e =
   mlist_find !exprs e ~equal:(=)
@@ -32,33 +50,66 @@ class oobchecker m =
     val _solver = Solver.mk_solver ctx None
     val _expr : (expr * Z3.Expr.expr) mlist = ref []
     val _vmap : (var_name * Z3.Expr.expr) mlist = ref []
+    val _assertion_stack : Z3.Expr.expr list stack = Stack.create ()
+    val mutable _assertions_are_on : bool = true
+
+    method _add zexpr =
+      Solver.add _solver [zexpr];
+
+    method _add_flow zexpr =
+      Solver.add _solver [zexpr];
+      push (zexpr :: pop _assertion_stack) _assertion_stack
+
+    method _add_all_flow zexprs =
+      Solver.add _solver zexprs;
+      push (zexprs @ (pop _assertion_stack)) _assertion_stack
+
+    method _push () =
+      Solver.push _solver;
+      push [] _assertion_stack
+
+    method _pop () =
+      Solver.pop _solver 1
+
+    method _pop_with_flow () =
+      Solver.pop _solver 1;
+      pop _assertion_stack
+
+    method _temporarily_turn_off_assertions () =
+      _assertions_are_on <- false
+
+    method _ok_turn_assertions_back_on () =
+      _assertions_are_on <- true
 
     method _assert p zcheckvar zexpr =
-      let negated = Boolean.mk_not ctx zexpr in
-        Solver.push _solver;
-        Solver.add _solver [negated];
+      if _assertions_are_on then
         begin
-          match (Solver.check _solver []) with
-            | Solver.SATISFIABLE ->
-              let Some m = Solver.get_model _solver in
-              let message =
-                (Model.eval m zcheckvar true >>= fun thinger ->
-                 let value = Expr.to_string thinger in
-                   return @@ Printf.sprintf "value could be %s" value)
-                >!!> err p
-              in
-                raise @@ cerr p "%s" message
-            | Solver.UNSATISFIABLE -> ()
-            | Solver.UNKNOWN ->
-              print_endline "unknown!";
-              print_endline @@ Solver.get_reason_unknown _solver;
-              raise @@ err p
-        end;
-        Solver.pop _solver 1
+          let negated = Boolean.mk_not ctx zexpr in
+            visit#_push ();
+            visit#_add negated;
+            begin
+              match (Solver.check _solver []) with
+                | Solver.SATISFIABLE ->
+                  let Some m = Solver.get_model _solver in
+                  let message =
+                    (Model.eval m zcheckvar true >>= fun thinger ->
+                     let value = Expr.to_string thinger in
+                       return @@ Printf.sprintf "value could be %s" value)
+                    >!!> err p
+                  in
+                    raise @@ cerr p "%s" message
+                | Solver.UNSATISFIABLE -> ()
+                | Solver.UNKNOWN ->
+                  print_endline "unknown!";
+                  print_endline @@ Solver.get_reason_unknown _solver;
+                  raise @@ err p
+            end;
+            visit#_pop ()
+        end
 
     method _assert_sat p zexpr =
-      Solver.push _solver;
-      Solver.add _solver [zexpr];
+      visit#_push ();
+      visit#_add zexpr;
       begin
         match (Solver.check _solver []) with
           | Solver.SATISFIABLE -> ()
@@ -70,10 +121,12 @@ class oobchecker m =
             print_endline @@ Solver.get_reason_unknown _solver;
             raise @@ err p
       end;
-      Solver.pop _solver 1
+      visit#_pop ()
 
     method fdec fdec =
       Solver.reset _solver;
+      Stack.clear _assertion_stack;
+      push [] _assertion_stack;
       super#fdec fdec
 
     method param param =
@@ -120,7 +173,7 @@ class oobchecker m =
               let bvec_sort = bty |> bitsize |> bv in
               let zdec = Expr.mk_fresh_const ctx "divisor" bvec_sort in
               let zeq = mk_eq ctx zdec z2 in
-                Solver.add _solver [zeq];
+                visit#_add zeq;
                 let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
                   visit#_assert (expr_of e2).pos zdec divcheck;
                   (if is_signed bty
@@ -130,7 +183,7 @@ class oobchecker m =
               let bvec_sort = bty |> bitsize |> bv in
               let zdec = Expr.mk_fresh_const ctx "divisor" bvec_sort in
               let zeq = mk_eq ctx zdec z2 in
-                Solver.add _solver [zeq];
+                visit#_add zeq;
                 let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
                   visit#_assert (expr_of e2).pos zdec divcheck;
                   (if is_signed bty
@@ -183,7 +236,7 @@ class oobchecker m =
               let e2size = bitsize (type_of e2) in
               let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
               let zeq = mk_eq ctx zdec z2 in
-                Solver.add _solver [zeq];
+                visit#_add zeq;
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
                 let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
@@ -198,7 +251,7 @@ class oobchecker m =
               let e2size = bitsize (type_of e2) in
               let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
               let zeq = mk_eq ctx zdec z2 in
-                Solver.add _solver [zeq];
+                visit#_add zeq;
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
                 let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
@@ -216,7 +269,7 @@ class oobchecker m =
               let e2size = bitsize (type_of e2) in
               let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
               let zeq = mk_eq ctx zdec z2 in
-                Solver.add _solver [zeq];
+                visit#_add zeq;
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
                 let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
@@ -231,7 +284,7 @@ class oobchecker m =
               let e2size = bitsize (type_of e2) in
               let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
               let zeq = mk_eq ctx zdec z2 in
-                Solver.add _solver [zeq];
+                visit#_add zeq;
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
                 let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
@@ -256,14 +309,14 @@ class oobchecker m =
             begin
               let cond' = visit#expr cond in
                 zpop _expr cond >>= fun zcond ->
-                Solver.push _solver;
-                Solver.add _solver [zcond];
+                visit#_push ();
+                visit#_add zcond;
                 let e1' = visit#expr e1 in
-                  Solver.pop _solver 1;
-                  Solver.push _solver;
-                  Solver.add _solver [Boolean.mk_not ctx zcond];
+                  visit#_pop ();
+                  visit#_push ();
+                  visit#_add (Boolean.mk_not ctx zcond);
                   let e2' = visit#expr e2 in
-                    Solver.pop _solver 1;
+                    visit#_pop ();
                     return @@ (p@>TernOp (cond',e1',e2'),bty_)
             end >!!> err p
           | _ -> super#expr (e_,bty_) in
@@ -319,8 +372,12 @@ class oobchecker m =
                 let zexpr = Boolean.mk_ite ctx zcond z1 z2 in
                   return @@ zpush _expr e__ zexpr
               end |> consume
+            | Declassify e ->
+              begin
+                zpop _expr e >>= fun z ->
+                return @@ zpush _expr e__ z
+              end |> consume
             (* Non-blessable *)
-            | Declassify _
             | Enref _
             | Deref _
               -> ()
@@ -332,7 +389,7 @@ class oobchecker m =
                 let zi = visit#_lexpr lexpr in
                 let zdec = Expr.mk_fresh_const ctx "arrayget" (bv 64) in
                 let zeq = mk_eq ctx zdec zi in
-                  Solver.add _solver [zeq];
+                  visit#_add zeq;
                   let boundscheck_bot = BitVector.mk_ule ctx (Expr.mk_numeral_int ctx 0 (bv 64)) zi in
                   let boundscheck_top = BitVector.mk_ult ctx zi zlen in
                   let boundscheck = Boolean.mk_and ctx [boundscheck_bot; boundscheck_top] in
@@ -352,7 +409,7 @@ class oobchecker m =
                 let zend = BitVector.mk_add ctx zi znewlen in
                 let zdec = Expr.mk_fresh_const ctx "arrayview" (bv 64) in
                 let zeq = mk_eq ctx zdec zend in
-                  Solver.add _solver [zeq];
+                  visit#_add zeq;
                   let boundscheck_bot = BitVector.mk_ule ctx (Expr.mk_numeral_int ctx 0 (bv 64)) zi in
                   let boundscheck_mid = BitVector.mk_ule ctx zi zend in
                   let boundscheck_top = BitVector.mk_ule ctx zend zlen in
@@ -385,7 +442,7 @@ class oobchecker m =
                mlist_push (x,zdec) _vmap;
                zpop _expr e >>= fun ze ->
                let zassign = mk_eq ctx zdec ze in
-                 return @@ Solver.add _solver [zassign]) |> consume;
+                 return @@ visit#_add zassign) |> consume;
               return res
           | FnCall (x,bty,fn,args) ->
             let res = super#stm (stm_,lbl_) in
@@ -407,19 +464,19 @@ class oobchecker m =
               if (label_of cty).data = Public then
                 zpop _expr cond >>= fun zcond ->
                 let zncond = Boolean.mk_not ctx zcond in
-                Solver.push _solver;
-                Solver.add _solver [zcond];
-                let thens' = visit#block thens in
-                  Solver.pop _solver 1;
-                  Solver.push _solver;
-                  Solver.add _solver [zncond];
-                  let elses' = visit#block elses in
-                    Solver.pop _solver 1;
-                    if ends_with_ret thens' then
-                      Solver.add _solver [zncond];
-                    if ends_with_ret elses' then
-                      Solver.add _solver [zcond];
-                    return (p@>If (cond',thens',elses'),lbl_)
+                  visit#_push ();
+                  visit#_add zcond;
+                  let thens' = visit#block thens in
+                    visit#_pop ();
+                    visit#_push ();
+                    visit#_add zncond;
+                    let elses' = visit#block elses in
+                      visit#_pop ();
+                      if ends_with_ret thens' then
+                        visit#_add_flow zncond;
+                      if ends_with_ret elses' then
+                        visit#_add_flow zcond;
+                      return (p@>If (cond',thens',elses'),lbl_)
               else
                 (* secret ifs don't guard statements! *)
                 let thens' = visit#block thens in
@@ -451,18 +508,39 @@ class oobchecker m =
                   Boolean.mk_and ctx
                     [ cmpe ctx zlo zdec ;
                       cmp  ctx zdec zhi ] in
-                  Solver.push _solver;
-                  Solver.add _solver [zconstraint];
-                  let blk' = visit#block blk in
-                    Solver.pop _solver 1;
-                    return (p@>RangeFor (x,bty,lo',hi',blk'),lbl_)
+                  visit#_push ();
+                  visit#_add zconstraint;
+                  visit#_push ();
+                  visit#_temporarily_turn_off_assertions ();
+                  let _ = visit#block blk in
+                    visit#_ok_turn_assertions_back_on ();
+                    let new_assumptions = visit#_pop_with_flow () in
+                    let after_first_iteration = cmp ctx zlo zdec in
+                    let assumptions_for_next_loop_iteration =
+                      List.map
+                        (fun ze ->
+                           let substituted =
+                             Expr.substitute_one ze
+                               zdec
+                               (BitVector.mk_sub ctx
+                                  zdec
+                                  (Expr.mk_numeral_int ctx 1 (bv @@ bitsize bty))) in
+                             Boolean.mk_implies ctx
+                               after_first_iteration
+                               substituted
+                        )
+                        new_assumptions in
+                      visit#_add_all_flow assumptions_for_next_loop_iteration;
+                      let blk' = visit#block blk in
+                        visit#_pop ();
+                        return (p@>RangeFor (x,bty,lo',hi',blk'),lbl_)
           (* XXX need to collect join information post for-block? *)
           (* maybe not, since side-effects (refs) aren't blessable *)
 
           | Assume e ->
             let res = super#stm (stm_,lbl_) in
               zpop _expr e >>= fun z ->
-              Solver.add _solver [z];
+              visit#_add z;
               return res
 
           | Block _
