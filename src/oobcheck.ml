@@ -26,7 +26,7 @@ class oobchecker m =
     val _expr : (expr * Z3.Expr.expr) mlist = ref []
     val _vmap : (var_name * Z3.Expr.expr) mlist = ref []
 
-    method _assert zexpr =
+    method _assert p zexpr =
       let negated = Boolean.mk_not ctx zexpr in
         Solver.push _solver;
         Solver.add _solver [negated];
@@ -36,14 +36,18 @@ class oobchecker m =
               print_endline "sat!";
               let Some m = Solver.get_model _solver in
                 print_endline (Model.to_string m);
-                raise @@ err fake_pos
+                raise @@ err p
             | Solver.UNSATISFIABLE -> ()
             | Solver.UNKNOWN ->
               print_endline "unknown!";
               print_endline @@ Solver.get_reason_unknown _solver;
-              raise @@ err fake_pos
+              raise @@ err p
         end;
         Solver.pop _solver 1
+
+    method fdec fdec =
+      Solver.reset _solver;
+      super#fdec fdec
 
     method param param =
       let res = super#param param in
@@ -91,7 +95,7 @@ class oobchecker m =
               let zeq = mk_eq ctx zdec z2 in
                 Solver.add _solver [zeq];
                 let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
-                  visit#_assert divcheck;
+                  visit#_assert (expr_of e2).pos divcheck;
                   (if is_signed bty
                    then mk_sdiv
                    else mk_udiv) ctx z1 z2
@@ -101,7 +105,7 @@ class oobchecker m =
               let zeq = mk_eq ctx zdec z2 in
                 Solver.add _solver [zeq];
                 let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
-                  visit#_assert divcheck;
+                  visit#_assert (expr_of e2).pos divcheck;
                   (if is_signed bty
                    then mk_srem
                    else mk_urem) ctx z1 z2
@@ -156,7 +160,7 @@ class oobchecker m =
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
                 let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
-                  visit#_assert shiftcheck;
+                  visit#_assert (expr_of e2).pos shiftcheck;
                   mk_shl ctx z1 z2
             | Ast.RightShift ->
               let cmp,cmpe =
@@ -171,7 +175,7 @@ class oobchecker m =
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
                 let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
-                  visit#_assert shiftcheck;
+                  visit#_assert (expr_of e2).pos shiftcheck;
                   (if is_signed (type_of e1)
                    then mk_ashr
                    else mk_lshr)
@@ -189,7 +193,7 @@ class oobchecker m =
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
                 let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
-                  visit#_assert shiftcheck;
+                  visit#_assert (expr_of e2).pos shiftcheck;
                   mk_ext_rotate_left ctx z1 z2
             | Ast.RightRotate ->
               let cmp,cmpe =
@@ -204,7 +208,7 @@ class oobchecker m =
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
                 let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
-                  visit#_assert shiftcheck;
+                  visit#_assert (expr_of e2).pos shiftcheck;
                   mk_ext_rotate_right ctx z1 z2
         end)
 
@@ -305,7 +309,7 @@ class oobchecker m =
                   let boundscheck_bot = BitVector.mk_ule ctx (Expr.mk_numeral_int ctx 0 (bv 64)) zi in
                   let boundscheck_top = BitVector.mk_ult ctx zi zlen in
                   let boundscheck = Boolean.mk_and ctx [boundscheck_bot; boundscheck_top] in
-                    return @@ visit#_assert boundscheck
+                    return @@ visit#_assert lexpr.pos boundscheck
               end |> consume
             | ArrayLit _
             | ArrayZeros _
@@ -326,7 +330,7 @@ class oobchecker m =
                   let boundscheck_mid = BitVector.mk_ule ctx zi zend in
                   let boundscheck_top = BitVector.mk_ule ctx zend zlen in
                   let boundscheck = Boolean.mk_and ctx [boundscheck_bot; boundscheck_mid; boundscheck_top] in
-                    return @@ visit#_assert boundscheck
+                    return @@ visit#_assert (expr_of e).pos boundscheck
               end |> consume
             | Shuffle (_,_)
             | StructLit _
@@ -375,14 +379,19 @@ class oobchecker m =
             let cty = type_of cond' in
               if (label_of cty).data = Public then
                 zpop _expr cond >>= fun zcond ->
+                let zncond = Boolean.mk_not ctx zcond in
                 Solver.push _solver;
                 Solver.add _solver [zcond];
                 let thens' = visit#block thens in
                   Solver.pop _solver 1;
                   Solver.push _solver;
-                  Solver.add _solver [Boolean.mk_not ctx zcond];
+                  Solver.add _solver [zncond];
                   let elses' = visit#block elses in
                     Solver.pop _solver 1;
+                    if ends_with_ret thens' then
+                      Solver.add _solver [zncond];
+                    if ends_with_ret elses' then
+                      Solver.add _solver [zcond];
                     return (p@>If (cond',thens',elses'),lbl_)
               else
                 (* secret ifs don't guard statements! *)
@@ -420,13 +429,18 @@ class oobchecker m =
           (* XXX need to collect join information post for-block? *)
           (* maybe not, since side-effects (refs) aren't blessable *)
 
+          | Assume e ->
+            let res = super#stm (stm_,lbl_) in
+              zpop _expr e >>= fun z ->
+              Solver.add _solver [z];
+              return res
+
           | Block _
           | VoidFnCall (_,_)
           | Assign (_,_) (* update info? or no since refs are not blessable? *)
           | ArrayFor (_,_,_,_) (* collect join info? *)
           | Return _
           | VoidReturn
-          | Assume _
             -> return @@ super#stm (stm_,lbl_)
       in
         res >!!> cerr p "error from oob#stm"

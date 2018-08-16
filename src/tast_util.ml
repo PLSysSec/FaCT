@@ -4,6 +4,7 @@ open Tast
 
 let vequal x y = x.data = y.data
 
+let expr_of (e_, bty) = e_
 let type_of (e_, bty) = bty
 
 let is_integral =
@@ -49,6 +50,12 @@ let rec label_of bty_ =
       | Arr (bty,_,_) -> label_of bty
       | Struct _ -> raise @@ cerr p "???"
       | String -> p@>Public
+
+let ends_with_ret stms =
+  match List.rev stms with
+    | ({data=Return _},_) :: _
+    | ({data=VoidReturn},_) :: _ -> true
+    | _ -> false
 
 let ( =$ ) l1 l2 =
   l1.data = l2.data
