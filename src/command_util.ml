@@ -265,9 +265,7 @@ let compile (in_files,out_file,out_dir) args =
     output_ast args.ast_out out_file' ast;
   let tast = Typecheck.transform ast in (* transition to tast; exprs have types *)
     output_tast args.ast_out out_file' tast;
-  (*let tast = Pclabel.transform tast in (* statements labelled with pc label *)
-    output_tast args.ast_out out_file' tast;
-    generate_pseudo args.pseudo_out out_file' tast;*)
+    generate_pseudo args.pseudo_out out_file' tast;
   let tast = Unreturn.transform tast in (* early returns turned into variables + extra conditionals *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;

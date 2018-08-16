@@ -42,8 +42,11 @@ class typechecker =
   object (visit)
     val mutable _vmap : (var_name * base_type) list = []
     val mutable _fmap : (fun_name * (ret_type * params)) list = []
+    val mutable _cur_fn : fun_name = fake_pos @> ""
     val mutable _cur_rt : ret_type = None
-    val mutable _inject : statement list = []
+    val mutable _inject : statement' pos_ast list = []
+    val mutable _rp : label ref = ref (fake_pos @> Public)
+    val mutable _everhis : fun_name' list = []
 
     method fact_module m =
       let Ast.Module(sdecs,fdecs) = m in
@@ -78,8 +81,9 @@ class typechecker =
       | Ast.Always  -> Always
       | Ast.Never   -> Never
 
-    method fntype Ast.{ export; inline } =
-      { export; inline=visit#inline inline; everhi=false }
+    method fntype fn Ast.{ export; inline } =
+      let everhi = List.mem fn.data _everhis in
+        { export; inline=visit#inline inline; everhi }
 
     method lbl =
       wrap @@ fun p -> function
@@ -120,15 +124,21 @@ class typechecker =
       end
 
     method fdec =
+      _rp <- ref (fake_pos @> Public);
       wrap @@ fun p -> function
         | Ast.FunDec(fn,ft,rt,params,body) ->
-          let ft' = visit#fntype ft in
+          _cur_fn <- fn;
+          let ft' = visit#fntype fn ft in
           let rt' = rt >>= visit#bty %> return in
           let params' = List.map visit#param params in
             _cur_rt <- rt';
-            let body' = visit#block body in
+            let pc = fake_pos @> Public in
+            let body' = visit#block pc body in
               FunDec(fn,ft',rt',params',body')
         | Ast.CExtern (fn,rt,params) ->
+          if List.mem fn.data _everhis then
+            raise @@ cerr p "calling function '%s' from secret control flow" fn.data;
+          _cur_fn <- fn;
           let params' = List.map visit#param params in
             CExtern(fn,rt >>= visit#bty %> return,params')
 
@@ -145,11 +155,11 @@ class typechecker =
             _vmap <- (x,bty') :: _vmap;
             Param(x,bty')
 
-    method block blk =
-      visit#stms blk
+    method block pc blk =
+      visit#stms pc blk
 
-    method stms stms_ =
-      stms_ |> List.map visit#stm |> List.flatten
+    method stms pc stms_ =
+      stms_ |> List.map (visit#stm pc) |> List.flatten
 
     (* lexprs will always have type UInt64 in this implementation *)
     method lexpr ?lookahead_lexpr {pos=p; data} =
@@ -162,7 +172,7 @@ class typechecker =
                   if n < 0 then
                     raise @@ err p;
                   if n > max_int then
-                    (* this is probably signed int31 or int63 max or something and not uint64 max,
+                    (* this is probably int31 or int63 max or something and not uint64 max,
                        but it's still a reasonable limit in my opinion *)
                     raise @@ err p;
                   LIntLiteral n
@@ -175,7 +185,7 @@ class typechecker =
                     let e' = expr_fix p u64 e' in
                     let x = p @> make_fresh "lexpr" in
                       _vmap <- (x,u64) :: _vmap;
-                      let var_dec = (p@>VarDec(x,u64,e'),p@>Secret) in (* stm label doesn't matter b/c it will be overwritten later *)
+                      let var_dec = p@>VarDec(x,u64,e') in
                         _inject <- var_dec :: _inject;
                         LDynamic x
                 | Ast.LUnspecified -> raise @@ err p
@@ -571,19 +581,27 @@ class typechecker =
           match expected_rt,rt with
             | Some ert,Some rt ->
               if not (rt <: ert) then
-                raise @@ err p;
+                raise @@ cerr p
+                           "expected %s got %s"
+                           (show_base_type ert)
+                           (show_base_type rt);
               not (rt =: ert)
             | None,None -> false
             | _ -> raise @@ err p
         in
           args', rt_needs_fixing
 
-    method stm stm_ =
+    method stm pc stm_ =
       let p = stm_.pos in
+      let old_rp = !_rp in
+      let stmlbl =
+        if List.mem _cur_fn.data _everhis
+        then fake_pos @> Secret
+        else pc +$ !_rp in
       let stm' =
         match stm_.data with
           | Ast.Block blk ->
-            Block (visit#block blk)
+            Block (visit#block pc blk)
           | Ast.VarDec (x,bty,e) ->
             let e',e_bty,bty' =
               match Ast_util.is_unspec_arr bty with
@@ -616,6 +634,8 @@ class typechecker =
               _vmap <- (x,bty') :: _vmap;
               VarDec (x,bty',e_fixed)
           | Ast.FnCall (x,bty,fn,args) ->
+            if stmlbl.data = Secret then
+              _everhis <- fn.data :: _everhis;
             let bty' = visit#bty bty in
             let args',rt_needs_fixing = visit#_fncall p (Some bty') fn args in
               _vmap <- (x,bty') :: _vmap;
@@ -623,13 +643,14 @@ class typechecker =
                 begin
                   let fresh = p@> make_fresh x.data in
                   let (Some rt),_ = findfn _fmap fn in
-                    (* stm label doesn't matter b/c it will be overwritten later *)
-                    _inject <- (p@>FnCall (fresh,rt,fn,args'),p@>Secret) :: _inject;
+                    _inject <- (p@>FnCall (fresh,rt,fn,args')) :: _inject;
                     VarDec (x,bty',expr_fix p bty' (p@>Variable fresh,rt))
                 end
               else
                 FnCall (x,bty',fn,args')
           | Ast.VoidFnCall (fn,args) ->
+            if stmlbl.data = Secret then
+              _everhis <- fn.data :: _everhis;
             let args',_ = visit#_fncall p None fn args in
               VoidFnCall (fn,args')
           | Ast.Assign (e1,e2) ->
@@ -649,8 +670,9 @@ class typechecker =
             let cond' = visit#expr cond in
               if not (is_bool (type_of cond')) then
                 raise @@ err p;
-              let thens' = visit#block thens in
-              let elses' = visit#block elses in
+              let newpc = pc +$ (label_of @@ type_of cond') in
+              let thens' = visit#block newpc thens in
+              let elses' = visit#block newpc elses in
                 If (cond',thens',elses')
           | Ast.RangeFor (x,bty,e1,e2,blk) ->
             let bty' = visit#basic (p@>Public) bty in
@@ -669,7 +691,12 @@ class typechecker =
                 else
                   raise @@ err p in
                 _vmap <- (x,bty') :: _vmap;
-                let blk' = visit#block blk in
+                let blk' = visit#block pc blk in
+                let blk' =
+                  if old_rp.data = Public && !_rp.data = Secret then
+                    (* re-run the entire block, but now with secret rp *)
+                    visit#block pc blk
+                  else blk' in
                   RangeFor(x,bty',e1',e2',blk')
           | Ast.ArrayFor (x,bty,e,blk) ->
             let bty' = visit#basic (p@>Public) bty in
@@ -681,18 +708,26 @@ class typechecker =
               if not (el_ty =: bty') then
                 raise @@ err p;
               _vmap <- (x,bty') :: _vmap;
-              let blk' = visit#block blk in
+              let blk' = visit#block pc blk in
+              let blk' =
+                if old_rp.data = Public && !_rp.data = Secret then
+                  (* re-run the entire block, but now with secret rp *)
+                  visit#block pc blk
+                else blk' in
                 ArrayFor(x,bty',e',blk')
           | Ast.Return e ->
-            _cur_rt >>=
             begin
-              fun fn_rt ->
-                let e' = visit#expr ~lookahead_bty:fn_rt e in
+              _cur_rt >>= fun fn_rt ->
+              let e' = visit#expr ~lookahead_bty:fn_rt e in
+              let r_lbl = label_of fn_rt in
+                if not (stmlbl <$ r_lbl) then
+                  raise @@ err p;
                 let e' =
                   if type_of e' <: fn_rt then
                     expr_fix p fn_rt e'
                   else
                     raise @@ err p in
+                  _rp := !_rp +$ pc;
                   return @@ Return e'
             end >!!> err p
           | Ast.VoidReturn ->
@@ -701,6 +736,7 @@ class typechecker =
                 | Some _ -> raise @@ err p
                 | None -> ()
             end;
+            _rp := !_rp +$ pc;
             VoidReturn
           | Ast.Assume e ->
             let e' = visit#expr e in
@@ -708,7 +744,12 @@ class typechecker =
                 raise @@ err p;
               Assume e'
       in
-      let stm' = _inject @ [(p@>stm',p@>Secret)] in (* stm label doesn't matter b/c it will be overwritten later *)
+      let inject' =
+        List.map
+          (fun stm ->
+             (stm, stmlbl))
+          _inject in
+      let stm' = inject' @ [(p@>stm',stmlbl)] in
         _inject <- [];
         stm'
 
