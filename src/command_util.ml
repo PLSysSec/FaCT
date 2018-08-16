@@ -255,6 +255,8 @@ let compile (in_files,out_file,out_dir) args =
   let all_sdecs = List.fold_left (fun sdecs (Ast.Module (_,more_sdecs)) -> sdecs @ more_sdecs) [] asts in
   let ast = Ast.Module (all_fdecs,all_sdecs) in (* all files combined *)
     output_ast args.ast_out out_file' ast;
+  let ast = Cyclecheck.transform ast in (* fns sorted topologically, callers first *)
+    output_ast args.ast_out out_file' ast;
   let ast = Constfold.transform ast in (* constant folding *)
     output_ast args.ast_out out_file' ast;
   let ast = Varrename.transform ast in (* unique named vars *)
@@ -263,9 +265,10 @@ let compile (in_files,out_file,out_dir) args =
     output_ast args.ast_out out_file' ast;
   let tast = Typecheck.transform ast in (* transition to tast; exprs have types *)
     output_tast args.ast_out out_file' tast;
-  let tast = Cyclecheck.transform tast in (* fns sorted topologically, callers first *)
+  (*let tast = Pclabel.transform tast in (* statements labelled with pc label *)
     output_tast args.ast_out out_file' tast;
-  let tast = Pclabel.transform tast in (* statements labelled with pc label *)
+    generate_pseudo args.pseudo_out out_file' tast;*)
+  let tast = Unreturn.transform tast in (* early returns turned into variables + extra conditionals *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
   let _ = Oobcheck.transform tast in (* array accesses validated *)
