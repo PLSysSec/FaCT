@@ -61,6 +61,21 @@ class var_renamer =
         pop _vstack |> ignore ;
         res
 
+    method stm' ({pos=p;data} as stm_) =
+      match data with
+        | RangeFor (x,bty,e1,e2,blk) ->
+          let x' = visit#_newvar p x in
+          let e1' = visit#expr e1 in
+          let e2' = visit#expr e2 in
+          let blk' = visit#block blk in
+            [RangeFor (x',bty,e1',e2',blk')]
+        | ArrayFor (x,bty,e,blk) ->
+          let x' = visit#_newvar p x in
+          let e' = visit#expr e in
+          let blk' = visit#block blk in
+            [ArrayFor (x',bty,e',blk')]
+        | _ -> super#stm' stm_
+
     method stm_post =
       wrap @@ fun p -> function
         | VarDec (x,bty,e) ->
@@ -69,12 +84,6 @@ class var_renamer =
         | FnCall (x,bty,fn,args) ->
           let x' = visit#_newvar p x in
             FnCall (x',bty,fn,args)
-        | RangeFor (x,bty,e1,e2,blk) ->
-          let x' = visit#_newvar p x in
-            RangeFor (x',bty,e1,e2,blk)
-        | ArrayFor (x,bty,e,blk) ->
-          let x' = visit#_newvar p x in
-            ArrayFor (x',bty,e,blk)
         | stm -> stm
 
     method expr_post =

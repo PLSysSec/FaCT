@@ -19,6 +19,13 @@ let zpush exprs e z =
 let zpop exprs e =
   mlist_find !exprs e ~equal:(=)
 
+let print_assumptions solver =
+  print_endline ">>";
+  List.iter
+    (Expr.to_string %> print_endline)
+    (Solver.get_assertions solver);
+  print_endline "<<"
+
 class oobchecker m =
   object (visit)
     inherit Tastmap.tast_visitor m as super
@@ -413,6 +420,7 @@ class oobchecker m =
                     Some (BitVector.mk_const_s ctx x.data s)
                   | _ -> None
               end >>= fun zdec ->
+              mlist_push (x,zdec) _vmap;
               let zconstraint =
                 Boolean.mk_and ctx
                   (if is_signed bty then
