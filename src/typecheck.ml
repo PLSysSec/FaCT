@@ -30,14 +30,6 @@ let findvar vmap x =
                          "variable not defined: '%s'"
                          x.data
 
-let findfn fmap fname =
-  match Core.List.Assoc.find fmap fname ~equal:vequal with
-    | Some fnty -> fnty
-    | None -> raise @@ cerr fname.pos
-                         "function not defined: '%s'"
-                         fname.data
-
-
 class typechecker =
   object (visit)
     val mutable _vmap : (var_name * base_type) list = []
@@ -54,9 +46,10 @@ class typechecker =
         (* pre-scan function defs for out-of-order definitions *)
         List.iter
           (fun fdec ->
-             match fdec.data with
-               | Ast.FunDec(fn,_,rt,params,_)
-               | Ast.CExtern(fn,rt,params) ->
+             let fty = Ast.{ export=false; inline=Default } in
+             match fdec.data,fty with
+               | Ast.FunDec(fn,fty,rt,params,_),_
+               | Ast.CExtern(fn,rt,params),fty ->
                  let rt' = rt >>= visit#bty %> return in
                    begin
                      match rt' with
@@ -69,7 +62,11 @@ class typechecker =
                      _fmap <- (fn,(rt',params')) :: _fmap)
           fdecs;
         let fdecs' = List.map visit#fdec fdecs in
-          Module(sdecs',fdecs',{ fmap=_fmap })
+        let minfo_fmap =
+          List.map
+            (function {data=FunDec(fn,_,_,_,_) | CExtern(fn,_,_)} as fdec -> (fn, fdec))
+            fdecs' in
+          Module(sdecs',fdecs',{ fmap=minfo_fmap })
 
     method sdec =
       wrap @@ fun p -> function
@@ -125,7 +122,8 @@ class typechecker =
 
     method fdec =
       _rp <- ref (fake_pos @> Public);
-      wrap @@ fun p -> function
+      wrap @@ fun p -> fun fdec ->
+        match fdec with
         | Ast.FunDec(fn,ft,rt,params,body) ->
           _cur_fn <- fn;
           let ft' = visit#fntype fn ft in

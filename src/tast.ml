@@ -129,7 +129,7 @@ and struct_type = struct_type' pos_ast [@@deriving show]
 and structs = struct_type list
 [@@deriving show]
 
-and module_info = { fmap : (fun_name * (ret_type * params)) list }
+and module_info = { fmap : (fun_name * function_dec) list }
 
 and fact_module =
   | Module of structs * function_decs * module_info

@@ -141,3 +141,12 @@ let ( +: ) b1 b2 =
       when n = m && bw1 = bw2 ->
       b1.pos@>UVec (n, bw1, l1 +$ l2)
     | _ -> raise @@ cerr b1.pos "XXX" (*XXX*)
+
+let findfn fmap fname =
+  match Core.List.Assoc.find fmap fname ~equal:vequal with
+    | Some fnty -> fnty
+    | None -> raise @@ cerr fname.pos
+                         "function not defined: '%s'"
+                         fname.data
+
+

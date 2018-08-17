@@ -34,9 +34,9 @@ class tast_visitor (m : fact_module) =
           _cur_fn <- fn;
           let params' = List.map visit#param params in
           let body' = visit#block body in
-            _cur_fn <- fake_pos @> "";
             FunDec(fn,ft,rt,params',body')
         | CExtern(fn,rt,params) ->
+          _cur_fn <- fn;
           let params' = List.map visit#param params in
             CExtern(fn,rt,params')
 
