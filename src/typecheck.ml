@@ -4,8 +4,6 @@ open Err
 open Tast
 open Tast_util
 
-let force = Lazy.force
-
 let get p = function
   | Some x -> x
   | None -> raise @@ err p

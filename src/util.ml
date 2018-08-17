@@ -46,3 +46,5 @@ let mlist_mem = Core.List.Assoc.mem
 let mlist_find = Core.List.Assoc.find
 let mlist_push el alist =
   alist := el :: !alist
+
+let force = Lazy.force
