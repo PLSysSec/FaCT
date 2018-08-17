@@ -131,17 +131,17 @@ class pseudocode (m : fact_module) =
         | VoidReturn -> (visit#_prindent 1) ^ "return;"
         | End -> ""
 
-    method block blk =
+    method block (blk,next) =
       match blk.data with
-        | Scope (blk,next) ->
+        | Scope blk ->
           let scoped = visit#scoped blk in
           let next = visit#next next in
             scoped ^ next
-        | ListOfStuff (stms,next) ->
+        | ListOfStuff stms ->
           let stms' = visit#stms stms in
           let next = visit#next next in
             stms' ^ next
-        | If (cond,thens,elses,next) ->
+        | If (cond,thens,elses) ->
           let cond' = visit#expr cond in
           let thens' = visit#scoped thens in
           let elses' = visit#scoped elses in
@@ -152,7 +152,7 @@ class pseudocode (m : fact_module) =
               thens'
               (if elses' = "{ }" then "" else " else " ^ elses')
               next
-        | RangeFor (x,bty,e1,e2,blk,next) ->
+        | RangeFor (x,bty,e1,e2,blk) ->
           let e1' = visit#expr e1 in
           let e2' = visit#expr e2 in
           let blk' = visit#scoped blk in
@@ -165,7 +165,7 @@ class pseudocode (m : fact_module) =
               e2'
               blk'
               next
-        | ArrayFor (x,bty,e,blk,next) ->
+        | ArrayFor (x,bty,e,blk) ->
           let e' = visit#expr e in
           let blk' = visit#scoped blk in
           let next = visit#next next in

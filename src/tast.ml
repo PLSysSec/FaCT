@@ -85,12 +85,12 @@ and elseblock = block [@@deriving show]
 and args = expr list [@@deriving show]
 
 and block' =
-  | Scope of block * next
-  | ListOfStuff of simple_statement list * next
-  | If of cond * thenblock * elseblock * next
-  | RangeFor of var_name * base_type * expr * expr * block * next
-  | ArrayFor of var_name * base_type * expr * block * next
-and block = block' pos_ast
+  | Scope of block
+  | ListOfStuff of simple_statement list
+  | If of cond * thenblock * elseblock
+  | RangeFor of var_name * base_type * expr * expr * block
+  | ArrayFor of var_name * base_type * expr * block
+and block = block' pos_ast * next
 
 and next' =
   | Block of block

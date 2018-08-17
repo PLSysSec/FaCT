@@ -190,7 +190,7 @@ class typechecker =
       in
         p @> retnext
 
-    method controlflow pc next stm =
+    method controlflow pc stm =
       let p = stm.pos in
         match stm.data with
           | Ast.If (cond,thens,elses) ->
@@ -200,7 +200,7 @@ class typechecker =
               let newpc = pc +$ (label_of @@ type_of cond') in
               let thens' = visit#block p newpc thens in
               let elses' = visit#block p newpc elses in
-                If (cond',thens',elses',force next)
+                If (cond',thens',elses')
           | Ast.RangeFor (x,bty,e1,e2,blk) ->
             let bty' = visit#basic (p@>Public) bty in
               if not (is_integral bty') then
@@ -225,7 +225,7 @@ class typechecker =
                     (* re-run the entire block, but now with secret rp *)
                     visit#block p pc blk
                   else blk' in
-                  RangeFor(x,bty',e1',e2',blk',force next)
+                  RangeFor(x,bty',e1',e2',blk')
           | Ast.ArrayFor (x,bty,e,blk) ->
             let bty' = visit#basic (p@>Public) bty in
             let e' = visit#expr e in
@@ -243,12 +243,12 @@ class typechecker =
                   (* re-run the entire block, but now with secret rp *)
                   visit#block p pc blk
                 else blk' in
-                ArrayFor(x,bty',e',blk',force next)
+                ArrayFor(x,bty',e',blk')
 
     method block p pc stms_ =
       let block' =
         match stms_ with
-          | [] -> p@>ListOfStuff ([], p@>End)
+          | [] -> (p@>ListOfStuff [], p@>End)
           | stm :: rest ->
             let p = stm.pos in
             let next = lazy
@@ -257,10 +257,10 @@ class typechecker =
                 | [{data=Ast.VoidReturn} as rtstm] -> visit#return pc rtstm
                 | [] -> p@>End
                 | _ -> p@>(Block (visit#block p pc rest))) in
-            let inblock =
+            let inblock,next' =
               match stm.data with
                 | Ast.Block blk ->
-                  Scope (visit#block p pc blk, force next)
+                  Scope (visit#block p pc blk), force next
                 | Ast.VarDec _
                 | Ast.FnCall _
                 | Ast.VoidFnCall _
@@ -269,19 +269,19 @@ class typechecker =
                   let this = visit#stm pc stm in
                     begin
                       match (force next).data with
-                        | Block ({data=ListOfStuff (nexts,following)}) ->
-                          ListOfStuff (this @ nexts, following)
+                        | Block ({data=ListOfStuff nexts},following) ->
+                          ListOfStuff (this @ nexts), following
                         | _ ->
-                          ListOfStuff (visit#stm pc stm,force next)
+                          ListOfStuff (visit#stm pc stm), force next
                     end
                 | Ast.If _
                 | Ast.RangeFor _
                 | Ast.ArrayFor _ ->
-                  visit#controlflow pc next stm
+                  visit#controlflow pc stm, force next
                 | Ast.Return _
-                | Ast.VoidReturn -> ListOfStuff ([], visit#return pc stm)
+                | Ast.VoidReturn -> (ListOfStuff [], visit#return pc stm)
             in
-              p@>inblock
+              p@>inblock, next'
       in
         block'
 
