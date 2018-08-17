@@ -83,23 +83,29 @@ and thenblock = block [@@deriving show]
 and elseblock = block [@@deriving show]
 
 and args = expr list [@@deriving show]
-and block = statements [@@deriving show]
 
-and statement' =
+and block' =
+  | Scope of block * next
+  | ListOfStuff of simple_statement list * next
+  | If of cond * thenblock * elseblock * next
+  | RangeFor of var_name * base_type * expr * expr * block * next
+  | ArrayFor of var_name * base_type * expr * block * next
+and block = block' pos_ast
+
+and next' =
   | Block of block
+  | Return of expr
+  | VoidReturn
+  | End
+and next = next' pos_ast
+
+and simple_statement' =
   | VarDec of var_name * base_type * expr
   | FnCall of var_name * base_type * fun_name * args
   | VoidFnCall of fun_name * args
   | Assign of expr * expr
-  | If of cond * thenblock * elseblock
-  | RangeFor of var_name * base_type * expr * expr * block
-  | ArrayFor of var_name * base_type * expr * block
-  | Return of expr
-  | VoidReturn
   | Assume of expr
-[@@deriving show]
-and statement = statement' pos_ast * label [@@deriving show]
-and statements = statement list [@@deriving show]
+and simple_statement = simple_statement' pos_ast [@@deriving show]
 
 and param' =
   | Param of var_name * base_type

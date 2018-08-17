@@ -12,9 +12,6 @@ class pseudocode (m : fact_module) =
 
     val _minfo : module_info =
       let Module(_,_,minfo) = m in minfo
-    val mutable _cur_fn : fun_name = fake_pos @> ""
-    val mutable _pre_inject : statement list = []
-    val mutable _post_inject : statement list = []
 
     method _prindent n =
       "\n" ^ (String.make ((_indent + n) * 2) ' ')
@@ -42,7 +39,7 @@ class pseudocode (m : fact_module) =
       xwrap @@ fun p -> function
         | FunDec(fn,ft,rt,params,body) ->
           let params' = concat "," @@ List.map visit#param params in
-          let body' = visit#block body in
+          let body' = visit#scoped body in
             sprintf "%s%s %s(%s) %s"
               (visit#fnattr ft)
               (visit#rty rt)
@@ -113,89 +110,107 @@ class pseudocode (m : fact_module) =
       | { cache_aligned=true } -> "cacheline "
       | _ -> ""
 
-    method block blk =
+    method scoped blk =
       _indent <- _indent + 1;
-      let stms = visit#stms blk in
+      let stms = visit#block blk in
       let res = sprintf "{%s%s}"
-                  (concat "" stms)
-                  (if stms = [] then " " else visit#_prindent 0)
+                  stms
+                  (if stms = "" then " " else visit#_prindent 0)
       in
         _indent <- _indent - 1;
         res
 
-    method stms stms_ =
-      List.map
-        (fun stm -> visit#_prindent 1 ^ visit#stm stm)
-        stms_
+    method next nxt =
+      match nxt.data with
+        | Block blk -> visit#block blk
+        | Return e ->
+          let e' = visit#expr e in
+            sprintf "%sreturn %s;"
+              (visit#_prindent 1)
+              e'
+        | VoidReturn -> (visit#_prindent 1) ^ "return;"
+        | End -> ""
 
-    method stm (stm_,lbl_) =
-      let stm_' =
-        match stm_.data with
-          | Block blk -> visit#block blk
-          | VarDec (x,bty,e) ->
-            let e' = visit#expr e in
-              sprintf "%s %s = %s;"
-                (visit#bty bty)
-                x.data
-                e'
-          | FnCall (x,bty,fn,args) ->
-            let args' = List.map visit#expr args in
-              sprintf "%s %s = %s(%s);"
-                (visit#bty bty)
-                x.data
-                fn.data
-                (concat ", " args')
-          | VoidFnCall (fn,args) ->
-            let args' = List.map visit#expr args in
-              sprintf "%s(%s);"
-                fn.data
-                (concat ", " args')
-          | Assign (e1,e2) ->
-            let e1' = visit#expr e1 in
-            let e2' = visit#expr e2 in
-              sprintf "%s = %s;"
-                e1' e2'
-          | If (cond,thens,elses) ->
-            let cond' = visit#expr cond in
-            let thens' = visit#block thens in
-            let elses' = visit#block elses in
-            let str =
-              sprintf "if (%s) %s%s"
-                cond'
-                thens'
-                (if elses' = "{ }" then "" else " else " ^ elses')
-            in
-            let hd :: rest = String.split_on_char '\n' str in
-            let hd' = hd ^ (sprintf "  // %s" (visit#lbl lbl_)) in
-              concat "\n" (hd' :: rest)
-          | RangeFor (x,bty,e1,e2,blk) ->
-            let e1' = visit#expr e1 in
-            let e2' = visit#expr e2 in
-            let blk' = visit#block blk in
-              sprintf "for (%s %s from %s to %s) %s"
-                (visit#bty bty)
-                x.data
-                e1'
-                e2'
-                blk'
-          | ArrayFor (x,bty,e,blk) ->
-            let e' = visit#expr e in
-            let blk' = visit#block blk in
-              sprintf "for (%s %s in %s) %s"
-                (visit#bty bty)
-                x.data
-                e'
-                blk'
-          | Return e ->
-            let e' = visit#expr e in
-              sprintf "return %s;" e'
-          | VoidReturn -> "return;"
-          | Assume e ->
-            let e' = visit#expr e in
-              sprintf "assume(%s);" e'
-      in
-        sprintf "%s  // %s"
-          stm_' (visit#lbl lbl_)
+    method block blk =
+      match blk.data with
+        | Scope (blk,next) ->
+          let scoped = visit#scoped blk in
+          let next = visit#next next in
+            scoped ^ next
+        | ListOfStuff (stms,next) ->
+          let stms' = visit#stms stms in
+          let next = visit#next next in
+            stms' ^ next
+        | If (cond,thens,elses,next) ->
+          let cond' = visit#expr cond in
+          let thens' = visit#scoped thens in
+          let elses' = visit#scoped elses in
+          let next = visit#next next in
+            sprintf "%sif (%s) %s%s%s"
+              (visit#_prindent 1)
+              cond'
+              thens'
+              (if elses' = "{ }" then "" else " else " ^ elses')
+              next
+        | RangeFor (x,bty,e1,e2,blk,next) ->
+          let e1' = visit#expr e1 in
+          let e2' = visit#expr e2 in
+          let blk' = visit#scoped blk in
+          let next = visit#next next in
+            sprintf "%sfor (%s %s from %s to %s) %s%s"
+              (visit#_prindent 1)
+              (visit#bty bty)
+              x.data
+              e1'
+              e2'
+              blk'
+              next
+        | ArrayFor (x,bty,e,blk,next) ->
+          let e' = visit#expr e in
+          let blk' = visit#scoped blk in
+          let next = visit#next next in
+            sprintf "%sfor (%s %s in %s) %s%s"
+              (visit#_prindent 1)
+              (visit#bty bty)
+              x.data
+              e'
+              blk'
+              next
+
+    method stms stms_ =
+      concat ""
+        (List.map
+           (fun stm -> visit#_prindent 1 ^ visit#stm stm)
+           stms_)
+
+    method stm stm_ =
+      match stm_.data with
+        | VarDec (x,bty,e) ->
+          let e' = visit#expr e in
+            sprintf "%s %s = %s;"
+              (visit#bty bty)
+              x.data
+              e'
+        | FnCall (x,bty,fn,args) ->
+          let args' = List.map visit#expr args in
+            sprintf "%s %s = %s(%s);"
+              (visit#bty bty)
+              x.data
+              fn.data
+              (concat ", " args')
+        | VoidFnCall (fn,args) ->
+          let args' = List.map visit#expr args in
+            sprintf "%s(%s);"
+              fn.data
+              (concat ", " args')
+        | Assign (e1,e2) ->
+          let e1' = visit#expr e1 in
+          let e2' = visit#expr e2 in
+            sprintf "%s = %s;"
+              e1' e2'
+        | Assume e ->
+          let e' = visit#expr e in
+            sprintf "assume(%s);" e'
 
     method expr (e_,_) =
       match e_.data with

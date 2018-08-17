@@ -4,6 +4,8 @@ open Err
 open Tast
 open Tast_util
 
+let force = Lazy.force
+
 let get p = function
   | Some x -> x
   | None -> raise @@ err p
@@ -36,7 +38,7 @@ class typechecker =
     val mutable _fmap : (fun_name * (ret_type * params)) list = []
     val mutable _cur_fn : fun_name = fake_pos @> ""
     val mutable _cur_rt : ret_type = None
-    val mutable _inject : statement' pos_ast list = []
+    val mutable _inject : simple_statement' pos_ast list = []
     val mutable _rp : label ref = ref (fake_pos @> Public)
     val mutable _everhis : fun_name' list = []
 
@@ -131,7 +133,7 @@ class typechecker =
             let params' = List.map visit#param params in
               _cur_rt <- rt';
               let pc = fake_pos @> Public in
-              let body' = visit#block pc body in
+              let body' = visit#block p pc body in
                 FunDec(fn,ft',rt',params',body')
           | Ast.CExtern (fn,rt,params) ->
             if List.mem fn.data _everhis then
@@ -153,11 +155,135 @@ class typechecker =
             _vmap <- (x,bty') :: _vmap;
             Param(x,bty')
 
-    method block pc blk =
-      visit#stms pc blk
+    method return pc retstm =
+      let p = retstm.pos in
+      let stmlbl =
+        if List.mem _cur_fn.data _everhis
+        then fake_pos @> Secret
+        else pc +$ !_rp in
+      let retnext =
+        match retstm.data with
+          | Ast.Return e ->
+            begin
+              _cur_rt >>= fun fn_rt ->
+              let e' = visit#expr ~lookahead_bty:fn_rt e in
+              let r_lbl = label_of fn_rt in
+                if not (stmlbl <$ r_lbl) then
+                  raise @@ err p;
+                let e' =
+                  if type_of e' <: fn_rt then
+                    expr_fix p fn_rt e'
+                  else
+                    raise @@ err p in
+                  _rp := !_rp +$ pc;
+                  return @@ Return e'
+            end >!!> err p
+          | Ast.VoidReturn ->
+            begin
+              match _cur_rt with
+                | Some _ -> raise @@ err p
+                | None -> ()
+            end;
+            _rp := !_rp +$ pc;
+            VoidReturn
+          | _ -> raise @@ err p
+      in
+        p @> retnext
 
-    method stms pc stms_ =
-      stms_ |> List.map (visit#stm pc) |> List.flatten
+    method controlflow pc next stm =
+      let p = stm.pos in
+        match stm.data with
+          | Ast.If (cond,thens,elses) ->
+            let cond' = visit#expr cond in
+              if not (is_bool (type_of cond')) then
+                raise @@ err p;
+              let newpc = pc +$ (label_of @@ type_of cond') in
+              let thens' = visit#block p newpc thens in
+              let elses' = visit#block p newpc elses in
+                If (cond',thens',elses',force next)
+          | Ast.RangeFor (x,bty,e1,e2,blk) ->
+            let bty' = visit#basic (p@>Public) bty in
+              if not (is_integral bty') then
+                raise @@ err p;
+              let e1' = visit#expr ~lookahead_bty:bty' e1 in
+              let e2' = visit#expr ~lookahead_bty:bty' e2 in
+              let e1' =
+                if type_of e1' <: bty' then
+                  expr_fix p bty' e1'
+                else
+                  raise @@ err p in
+              let e2' =
+                if type_of e2' <: bty' then
+                  expr_fix p bty' e2'
+                else
+                  raise @@ err p in
+                _vmap <- (x,bty') :: _vmap;
+                let old_rp = !_rp in
+                let blk' = visit#block p pc blk in
+                let blk' =
+                  if old_rp.data = Public && !_rp.data = Secret then
+                    (* re-run the entire block, but now with secret rp *)
+                    visit#block p pc blk
+                  else blk' in
+                  RangeFor(x,bty',e1',e2',blk',force next)
+          | Ast.ArrayFor (x,bty,e,blk) ->
+            let bty' = visit#basic (p@>Public) bty in
+            let e' = visit#expr e in
+            let el_ty =
+              match (type_of e').data with
+                | Arr (el_ty,_,_) -> el_ty
+                | _ -> raise @@ err p in
+              if not (el_ty =: bty') then
+                raise @@ err p;
+              _vmap <- (x,bty') :: _vmap;
+              let old_rp = !_rp in
+              let blk' = visit#block p pc blk in
+              let blk' =
+                if old_rp.data = Public && !_rp.data = Secret then
+                  (* re-run the entire block, but now with secret rp *)
+                  visit#block p pc blk
+                else blk' in
+                ArrayFor(x,bty',e',blk',force next)
+
+    method block p pc stms_ =
+      let block' =
+        match stms_ with
+          | [] -> p@>ListOfStuff ([], p@>End)
+          | stm :: rest ->
+            let p = stm.pos in
+            let next = lazy
+              (match rest with
+                | [{data=Ast.Return _} as rtstm]
+                | [{data=Ast.VoidReturn} as rtstm] -> visit#return pc rtstm
+                | [] -> p@>End
+                | _ -> p@>(Block (visit#block p pc rest))) in
+            let inblock =
+              match stm.data with
+                | Ast.Block blk ->
+                  Scope (visit#block p pc blk, force next)
+                | Ast.VarDec _
+                | Ast.FnCall _
+                | Ast.VoidFnCall _
+                | Ast.Assign _
+                | Ast.Assume _ ->
+                  let this = visit#stm pc stm in
+                    begin
+                      match (force next).data with
+                        | Block ({data=ListOfStuff (nexts,following)}) ->
+                          ListOfStuff (this @ nexts, following)
+                        | _ ->
+                          ListOfStuff (visit#stm pc stm,force next)
+                    end
+                | Ast.If _
+                | Ast.RangeFor _
+                | Ast.ArrayFor _ ->
+                  visit#controlflow pc next stm
+                | Ast.Return _
+                | Ast.VoidReturn -> ListOfStuff ([], visit#return pc stm)
+            in
+              p@>inblock
+      in
+        block'
 
     (* lexprs will always have type UInt64 in this implementation *)
     method lexpr ?lookahead_lexpr {pos=p; data} =
@@ -591,15 +717,13 @@ class typechecker =
 
     method stm pc stm_ =
       let p = stm_.pos in
-      let old_rp = !_rp in
       let stmlbl =
         if List.mem _cur_fn.data _everhis
         then fake_pos @> Secret
         else pc +$ !_rp in
       let stm' =
         match stm_.data with
-          | Ast.Block blk ->
-            Block (visit#block pc blk)
+          | Ast.Block _ -> raise @@ err p
           | Ast.VarDec (x,bty,e) ->
             let e',e_bty,bty' =
               match Ast_util.is_unspec_arr bty with
@@ -664,90 +788,18 @@ class typechecker =
                 Assign (e1',expr_fix p unref_ty e2')
               else
                 raise @@ err p
-          | Ast.If (cond,thens,elses) ->
-            let cond' = visit#expr cond in
-              if not (is_bool (type_of cond')) then
-                raise @@ err p;
-              let newpc = pc +$ (label_of @@ type_of cond') in
-              let thens' = visit#block newpc thens in
-              let elses' = visit#block newpc elses in
-                If (cond',thens',elses')
-          | Ast.RangeFor (x,bty,e1,e2,blk) ->
-            let bty' = visit#basic (p@>Public) bty in
-              if not (is_integral bty') then
-                raise @@ err p;
-              let e1' = visit#expr ~lookahead_bty:bty' e1 in
-              let e2' = visit#expr ~lookahead_bty:bty' e2 in
-              let e1' =
-                if type_of e1' <: bty' then
-                  expr_fix p bty' e1'
-                else
-                  raise @@ err p in
-              let e2' =
-                if type_of e2' <: bty' then
-                  expr_fix p bty' e2'
-                else
-                  raise @@ err p in
-                _vmap <- (x,bty') :: _vmap;
-                let blk' = visit#block pc blk in
-                let blk' =
-                  if old_rp.data = Public && !_rp.data = Secret then
-                    (* re-run the entire block, but now with secret rp *)
-                    visit#block pc blk
-                  else blk' in
-                  RangeFor(x,bty',e1',e2',blk')
-          | Ast.ArrayFor (x,bty,e,blk) ->
-            let bty' = visit#basic (p@>Public) bty in
-            let e' = visit#expr e in
-            let el_ty =
-              match (type_of e').data with
-                | Arr (el_ty,_,_) -> el_ty
-                | _ -> raise @@ err p in
-              if not (el_ty =: bty') then
-                raise @@ err p;
-              _vmap <- (x,bty') :: _vmap;
-              let blk' = visit#block pc blk in
-              let blk' =
-                if old_rp.data = Public && !_rp.data = Secret then
-                  (* re-run the entire block, but now with secret rp *)
-                  visit#block pc blk
-                else blk' in
-                ArrayFor(x,bty',e',blk')
-          | Ast.Return e ->
-            begin
-              _cur_rt >>= fun fn_rt ->
-              let e' = visit#expr ~lookahead_bty:fn_rt e in
-              let r_lbl = label_of fn_rt in
-                if not (stmlbl <$ r_lbl) then
-                  raise @@ err p;
-                let e' =
-                  if type_of e' <: fn_rt then
-                    expr_fix p fn_rt e'
-                  else
-                    raise @@ err p in
-                  _rp := !_rp +$ pc;
-                  return @@ Return e'
-            end >!!> err p
-          | Ast.VoidReturn ->
-            begin
-              match _cur_rt with
-                | Some _ -> raise @@ err p
-                | None -> ()
-            end;
-            _rp := !_rp +$ pc;
-            VoidReturn
+          | Ast.If _ -> raise @@ err p
+          | Ast.RangeFor _ -> raise @@ err p
+          | Ast.ArrayFor _ -> raise @@ err p
+          | Ast.Return _ -> raise @@ err p
+          | Ast.VoidReturn -> raise @@ err p
           | Ast.Assume e ->
             let e' = visit#expr e in
               if not (is_bool (type_of e')) then
                 raise @@ err p;
               Assume e'
       in
-      let inject' =
-        List.map
-          (fun stm ->
-             (stm, stmlbl))
-          _inject in
-      let stm' = inject' @ [(p@>stm',stmlbl)] in
+      let stm' = _inject @ [p@>stm'] in
         _inject <- [];
         stm'
 
