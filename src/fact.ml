@@ -65,7 +65,8 @@ let runner prep args =
         | (Err.InternalCompilerError s) ->
           error_exit s
         | _ as e ->
-          Printf.eprintf "%s\n" (Printexc.to_string e)
+          Printf.eprintf "%s\n" (Printexc.to_string e);
+          exit 1
       end
 
 let test_graph () =
