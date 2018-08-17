@@ -8,8 +8,8 @@ class tast_visitor (m : fact_module) =
     val _minfo : module_info =
       let Module(_,_,minfo) = m in minfo
     val mutable _cur_fn : fun_name = fake_pos @> ""
-    val mutable _pre_inject : statement list = []
-    val mutable _post_inject : statement list = []
+    val mutable _pre_inject : simple_statement list = []
+    val mutable _post_inject : simple_statement list = []
 
     method fact_module () =
       let Module(sdecs,fdecs,_) = m in
@@ -42,30 +42,16 @@ class tast_visitor (m : fact_module) =
 
     method param param = param
 
-    method block blk =
-      visit#stms blk
-
-    method stms stms_ =
-      List.flatten @@ List.map visit#stm_wrapper stms_
-
-    method stm (stm_,lbl_) =
-      let p = stm_.pos in
-      let stm_' =
-        match stm_.data with
-          | Block blk -> Block (visit#block blk)
-          | VarDec (x,bty,e) ->
-            let e' = visit#expr e in
-              VarDec (x,bty,e')
-          | FnCall (x,bty,fn,args) ->
-            let args' = List.map visit#expr args in
-              FnCall (x,bty,fn,args')
-          | VoidFnCall (fn,args) ->
-            let args' = List.map visit#expr args in
-              VoidFnCall (fn,args')
-          | Assign (e1,e2) ->
-            let e1' = visit#expr e1 in
-            let e2' = visit#expr e2 in
-              Assign (e1',e2')
+    method block (blk_,next) =
+      let p = blk_.pos in
+      let blk_' =
+        match blk_.data with
+          | Scope (blk) ->
+            let blk' = visit#block blk in
+              Scope (blk')
+          | ListOfStuff (stms) ->
+            let stms' = List.map visit#stm stms in
+              ListOfStuff (stms')
           | If (cond,thens,elses) ->
             let cond' = visit#expr cond in
             let thens' = visit#block thens in
@@ -80,15 +66,50 @@ class tast_visitor (m : fact_module) =
             let e' = visit#expr e in
             let blk' = visit#block blk in
               ArrayFor (x,bty,e',blk')
+      in
+      let next' = visit#next next in
+        (p@>blk_',next')
+
+    method next next_ =
+      let p = next_.pos in
+      let next' =
+        match next_.data with
+          | Block blk ->
+            let blk' = visit#block blk in
+              Block blk'
           | Return e ->
             let e' = visit#expr e in
               Return e'
           | VoidReturn -> VoidReturn
+          | End -> End
+      in
+        p@>next'
+
+    method stms stms_ =
+      List.flatten @@ List.map visit#stm_wrapper stms_
+
+    method stm stm_ =
+      let p = stm_.pos in
+      let stm_' =
+        match stm_.data with
+          | VarDec (x,bty,e) ->
+            let e' = visit#expr e in
+              VarDec (x,bty,e')
+          | FnCall (x,bty,fn,args) ->
+            let args' = List.map visit#expr args in
+              FnCall (x,bty,fn,args')
+          | VoidFnCall (fn,args) ->
+            let args' = List.map visit#expr args in
+              VoidFnCall (fn,args')
+          | Assign (e1,e2) ->
+            let e1' = visit#expr e1 in
+            let e2' = visit#expr e2 in
+              Assign (e1',e2')
           | Assume e ->
             let e' = visit#expr e in
               Assume e'
       in
-        (p @> stm_',lbl_)
+        p @> stm_'
 
     method stm_wrapper stm_ =
       let stm' = visit#stm stm_ in

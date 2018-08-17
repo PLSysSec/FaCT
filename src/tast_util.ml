@@ -51,10 +51,10 @@ let rec label_of bty_ =
       | Struct _ -> raise @@ cerr p "???"
       | String -> p@>Public
 
-let ends_with_ret stms =
-  match List.rev stms with
-    | ({data=Return _},_) :: _
-    | ({data=VoidReturn},_) :: _ -> true
+let ends_with_ret (_,next) =
+  match next.data with
+    | Return _
+    | VoidReturn -> true
     | _ -> false
 
 let ( =$ ) l1 l2 =

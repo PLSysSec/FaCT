@@ -266,10 +266,10 @@ let compile (in_files,out_file,out_dir) args =
   let tast = Typecheck.transform ast in (* transition to tast; exprs have types *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
-  (*let tast = Oobcheck.transform tast in (* array accesses etc. validated *)
+  let tast = Oobcheck.transform tast in (* array accesses etc. validated *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
-  let tast = Transfn.transform tast in (* transform secret fn calls *)
+  (*let tast = Transfn.transform tast in (* transform secret fn calls *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
   let tast = Transret.transform tast in (* transform early returns *)

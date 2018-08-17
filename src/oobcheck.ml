@@ -424,40 +424,11 @@ class oobchecker m =
         end;
         res
 
-    method stm (stm_,lbl_) =
-      let p = stm_.pos in
+    method block (blk_,next) =
+      let p = blk_.pos in
+      let next' = lazy (visit#next next) in
       let res =
-        match stm_.data with
-          | VarDec (x,bty,e) ->
-            let res = super#stm (stm_,lbl_) in
-              (begin
-                match bty.data with
-                  | Bool _ ->
-                    Some (Boolean.mk_const_s ctx x.data)
-                  | UInt (s,_)
-                  | Int  (s,_) ->
-                    Some (BitVector.mk_const_s ctx x.data s)
-                  | _ -> None
-              end >>= fun zdec ->
-               mlist_push (x,zdec) _vmap;
-               zpop _expr e >>= fun ze ->
-               let zassign = mk_eq ctx zdec ze in
-                 return @@ visit#_add zassign) |> consume;
-              return res
-          | FnCall (x,bty,fn,args) ->
-            let res = super#stm (stm_,lbl_) in
-              (begin
-                match bty.data with
-                  | Bool _ ->
-                    Some (Boolean.mk_const_s ctx x.data)
-                  | UInt (s,_)
-                  | Int (s,_) ->
-                    Some (BitVector.mk_const_s ctx x.data s)
-                  | _ -> None
-              end >>= fun zdec ->
-               return @@ mlist_push (x,zdec) _vmap) |> consume;
-              return res
-
+        match blk_.data with
           | If (cond,thens,elses) ->
             let cond' = visit#expr cond in
             let cty = type_of cond' in
@@ -476,14 +447,12 @@ class oobchecker m =
                         visit#_add_flow zncond;
                       if ends_with_ret elses' then
                         visit#_add_flow zcond;
-                      return (p@>If (cond',thens',elses'),lbl_)
+                      return (p@>If (cond',thens',elses'), force next')
               else
                 (* secret ifs don't guard statements! *)
                 let thens' = visit#block thens in
                 let elses' = visit#block elses in
-                  return (p@>If (cond',thens',elses'),lbl_)
-          (* XXX need to collect join information post if-block? *)
-          (* maybe not, since side-effects (refs) aren't blessable *)
+                  return (p@>If (cond',thens',elses'), force next')
 
           | RangeFor (x,bty,lo,hi,blk) ->
             let lo' = visit#expr lo in
@@ -533,23 +502,57 @@ class oobchecker m =
                       visit#_add_all_flow assumptions_for_next_loop_iteration;
                       let blk' = visit#block blk in
                         visit#_pop ();
-                        return (p@>RangeFor (x,bty,lo',hi',blk'),lbl_)
-          (* XXX need to collect join information post for-block? *)
-          (* maybe not, since side-effects (refs) aren't blessable *)
+                        return (p@>RangeFor (x,bty,lo',hi',blk'), force next')
+
+          | Scope _
+          | ListOfStuff _
+          | ArrayFor (_,_,_,_) -> return @@ super#block (blk_,next)
+      in
+        res >!!> cerr p "error from oob#block"
+
+    method stm stm_ =
+      let p = stm_.pos in
+      let res =
+        match stm_.data with
+          | VarDec (x,bty,e) ->
+            let res = super#stm stm_ in
+              (begin
+                match bty.data with
+                  | Bool _ ->
+                    Some (Boolean.mk_const_s ctx x.data)
+                  | UInt (s,_)
+                  | Int  (s,_) ->
+                    Some (BitVector.mk_const_s ctx x.data s)
+                  | _ -> None
+              end >>= fun zdec ->
+               mlist_push (x,zdec) _vmap;
+               zpop _expr e >>= fun ze ->
+               let zassign = mk_eq ctx zdec ze in
+                 return @@ visit#_add zassign) |> consume;
+              return res
+          | FnCall (x,bty,fn,args) ->
+            let res = super#stm stm_ in
+              (begin
+                match bty.data with
+                  | Bool _ ->
+                    Some (Boolean.mk_const_s ctx x.data)
+                  | UInt (s,_)
+                  | Int (s,_) ->
+                    Some (BitVector.mk_const_s ctx x.data s)
+                  | _ -> None
+              end >>= fun zdec ->
+               return @@ mlist_push (x,zdec) _vmap) |> consume;
+              return res
 
           | Assume e ->
-            let res = super#stm (stm_,lbl_) in
+            let res = super#stm stm_ in
               zpop _expr e >>= fun z ->
               visit#_add z;
               return res
 
-          | Block _
           | VoidFnCall (_,_)
           | Assign (_,_) (* update info? or no since refs are not blessable? *)
-          | ArrayFor (_,_,_,_) (* collect join info? *)
-          | Return _
-          | VoidReturn
-            -> return @@ super#stm (stm_,lbl_)
+            -> return @@ super#stm stm_
       in
         res >!!> cerr p "error from oob#stm"
 
