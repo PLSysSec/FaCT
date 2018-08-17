@@ -121,24 +121,24 @@ class typechecker =
       end
 
     method fdec =
-      _rp <- ref (fake_pos @> Public);
       wrap @@ fun p -> fun fdec ->
+        _rp <- ref (fake_pos @> Public);
         match fdec with
-        | Ast.FunDec(fn,ft,rt,params,body) ->
-          _cur_fn <- fn;
-          let ft' = visit#fntype fn ft in
-          let rt' = rt >>= visit#bty %> return in
-          let params' = List.map visit#param params in
-            _cur_rt <- rt';
-            let pc = fake_pos @> Public in
-            let body' = visit#block pc body in
-              FunDec(fn,ft',rt',params',body')
-        | Ast.CExtern (fn,rt,params) ->
-          if List.mem fn.data _everhis then
-            raise @@ cerr p "calling function '%s' from secret control flow" fn.data;
-          _cur_fn <- fn;
-          let params' = List.map visit#param params in
-            CExtern(fn,rt >>= visit#bty %> return,params')
+          | Ast.FunDec(fn,ft,rt,params,body) ->
+            _cur_fn <- fn;
+            let ft' = visit#fntype fn ft in
+            let rt' = rt >>= visit#bty %> return in
+            let params' = List.map visit#param params in
+              _cur_rt <- rt';
+              let pc = fake_pos @> Public in
+              let body' = visit#block pc body in
+                FunDec(fn,ft',rt',params',body')
+          | Ast.CExtern (fn,rt,params) ->
+            if List.mem fn.data _everhis then
+              raise @@ cerr p "calling function '%s' from secret control flow" fn.data;
+            _cur_fn <- fn;
+            let params' = List.map visit#param params in
+              CExtern(fn,rt >>= visit#bty %> return,params')
 
     method param =
       wrap @@ fun p -> function
