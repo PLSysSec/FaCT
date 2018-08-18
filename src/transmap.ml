@@ -16,9 +16,9 @@ class transmap m =
     inherit Tastmap.tast_visitor m as super
     val _secretflow : expr stack = Stack.create ()
 
-    method stm (stm_,lbl_) =
-      let p = stm_.pos in
-        match stm_.data with
+    method block (blk_,next_) =
+      let p = blk_.pos in
+        match blk_.data with
           | If (cond,thens,elses) ->
             let cond' = visit#expr cond in
               if (label_of (type_of cond')).data = Secret then
@@ -29,8 +29,8 @@ class transmap m =
                     push ncond _secretflow;
                     let elses' = visit#block elses in
                       pop _secretflow |> ignore;
-                      (p@>If (cond',thens',elses'),lbl_)
-              else super#stm (stm_,lbl_)
-          | _ -> super#stm (stm_,lbl_)
+                      (p@>If (cond',thens',elses'),visit#next next_)
+              else super#block (blk_,next_)
+          | _ -> super#block (blk_,next_)
 
   end

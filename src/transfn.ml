@@ -25,13 +25,14 @@ class transfn m =
                 let params' = params @ [ p@>Param (p@>"__fctx", p@>Bool (p@>Secret)) ] in
                 let cond =
                   (p@>Variable (p@>"__fctx"), p@>Bool (p@>Secret)) in
-                let blk' = [p@>If (cond,blk,[]), p@>Public] in
+                let empty = (p@>ListOfStuff [], p@>End) in
+                let blk' = (p@>If (cond,blk,empty), p@>End) in
                   params',blk'
               else params,blk in
               p @> FunDec (fn,fty,rt,params',blk')
           | CExtern _ -> fdec'
 
-    method stm (stm_,lbl_) =
+    method stm stm_ =
       let p = stm_.pos in
       let stm' =
         match stm_.data with
@@ -49,7 +50,7 @@ class transfn m =
           | Some stm -> stm
           | None -> stm_
       in
-        super#stm (stm',lbl_)
+        super#stm stm'
 
   end
 
