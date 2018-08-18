@@ -272,9 +272,9 @@ let compile (in_files,out_file,out_dir) args =
   let tast = Transfn.transform tast in (* transform secret fn calls *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
-  (*let tast = Transret.transform tast in (* transform early returns *)
+  let tast = Transret.transform tast in (* transform early returns *)
     output_tast args.ast_out out_file' tast;
-    generate_pseudo args.pseudo_out out_file' tast;*)
+    generate_pseudo args.pseudo_out out_file' tast;
   (*generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast args.mode in

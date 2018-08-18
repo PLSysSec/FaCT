@@ -51,11 +51,19 @@ let rec label_of bty_ =
       | Struct _ -> raise @@ cerr p "???"
       | String -> p@>Public
 
-let ends_with_ret (_,next) =
+let rec ends_with_ret (_,next) =
   match next.data with
+    | Block blk -> ends_with_ret blk
     | Return _
     | VoidReturn -> true
-    | _ -> false
+    | End -> false
+
+let rec replace_final_next (blk,next) final =
+  match next.data with
+    | Block blk' -> (blk,next.pos @> Block (replace_final_next blk' final))
+    | Return _
+    | VoidReturn
+    | End -> (blk,final)
 
 let ( =$ ) l1 l2 =
   l1.data = l2.data

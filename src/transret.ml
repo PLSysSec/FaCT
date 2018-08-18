@@ -24,9 +24,8 @@ class transret m =
           | FunDec (fn,fty,rt,params,blk) ->
             let btrue = (p@>True,sbool) in
             let reftrue = (p@>Enref btrue,srbool) in
-            let rctx = (p @> VarDec (p@>"__rctx",srbool,reftrue), p@>Public) in
-            let blk' =
-              rctx ::
+            let rctx = p @> VarDec (p@>"__rctx",srbool,reftrue) in
+            let pre,ret =
               match rt with
                 | Some bty ->
                   let zero =
@@ -36,30 +35,32 @@ class transret m =
                            | _ -> raise @@ err p)
                     ,bty)
                   in
-                  let rval = (p @> VarDec (p@>"__rval",bty,zero), p@>Public) in
-                  let ret = (p @> Return (p@>Variable (p@>"__rval"),bty), p@>Public) in
-                    rval :: (blk @ [ret])
+                  let rval = p @> VarDec (p@>"__rval",bty,zero) in
+                  let ret = p @> Return (p@>Variable (p@>"__rval"),bty) in
+                    p@>ListOfStuff [rval;rctx], ret
                 | None ->
-                  let ret = (p @> VoidReturn, p@>Public) in
-                    blk @ [ret] in
+                  let ret = p @> VoidReturn in
+                    p@>ListOfStuff [rctx], ret in
+            let blk' = (pre, p@>Block (replace_final_next blk ret)) in
               p @> FunDec (fn,fty,rt,params,blk')
           | CExtern _ -> fdec'
 
-    method stm_post (stm_,lbl_) =
-      let p = stm_.pos in
-      let stms' =
-        match stm_.data with
+    method next next_ =
+      let p = next_.pos in
+        match next_.data with
           | Return e ->
+            let e' = visit#expr e in
             let fdec = findfn _minfo.fmap _cur_fn in
             let FunDec(_,_,Some rt,_,_) | CExtern(_,Some rt,_) = fdec.data in
-              [ (p@>Assign ((p@>Variable (p@>"__rval"),rt), e)) ;
-                (p@>Assign ((p@>Variable (p@>"__rctx"),srbool), (p@>False,sbool))) ]
+            let replace =
+              [ (p@>Assign ((p@>Variable (p@>"__rval"),rt), e')) ;
+                (p@>Assign ((p@>Variable (p@>"__rctx"),srbool), (p@>False,sbool))) ] in
+              p@>Block (p@>ListOfStuff replace, p@>End)
           | VoidReturn ->
-            [ (p@>Assign ((p@>Variable (p@>"__rctx"),srbool), (p@>False,sbool))) ]
-          | _ -> [] in
-        match stms' with
-          | [] -> super#stm_post (stm_,lbl_)
-          | _ -> List.map (fun stm -> (stm,lbl_)) stms'
+            let replace =
+              [ (p@>Assign ((p@>Variable (p@>"__rctx"),srbool), (p@>False,sbool))) ] in
+              p@>Block (p@>ListOfStuff replace, p@>End)
+          | _ -> super#next next_
 
   end
 
