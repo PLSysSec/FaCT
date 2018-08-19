@@ -42,8 +42,9 @@ class transret m =
                              | _ -> raise @@ err p)
                       ,bty)
                     in
-                    let rvalvar = p @> VarDec (p@>rval,bty,zero) in
-                    let ret = p @> Return (p@>Variable (p@>rval),bty) in
+                    let rbty = p@>Ref (bty, p@>RW) in
+                    let rvalvar = p @> VarDec (p@>rval,rbty,zero) in
+                    let ret = p @> Return (p@>Deref (p@>Variable (p@>rval),rbty),bty) in
                       p@>ListOfStuff [rvalvar;rctx], ret
                   | None ->
                     let ret = p @> VoidReturn in
@@ -109,8 +110,9 @@ class transret m =
                   _tripped <- Pending;
                 let fdec = findfn _minfo.fmap _cur_fn in
                 let FunDec(_,_,Some rt,_,_) | CExtern(_,Some rt,_) = fdec.data in
+                let rrt = p@>Ref (rt,p@>RW) in
                 let replace =
-                  [ (p@>Assign ((p@>Variable (p@>rval),rt), e')) ;
+                  [ (p@>Assign ((p@>Variable (p@>rval),rrt), e')) ;
                     (p@>Assign ((p@>Variable (p@>rctx),srbool), (p@>False,sbool))) ] in
                   p@>Block (p@>ListOfStuff replace, p@>End)
               end else

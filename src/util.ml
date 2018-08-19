@@ -40,6 +40,7 @@ type 'a stack = 'a Stack.t
 let push = Stack.push
 let pop = Stack.pop
 let top = Stack.top
+let drop stack = ignore (Stack.pop stack)
 
 type 'a mlist = 'a list ref
 let mlist_mem = Core.List.Assoc.mem

@@ -9,7 +9,8 @@ let sband a b = (fake_pos @> BinOp(Ast.LogicalAnd,a,b), sbool)
 
 (* This is a placeholder that will be replaced by the proper
    expr during the branch removal pass *)
-let __ctx = (fake_pos @> Variable (fake_pos @> "__ctx"), sbool)
+let ctx = "__ctx"
+let __ctx = (fake_pos @> Variable (fake_pos @> ctx), sbool)
 
 class transmap m =
   object (visit)
