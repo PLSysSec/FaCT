@@ -552,6 +552,7 @@ class oobchecker m =
 
           | VoidFnCall (_,_)
           | Assign (_,_) (* update info? or no since refs are not blessable? *)
+          | Cmov (_,_,_) (* update info? or no since refs are not blessable? *)
             -> return @@ super#stm stm_
       in
         res >!!> cerr p "error from oob#stm"

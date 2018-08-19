@@ -104,6 +104,7 @@ and simple_statement' =
   | FnCall of var_name * base_type * fun_name * args
   | VoidFnCall of fun_name * args
   | Assign of expr * expr
+  | Cmov of expr * expr * expr
   | Assume of expr
 and simple_statement = simple_statement' pos_ast [@@deriving show]
 

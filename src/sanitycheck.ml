@@ -61,6 +61,19 @@ class sanitychecker post_transform m =
                         raise @@ err p
                     | _ -> raise @@ err p
                 end
+            | Cmov (e1,cond,e2) ->
+              let e1_ty = type_of e1 in
+              let cty = type_of cond in
+                if not (is_bool cty) then
+                  raise @@ err p;
+                let e2_ty = type_of e2 in
+                  begin
+                    match e1_ty.data with
+                      | Ref (subty,{data=W|RW}) ->
+                        if not (e2_ty =: subty) then
+                          raise @@ err p
+                      | _ -> raise @@ err p
+                  end
             | Assume e -> ()
         end;
         stm'

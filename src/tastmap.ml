@@ -107,6 +107,11 @@ class tast_visitor (m : fact_module) =
             let e1' = visit#expr e1 in
             let e2' = visit#expr e2 in
               Assign (e1',e2')
+          | Cmov (e1,cond,e2) ->
+            let e1' = visit#expr e1 in
+            let cond' = visit#expr cond in
+            let e2' = visit#expr e2 in
+              Cmov (e1',cond',e2')
           | Assume e ->
             let e' = visit#expr e in
               Assume e'

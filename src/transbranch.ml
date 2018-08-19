@@ -55,10 +55,7 @@ class transbranch m =
           if not (Stack.is_empty _branchflow) then
             let e1' = visit#expr e1 in
             let e2' = visit#expr e2 in
-            let {data=Ref (e1_ty,_)} = type_of e1' in
-            let deref = (p@>Deref e1', e1_ty) in
-            let select = (p@>Select (visit#_form_ctx (), e2', deref), e1_ty) in
-              p@>Assign (e1', select)
+              p@>Cmov (e1', visit#_form_ctx (), e2')
           else
             super#stm stm_
         | _ -> super#stm stm_
