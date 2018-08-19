@@ -56,11 +56,24 @@ class transbranch m =
         | _ -> super#stm stm_
 
     method expr (e_,bty_) =
-      match e_.data with
-        | Variable {data=name}
-          when name = Transmap.ctx ->
-          visit#_form_ctx ()
-        | _ -> super#expr (e_,bty_)
+      let p = e_.pos in
+        match e_.data with
+          | Variable {data=name}
+            when name = Transmap.ctx ->
+            visit#_form_ctx ()
+          | BinOp ((LogicalAnd|LogicalOr) as op,e1,e2) ->
+            if (label_of (type_of e1)).data = Secret then
+              match op with
+                | LogicalAnd ->
+                  super#expr (p@>Select (e1, e2, (p@>False,sbool)), bty_)
+                | LogicalOr ->
+                  super#expr (p@>Select (e1, (p@>True,sbool), e2), bty_)
+            else super#expr (e_,bty_)
+          | TernOp (cond,e1,e2) ->
+            if (label_of (type_of cond)).data = Secret then
+              super#expr (p@>Select (cond, e1, e2), bty_)
+            else super#expr (e_,bty_)
+          | _ -> super#expr (e_,bty_)
 
   end
 

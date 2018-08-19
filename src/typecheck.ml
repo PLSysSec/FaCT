@@ -403,10 +403,10 @@ class typechecker =
           let bty, e1', e2' = visit#binop p op e1' e2' in
             BinOp(op,e1',e2'), bty
         | Ast.TernOp (e1,e2,e3) ->
-          let (e1',e2',e3'),new_bty = visit#ternop p e1 e2 e3 in
+          let (e1',e2',e3'),new_bty = visit#ternop p lookahead_bty e1 e2 e3 in
             TernOp(e1',e2',e3'), new_bty
         | Ast.Select (e1,e2,e3) ->
-          let (e1',e2',e3'),new_bty = visit#ternop p e1 e2 e3 in
+          let (e1',e2',e3'),new_bty = visit#ternop p lookahead_bty e1 e2 e3 in
             Select(e1',e2',e3'), new_bty
         | Ast.Declassify e ->
           let e' = visit#expr e in
@@ -661,12 +661,12 @@ class typechecker =
             let fix = expr_fix p bty in
               bty, fix e1, fix e2
 
-    method ternop p e1 e2 e3 =
+    method ternop p lookahead_bty e1 e2 e3 =
       let e1' = visit#expr e1 in
       let e2',e3' =
         match Ast_util.is_untyped_int e2 with
           | Some _ ->
-            let e3' = visit#expr e3 in
+            let e3' = visit#expr ?lookahead_bty e3 in
             let e2' = visit#expr ~lookahead_bty:(type_of e3') e2 in
               e2',e3'
           | None ->
