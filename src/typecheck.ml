@@ -4,6 +4,17 @@ open Err
 open Tast
 open Tast_util
 
+let has_pub_mut params =
+  let rec is_pub_mut bty =
+    match bty.data with
+      | Ref (bty',{data=W|RW}) -> (label_of bty').data = Public
+      | Arr (bty',_,_) -> is_pub_mut bty'
+      | Struct _ -> raise @@ cerr fake_pos "typecheck:has_pub_mut : Struct??"
+      | _ -> false
+  in
+  let is_param_pub_mut {data=Param(_,bty)} = is_pub_mut bty in
+    List.exists is_param_pub_mut params
+
 let get p = function
   | Some x -> x
   | None -> raise @@ err p
@@ -129,6 +140,11 @@ class typechecker =
             let ft' = visit#fntype fn ft in
             let rt' = rt >>= visit#bty %> return in
             let params' = List.map visit#param params in
+              if List.mem fn.data _everhis then
+                begin
+                  if has_pub_mut params' then
+                    raise @@ cerr p "function '%s' with public mut params is called from secret control flow" fn.data
+                end;
               _cur_rt <- rt';
               let pc = fake_pos @> Public in
               let body' = visit#block p pc body in
