@@ -5,6 +5,14 @@ open Tast
 open Tast_util
 open Transmap
 
+let mfresh =
+  let ctr = ref 0 in
+  let mfresh' () =
+    ctr := !ctr + 1;
+    "__m" ^ (string_of_int !ctr)
+  in
+    mfresh'
+
 class transbranch m =
   object (visit)
     inherit Transmap.transmap m as super
@@ -19,19 +27,19 @@ class transbranch m =
           | If (cond,thens,elses) ->
             if (label_of (type_of cond)).data = Secret then
               let cond' = visit#expr cond in
-              let mname = p@>(make_fresh "__m") in
+              let mname = p@>(mfresh ()) in
               let mvar = (p@>Variable mname, sbool) in
                 push mvar _branchflow;
                 let thens' = visit#block thens in
                   drop _branchflow;
                   let mpos = p@>VarDec (mname, sbool, cond') in
                   let ncond = (p@>UnOp(Ast.LogicalNot,mvar), type_of mvar) in
-                  let nmname = p@>(make_fresh "__m") in
+                  let nmname = p@>(mfresh ()) in
                   let nmvar = (p@>Variable nmname, sbool) in
                     push nmvar _branchflow;
                     let elses' = visit#block elses in
                       drop _branchflow;
-                      let mneg = p@>VarDec (p@>(make_fresh "__m"), sbool, ncond) in
+                      let mneg = p@>VarDec (nmname, sbool, ncond) in
                       let elseblock = (p@>Scope elses', visit#next next_) in
                       let p2 = (p@>ListOfStuff [mneg], p@>Block elseblock) in
                       let thenblock = (p@>Scope thens', p@>Block p2) in

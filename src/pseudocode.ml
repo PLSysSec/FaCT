@@ -206,7 +206,7 @@ class pseudocode (m : fact_module) =
         | Assign (e1,e2) ->
           let e1' = visit#expr e1 in
           let e2' = visit#expr e2 in
-            sprintf "%s = %s;"
+            sprintf "%s := %s;"
               e1' e2'
         | Assume e ->
           let e' = visit#expr e in

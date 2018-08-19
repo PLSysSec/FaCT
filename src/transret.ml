@@ -35,6 +35,7 @@ class transret m =
               let pre,ret =
                 match rt with
                   | Some bty ->
+                    let rbty = p@>Ref (bty, p@>RW) in
                     let zero =
                       (p@>(match bty.data with
                              | Bool _ -> False
@@ -42,8 +43,8 @@ class transret m =
                              | _ -> raise @@ err p)
                       ,bty)
                     in
-                    let rbty = p@>Ref (bty, p@>RW) in
-                    let rvalvar = p @> VarDec (p@>rval,rbty,zero) in
+                    let rzero = (p@>Enref zero, rbty) in
+                    let rvalvar = p @> VarDec (p@>rval,rbty,rzero) in
                     let ret = p @> Return (p@>Deref (p@>Variable (p@>rval),rbty),bty) in
                       p@>ListOfStuff [rvalvar;rctx], ret
                   | None ->

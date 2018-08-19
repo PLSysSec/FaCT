@@ -269,6 +269,9 @@ let compile (in_files,out_file,out_dir) args =
   let tast = Oobcheck.transform tast in (* array accesses etc. validated *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
+  let tast = Sanitycheck.transform false tast in (* check that everything is correct before transforms *)
+    output_tast args.ast_out out_file' tast;
+    generate_pseudo args.pseudo_out out_file' tast;
   let tast = Transfn.transform tast in (* transform secret fn calls *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
@@ -276,6 +279,9 @@ let compile (in_files,out_file,out_dir) args =
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
   let tast = Transbranch.transform tast in (* transform secret branchs *)
+    output_tast args.ast_out out_file' tast;
+    generate_pseudo args.pseudo_out out_file' tast;
+  let tast = Sanitycheck.transform true tast in (* check that everything is correct after transforms *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
   (*generate_header (args.gen_header || args.verify_llvm) out_file' tast;
