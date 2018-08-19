@@ -58,6 +58,13 @@ let rec ends_with_ret (_,next) =
     | VoidReturn -> true
     | End -> false
 
+let rec ends_with (_,next) =
+  match next.data with
+    | Block blk -> ends_with blk
+    | Return _
+    | VoidReturn
+    | End -> next
+
 let rec replace_final_next (blk,next) final =
   match next.data with
     | Block blk' -> (blk,next.pos @> Block (replace_final_next blk' final))

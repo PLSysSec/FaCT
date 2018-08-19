@@ -132,6 +132,12 @@ class typechecker =
               _cur_rt <- rt';
               let pc = fake_pos @> Public in
               let body' = visit#block p pc body in
+                begin
+                  match (ends_with body').data with
+                    | Return _ | VoidReturn -> ()
+                    | End when rt = None -> ()
+                    | _ -> raise @@ err p
+                end;
                 FunDec(fn,ft',rt',params',body')
           | Ast.CExtern (fn,rt,params) ->
             if List.mem fn.data _everhis then
