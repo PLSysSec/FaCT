@@ -42,7 +42,7 @@ class tast_visitor (m : fact_module) =
 
     method param param = param
 
-    method block (blk_,next) =
+    method block_only (blk_,next) =
       let p = blk_.pos in
       let blk_' =
         match blk_.data with
@@ -67,8 +67,10 @@ class tast_visitor (m : fact_module) =
             let blk' = visit#block blk in
               ArrayFor (x,bty,e',blk')
       in
-      let next' = visit#next next in
-        (p@>blk_',next')
+        p@>blk_'
+
+    method block (blk_,next_) =
+      (visit#block_only (blk_,next_),visit#next next_)
 
     method next next_ =
       let p = next_.pos in

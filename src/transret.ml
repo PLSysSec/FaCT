@@ -15,7 +15,8 @@ let rval = "__rval"
 class transret m =
   object (visit)
     inherit Transmap.transmap m as super
-    val mutable tripped : tripstate = Untripped
+    val mutable _tripped : tripstate = Untripped
+    val mutable _dontprocessnext : bool = false
 
     method _is_everhi fn =
       let fdec = findfn _minfo.fmap fn in
@@ -25,7 +26,7 @@ class transret m =
 
     method fdec fdec =
       let p = fdec.pos in
-        tripped <- Untripped;
+        _tripped <- Untripped;
         let fdec' = super#fdec fdec in
           match fdec'.data with
             | FunDec (fn,fty,rt,params,blk) ->
@@ -48,77 +49,86 @@ class transret m =
                   | None ->
                     let ret = p @> VoidReturn in
                       p@>ListOfStuff [rctx], ret in
-              let blk' = (pre, p@>Block (replace_final_next blk ret)) in
+              let blk' =
+                p@>Block (if _tripped = Tripped
+                          then (replace_final_next blk ret)
+                          else blk) in
+              let blk' = (pre, blk') in
                 p @> FunDec (fn,fty,rt,params,blk')
             | CExtern _ -> fdec'
 
     method block (blk_,next) =
       let p = blk_.pos in
-      let newblk,newnext =
+      let newblk,next' =
         match blk_.data with
           | Scope _
           | If _
           | RangeFor _
           | ArrayFor _ ->
-            let (blk_',next_') = super#block (blk_, next) in
-              if tripped = Pending then
-                tripped <- Tripped;
+            let blk_' = visit#block_only (blk_, next) in
+              if _tripped = Pending then
+                _tripped <- Tripped;
               let next' =
-                if tripped = Tripped then
+                if _tripped = Tripped then
                   let rctx = (p@>Variable (p@>rctx),srbool) in
                   let rcond = (p@>Deref rctx,sbool) in
-                  let nextthens = (p@>ListOfStuff [], next_') in
+                  let nextthens = (p@>ListOfStuff [], next) in
                   let nextelses = (p@>ListOfStuff [], p@>End) in
                   let newnextthing =
-                    if next_'.data = End then ListOfStuff []
+                    if next.data = End then ListOfStuff []
                     else If (rcond,nextthens,nextelses) in
                     p@>Block (p@>newnextthing, p@>End)
-                else next_' in
+                else next in
                 (blk_',next')
           | _ ->
-            super#block (blk_,next)
+            visit#block_only (blk_,next), next
       in
-        if tripped = Tripped then
+      let newblk' =
+        if _tripped = Tripped then
           let wrapblock blk =
             let rctx = (p@>Variable (p@>rctx),srbool) in
             let rcond = (p@>Deref rctx,sbool) in
             let emptyelses = (p@>ListOfStuff [], p@>End) in
-              (p@>If (rcond,blk,emptyelses),p@>End) in
+              (p@>If (rcond,blk,emptyelses),p@>End)
+          in
             match newblk.data with
               | RangeFor (x,bty,e1,e2,blk) ->
-                (p@>RangeFor (x,bty,e1,e2,wrapblock blk),newnext)
+                p@>RangeFor (x,bty,e1,e2,wrapblock blk)
               | ArrayFor (x,bty,e,blk) ->
-                (p@>ArrayFor (x,bty,e,wrapblock blk),newnext)
-              | _ -> newblk,newnext
-        else
-          newblk,newnext
+                p@>ArrayFor (x,bty,e,wrapblock blk)
+              | _ -> newblk
+        else newblk in
+        (newblk', visit#next next')
 
     method next next_ =
-      let p = next_.pos in
-        match next_.data with
-          | Return e ->
-            let e' = visit#expr e in
-              if not (Stack.is_empty _secretflow) then begin
-                if tripped = Untripped then
-                  tripped <- Pending;
-                let fdec = findfn _minfo.fmap _cur_fn in
-                let FunDec(_,_,Some rt,_,_) | CExtern(_,Some rt,_) = fdec.data in
-                let replace =
-                  [ (p@>Assign ((p@>Variable (p@>rval),rt), e')) ;
-                    (p@>Assign ((p@>Variable (p@>rctx),srbool), (p@>False,sbool))) ] in
-                  p@>Block (p@>ListOfStuff replace, p@>End)
-              end else
-                p@>Return e'
-          | VoidReturn ->
-            if not (Stack.is_empty _secretflow) then begin
-              if tripped = Untripped then
-                tripped <- Pending;
-              let replace =
-                [ (p@>Assign ((p@>Variable (p@>rctx),srbool), (p@>False,sbool))) ] in
-                p@>Block (p@>ListOfStuff replace, p@>End)
-            end else
-              p@>VoidReturn
-          | _ -> super#next next_
+      if _dontprocessnext then next_ else
+        begin
+          let p = next_.pos in
+            match next_.data with
+              | Return e ->
+                let e' = visit#expr e in
+                  if not (Stack.is_empty _secretflow && _tripped = Untripped) then begin
+                    if _tripped = Untripped then
+                      _tripped <- Pending;
+                    let fdec = findfn _minfo.fmap _cur_fn in
+                    let FunDec(_,_,Some rt,_,_) | CExtern(_,Some rt,_) = fdec.data in
+                    let replace =
+                      [ (p@>Assign ((p@>Variable (p@>rval),rt), e')) ;
+                        (p@>Assign ((p@>Variable (p@>rctx),srbool), (p@>False,sbool))) ] in
+                      p@>Block (p@>ListOfStuff replace, p@>End)
+                  end else
+                    p@>Return e'
+              | VoidReturn ->
+                if not (Stack.is_empty _secretflow && _tripped = Untripped) then begin
+                  if _tripped = Untripped then
+                    _tripped <- Pending;
+                  let replace =
+                    [ (p@>Assign ((p@>Variable (p@>rctx),srbool), (p@>False,sbool))) ] in
+                    p@>Block (p@>ListOfStuff replace, p@>End)
+                end else
+                  p@>VoidReturn
+              | _ -> super#next next_
+        end
 
   end
 
