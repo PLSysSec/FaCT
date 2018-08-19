@@ -5,6 +5,8 @@ open Tast
 open Tast_util
 open Transmap
 
+let fctx = "__fctx"
+
 class transfn m =
   object (visit)
     inherit Transmap.transmap m as super
@@ -22,9 +24,9 @@ class transfn m =
           | FunDec (fn,fty,rt,params,blk) ->
             let params',blk' =
               if fty.everhi then
-                let params' = params @ [ p@>Param (p@>"__fctx", p@>Bool (p@>Secret)) ] in
+                let params' = params @ [ p@>Param (p@>fctx, p@>Bool (p@>Secret)) ] in
                 let cond =
-                  (p@>Variable (p@>"__fctx"), p@>Bool (p@>Secret)) in
+                  (p@>Variable (p@>fctx), p@>Bool (p@>Secret)) in
                 let empty = (p@>ListOfStuff [], p@>End) in
                 let blk' = (p@>If (cond,blk,empty), p@>End) in
                   params',blk'
