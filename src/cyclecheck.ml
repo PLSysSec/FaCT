@@ -67,13 +67,13 @@ let transform m =
         (fun fn ->
            List.find
              (function
-               | {data=FunDec(fn',_,_,_,_) | CExtern(fn',_,_)} when fn'.data = fn -> true
+               | {data=FunDec(fn',_,_,_,_) | CExtern(fn',_,_,_)} when fn'.data = fn -> true
                | _ -> false)
              fdecs)
         !sorted in
     let standalones =
       List.filter
-        (fun {data=FunDec(fn',_,_,_,_)|CExtern(fn',_,_)} ->
+        (fun {data=FunDec(fn',_,_,_,_)|CExtern(fn',_,_,_)} ->
            not @@ List.mem fn'.data !sorted)
         fdecs in
       Module(sdecs,fdecs' @ standalones)

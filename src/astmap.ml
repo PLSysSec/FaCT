@@ -21,10 +21,10 @@ class ast_visitor =
             let params' = List.map visit#param params in
             let body' = visit#block body in
               FunDec(fn,ft,rt,params',body')
-          | CExtern(fn,rt,params) ->
+          | CExtern(fn,ft,rt,params) ->
             _cur_fn <- fn;
             let params' = List.map visit#param params in
-              CExtern(fn,rt,params'))
+              CExtern(fn,ft,rt,params'))
       %> visit#fdec_post
     method fdec_post fdec = fdec
 

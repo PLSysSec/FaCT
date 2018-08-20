@@ -110,7 +110,7 @@ class transret m =
                 if _tripped = Untripped then
                   _tripped <- Pending;
                 let fdec = findfn _minfo.fmap _cur_fn in
-                let FunDec(_,_,Some rt,_,_) | CExtern(_,Some rt,_) = fdec.data in
+                let FunDec(_,_,Some rt,_,_) | CExtern(_,_,Some rt,_) = fdec.data in
                 let rrt = p@>Ref (rt,p@>RW) in
                 let replace =
                   [ (p@>Assign ((p@>Variable (p@>rval),rrt), e')) ;

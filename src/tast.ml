@@ -104,7 +104,7 @@ and simple_statement' =
   | FnCall of var_name * base_type * fun_name * args
   | VoidFnCall of fun_name * args
   | Assign of expr * expr
-  | Cmov of expr * expr * expr
+  | Cmov of expr * cond * expr
   | Assume of expr
 and simple_statement = simple_statement' pos_ast [@@deriving show]
 
@@ -122,9 +122,11 @@ and inline =
   | Always
   | Never
 
+and cfn_type = { benign : bool }
+
 and function_dec' =
   | FunDec of fun_name * fn_type * ret_type * params * block
-  | CExtern of fun_name * ret_type * params
+  | CExtern of fun_name * cfn_type * ret_type * params
 [@@deriving show]
 and function_dec = function_dec' pos_ast [@@deriving show]
 and function_decs = function_dec list [@@deriving show]

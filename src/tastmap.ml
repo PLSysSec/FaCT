@@ -35,10 +35,10 @@ class tast_visitor (m : fact_module) =
           let params' = List.map visit#param params in
           let body' = visit#block body in
             FunDec(fn,ft,rt,params',body')
-        | CExtern(fn,rt,params) ->
+        | CExtern(fn,ft,rt,params) ->
           _cur_fn <- fn;
           let params' = List.map visit#param params in
-            CExtern(fn,rt,params')
+            CExtern(fn,ft,rt,params')
 
     method param param = param
 

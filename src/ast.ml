@@ -154,9 +154,11 @@ and inline =
   | Always
   | Never
 
+and cfn_type = { benign : bool }
+
 and function_dec' =
   | FunDec of fun_name * fn_type * ret_type * params * block
-  | CExtern of fun_name * ret_type * params
+  | CExtern of fun_name * cfn_type * ret_type * params
 [@@deriving show]
 and function_dec = function_dec' pos_ast [@@deriving show]
 and function_decs = function_dec list [@@deriving show]

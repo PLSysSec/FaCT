@@ -18,7 +18,7 @@ class sanitychecker post_transform m =
               (* check void/return statement vs return type? *)
               if not (ends_with_ret body) then
                 raise @@ err p
-            | CExtern(fn,rt,params) -> ()
+            | CExtern(fn,ft,rt,params) -> ()
         end;
         fdec'
 

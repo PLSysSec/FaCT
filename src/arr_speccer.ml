@@ -24,7 +24,7 @@ class array_spec_fncall =
           (fun fdec ->
              match fdec.data with
                | FunDec(fn,_,_,params,_)
-               | CExtern(fn,_,params) ->
+               | CExtern(fn,_,_,params) ->
                  _fmap <- (fn,params) :: _fmap)
           fdecs;
         super#module_pre m
@@ -76,7 +76,7 @@ class array_spec_fdec =
               params
           in
             FunDec(fn,ft,rt,List.flatten params',body)
-        | CExtern (fn,rt,params) as fdec ->
+        | CExtern (fn,ft,rt,params) as fdec ->
           List.iter
             (fun param ->
                match param.data with

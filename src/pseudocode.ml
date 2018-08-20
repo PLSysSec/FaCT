@@ -46,9 +46,10 @@ class pseudocode (m : fact_module) =
               fn.data
               params'
               body'
-        | CExtern(fn,rt,params) ->
+        | CExtern(fn,ft,rt,params) ->
           let params' = concat "," @@ List.map visit#param params in
-            sprintf "extern %s %s(%s);"
+            sprintf "extern %s%s %s(%s);"
+              (visit#cfnattr ft)
               (visit#rty rt)
               fn.data
               params'
@@ -60,6 +61,10 @@ class pseudocode (m : fact_module) =
           | Default -> ""
           | Always -> "inline "
           | Never -> "noinline ")
+
+    method cfnattr { benign; } =
+      sprintf "%s"
+        (if benign then "benign " else "")
 
     method rty = function
       | None -> "void"

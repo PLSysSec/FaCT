@@ -57,10 +57,9 @@ class typechecker =
         (* pre-scan function defs for out-of-order definitions *)
         List.iter
           (fun fdec ->
-             let fty = Ast.{ export=false; inline=Default } in
-             match fdec.data,fty with
-               | Ast.FunDec(fn,fty,rt,params,_),_
-               | Ast.CExtern(fn,rt,params),fty ->
+             match fdec.data with
+               | Ast.FunDec(fn,_,rt,params,_)
+               | Ast.CExtern(fn,_,rt,params) ->
                  let rt' = rt >>= visit#bty %> return in
                    begin
                      match rt' with
@@ -75,7 +74,7 @@ class typechecker =
         let fdecs' = List.map visit#fdec fdecs in
         let minfo_fmap =
           List.map
-            (function {data=FunDec(fn,_,_,_,_) | CExtern(fn,_,_)} as fdec -> (fn, fdec))
+            (function {data=FunDec(fn,_,_,_,_) | CExtern(fn,_,_,_)} as fdec -> (fn, fdec))
             fdecs' in
           Module(sdecs',fdecs',{ fmap=minfo_fmap })
 
@@ -92,6 +91,9 @@ class typechecker =
     method fntype fn Ast.{ export; inline } =
       let everhi = List.mem fn.data _everhis in
         { export; inline=visit#inline inline; everhi }
+
+    method cfntype fn Ast.{ benign } =
+      { benign }
 
     method lbl =
       wrap @@ fun p -> function
@@ -155,12 +157,13 @@ class typechecker =
                   | _ -> raise @@ err p
               in
                 FunDec(fn,ft',rt',params',body')
-          | Ast.CExtern (fn,rt,params) ->
-            if List.mem fn.data _everhis then
-              raise @@ cerr p "calling function '%s' from secret control flow" fn.data;
+          | Ast.CExtern (fn,ft,rt,params) ->
             _cur_fn <- fn;
+            let ft' = visit#cfntype fn ft in
+            if List.mem fn.data _everhis && not ft'.benign then
+              raise @@ cerr p "calling function '%s' from secret control flow" fn.data;
             let params' = List.map visit#param params in
-              CExtern(fn,rt >>= visit#bty %> return,params')
+              CExtern(fn,ft',rt >>= visit#bty %> return,params')
 
     method param =
       wrap @@ fun p -> function

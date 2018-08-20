@@ -305,7 +305,7 @@ function_dec:
   | NOINLINE r=ret_type fn=fun_name params=plist(param) body=block
     { mkpos (FunDec(fn, {export=false; inline=Never}, r, params, body)) }
   | EXTERN r=ret_type fn=fun_name params=plist(param) SEMICOLON
-    { mkpos (CExtern(fn, r, params)) }
+    { mkpos (CExtern(fn, {benign=false}, r, params)) }
 
 field:
   | b=base_type x=var_name SEMICOLON
