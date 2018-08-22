@@ -429,7 +429,8 @@ class typechecker =
           in
             Declassify e', pub_bty e_bty
         | Ast.Enref e ->
-          let e' = visit#expr e in
+          let subty = lookahead_bty >>= element_type in
+          let e' = visit#expr ?lookahead_bty:subty e in
           let e_bty = type_of e' in
             Enref e', p@>Ref (e_bty, p@>RW)
         | Ast.Deref e ->

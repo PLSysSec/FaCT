@@ -37,7 +37,9 @@ let is_vec =
 
 let element_type =
   xwrap @@ fun p -> function
-    | Arr ({data=Ref (bty,_)},_,_) -> bty
+    | Ref (bty,_) -> Some bty
+    | Arr ({data=Ref (bty,_)},_,_) -> Some bty
+    | _ -> None
 
 let rec label_of bty_ =
   let p = bty_.pos in
