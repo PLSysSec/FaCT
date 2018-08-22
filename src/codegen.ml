@@ -48,6 +48,8 @@ let collect_vardecs fdec =
 
 class codegen llctx llmod m =
   object (visit)
+    val all_vars_indirect = false
+
     val _b : Llvm.llbuilder = Llvm.builder llctx
 
     val _venv : (var_name * llvalue) mlist = ref []
@@ -109,18 +111,30 @@ class codegen llctx llmod m =
             let bb = append_block llctx "entry" llfn in
               position_at_end bb _b;
               let vars = collect_vardecs fdec in
-                List.iter
-                  (fun (x,bty) ->
-                     let llty = visit#bty bty in
-                     let stackloc = build_alloca llty x.data _b in
-                       mlist_push (x,stackloc) _venv)
-                  vars;
-                Array.iter2
-                  (fun llparam {data=Param(x,_)} ->
-                     let stackloc = visit#_get x in
-                       build_store llparam stackloc _b |> built)
-                  (Llvm.params llfn)
-                  (Array.of_list params);
+                if all_vars_indirect then
+                  begin
+                    List.iter
+                      (fun (x,bty) ->
+                         let llty = visit#bty bty in
+                         let stackloc = build_alloca llty x.data _b in
+                           mlist_push (x,stackloc) _venv)
+                      vars;
+                    Array.iter2
+                      (fun llparam {data=Param(x,_)} ->
+                         let stackloc = visit#_get x in
+                           build_store llparam stackloc _b |> built)
+                      (Llvm.params llfn)
+                      (Array.of_list params);
+                  end
+                else
+                  begin
+                    Array.iter2
+                      (fun llparam {data=Param(x,_)} ->
+                         set_value_name x.data llparam;
+                         mlist_push (x,llparam) _venv)
+                      (Llvm.params llfn)
+                      (Array.of_list params);
+                  end;
                 visit#block body |> ignore;
                 llfn
         | CExtern _ ->
@@ -178,8 +192,14 @@ class codegen llctx llmod m =
       match data with
         | VarDec (x,bty,e) ->
           let lle = visit#expr e in
-          let loc = visit#_get x in
-            build_store lle loc _b |> built
+            if all_vars_indirect then
+              let loc = visit#_get x in
+                build_store lle loc _b |> built
+            else
+              begin
+                set_value_name x.data lle;
+                mlist_push (x,lle) _venv
+              end
         | FnCall (x,bty,fn,args) ->
           raise @@ cerr p "unimplemented in codegen: %s" (show_simple_statement' data)
         | VoidFnCall (fn,args) ->
@@ -205,8 +225,11 @@ class codegen llctx llmod m =
           | False -> const_null i1ty
           | IntLiteral n -> const_int llbty n
           | Variable x ->
-            let loc = visit#_get x in
-              build_load loc "" _b
+            if all_vars_indirect then
+              let loc = visit#_get x in
+                build_load loc "" _b
+            else
+              visit#_get x
           | Cast (castty,e) ->
             let lle = visit#expr e in
             let llcastty = visit#bty castty in
