@@ -253,8 +253,8 @@ class typechecker =
             let bty' = visit#basic (p@>Public) bty in
             let e' = visit#expr e in
             let el_ty =
-              match (type_of e').data with
-                | Arr (el_ty,_,_) -> el_ty
+              match element_type (type_of e') with
+                | Some el_ty -> el_ty
                 | _ -> raise @@ err p in
               if not (el_ty =: bty') then
                 raise @@ err p;

@@ -53,6 +53,11 @@ let rec label_of bty_ =
       | Struct _ -> raise @@ cerr p "???"
       | String -> p@>Public
 
+let length_of =
+  xwrap @@ fun p -> function
+    | Arr (_,lexpr,_) -> lexpr
+    | _ -> raise @@ err p
+
 let rec ends_with_ret (_,next) =
   match next.data with
     | Block blk -> ends_with_ret blk
