@@ -121,7 +121,7 @@ class codegen llctx llmod m =
                        build_store llparam stackloc _b |> built)
                   (Llvm.params llfn)
                   (Array.of_list params);
-                visit#block body;
+                visit#block body |> ignore;
                 llfn
         | CExtern _ ->
           raise @@ cerr p "unimplemented in codegen: cextern"
@@ -134,12 +134,24 @@ class codegen llctx llmod m =
     method block ({pos=p;data},next) =
       begin
         match data with
-          | Scope _ ->
-            raise @@ cerr p "unimplemented in codegen: %s" (show_block' data)
+          | Scope blk ->
+            visit#block blk |> ignore
           | ListOfStuff stms ->
             List.iter visit#stm stms
           | If (cond,thens,elses) ->
-            raise @@ cerr p "unimplemented in codegen: %s" (show_block' data)
+            let llcond = visit#expr cond in
+            let curfn = insertion_block _b |> block_parent in
+            let then_bb = append_block llctx "" curfn in
+            let else_bb = append_block llctx "" curfn in
+            let merge_bb = append_block llctx "" curfn in
+              build_cond_br llcond then_bb else_bb _b |> built;
+              position_at_end then_bb _b;
+              if visit#block thens then
+                build_br merge_bb _b |> built;
+              position_at_end else_bb _b;
+              if visit#block elses then
+                build_br merge_bb _b |> built;
+              position_at_end merge_bb _b
           | RangeFor (x,bty,e1,e2,blk) ->
             raise @@ cerr p "unimplemented in codegen: %s" (show_block' data)
           | ArrayFor (x,bty,e,blk) ->
@@ -149,12 +161,18 @@ class codegen llctx llmod m =
 
     method next {pos=p;data} =
       match data with
-        | Block blk -> visit#block blk
+        | Block blk ->
+          (*let curfn = insertion_block _b |> block_parent in
+          let bb = append_block llctx "" curfn in
+            position_at_end bb _b;*)
+            visit#block blk
         | Return e ->
           let lle = visit#expr e in
-            build_ret lle _b |> built
-        | VoidReturn -> build_ret_void _b |> built
-        | End -> ()
+            build_ret lle _b |> built;
+            false
+        | VoidReturn -> build_ret_void _b |> built;
+          false
+        | End -> true
 
     method stm {pos=p;data} =
       match data with
@@ -167,9 +185,17 @@ class codegen llctx llmod m =
         | VoidFnCall (fn,args) ->
           raise @@ cerr p "unimplemented in codegen: %s" (show_simple_statement' data)
         | Assign (e1,e2) ->
-          raise @@ cerr p "unimplemented in codegen: %s" (show_simple_statement' data)
+          let lle1 = visit#expr e1 in
+          let lle2 = visit#expr e2 in
+            build_store lle2 lle1 _b |> built
         | Cmov (e1,cond,e2) ->
-          raise @@ cerr p "unimplemented in codegen: %s" (show_simple_statement' data)
+          (* XXX this is not correct *)
+          let lle1 = visit#expr e1 in
+          let lle2 = visit#expr e2 in
+          let llcond = visit#expr cond in
+          let lle1orig = build_load lle1 "" _b in
+          let result = build_select llcond lle2 lle1orig "" _b in
+            build_store result lle1 _b |> built
         | Assume e -> ()
 
     method expr ({pos=p;data},bty) =
@@ -201,7 +227,7 @@ class codegen llctx llmod m =
           | BinOp (op,e1,e2) ->
             let lle1 = visit#expr e1 in
             let lle2 = visit#expr e2 in
-              visit#binop op Tast_util.(is_signed bty) lle1 lle2
+              visit#binop op Tast_util.(not (is_bool bty) && is_signed bty) lle1 lle2
           | TernOp (e1,e2,e3) ->
             let lle1 = visit#expr e1 in
             let lle2 = visit#expr e2 in
