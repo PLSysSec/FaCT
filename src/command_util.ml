@@ -76,6 +76,14 @@ let generate_pseudo gen_pseudo out_file tast =
       Core_kernel.Out_channel.write_all pseudo_out_file
         ~data:(Pseudocode.transform tast)
 
+let output_llvm llvm_out out_file llvm_mod =
+  match llvm_out with
+    | false -> Log.debug "Not outputting LLVM IR"
+    | true ->
+      let out_file' = out_file ^ ".ll" in
+      Log.debug "Outputting LLVM IR to %s" out_file';
+      Llvm.print_module out_file' llvm_mod
+
 (*
 let output_xftast xftast_out out_file tast =
   match xftast_out with
@@ -92,14 +100,6 @@ let generate_header gen_header out_file xftast =
       Log.debug "Outputting header file to %s" header_out_file;
       Core_kernel.Out_channel.write_all header_out_file
         ~data:(Header.generate_header out_file xftast)
-
-let output_llvm llvm_out out_file llvm_mod =
-  match llvm_out with
-    | false -> Log.debug "Not outputting LLVM IR"
-    | true ->
-      let out_file' = out_file ^ ".ll" in
-      Log.debug "Outputting LLVM IR to %s" out_file';
-      Llvm.print_module out_file' llvm_mod
 
 let generate_smack args out_file xftast =
   let do_output out_file_name tast =
@@ -272,6 +272,8 @@ let compile (in_files,out_file,out_dir) args =
   let tast = Sanitycheck.transform false tast in (* check that everything is correct before transforms *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
+  let llctx,llmod = Codegen.codegen tast in
+    output_llvm args.llvm_out out_file' llmod;
   let tast = Transfn.transform tast in (* transform secret fn calls *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
@@ -284,6 +286,8 @@ let compile (in_files,out_file,out_dir) args =
   let tast = Sanitycheck.transform true tast in (* check that everything is correct after transforms *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
+  let llctx,llmod = Codegen.codegen tast in
+    output_llvm args.llvm_out out_file' llmod;
   (*generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast args.mode in
