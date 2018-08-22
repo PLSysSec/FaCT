@@ -4,8 +4,6 @@ open Err
 open Tast
 open Llvm
 
-let ____ () = raise @@ err fake_pos
-
 let built : Llvm.llvalue -> unit = ignore
 
 class vardec_collector m =
@@ -125,7 +123,8 @@ class codegen llctx llmod m =
                   (Array.of_list params);
                 visit#block body;
                 llfn
-        | CExtern _ -> ____()
+        | CExtern _ ->
+          raise @@ cerr p "unimplemented in codegen: cextern"
 
     method param {pos=p;data} =
       match data with
@@ -135,12 +134,16 @@ class codegen llctx llmod m =
     method block ({pos=p;data},next) =
       begin
         match data with
-          | Scope _ -> ____()
+          | Scope _ ->
+            raise @@ cerr p "unimplemented in codegen: %s" (show_block' data)
           | ListOfStuff stms ->
             List.iter visit#stm stms
-          | If (cond,thens,elses) -> ____()
-          | RangeFor (x,bty,e1,e2,blk) -> ____()
-          | ArrayFor (x,bty,e,blk) -> ____()
+          | If (cond,thens,elses) ->
+            raise @@ cerr p "unimplemented in codegen: %s" (show_block' data)
+          | RangeFor (x,bty,e1,e2,blk) ->
+            raise @@ cerr p "unimplemented in codegen: %s" (show_block' data)
+          | ArrayFor (x,bty,e,blk) ->
+            raise @@ cerr p "unimplemented in codegen: %s" (show_block' data)
       end;
       visit#next next
 
@@ -150,7 +153,7 @@ class codegen llctx llmod m =
         | Return e ->
           let lle = visit#expr e in
             build_ret lle _b |> built
-        | VoidReturn -> ____()
+        | VoidReturn -> build_ret_void _b |> built
         | End -> ()
 
     method stm {pos=p;data} =
@@ -159,19 +162,116 @@ class codegen llctx llmod m =
           let lle = visit#expr e in
           let loc = visit#_get x in
             build_store lle loc _b |> built
-        | FnCall (x,bty,fn,args) -> ____()
-        | VoidFnCall (fn,args) -> ____()
-        | Assign (e1,e2) -> ____()
-        | Cmov (e1,cond,e2) -> ____()
-        | Assume e -> ____()
+        | FnCall (x,bty,fn,args) ->
+          raise @@ cerr p "unimplemented in codegen: %s" (show_simple_statement' data)
+        | VoidFnCall (fn,args) ->
+          raise @@ cerr p "unimplemented in codegen: %s" (show_simple_statement' data)
+        | Assign (e1,e2) ->
+          raise @@ cerr p "unimplemented in codegen: %s" (show_simple_statement' data)
+        | Cmov (e1,cond,e2) ->
+          raise @@ cerr p "unimplemented in codegen: %s" (show_simple_statement' data)
+        | Assume e -> ()
 
     method expr ({pos=p;data},bty) =
       let llbty = visit#bty bty in
         match data with
+          | True -> const_all_ones i1ty
+          | False -> const_null i1ty
           | IntLiteral n -> const_int llbty n
           | Variable x ->
             let loc = visit#_get x in
               build_load loc "" _b
+          | Cast (castty,e) ->
+            let lle = visit#expr e in
+            let llcastty = visit#bty castty in
+            let oldsize = integer_bitwidth (type_of lle) in
+            let newsize = integer_bitwidth llcastty in
+            let build_cast =
+              if newsize < oldsize then
+                build_trunc
+              else if newsize > oldsize then
+                if Tast_util.(is_signed (Tast_util.type_of e))
+                then build_sext
+                else build_zext
+              else (fun lle _ _ _ -> lle) in
+              build_cast lle llcastty "" _b
+          | UnOp (op,e) ->
+            let lle = visit#expr e in
+              visit#unop op lle
+          | BinOp (op,e1,e2) ->
+            let lle1 = visit#expr e1 in
+            let lle2 = visit#expr e2 in
+              visit#binop op Tast_util.(is_signed bty) lle1 lle2
+          | TernOp (e1,e2,e3) ->
+            let lle1 = visit#expr e1 in
+            let lle2 = visit#expr e2 in
+            let lle3 = visit#expr e3 in
+              build_select lle1 lle2 lle3 "" _b
+          | Select (e1,e2,e3) ->
+            raise @@ cerr p "unimplemented in codegen: %s" (show_expr' data)
+          | Declassify e -> visit#expr e
+          | Enref e ->
+            let lle = visit#expr e in
+            let lle_bty = type_of lle in
+            let stackloc = build_alloca lle_bty "" _b in
+              build_store lle stackloc _b |> built;
+              stackloc
+          | Deref e ->
+            let lle = visit#expr e in
+              build_load lle "" _b
+          | ArrayGet (e,lexpr) ->
+            let lle = visit#expr e in
+            let lllexpr = visit#lexpr lexpr in
+            let arrayloc = build_gep lle [| lllexpr |] "" _b in
+              build_load arrayloc "" _b
+          | ArrayView (e,start,len) ->
+            let lle = visit#expr e in
+            let llstart = visit#lexpr start in
+              build_gep lle [| llstart |] "" _b
+          | _ -> raise @@ cerr p "unimplemented in codegen: %s" (show_expr' data)
+
+    method lexpr {pos=p;data} =
+      match data with
+        | LIntLiteral n -> const_int i64ty n
+        | LDynamic x ->
+          let loc = visit#_get x in
+            build_load loc "" _b
+
+    method unop op lle =
+      let build_unop =
+        match op with
+          | Ast.Neg -> build_neg
+          | Ast.LogicalNot -> build_not
+          | Ast.BitwiseNot -> build_not
+      in
+        build_unop lle "" _b
+
+    method binop op is_signed lle1 lle2 =
+      let build_binop =
+        match op with
+          | Ast.Plus -> build_add
+          | Ast.Minus -> build_sub
+          | Ast.Multiply -> build_mul
+          | Ast.Divide -> if is_signed then build_sdiv else build_udiv
+          | Ast.Modulo -> if is_signed then build_srem else build_urem
+          | Ast.Equal -> build_icmp Icmp.Eq
+          | Ast.NEqual -> build_icmp Icmp.Ne
+          | Ast.GT -> build_icmp (if is_signed then Icmp.Sgt else Icmp.Ugt)
+          | Ast.GTE -> build_icmp (if is_signed then Icmp.Sge else Icmp.Uge)
+          | Ast.LT -> build_icmp (if is_signed then Icmp.Slt else Icmp.Ult)
+          | Ast.LTE -> build_icmp (if is_signed then Icmp.Sle else Icmp.Ule)
+          | Ast.LogicalAnd -> build_and
+          | Ast.LogicalOr -> build_or
+          | Ast.BitwiseAnd -> build_and
+          | Ast.BitwiseOr -> build_or
+          | Ast.BitwiseXor -> build_xor
+          | Ast.LeftShift -> build_lshr
+          | Ast.RightShift -> if is_signed then build_ashr else build_lshr
+          | Ast.LeftRotate
+          | Ast.RightRotate
+            -> raise @@ cerr fake_pos "unimplemented in codegen: %s" (Ast.show_binop op)
+      in
+        build_binop lle1 lle2 "" _b
 
   end
 
