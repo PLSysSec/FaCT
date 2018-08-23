@@ -53,6 +53,7 @@ class codegen llctx llmod m =
     val _b : Llvm.llbuilder = Llvm.builder llctx
 
     val _venv : (var_name * llvalue) mlist = ref []
+    val _fenv : (fun_name * llvalue) mlist = ref []
 
     val i1ty = i1_type llctx
     val i8ty = i8_type llctx
@@ -65,10 +66,16 @@ class codegen llctx llmod m =
     val alwaysinline = create_enum_attr llctx "alwaysinline" 0L
 
     method _get x =
-      let thing = mlist_find ~equal:Tast_util.vequal !_venv x in
-        match thing with
+      let res = mlist_find ~equal:Tast_util.vequal !_venv x in
+        match res with
           | Some llval -> llval
           | None -> raise @@ err x.pos
+
+    method _fget fn =
+      let res = mlist_find ~equal:Tast_util.vequal !_fenv fn in
+        match res with
+          | Some llfn -> llfn
+          | None -> raise @@ err fn.pos
 
     method bty {pos=p;data} =
       match data with
@@ -97,7 +104,8 @@ class codegen llctx llmod m =
       match data with
         | FunDec(name,fnattr,rt,params,body) ->
           let ft = visit#_prototype name rt params in
-          let llfn = declare_function name.data ft llmod in
+          let llfn = define_function name.data ft llmod in
+            mlist_push (name,llfn) _fenv;
             if not fnattr.export then
               set_linkage Internal llfn;
             begin
@@ -108,7 +116,7 @@ class codegen llctx llmod m =
                   add_function_attr llfn noinline Function
                 | _ -> ()
             end;
-            let bb = append_block llctx "entry" llfn in
+            let bb = entry_block llfn in
               position_at_end bb _b;
               let vars = collect_vardecs fdec in
                 if all_vars_indirect then
@@ -137,8 +145,11 @@ class codegen llctx llmod m =
                   end;
                 visit#block body |> ignore;
                 llfn
-        | CExtern _ ->
-          raise @@ cerr p "unimplemented in codegen: cextern"
+        | CExtern (name,fnattr,rt,params) ->
+          let ft = visit#_prototype name rt params in
+          let llfn = declare_function name.data ft llmod in
+            mlist_push (name,llfn) _fenv;
+            llfn
 
     method param {pos=p;data} =
       match data with
@@ -313,9 +324,21 @@ class codegen llctx llmod m =
                 mlist_push (x,lle) _venv
               end
         | FnCall (x,bty,fn,args) ->
-          raise @@ cerr p "unimplemented in codegen: %s" (show_simple_statement' data)
+          let llfn = visit#_fget fn in
+          let llargs = List.map visit#expr args |> Array.of_list in
+          let call = build_call llfn llargs "" _b in
+            if all_vars_indirect then
+              let loc = visit#_get x in
+                build_store call loc _b |> built
+            else
+              begin
+                set_value_name x.data call;
+                mlist_push (x,call) _venv
+              end
         | VoidFnCall (fn,args) ->
-          raise @@ cerr p "unimplemented in codegen: %s" (show_simple_statement' data)
+          let llfn = visit#_fget fn in
+          let llargs = List.map visit#expr args |> Array.of_list in
+            build_call llfn llargs "" _b |> built
         | Assign (e1,e2) ->
           let lle1 = visit#expr e1 in
           let lle2 = visit#expr e2 in
