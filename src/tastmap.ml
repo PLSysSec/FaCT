@@ -70,7 +70,9 @@ class tast_visitor (m : fact_module) =
         p@>blk_'
 
     method block (blk_,next_) =
-      (visit#block_only (blk_,next_),visit#next next_)
+      let blk' = visit#block_only (blk_,next_) in
+      let next' = visit#next next_ in
+      (blk',next')
 
     method next next_ =
       let p = next_.pos in
