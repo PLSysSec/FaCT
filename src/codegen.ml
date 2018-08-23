@@ -180,6 +180,7 @@ class codegen llctx llmod m =
           | RangeFor (x,bty,e1,e2,blk) ->
             let lle1 = visit#expr e1 in
             let lle2 = visit#expr e2 in
+            let llbty = visit#bty bty in
             let pre_bb = insertion_block _b in
             let curfn = block_parent pre_bb in
             let check_bb = append_block llctx "" curfn in
@@ -187,50 +188,45 @@ class codegen llctx llmod m =
             let iter_bb = append_block llctx "" curfn in
             let post_bb = append_block llctx "" curfn in
             let cmp = if Tast_util.is_signed bty then Icmp.Slt else Icmp.Ult in
-              if all_vars_indirect then
-                let loc = visit#_get x in
-                  build_store lle1 loc _b |> built;
+
+            let load_iter loc =
+              if all_vars_indirect
+              then build_load loc "" _b
+              else loc
+            in
+
+            let store_iter llval loc =
+              if all_vars_indirect
+              then build_store llval loc _b |> built
+              else add_incoming (llval, insertion_block _b) loc
+            in
+
+              position_at_end check_bb _b;
+              let iterloc =
+                if all_vars_indirect
+                then visit#_get x
+                else (let loc = build_empty_phi llbty x.data _b in
+                        mlist_push (x,loc) _venv; loc) in
+              let iter = load_iter iterloc in
+              let check = build_icmp cmp iter lle2 "" _b in
+                build_cond_br check loop_bb post_bb  _b |> built;
+
+                position_at_end pre_bb _b;
+                store_iter lle1 iterloc;
+                build_br check_bb _b |> built;
+
+                position_at_end loop_bb _b;
+                if visit#block blk then
+                  build_br iter_bb _b |> built;
+
+                position_at_end iter_bb _b;
+                let iter = load_iter iterloc in
+                let one = const_int (type_of iter) 1 in
+                let add = build_add iter one "" _b in
+                  store_iter add iterloc;
                   build_br check_bb _b |> built;
 
-                  position_at_end check_bb _b;
-                  let iter = build_load loc "" _b in
-                  let check = build_icmp cmp iter lle2 "" _b in
-                    build_cond_br check loop_bb post_bb  _b |> built;
-
-                    position_at_end loop_bb _b;
-                    if visit#block blk then
-                      build_br iter_bb _b |> built;
-
-                    position_at_end iter_bb _b;
-                    let iter = build_load loc "" _b in
-                    let one = const_int (type_of iter) 1 in
-                    let add = build_add iter one "" _b in
-                      build_store add loc _b |> built;
-                      build_br check_bb _b |> built;
-
-                      position_at_end post_bb _b
-              else
-                begin
-                  build_br check_bb _b |> built;
-
-                  position_at_end check_bb _b;
-                  let iter = build_phi [ (lle1, pre_bb) ] x.data _b in
-                    mlist_push (x,iter) _venv;
-                    let check = build_icmp cmp iter lle2 "" _b in
-                      build_cond_br check loop_bb post_bb  _b |> built;
-
-                      position_at_end loop_bb _b;
-                      if visit#block blk then
-                        build_br iter_bb _b |> built;
-
-                      position_at_end iter_bb _b;
-                      let one = const_int (type_of iter) 1 in
-                      let add = build_add iter one "" _b in
-                        add_incoming (add, iter_bb) iter;
-                        build_br check_bb _b |> built;
-
-                        position_at_end post_bb _b
-                end
+                  position_at_end post_bb _b
           | ArrayFor (x,bty,e,blk) ->
             let lle = visit#expr e in
             let len = Tast_util.(length_of (type_of e)) in
