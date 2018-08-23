@@ -33,7 +33,8 @@ class vardec_collector m =
     method stm stm =
       begin
         match stm.data with
-          | VarDec (x,bty,_) ->
+          | VarDec (x,bty,_)
+          | FnCall (x,bty,_,_) ->
             _vars <- (x,bty) :: _vars
           | _ -> ()
       end; super#stm stm
@@ -50,6 +51,7 @@ class codegen llctx llmod m =
   object (visit)
     val all_vars_indirect = false
 
+    val _get_intrinsic = Intrinsics.make_stuff llctx llmod
     val _b : Llvm.llbuilder = Llvm.builder llctx
 
     val _venv : (var_name * llvalue) mlist = ref []
@@ -69,7 +71,7 @@ class codegen llctx llmod m =
       let res = mlist_find ~equal:Tast_util.vequal !_venv x in
         match res with
           | Some llval -> llval
-          | None -> raise @@ err x.pos
+          | None -> raise @@ cerr x.pos "couldn't find '%s'" x.data
 
     method _fget fn =
       let res = mlist_find ~equal:Tast_util.vequal !_fenv fn in
@@ -340,12 +342,12 @@ class codegen llctx llmod m =
           let lle2 = visit#expr e2 in
             build_store lle2 lle1 _b |> built
         | Cmov (e1,cond,e2) ->
-          (* XXX this is not correct *)
           let lle1 = visit#expr e1 in
           let lle2 = visit#expr e2 in
           let llcond = visit#expr cond in
-          let lle1orig = build_load lle1 "" _b in
-          let result = build_select llcond lle2 lle1orig "" _b in
+          let intrinsic = _get_intrinsic (CmovAsm8 (integer_bitwidth (type_of lle2))) in
+          let orig = build_load lle1 "" _b in
+          let result = build_call intrinsic [| llcond; lle2; orig |] "" _b in
             build_store result lle1 _b |> built
         | Assume e -> ()
 
@@ -388,7 +390,11 @@ class codegen llctx llmod m =
             let lle3 = visit#expr e3 in
               build_select lle1 lle2 lle3 "" _b
           | Select (e1,e2,e3) ->
-            raise @@ cerr p "unimplemented in codegen: %s" (show_expr' data)
+            let lle1 = visit#expr e1 in
+            let lle2 = visit#expr e2 in
+            let lle3 = visit#expr e3 in
+            let intrinsic = _get_intrinsic (SelectAsm8 (integer_bitwidth llbty)) in
+              build_call intrinsic [| lle1; lle2; lle3 |] "" _b
           | Declassify e -> visit#expr e
           | Enref e ->
             let lle = visit#expr e in
