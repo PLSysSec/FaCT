@@ -456,9 +456,12 @@ class codegen llctx llmod m =
           | Ast.BitwiseXor -> build_xor
           | Ast.LeftShift -> build_lshr
           | Ast.RightShift -> if is_signed then build_ashr else build_lshr
-          | Ast.LeftRotate
-          | Ast.RightRotate
-            -> raise @@ cerr fake_pos "unimplemented in codegen: %s" (Ast.show_binop op)
+          | Ast.LeftRotate ->
+            let intrinsic = _get_intrinsic (Rotl (integer_bitwidth (type_of lle1))) in
+              (fun a b -> build_call intrinsic [| a; b |])
+          | Ast.RightRotate ->
+            let intrinsic = _get_intrinsic (Rotr (integer_bitwidth (type_of lle1))) in
+              (fun a b -> build_call intrinsic [| a; b |])
       in
         build_binop lle1 lle2 "" _b
 

@@ -17,19 +17,21 @@ type intrinsic =
   | CmovAsm8 of int
 
 let rec get_intrinsic_code = function
-  | SelectAsm8 n when n < 32 -> SelectAsm n
-  | SelectAsm8 n -> SelectSel n
-  | CmovAsm8 n when n < 32 -> CmovAsm n
-  | CmovAsm8 n -> CmovSel n
+  | SelectAsm8 sz when sz < 32 -> SelectAsm sz
+  | SelectAsm8 sz -> SelectSel sz
+  | CmovAsm8 sz when sz < 32 -> CmovAsm sz
+  | CmovAsm8 sz -> CmovSel sz
   | _ as code -> code
 
 let get_intrinsic_name = function
-  | SelectAsm n -> "select.asm.i" ^ (string_of_int n)
-  | SelectXor n -> "select.xor.i" ^ (string_of_int n)
-  | SelectSel n -> "select.sel.i" ^ (string_of_int n)
-  | CmovAsm n -> "cmov.asm.i" ^ (string_of_int n)
-  | CmovXor n -> "cmov.xor.i" ^ (string_of_int n)
-  | CmovSel n -> "cmov.sel.i" ^ (string_of_int n)
+  | Rotl sz -> "fact.rotl.i" ^ (string_of_int sz)
+  | Rotr sz -> "fact.rotr.i" ^ (string_of_int sz)
+  | SelectAsm sz -> "fact.select.asm.i" ^ (string_of_int sz)
+  | SelectXor sz -> "fact.select.xor.i" ^ (string_of_int sz)
+  | SelectSel sz -> "fact.select.sel.i" ^ (string_of_int sz)
+  | CmovAsm sz -> "fact.cmov.asm.i" ^ (string_of_int sz)
+  | CmovXor sz -> "fact.cmov.xor.i" ^ (string_of_int sz)
+  | CmovSel sz -> "fact.cmov.sel.i" ^ (string_of_int sz)
 
 let make_stuff llctx llmod =
   let i1ty = i1_type llctx in
@@ -45,11 +47,36 @@ let make_stuff llctx llmod =
   let define_intrinsic code =
     let name = get_intrinsic_name code in
       match code with
-        | CmovAsm n
-        | CmovXor n
-        | CmovSel n ->
-          let ity = integer_type llctx n in
-          let asmty = if n < 32 then i32ty else ity in
+        | Rotl sz
+        | Rotr sz ->
+          (* we expect this function to get inlined and disappear at high optimization levels *)
+          let ity = integer_type llctx sz in
+          let ft = function_type ity [| ity; ity |] in
+          let fn = define_function name ft llmod in
+            add_function_attr fn alwaysinline Function;
+            set_linkage Internal fn;
+            let bb = entry_block fn in
+            let b = builder llctx in
+              position_at_end bb b;
+              let e1 = param fn 0 in
+              let e2 = param fn 1 in
+                set_value_name "" e1;
+                set_value_name "" e2;
+                let build_fsh,build_bsh =
+                  match code with
+                    | Rotl _ -> build_shl,build_lshr
+                    | Rotr _ -> build_lshr,build_shl in
+                let shift1 = build_fsh e1 e2 "" b in
+                let subtmp = build_sub (const_int ity sz) e2 "" b in
+                let shift2 = build_bsh e1 subtmp "" b in
+                let rotltmp = build_or shift1 shift2 "" b in
+                  build_ret rotltmp b |> built;
+                  fn
+        | CmovAsm sz
+        | CmovXor sz
+        | CmovSel sz ->
+          let ity = integer_type llctx sz in
+          let asmty = if sz < 32 then i32ty else ity in
           let ft = function_type ity [| i1ty; ity; ity |] in
           let asmfty = function_type asmty [| i1ty; asmty; asmty |] in
           let fn = define_function name ft llmod in
@@ -58,11 +85,11 @@ let make_stuff llctx llmod =
             let bb = entry_block fn in
             let b = builder llctx in
             let ext llval =
-              if n < 32
+              if sz < 32
               then build_zext llval i32ty "" b
               else llval in
             let trunc llval =
-              if n < 32
+              if sz < 32
               then build_trunc llval ity "" b
               else llval in
               position_at_end bb b;
@@ -94,11 +121,11 @@ let make_stuff llctx llmod =
                 in
                   build_ret ret b |> built;
                   fn
-        | SelectAsm n
-        | SelectXor n
-        | SelectSel n ->
-          let ity = integer_type llctx n in
-          let asmty = if n < 32 then i32ty else ity in
+        | SelectAsm sz
+        | SelectXor sz
+        | SelectSel sz ->
+          let ity = integer_type llctx sz in
+          let asmty = if sz < 32 then i32ty else ity in
           let ft = function_type ity [| i1ty; ity; ity |] in
           let asmfty = function_type asmty [| i1ty; asmty; asmty |] in
           let fn = define_function name ft llmod in
@@ -107,11 +134,11 @@ let make_stuff llctx llmod =
             let bb = entry_block fn in
             let b = builder llctx in
             let ext llval =
-              if n < 32
+              if sz < 32
               then build_zext llval i32ty "" b
               else llval in
             let trunc llval =
-              if n < 32
+              if sz < 32
               then build_trunc llval ity "" b
               else llval in
               position_at_end bb b;
