@@ -20,9 +20,10 @@ let get p = function
   | None -> raise @@ err p
 
 let expr_fix p bty e =
-  if (is_integral bty) && (is_integral (type_of e)) then
+  let e_bty = type_of e in
+  if (is_integral bty) && (is_integral e_bty) then
     let bty_s = bitsize bty in
-    let e_s = bitsize (type_of e) in
+    let e_s = bitsize e_bty in
       if e_s <> bty_s then
         let upcast =
           make_ast p
@@ -32,7 +33,10 @@ let expr_fix p bty e =
         in
           (p@>Cast (upcast, e), upcast)
       else e
-  else e
+  else if ((label_of bty).data = Secret) && ((label_of e_bty).data = Public) then
+    (p@>Classify e, bty)
+  else
+    e
 
 let findvar vmap x =
   match Core.List.Assoc.find vmap x ~equal:vequal with
@@ -315,33 +319,50 @@ class typechecker =
           | Some lexpr -> lexpr.data
           | None -> begin
               match data with
-                | Ast.LIntLiteral n ->
-                  if n < 0 then
-                    raise @@ err p;
-                  if n > max_int then
-                    (* this is probably int31 or int63 max or something and not uint64 max,
-                       but it's still a reasonable limit in my opinion *)
-                    raise @@ err p;
-                  LIntLiteral n
                 | Ast.LExpression e ->
-                  let e' = visit#expr e in
-                  let e_bty = type_of e' in
                   let u64 = p@>UInt (64, p@>Public) in
+                  let e' = visit#expr ~lookahead_bty:u64 e in
+                  let e_bty = type_of e' in
                     if not (e_bty <: u64) then
                       raise @@ cerr p "cannot use index of type %s" (show_base_type e_bty);
-                    let e' = expr_fix p u64 e' in
-                    let x = p @> make_fresh "lexpr" in
-                      _vmap <- (x,u64) :: _vmap;
-                      let var_dec = p@>VarDec(x,u64,e') in
-                        _inject <- var_dec :: _inject;
-                        LDynamic x
+                    begin
+                      match e' with
+                        | ({data=IntLiteral n},_) ->
+                          if n < 0 then
+                            raise @@ err p;
+                          if n > max_int then
+                            (* this is probably int31 or int63 max or something and not uint64 max,
+                               but it's still a reasonable limit in my opinion *)
+                            raise @@ err p;
+                          LIntLiteral n
+                        | _ ->
+                          let e' = expr_fix p u64 e' in
+                          let x = p @> make_fresh "lexpr" in
+                            _vmap <- (x,u64) :: _vmap;
+                            let var_dec = p@>VarDec(x,u64,e') in
+                              _inject <- var_dec :: _inject;
+                              LDynamic x
+                    end
                 | Ast.LUnspecified -> raise @@ err p
             end
       end
 
-    method expr ?lookahead_bty e_ =
-      let {data=(e',bty); pos} = visit#expr' lookahead_bty e_ in
-        (make_ast pos e', bty)
+    method expr ?lookahead_bty ?no_unbox_ref ?auto_box_into_ref e_ =
+      let {data=(e',bty); pos=p} = visit#expr' lookahead_bty e_ in
+      let e_res = (p@>e', bty) in
+      let want_ref =
+        match lookahead_bty, no_unbox_ref with
+          | Some ({data=Ref _}), _
+          | _, Some true -> true
+          | _ -> false in
+        match bty.data with
+          | Ref (subty,{data=R|RW}) ->
+            if want_ref then e_res
+            else (p@>Deref e_res, subty)
+          | _ ->
+            if (auto_box_into_ref >!> false)
+            then (p@>Enref e_res, p@>Ref (bty, p@>RW))
+            else e_res
 
     method expr' lookahead_bty =
       wrap @@ fun p -> function
@@ -350,7 +371,7 @@ class typechecker =
         | Ast.UntypedIntLiteral n ->
           let bty = get p lookahead_bty in
             if not @@ is_integral bty then
-              raise @@ err p;
+              raise @@ cerr p "unexpected integer literal";
             IntLiteral n, bty
         | Ast.IntLiteral (n,bty) ->
           let bty' = visit#basic (make_ast p Public) bty in
@@ -429,8 +450,7 @@ class typechecker =
           in
             Declassify e', pub_bty e_bty
         | Ast.Enref e ->
-          let subty = lookahead_bty >>= element_type in
-          let e' = visit#expr ?lookahead_bty:subty e in
+          let e' = visit#expr ?lookahead_bty e in
           let e_bty = type_of e' in
             Enref e', p@>Ref (e_bty, p@>RW)
         | Ast.Deref e ->
@@ -447,7 +467,6 @@ class typechecker =
           let e_bty = type_of e' in
           let el_bty =
             match e_bty.data with
-              | Arr ({data=Ref (bty,{data=R|RW})},_,_)
               | Arr (bty,_,_) -> bty
               | _ -> raise @@ err p in
             ArrayGet (e', index'), el_bty
@@ -457,23 +476,24 @@ class typechecker =
           let es' = List.map (visit#expr ?lookahead_bty) es in
           let btys = List.map type_of es' in
           let bty = Core.List.fold btys ~init:(List.hd btys) ~f:(+:) in
-          let a_bty = p@>Arr (p@>Ref (bty,p@>R),p@>LIntLiteral (List.length es),default_var_attr) in
+          let a_bty = p@>Arr (p@>Ref (bty,p@>RW),p@>LIntLiteral (List.length es),default_var_attr) in
             ArrayLit es', a_bty
         | Ast.ArrayZeros lexpr ->
           let lexpr' = visit#lexpr lexpr in
           let bty = get p lookahead_bty in
             if not (is_integral bty) then
-              raise @@ err p;
-            let a_bty = p@>Arr (p@>Ref (bty,p@>R),lexpr',default_var_attr) in
+              raise @@ cerr p
+                         "type %s is not integral"
+                         (show_base_type bty);
+            let a_bty = p@>Arr (p@>Ref (bty,p@>RW),lexpr',default_var_attr) in
               ArrayZeros (visit#lexpr lexpr), a_bty
         | Ast.ArrayCopy e ->
           let e' = visit#expr e in
-          let e_bty = type_of e' in
-            begin
-              match e_bty.data with
-                | Arr _ -> ()
-                | _ -> raise @@ err p
-            end;
+          let e_bty =
+            match type_of e' with
+              | {pos=p; data=Arr ({data=Ref (el_bty,{data=R|RW})},lexpr,vattr)} ->
+                p@>Arr (p@>Ref (el_bty,p@>RW), lexpr, vattr)
+              | _ -> raise @@ err p in
             ArrayCopy e', e_bty
         | Ast.ArrayView (e,index,len) ->
           let e' = visit#expr e in
@@ -568,8 +588,11 @@ class typechecker =
               raise @@ err p;
             if not @@ (is_integral bty2 || is_vec bty2) then
               raise @@ err p;
-            if not (bty1 <: bty2) then
-              raise @@ err p;
+            if not (bty1 <: bty2 || bty2 <: bty1) then
+              raise @@ cerr p
+                         "incompatible types:\n  %s\n  %s"
+                         (show_base_type bty1)
+                         (show_base_type bty2);
             let bty = bty1 +: bty2 in
             let fix = expr_fix p bty in
               bty, fix e1, fix e2
@@ -761,7 +784,12 @@ class typechecker =
                     end
                 | None ->
                   let bty' = visit#bty bty in
-                  let e' = visit#expr ~lookahead_bty:bty' e in
+                  let lookahead_bty = element_type bty' >!> bty' in
+                  let e' = visit#expr
+                             ~lookahead_bty
+                             ~no_unbox_ref:(is_ref bty')
+                             ~auto_box_into_ref:(is_ref bty')
+                             e in
                   let e_bty = type_of e' in
                     e',e_bty,bty'
             in
@@ -796,12 +824,15 @@ class typechecker =
             let args',_ = visit#_fncall p None fn args in
               VoidFnCall (fn,args')
           | Ast.Assign (e1,e2) ->
-            let e1' = visit#expr e1 in
+            let e1' = visit#expr ~no_unbox_ref:true e1 in
             let e1_ty = type_of e1' in
             let unref_ty =
               match e1_ty.data with
                 | Ref (bty,{data=W|RW}) -> bty
-                | _ -> raise @@ err p in
+                | _ -> raise @@ cerr p
+                                  "expected Ref@W, got %s"
+                                  (show_base_type e1_ty)
+            in
             let e2' = visit#expr ~lookahead_bty:unref_ty e2 in
             let e2_ty = type_of e2' in
               if e2_ty <: unref_ty then

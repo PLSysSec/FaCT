@@ -39,7 +39,7 @@ and base_type' =
   | Ref of base_type * mutability
   | Arr of base_type * lexpr * var_attr
   | Struct of fields
-  | UVec of size * int * label  (* this is really a special case of Arr[Ref_RW[UInt(size, label)], int] *)
+  | UVec of size * int * label  (* this is really a special case of Arr[UInt(size, label), int] *)
   | String  (* for debug functions *)
 [@@deriving show]
 and base_type = base_type' pos_ast [@@deriving show]
@@ -62,6 +62,7 @@ and expr' =
   | TernOp of expr * expr * expr
   | Select of expr * expr * expr  (* ct version of TernOp *)
   | Declassify of expr
+  | Classify of expr
   (* Non-blessable *)
   | Enref of expr
   | Deref of expr

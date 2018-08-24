@@ -372,7 +372,8 @@ class oobchecker m =
                 let zexpr = Boolean.mk_ite ctx zcond z1 z2 in
                   return @@ zpush _expr e__ zexpr
               end |> consume
-            | Declassify e ->
+            | Declassify e
+            | Classify e ->
               begin
                 zpop _expr e >>= fun z ->
                 return @@ zpush _expr e__ z

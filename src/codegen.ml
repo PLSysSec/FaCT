@@ -395,7 +395,8 @@ class codegen llctx llmod m =
             let lle3 = visit#expr e3 in
             let select = _get_intrinsic (SelectAsm8 (integer_bitwidth llbty)) in
               build_call select [| lle1; lle2; lle3 |] "" _b
-          | Declassify e -> visit#expr e
+          | Declassify e
+          | Classify e -> visit#expr e
           | Enref e ->
             let lle = visit#expr e in
             let lle_bty = type_of lle in
@@ -409,7 +410,7 @@ class codegen llctx llmod m =
             let lle = visit#expr e in
             let lllexpr = visit#lexpr lexpr in
             let arrayloc = build_gep lle [| lllexpr |] "" _b in
-              build_load arrayloc "" _b
+              (*build_load arrayloc "" _b*) arrayloc
           | ArrayLit es ->
             let lles = List.map visit#expr es in
             let Some el_ty = Tast_util.element_type bty in

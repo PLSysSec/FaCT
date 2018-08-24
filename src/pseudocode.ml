@@ -93,7 +93,7 @@ class pseudocode (m : fact_module) =
         | Bool l -> sprintf "%s bool" (visit#lbl l)
         | UInt (s,l) -> sprintf "%s uint%d" (visit#lbl l) s
         | Int (s,l) -> sprintf "%s int%d" (visit#lbl l) s
-        | Ref (bt,m) -> sprintf "%s*%s" (visit#bty bt) (visit#mut m)
+        | Ref (bt,m) -> sprintf "%s@%s" (visit#bty bt) (visit#mut m)
         | Arr (bt,lexpr,vattr) -> sprintf "%s%s[%s]" (visit#vattr vattr) (visit#bty bt) (visit#lexpr lexpr)
         | _ -> "X[bty]X"
 
@@ -261,6 +261,9 @@ class pseudocode (m : fact_module) =
         | Declassify e ->
           let e' = visit#expr e in
             sprintf "declassify(%s)" e'
+        | Classify e ->
+          let e' = visit#expr e in
+            sprintf "classify(%s)" e'
         | Enref e ->
           sprintf "ref %s" (visit#expr e)
         | Deref e ->

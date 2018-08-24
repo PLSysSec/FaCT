@@ -35,6 +35,11 @@ let is_vec =
     | UVec _ -> true
     | _ -> false
 
+let is_ref =
+  xwrap @@ fun p -> function
+    | Ref _ -> true
+    | _ -> false
+
 let element_type =
   xwrap @@ fun p -> function
     | Ref (bty,_) -> Some bty

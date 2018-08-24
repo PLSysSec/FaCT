@@ -81,6 +81,10 @@ class ast_visitor =
         | Assume e ->
           let e' = visit#expr e in
             [Assume e']
+        | BigFor (i,n1,n2,blk) ->
+          let i' = visit#varname i in
+          let blk' = visit#block blk in
+            [BigFor (i',n1,n2,blk')]
 
     method stm stm_ =
       let p = stm_.pos in
@@ -159,7 +163,6 @@ class ast_visitor =
 
     method lexpr =
       wrap @@ fun p -> function
-        | LIntLiteral _ as e -> e
         | LExpression e ->
           let e' = visit#expr e in
             LExpression e'

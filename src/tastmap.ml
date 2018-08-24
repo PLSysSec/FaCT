@@ -160,6 +160,9 @@ class tast_visitor (m : fact_module) =
           | Declassify e ->
             let e' = visit#expr e in
               Declassify e'
+          | Classify e ->
+            let e' = visit#expr e in
+              Classify e'
           | Enref e ->
             Enref (visit#expr e)
           | Deref e ->

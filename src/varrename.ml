@@ -11,6 +11,7 @@ class var_renamer =
     val mutable _vmap : (string * var_name) list = []
     val _vstack : (var_name * string) mlist stack = Stack.create ()
     val _vthisblock : string mlist stack = Stack.create ()
+    val _preproc : (var_name * int) mlist = ref []
 
     method _newvar p x =
       if List.mem x.data !(top _vthisblock) then
@@ -29,11 +30,16 @@ class var_renamer =
         { x with data=x' }
 
     method _getvar p x =
-      match Core.List.Assoc.find !(top _vstack) x ~equal:vequal with
-        | Some x' -> { x with data=x' }
-        | None -> raise @@ cerr p
-                             "variable not defined: '%s'"
-                             x.data
+      match mlist_find ~equal:vequal !_preproc x with
+        | Some n -> UntypedIntLiteral n
+        | None ->
+          begin
+            match mlist_find ~equal:vequal !(top _vstack) x with
+              | Some x' -> Variable { x with data=x' }
+              | None -> raise @@ cerr p
+                                   "variable not defined: '%s'"
+                                   x.data
+          end
 
     method fdec fdec =
       push (ref []) _vstack ;
@@ -74,6 +80,18 @@ class var_renamer =
           let e' = visit#expr e in
           let blk' = visit#block blk in
             [ArrayFor (x',bty,e',blk')]
+        | BigFor (i,n1,n2,blk) ->
+          let rec rep n acc =
+            if n < n2 then
+              begin
+                mlist_push (i,n) _preproc;
+                let blk' = visit#block blk in
+                  mlist_drop _preproc;
+                  rep (n + 1) (acc @ blk')
+              end
+            else acc in
+          let res = rep n1 [] in
+            List.map (fun {data} -> data) res
         | _ -> super#stm' stm_
 
     method stm_post =
@@ -89,8 +107,7 @@ class var_renamer =
     method expr_post =
       wrap @@ fun p -> function
         | Variable x ->
-          let x' = visit#_getvar p x in
-            Variable x'
+          visit#_getvar p x
         | e -> e
 
   end

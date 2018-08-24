@@ -83,6 +83,42 @@ class sanitychecker post_transform m =
       let p = e'.pos in
         begin
           match e'.data with
+            | Declassify e ->
+              let rec declassify bty =
+                let p = bty.pos in
+                let pub = p@>Public in
+                let bty' =
+                  match bty.data with
+                    | Bool _ -> Bool pub
+                    | UInt (s,_) -> UInt (s,pub)
+                    | Int (s,_) -> Int (s,pub)
+                    | Ref (bty,m) -> Ref (declassify bty,m)
+                    | Arr (bty,lex,vattr) -> Arr (declassify bty,lex,vattr)
+                    | _ -> raise @@ err p
+                in
+                  p@>bty'
+              in
+              let e_bty = type_of e in
+                if not (bty =: declassify e_bty) then
+                  raise @@ err p
+            | Classify e ->
+              let rec classify bty =
+                let p = bty.pos in
+                let sec = p@>Secret in
+                let bty' =
+                  match bty.data with
+                    | Bool _ -> Bool sec
+                    | UInt (s,_) -> UInt (s,sec)
+                    | Int (s,_) -> Int (s,sec)
+                    | Ref (bty,m) -> Ref (classify bty,m)
+                    | Arr (bty,lex,vattr) -> Arr (classify bty,lex,vattr)
+                    | _ -> raise @@ err p
+                in
+                  p@>bty'
+              in
+              let e_bty = type_of e in
+                if not (bty =: classify e_bty) then
+                  raise @@ err p
             | Deref e ->
               let e_bty = type_of e in
                 begin

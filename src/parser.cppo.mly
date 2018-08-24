@@ -77,6 +77,8 @@ let lit_to_type { data=t; pos=p } =
 %token STRUCT DOT
 %token CACHELINE
 
+%token BIGFOR
+
 %token FD_START ST_START EX_START EX_END
 
 %token EOF
@@ -214,7 +216,6 @@ unop:
   | RIGHTROTATEEQ { RightRotate }
 
 lexpr:
-  | n=INT { mkpos (LIntLiteral n) }
   | e=expr { mkpos (LExpression e) }
 
 fieldassign:
@@ -271,8 +272,7 @@ statement:
   | e1=expr ASSIGN e2=expr SEMICOLON
     { mkpos (Assign(e1, e2)) }
   | e1=expr op=binopeq e2=expr SEMICOLON
-    { let deref = mkposof(e1) (Deref e1) in
-      let binop = mkpos (BinOp(op, deref, e2)) in
+    { let binop = mkpos (BinOp(op, e1, e2)) in
         mkpos (Assign(e1, binop)) }
   | iff=if_clause (* takes care of else ifs and elses too! *)
     { iff }
@@ -286,6 +286,8 @@ statement:
     { mkpos VoidReturn }
   | ASSUME e=paren(expr) SEMICOLON
     { mkpos (Assume e) }
+  | a=BIGFOR LPAREN x=var_name FROM n1=INT TO n2=INT z=RPAREN stms=block
+    { mkposrange(a,z) (BigFor(x, n1, n2, stms)) }
 
 %inline block: xs=blist(statement) { xs }
 

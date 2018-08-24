@@ -55,7 +55,7 @@ let transform m =
               (fun callee -> visit callee.pos (callee.data::callstack))
               callees;
             perm_marked := StringSet.add caller !perm_marked;
-            sorted := caller :: !sorted
+            sorted := (p@>caller) :: !sorted
         end
   in
     StringMap.iter
@@ -65,15 +65,20 @@ let transform m =
       (* topological sort, callers first *)
       List.map
         (fun fn ->
-           List.find
-             (function
-               | {data=FunDec(fn',_,_,_,_) | CExtern(fn',_,_,_)} when fn'.data = fn -> true
-               | _ -> false)
-             fdecs)
+           try
+             List.find
+               (function
+                 | {data=FunDec(fn',_,_,_,_) | CExtern(fn',_,_,_)} when fn'.data = fn.data -> true
+                 | _ -> false)
+               fdecs
+           with
+               Not_found -> raise @@ cerr fn.pos
+                                       "unknown function: '%s'"
+                                       fn.data)
         !sorted in
     let standalones =
       List.filter
         (fun {data=FunDec(fn',_,_,_,_)|CExtern(fn',_,_,_)} ->
-           not @@ List.mem fn'.data !sorted)
+           not @@ List.mem fn'.data (List.map (fun {data} -> data) !sorted))
         fdecs in
       Module(sdecs,fdecs' @ standalones)

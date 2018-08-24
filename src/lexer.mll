@@ -60,6 +60,7 @@ let keywords = [
   ("noinline",NOINLINE);
   ("struct",STRUCT);
   ("cacheline",CACHELINE);
+  ("FOR",BIGFOR);
 ]
 let _ = List.map add_keyword keywords
 }
