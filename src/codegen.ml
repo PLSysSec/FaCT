@@ -410,22 +410,35 @@ class codegen llctx llmod m =
             let lllexpr = visit#lexpr lexpr in
             let arrayloc = build_gep lle [| lllexpr |] "" _b in
               build_load arrayloc "" _b
+          | ArrayLit es ->
+            let lles = List.map visit#expr es in
+            let Some el_ty = Tast_util.element_type bty in
+            let len = Tast_util.length_of bty in
+            let llelty = visit#bty el_ty in
+            let lllen = visit#lexpr len in
+            let newarr = build_array_alloca llelty lllen "" _b in
+              List.iteri
+                (fun i lle ->
+                   let cell = build_gep newarr [| const_int i64ty i |] "" _b in
+                     build_store lle cell _b |> built)
+                lles;
+              newarr
           | ArrayZeros len ->
             let Some el_ty = Tast_util.element_type bty in
-            let llbty = visit#bty el_ty in
+            let llelty = visit#bty el_ty in
             let lllen = visit#lexpr len in
-            let newarr = build_array_alloca llbty lllen "" _b in
-            let memset = _get_intrinsic (Memset (integer_bitwidth llbty)) in
+            let newarr = build_array_alloca llelty lllen "" _b in
+            let memset = _get_intrinsic (Memset (integer_bitwidth llelty)) in
               build_call memset [| newarr; (const_null i8ty); lllen |] "" _b |> built;
               newarr
           | ArrayCopy e ->
             let Some el_ty = Tast_util.element_type bty in
             let len = Tast_util.length_of bty in
             let lle = visit#expr e in
-            let llbty = visit#bty el_ty in
+            let llelty = visit#bty el_ty in
             let lllen = visit#lexpr len in
-            let newarr = build_array_alloca llbty lllen "" _b in
-            let memcpy = _get_intrinsic (Memcpy (integer_bitwidth llbty)) in
+            let newarr = build_array_alloca llelty lllen "" _b in
+            let memcpy = _get_intrinsic (Memcpy (integer_bitwidth llelty)) in
               build_call memcpy [| newarr; lle; lllen |] "" _b |> built;
               newarr
           | ArrayView (e,start,len) ->
