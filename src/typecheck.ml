@@ -838,7 +838,10 @@ class typechecker =
               if e2_ty <: unref_ty then
                 Assign (e1',expr_fix p unref_ty e2')
               else
-                raise @@ err p
+                raise @@ cerr p
+                           "expected %s, got %s"
+                           (show_base_type unref_ty)
+                           (show_base_type e2_ty)
           | Ast.If _ -> raise @@ err p
           | Ast.RangeFor _ -> raise @@ err p
           | Ast.ArrayFor _ -> raise @@ err p
