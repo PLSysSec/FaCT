@@ -261,6 +261,8 @@ let compile (in_files,out_file,out_dir) args =
     output_ast args.ast_out out_file' ast;
   let ast = Varrename.transform ast in (* unique named vars *)
     output_ast args.ast_out out_file' ast;
+  let ast = Fnextract.transform ast in (* function calls are no longer expressions *)
+    output_ast args.ast_out out_file' ast;
   let ast = Arr_speccer.transform ast in (* array lengths filled in *)
     output_ast args.ast_out out_file' ast;
   let tast = Typecheck.transform ast in (* transition to tast; exprs have types *)

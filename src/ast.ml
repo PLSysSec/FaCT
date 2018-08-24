@@ -84,6 +84,7 @@ and expr' =
   | StructGet of expr * var_name
   (* Auxilliary *)
   | StringLiteral of string
+  | FnCallExpr of fun_name * args
 [@@deriving show]
 and expr = expr' pos_ast [@@deriving show]
 

@@ -18,7 +18,7 @@ class array_spec_fncall =
     inherit Astmap.ast_visitor as super
     val mutable _fmap : (fun_name * params) list = []
 
-    method module_pre m =
+    method fact_module m =
       let Module(_,fdecs) = m in
         List.iter
           (fun fdec ->
@@ -27,7 +27,7 @@ class array_spec_fncall =
                | CExtern(fn,_,_,params) ->
                  _fmap <- (fn,params) :: _fmap)
           fdecs;
-        super#module_pre m
+        super#fact_module m
 
     method _fncall fn args =
       let params = findfn _fmap fn in

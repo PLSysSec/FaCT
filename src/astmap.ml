@@ -6,10 +6,10 @@ open Ast
 class ast_visitor =
   object (visit)
     val mutable _cur_fn : fun_name = fake_pos @> ""
+    val mutable _pre_inject : statement list = []
+    val mutable _post_inject : statement list = []
 
-    method module_pre m = m
     method fact_module m =
-      let m = visit#module_pre m in
       let Module(sdecs,fdecs) = m in
       let fdecs' = List.map visit#fdec fdecs in
         Module(sdecs,fdecs')
@@ -38,7 +38,14 @@ class ast_visitor =
       visit#stms blk
 
     method stms stms_ =
-      List.flatten @@ List.map visit#stm stms_
+      List.flatten @@ List.map
+                        (fun stm ->
+                           let stms' = visit#stm stm in
+                           let stms' = _pre_inject @ stms' @ _post_inject in
+                             _pre_inject <- [];
+                             _post_inject <- [];
+                             stms')
+                        stms_
 
     method stm' =
       xwrap @@ fun p -> function
@@ -157,6 +164,9 @@ class ast_visitor =
           | StructGet (e,field) ->
             StructGet (visit#expr e,field)
           | StringLiteral _ -> raise @@ err p
+          | FnCallExpr (fn,args) ->
+            let args' = List.map visit#expr args in
+              FnCallExpr (fn,args')
       in
         visit#expr_post e_'
     method expr_post e = e

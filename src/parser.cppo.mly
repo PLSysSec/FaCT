@@ -221,7 +221,7 @@ lexpr:
 fieldassign:
   | x=var_name COLON e=expr { (x, e) }
 
-expr:
+nonfn_expr:
   | e=paren(expr) { mkpos e.data }
   | b=BOOL { mkpos (if b then True else False) }
   | n=INT { mkpos (UntypedIntLiteral n) }
@@ -251,6 +251,10 @@ expr:
 
   | s=STRING {mkpos (StringLiteral s) }
 
+expr:
+  | e=nonfn_expr { e }
+  | fn=fun_name args=plist(expr) { mkpos (FnCallExpr(fn, args)) }
+
 %inline if_clause:
   | IF c=paren(expr) thens=block elses=loption(ELSE elses=else_clause { elses })
     { mkpos (If(c, thens, elses)) }
@@ -263,7 +267,7 @@ else_clause:
 
 statement:
   | stms=block { mkpos (Block stms) }
-  | b=base_type x=var_name ASSIGN e=expr SEMICOLON
+  | b=base_type x=var_name ASSIGN e=nonfn_expr SEMICOLON
     { mkpos (VarDec(x, b, e)) }
   | b=base_type x=var_name ASSIGN fn=fun_name args=plist(expr) SEMICOLON
     { mkpos (FnCall(x, b, fn, args)) }

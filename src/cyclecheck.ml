@@ -13,22 +13,34 @@ class cyclechecker m =
 
     method _edges () = _edges
 
+    method _fncall fn =
+      let fns = StringMap.find_opt
+                  _cur_fn.data
+                  _edges
+                >!> [] in
+        _edges <- StringMap.add
+                    _cur_fn.data
+                    (fn :: fns)
+                    _edges
+
     method stm_post stm_ =
       begin
         match stm_.data with
           | FnCall (_,_,fn,_)
           | VoidFnCall (fn,_) ->
-            let fns = StringMap.find_opt
-                        _cur_fn.data
-                        _edges
-                      >!> [] in
-              _edges <- StringMap.add
-                          _cur_fn.data
-                          (fn :: fns)
-                          _edges;
+            visit#_fncall fn
           | _ -> ()
       end;
       super#stm_post stm_
+
+    method expr_post e_ =
+      begin
+        match e_.data with
+          | FnCallExpr(fn,_) ->
+            visit#_fncall fn
+          | _ -> ()
+      end;
+      super#expr_post e_
 
   end
 

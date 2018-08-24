@@ -558,6 +558,7 @@ class typechecker =
           in
             StructGet (visit#expr e,field), f_bty
         | Ast.StringLiteral _ -> raise @@ cerr p "strings are not implemented yet"
+        | Ast.FnCallExpr _ -> raise @@ err p (* these should all be gone after fnextract pass *)
 
     method unop op e =
       let bty = type_of e in
