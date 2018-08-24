@@ -345,9 +345,9 @@ class codegen llctx llmod m =
           let lle1 = visit#expr e1 in
           let lle2 = visit#expr e2 in
           let llcond = visit#expr cond in
-          let intrinsic = _get_intrinsic (CmovAsm8 (integer_bitwidth (type_of lle2))) in
+          let cmov = _get_intrinsic (CmovAsm8 (integer_bitwidth (type_of lle2))) in
           let orig = build_load lle1 "" _b in
-          let result = build_call intrinsic [| llcond; lle2; orig |] "" _b in
+          let result = build_call cmov [| llcond; lle2; orig |] "" _b in
             build_store result lle1 _b |> built
         | Assume e -> ()
 
@@ -393,8 +393,8 @@ class codegen llctx llmod m =
             let lle1 = visit#expr e1 in
             let lle2 = visit#expr e2 in
             let lle3 = visit#expr e3 in
-            let intrinsic = _get_intrinsic (SelectAsm8 (integer_bitwidth llbty)) in
-              build_call intrinsic [| lle1; lle2; lle3 |] "" _b
+            let select = _get_intrinsic (SelectAsm8 (integer_bitwidth llbty)) in
+              build_call select [| lle1; lle2; lle3 |] "" _b
           | Declassify e -> visit#expr e
           | Enref e ->
             let lle = visit#expr e in
@@ -410,6 +410,24 @@ class codegen llctx llmod m =
             let lllexpr = visit#lexpr lexpr in
             let arrayloc = build_gep lle [| lllexpr |] "" _b in
               build_load arrayloc "" _b
+          | ArrayZeros len ->
+            let Some el_ty = Tast_util.element_type bty in
+            let llbty = visit#bty el_ty in
+            let lllen = visit#lexpr len in
+            let newarr = build_array_alloca llbty lllen "" _b in
+            let memset = _get_intrinsic (Memset (integer_bitwidth llbty)) in
+              build_call memset [| newarr; (const_null i8ty); lllen |] "" _b |> built;
+              newarr
+          | ArrayCopy e ->
+            let Some el_ty = Tast_util.element_type bty in
+            let len = Tast_util.length_of bty in
+            let lle = visit#expr e in
+            let llbty = visit#bty el_ty in
+            let lllen = visit#lexpr len in
+            let newarr = build_array_alloca llbty lllen "" _b in
+            let memcpy = _get_intrinsic (Memcpy (integer_bitwidth llbty)) in
+              build_call memcpy [| newarr; lle; lllen |] "" _b |> built;
+              newarr
           | ArrayView (e,start,len) ->
             let lle = visit#expr e in
             let llstart = visit#lexpr start in
@@ -457,11 +475,11 @@ class codegen llctx llmod m =
           | Ast.LeftShift -> build_lshr
           | Ast.RightShift -> if is_signed then build_ashr else build_lshr
           | Ast.LeftRotate ->
-            let intrinsic = _get_intrinsic (Rotl (integer_bitwidth (type_of lle1))) in
-              (fun a b -> build_call intrinsic [| a; b |])
+            let rotl = _get_intrinsic (Rotl (integer_bitwidth (type_of lle1))) in
+              (fun a b -> build_call rotl [| a; b |])
           | Ast.RightRotate ->
-            let intrinsic = _get_intrinsic (Rotr (integer_bitwidth (type_of lle1))) in
-              (fun a b -> build_call intrinsic [| a; b |])
+            let rotr = _get_intrinsic (Rotr (integer_bitwidth (type_of lle1))) in
+              (fun a b -> build_call rotr [| a; b |])
       in
         build_binop lle1 lle2 "" _b
 

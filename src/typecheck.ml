@@ -460,16 +460,12 @@ class typechecker =
           let a_bty = p@>Arr (p@>Ref (bty,p@>R),p@>LIntLiteral (List.length es),default_var_attr) in
             ArrayLit es', a_bty
         | Ast.ArrayZeros lexpr ->
+          let lexpr' = visit#lexpr lexpr in
           let bty = get p lookahead_bty in
-            begin
-              match bty.data with
-                | Arr ({data=Ref (bty,_)},_,_)
-                | Arr (bty,_,_) ->
-                  if not @@ is_integral bty then
-                    raise @@ err p;
-                | _ -> raise @@ err p
-            end;
-            ArrayZeros (visit#lexpr lexpr), bty
+            if not (is_integral bty) then
+              raise @@ err p;
+            let a_bty = p@>Arr (p@>Ref (bty,p@>R),lexpr',default_var_attr) in
+              ArrayZeros (visit#lexpr lexpr), a_bty
         | Ast.ArrayCopy e ->
           let e' = visit#expr e in
           let e_bty = type_of e' in
