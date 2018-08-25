@@ -486,7 +486,7 @@ class codegen llctx llmod m =
           | Ast.BitwiseAnd -> build_and
           | Ast.BitwiseOr -> build_or
           | Ast.BitwiseXor -> build_xor
-          | Ast.LeftShift -> build_lshr
+          | Ast.LeftShift -> build_shl
           | Ast.RightShift -> if is_signed then build_ashr else build_lshr
           | Ast.LeftRotate ->
             let rotl = _get_intrinsic (Rotl (integer_bitwidth (type_of lle1))) in
