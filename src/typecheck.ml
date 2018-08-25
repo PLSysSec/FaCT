@@ -360,13 +360,23 @@ class typechecker =
           | Some ({data=Ref _}), _
           | _, Some true -> true
           | _ -> false in
+      let auto_box = auto_box_into_ref >!> false in
+      let mut =
+        match lookahead_mut with
+          | Some m -> m.data
+          | None -> RW in
         match bty.data with
           | Ref (subty,{data=R|RW}) ->
-            if want_ref then e_res
-            else (p@>Deref e_res, subty)
+            begin
+              match want_ref,auto_box with
+                | true,false -> e_res
+                | false,_ -> (p@>Deref e_res, subty)
+                | true,true ->
+                  (p@>Enref (p@>Deref e_res, subty), p@>Ref (subty, p@>mut))
+            end
           | _ ->
-            if (auto_box_into_ref >!> false)
-            then (p@>Enref e_res, p@>Ref (bty, p@>RW))
+            if auto_box
+            then (p@>Enref e_res, p@>Ref (bty, p@>mut))
             else e_res
 
     method expr' lookahead_bty lookahead_mut =
