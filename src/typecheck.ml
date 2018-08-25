@@ -369,10 +369,22 @@ class typechecker =
           | Ref (subty,{data=R|RW}) ->
             begin
               match want_ref,auto_box with
-                | true,false -> e_res
-                | false,_ -> (p@>Deref e_res, subty)
+                | true,false ->
+                  (* keep original ref *)
+                  e_res
                 | true,true ->
+                  (* create a new ref *)
                   (p@>Enref (p@>Deref e_res, subty), p@>Ref (subty, p@>mut))
+                | false,_ ->
+                  (* transparently deref, but only for vars and arrays *)
+                  begin
+                    let (inner_e,_) = e_res in
+                      match inner_e.data with
+                        | Variable _
+                        | ArrayGet _ ->
+                          (p@>Deref e_res, subty)
+                        | _ -> e_res
+                  end
             end
           | _ ->
             if auto_box

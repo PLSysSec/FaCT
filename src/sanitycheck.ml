@@ -128,6 +128,16 @@ class sanitychecker post_transform m =
                         raise @@ err p
                     | _ -> raise @@ err p
                 end
+            | Enref e ->
+              let e_bty = type_of e in
+                begin
+                  match e_bty.data with
+                    | Ref _
+                    | Arr ({data=Ref _},_,_) ->
+                      (* should this be just a warning instead? *)
+                      raise @@ cerr p "creating a ref of a ref"
+                    | _ -> ()
+                end
             | _ -> ()
         end;
         e',bty'
