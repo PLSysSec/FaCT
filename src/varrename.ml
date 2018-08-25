@@ -70,16 +70,28 @@ class var_renamer =
     method stm' ({pos=p;data} as stm_) =
       match data with
         | RangeFor (x,bty,e1,e2,blk) ->
+          (* scoping for loop var *)
+          push (ref !(top _vstack)) _vstack ;
+          push (ref []) _vthisblock ;
           let x' = visit#_newvar p x in
           let e1' = visit#expr e1 in
           let e2' = visit#expr e2 in
           let blk' = visit#block blk in
-            [RangeFor (x',bty,e1',e2',blk')]
+          let res = [RangeFor (x',bty,e1',e2',blk')] in
+            pop _vthisblock |> ignore ;
+            pop _vstack |> ignore ;
+            res
         | ArrayFor (x,bty,e,blk) ->
+          (* scoping for loop var *)
+          push (ref !(top _vstack)) _vstack ;
+          push (ref []) _vthisblock ;
           let x' = visit#_newvar p x in
           let e' = visit#expr e in
           let blk' = visit#block blk in
-            [ArrayFor (x',bty,e',blk')]
+          let res = [ArrayFor (x',bty,e',blk')] in
+            pop _vthisblock |> ignore ;
+            pop _vstack |> ignore ;
+            res
         | BigFor (i,n1,n2,blk) ->
           let rec rep n acc =
             if n < n2 then
