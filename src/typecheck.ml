@@ -347,8 +347,13 @@ class typechecker =
             end
       end
 
-    method expr ?lookahead_bty ?no_unbox_ref ?auto_box_into_ref e_ =
-      let {data=(e',bty); pos=p} = visit#expr' lookahead_bty e_ in
+    method expr
+             ?lookahead_bty
+             ?no_unbox_ref
+             ?auto_box_into_ref
+             ?lookahead_mut
+             e_ =
+      let {data=(e',bty); pos=p} = visit#expr' lookahead_bty lookahead_mut e_ in
       let e_res = (p@>e', bty) in
       let want_ref =
         match lookahead_bty, no_unbox_ref with
@@ -364,7 +369,7 @@ class typechecker =
             then (p@>Enref e_res, p@>Ref (bty, p@>RW))
             else e_res
 
-    method expr' lookahead_bty =
+    method expr' lookahead_bty lookahead_mut =
       wrap @@ fun p -> function
         | Ast.True -> True, make_ast p @@ Bool (make_ast p Public)
         | Ast.False -> False, make_ast p @@ Bool (make_ast p Public)
@@ -452,7 +457,11 @@ class typechecker =
         | Ast.Enref e ->
           let e' = visit#expr ?lookahead_bty e in
           let e_bty = type_of e' in
-            Enref e', p@>Ref (e_bty, p@>RW)
+          let mut =
+            match lookahead_mut with
+              | Some m -> m.data
+              | None -> RW in
+            Enref e', p@>Ref (e_bty, p@>mut)
         | Ast.Deref e ->
           let e' = visit#expr e in
           let e_bty = type_of e' in
@@ -476,7 +485,11 @@ class typechecker =
           let es' = List.map (visit#expr ?lookahead_bty) es in
           let btys = List.map type_of es' in
           let bty = Core.List.fold btys ~init:(List.hd btys) ~f:(+:) in
-          let a_bty = p@>Arr (p@>Ref (bty,p@>RW),p@>LIntLiteral (List.length es),default_var_attr) in
+          let mut =
+            match lookahead_mut with
+              | Some m -> m.data
+              | None -> RW in
+          let a_bty = p@>Arr (p@>Ref (bty,p@>mut),p@>LIntLiteral (List.length es),default_var_attr) in
             ArrayLit es', a_bty
         | Ast.ArrayZeros lexpr ->
           let lexpr' = visit#lexpr lexpr in
@@ -485,14 +498,22 @@ class typechecker =
               raise @@ cerr p
                          "type %s is not integral"
                          (show_base_type bty);
-            let a_bty = p@>Arr (p@>Ref (bty,p@>RW),lexpr',default_var_attr) in
+            let mut =
+              match lookahead_mut with
+                | Some m -> m.data
+                | None -> RW in
+            let a_bty = p@>Arr (p@>Ref (bty,p@>mut),lexpr',default_var_attr) in
               ArrayZeros (visit#lexpr lexpr), a_bty
         | Ast.ArrayCopy e ->
           let e' = visit#expr e in
+          let mut =
+            match lookahead_mut with
+              | Some m -> m.data
+              | None -> RW in
           let e_bty =
             match type_of e' with
               | {pos=p; data=Arr ({data=Ref (el_bty,{data=R|RW})},lexpr,vattr)} ->
-                p@>Arr (p@>Ref (el_bty,p@>RW), lexpr, vattr)
+                p@>Arr (p@>Ref (el_bty,p@>mut), lexpr, vattr)
               | _ -> raise @@ err p in
             ArrayCopy e', e_bty
         | Ast.ArrayView (e,index,len) ->
@@ -769,11 +790,12 @@ class typechecker =
         match stm_.data with
           | Ast.Block _ -> raise @@ err p
           | Ast.VarDec (x,bty,e) ->
+            let lookahead_mut = Ast_util.get_mut bty >>| visit#mut in
             let e',e_bty,bty' =
               match Ast_util.is_unspec_arr bty with
                 | Some pre_bty ->
                   let pre_bty' = visit#bty pre_bty in
-                  let e' = visit#expr ~lookahead_bty:pre_bty' e in
+                  let e' = visit#expr ~lookahead_bty:pre_bty' ?lookahead_mut e in
                   let e_bty = type_of e' in
                     begin
                       match e_bty.data with
@@ -788,6 +810,7 @@ class typechecker =
                   let lookahead_bty = element_type bty' >!> bty' in
                   let e' = visit#expr
                              ~lookahead_bty
+                             ?lookahead_mut
                              ~no_unbox_ref:(is_ref bty')
                              ~auto_box_into_ref:(is_ref bty')
                              e in

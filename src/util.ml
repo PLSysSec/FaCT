@@ -6,6 +6,11 @@ let bind f = function
 
 let (>>=) x f = bind f x
 
+let (>>|) x f =
+  match x with
+    | Some n -> Some (f n)
+    | None -> None
+
 let (>!>) x y =
   match x with
     | Some z -> z
