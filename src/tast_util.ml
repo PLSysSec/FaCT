@@ -104,7 +104,7 @@ let ( <* ) m1 m2 =
   match m1.data,m2.data with
     | R,R -> true
     | W,W -> true
-    | _,RW -> true
+    | RW,_ -> true
     | _ -> false
 
 let rec ( =: ) b1 b2 =
