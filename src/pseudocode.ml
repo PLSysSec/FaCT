@@ -328,6 +328,8 @@ class pseudocode (m : fact_module) =
 
   end
 
+let ps = new pseudocode (Module ([],[],{fmap=[]}))
+
 let transform m =
   let visit = new pseudocode m in
     visit#fact_module ()

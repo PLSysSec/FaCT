@@ -3,6 +3,7 @@ open Pos
 open Err
 open Tast
 open Tast_util
+open Pseudocode
 
 let has_pub_mut params =
   let rec is_pub_mut bty =
@@ -783,10 +784,10 @@ class typechecker =
                    expr_fix p param_ty arg
                  else
                    raise @@ cerr p
-                              "argument type mismatch when calling '%s': expected %s, got %s"
+                              "argument type mismatch when calling '%s':\n\texpected %s, got %s"
                               fn.data
-                              (show_base_type' param_ty.data)
-                              (show_base_type' arg_ty.data))
+                              (ps#bty param_ty)
+                              (ps#bty arg_ty))
             args' params in
         let rt_needs_fixing =
           match expected_rt,rt with
