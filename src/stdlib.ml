@@ -71,7 +71,7 @@ let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.ex
         let params' = wmem_unspec sz lbl in
         let arglen = p@>Ast.ArrayLen arg in
         let args' = [ arg; arglen ] in
-        let fdec' = fake_pos @> StdLibFn (Memzero (sz,lbl.data,everhi),fnattr,rt',params') in
+        let fdec' = fake_pos @> StdlibFn (Memzero (sz,lbl.data,everhi),fnattr,rt',params') in
           fdec',args'
 
       | "load_le" ->
@@ -103,7 +103,7 @@ let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.ex
               base,rt',code in
         let params' = [ rmem base sz_ lbl ] in
         let args' = [ arg ] in
-        let fdec' = fake_pos @> StdLibFn (code,fnattr,rt',params') in
+        let fdec' = fake_pos @> StdlibFn (code,fnattr,rt',params') in
           fdec',args'
 
       | "store_le" ->
@@ -142,7 +142,7 @@ let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.ex
           let params' = [ wmem base sz_ lbl ;
                           fake_pos@>Param (fake_pos@>"val", valty) ] in
           let args' = [ arg1; arg2 ] in
-          let fdec' = fake_pos @> StdLibFn (code,fnattr,rt',params') in
+          let fdec' = fake_pos @> StdlibFn (code,fnattr,rt',params') in
             fdec',args'
 
       | _ -> raise @@ cerr p "not a stdlib function: '%s'" fn.data

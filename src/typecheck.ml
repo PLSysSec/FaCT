@@ -85,7 +85,7 @@ class typechecker =
             (function
               | {data=FunDec(fn,_,_,_,_)
                     | CExtern(fn,_,_,_)} as fdec -> (fn, fdec)
-              | {data=StdLibFn(code,_,_,_)} as fdec ->
+              | {data=StdlibFn(code,_,_,_)} as fdec ->
                 let fn = Stdlib.name_of code in
                   (fn, fdec))
             fdecs' in
@@ -781,7 +781,7 @@ class typechecker =
               let fdec',args' = Stdlib.interface_of
                                   (fun ?lookahead_bty e -> visit#expr ?lookahead_bty e)
                                   p stmlbl fn args in
-              let StdLibFn (code,_,rt',params') = fdec'.data in
+              let StdlibFn (code,_,rt',params') = fdec'.data in
               let fn' = Stdlib.name_of code in
                 begin
                   match findfn_opt _fmap fn' with
@@ -905,7 +905,7 @@ class typechecker =
                 let fdec',args' = Stdlib.interface_of
                                     (fun ?lookahead_bty e -> visit#expr ?lookahead_bty e)
                                     p stmlbl fn args in
-                let StdLibFn (_,_,rt',_) = fdec'.data in
+                let StdlibFn (_,_,rt',_) = fdec'.data in
                 let bty = match rt' with
                   | Some bty -> bty
                   | None -> raise @@ cerr p "function '%s' does not return a value" fn.data in

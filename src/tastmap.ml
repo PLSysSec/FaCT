@@ -39,10 +39,10 @@ class tast_visitor (m : fact_module) =
           _cur_fn <- fn;
           let params' = List.map visit#param params in
             CExtern(fn,ft,rt,params')
-        | StdLibFn(code,ft,rt,params) ->
+        | StdlibFn(code,ft,rt,params) ->
           _cur_fn <- Stdlib.name_of code;
           let params' = List.map visit#param params in
-            StdLibFn(code,ft,rt,params')
+            StdlibFn(code,ft,rt,params')
 
     method param param = param
 

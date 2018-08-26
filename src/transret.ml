@@ -51,7 +51,7 @@ class transret m =
               let blk' = (pre, blk') in
                 p @> FunDec (fn,fty,rt,params,blk')
             | CExtern _ -> fdec'
-            | StdLibFn _ -> fdec'
+            | StdlibFn _ -> fdec'
 
     method block (blk_,next) =
       let p = blk_.pos in

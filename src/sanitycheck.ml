@@ -14,7 +14,7 @@ class sanitychecker post_transform m =
           (function
             | {data=FunDec(fn,_,rt,params,_)
                   | CExtern(fn,_,rt,params)} -> (fn, (rt,params))
-            | {data=StdLibFn(code,_,rt,params)} ->
+            | {data=StdlibFn(code,_,rt,params)} ->
               let fn = Stdlib.name_of code in
                 (fn, (rt,params)))
           fdecs
@@ -30,7 +30,7 @@ class sanitychecker post_transform m =
               if not (ends_with_ret body) then
                 raise @@ err p
             | CExtern(fn,ft,rt,params) -> ()
-            | StdLibFn(fn,ft,rt,params) ->
+            | StdlibFn(fn,ft,rt,params) ->
               (* check mutable public vs everhi? *)
               (* check void/return statement vs return type? *)
               ()
