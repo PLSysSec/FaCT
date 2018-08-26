@@ -17,12 +17,6 @@ class transret m =
     inherit Transmap.transmap m as super
     val mutable _tripped : tripstate = Untripped
 
-    method _is_everhi fn =
-      let fdec = findfn _minfo.fmap fn in
-        match fdec.data with
-          | FunDec (_,{ everhi },_,_,_) -> everhi
-          | _ -> false
-
     method fdec fdec =
       let p = fdec.pos in
         _tripped <- Untripped;
@@ -57,6 +51,7 @@ class transret m =
               let blk' = (pre, blk') in
                 p @> FunDec (fn,fty,rt,params,blk')
             | CExtern _ -> fdec'
+            | StdLibFn _ -> fdec'
 
     method block (blk_,next) =
       let p = blk_.pos in
@@ -110,7 +105,7 @@ class transret m =
                 if _tripped = Untripped then
                   _tripped <- Pending;
                 let fdec = findfn _minfo.fmap _cur_fn in
-                let FunDec(_,_,Some rt,_,_) | CExtern(_,_,Some rt,_) = fdec.data in
+                let FunDec(_,_,Some rt,_,_) = fdec.data in
                 let rrt = p@>Ref (rt,p@>RW) in
                 let replace =
                   [ (p@>Assign ((p@>Variable (p@>rval),rrt), e')) ;

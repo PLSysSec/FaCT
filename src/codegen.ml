@@ -77,7 +77,8 @@ class codegen llctx llmod m =
       let res = mlist_find ~equal:Tast_util.vequal !_fenv fn in
         match res with
           | Some llfn -> llfn
-          | None -> raise @@ err fn.pos
+          | None -> raise @@ cerr fn.pos
+                               "unknown function: '%s'" fn.data
 
     method bty {pos=p;data} =
       match data with
@@ -148,6 +149,11 @@ class codegen llctx llmod m =
                 visit#block body |> ignore;
                 llfn
         | CExtern (name,fnattr,rt,params) ->
+          let ft = visit#_prototype name rt params in
+          let llfn = declare_function name.data ft llmod in
+            mlist_push (name,llfn) _fenv;
+            llfn
+        | StdLibFn (name,fnattr,rt,params) ->
           let ft = visit#_prototype name rt params in
           let llfn = declare_function name.data ft llmod in
             mlist_push (name,llfn) _fenv;

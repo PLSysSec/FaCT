@@ -204,4 +204,6 @@ let findfn fmap fname =
                          "function not defined: '%s'"
                          fname.data
 
+let findfn_opt fmap fname =
+  Core.List.Assoc.find fmap fname ~equal:vequal
 

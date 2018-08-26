@@ -14,7 +14,8 @@ class transfn m =
     method _is_everhi fn =
       let fdec = findfn _minfo.fmap fn in
         match fdec.data with
-          | FunDec (_,{ everhi },_,_,_) -> everhi
+          | FunDec (_,{ everhi },_,_,_)
+          | StdLibFn (_,{ everhi },_,_) -> everhi
           | _ -> false
 
     method fdec fdec =
@@ -33,6 +34,7 @@ class transfn m =
               else params,blk in
               p @> FunDec (fn,fty,rt,params',blk')
           | CExtern _ -> fdec'
+          | StdLibFn _ -> fdec'
 
     method stm stm_ =
       let p = stm_.pos in

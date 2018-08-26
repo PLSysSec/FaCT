@@ -56,6 +56,7 @@ class typechecker =
     val mutable _inject : simple_statement' pos_ast list = []
     val mutable _rp : label ref = ref (fake_pos @> Public)
     val mutable _everhis : fun_name' list = []
+    val mutable _stdlibfns : function_dec list = []
 
     method fact_module m =
       let Ast.Module(sdecs,fdecs) = m in
@@ -77,10 +78,11 @@ class typechecker =
                    let params' = List.rev_map visit#param (List.rev params) in
                      _fmap <- (fn,(rt',params')) :: _fmap)
           fdecs;
-        let fdecs' = List.map visit#fdec fdecs in
+        let fdecs' = (List.map visit#fdec fdecs) in
+        let fdecs' = fdecs' @ _stdlibfns in
         let minfo_fmap =
           List.map
-            (function {data=FunDec(fn,_,_,_,_) | CExtern(fn,_,_,_)} as fdec -> (fn, fdec))
+            (function {data=FunDec(fn,_,_,_,_) | CExtern(fn,_,_,_) | StdLibFn(fn,_,_,_)} as fdec -> (fn, fdec))
             fdecs' in
           Module(sdecs',fdecs',{ fmap=minfo_fmap })
 
@@ -760,62 +762,79 @@ class typechecker =
         let fix = expr_fix p new_bty in
           (e1',fix e2',fix e3'), new_bty
 
-    method _fncall p expected_rt fn args =
-      let rt,params = findfn _fmap fn in
-        if (List.length args <> List.length params) then
-          raise @@ cerr p
-                     "expected %d param(s), got %d"
-                     (List.length params)
-                     (List.length args);
-        let args' =
-          List.map2
-            (fun arg param ->
-               let Param (_,param_ty) = param.data in
-                 visit#expr ~lookahead_bty:param_ty arg)
-            args params in
-        let args' =
-          List.map2
-            (fun arg param ->
-               let arg_ty = type_of arg in
-               let Param (_,param_ty) = param.data in
-                 if passable_to param_ty arg_ty then
-                   expr_fix p param_ty arg
-                 else
-                   raise @@ cerr p
-                              "argument type mismatch when calling '%s':\n\texpected %s, got %s"
-                              fn.data
-                              (ps#bty param_ty)
-                              (ps#bty arg_ty))
-            args' params in
-        let rt_needs_fixing =
-          match expected_rt,rt with
-            | Some {data=Ref(ert,mut)},Some rt ->
-              if (rt <: ert) then
-                let fresh = p@> make_fresh fn.data in
-                  _inject <- (p@>FnCall (fresh,rt,fn,args')) :: _inject;
-                  let e_res = expr_fix p ert (p@>Variable fresh,rt) in
-                    Some (p@>Enref e_res, p@>Ref (ert, mut))
-              else
-                raise @@ cerr p
-                           "expected %s got %s"
-                           (ps#bty ert)
-                           (ps#bty rt)
-            | Some ert,Some rt ->
-              if (rt =: ert) then
-                None
-              else if (rt <: ert) then
-                let fresh = p@> make_fresh fn.data in
-                  _inject <- (p@>FnCall (fresh,rt,fn,args')) :: _inject;
-                  Some (expr_fix p ert (p@>Variable fresh,rt))
-              else
-                raise @@ cerr p
-                           "expected %s got %s"
-                           (ps#bty ert)
-                           (ps#bty rt)
-            | None,None -> None
-            | _ -> raise @@ err p
-        in
-          args', rt_needs_fixing
+    method _fncall p stmlbl expected_rt fn args =
+      let fnfound = findfn_opt _fmap fn in
+        match fnfound with
+          | None ->
+            if List.mem fn.data Stdlib.names then
+              let fdec',args' = Stdlib.interface_of (visit#expr) p stmlbl fn args in
+              let StdLibFn (fn',_,rt',params') = fdec'.data in
+                begin
+                  match findfn_opt _fmap fn' with
+                    | None ->
+                      _stdlibfns <- fdec' :: _stdlibfns;
+                      _fmap <- (fn',(rt',params')) :: _fmap
+                    | _ -> ()
+                end;
+                visit#_fncall p stmlbl rt' fn' args'
+            else raise @@ cerr p
+                            "function not defined: '%s'"
+                            fn.data
+          | Some (rt,params) ->
+            if (List.length args <> List.length params) then
+              raise @@ cerr p
+                         "expected %d param(s), got %d"
+                         (List.length params)
+                         (List.length args);
+            let args' =
+              List.map2
+                (fun arg param ->
+                   let Param (_,param_ty) = param.data in
+                     visit#expr ~lookahead_bty:param_ty arg)
+                args params in
+            let args' =
+              List.map2
+                (fun arg param ->
+                   let arg_ty = type_of arg in
+                   let Param (_,param_ty) = param.data in
+                     if passable_to param_ty arg_ty then
+                       expr_fix p param_ty arg
+                     else
+                       raise @@ cerr p
+                                  "argument type mismatch when calling '%s':\n\texpected %s, got %s"
+                                  fn.data
+                                  (ps#bty param_ty)
+                                  (ps#bty arg_ty))
+                args' params in
+            let rt_needs_fixing =
+              match expected_rt,rt with
+                | Some {data=Ref(ert,mut)},Some rt ->
+                  if (rt <: ert) then
+                    let fresh = p@> make_fresh fn.data in
+                      _inject <- (p@>FnCall (fresh,rt,fn,args')) :: _inject;
+                      let e_res = expr_fix p ert (p@>Variable fresh,rt) in
+                        Some (p@>Enref e_res, p@>Ref (ert, mut))
+                  else
+                    raise @@ cerr p
+                               "expected %s got %s"
+                               (ps#bty ert)
+                               (ps#bty rt)
+                | Some ert,Some rt ->
+                  if (rt =: ert) then
+                    None
+                  else if (rt <: ert) then
+                    let fresh = p@> make_fresh fn.data in
+                      _inject <- (p@>FnCall (fresh,rt,fn,args')) :: _inject;
+                      Some (expr_fix p ert (p@>Variable fresh,rt))
+                  else
+                    raise @@ cerr p
+                               "expected %s got %s"
+                               (ps#bty ert)
+                               (ps#bty rt)
+                | None,None -> None
+                | _ -> raise @@ err p
+            in
+              fn, args', rt_needs_fixing
 
     method stm pc stm_ =
       let p = stm_.pos in
@@ -868,20 +887,20 @@ class typechecker =
             if stmlbl.data = Secret then
               _everhis <- fn.data :: _everhis;
             let bty' = visit#bty bty in
-            let args',rt_needs_fixing = visit#_fncall p (Some bty') fn args in
+            let fn',args',rt_needs_fixing = visit#_fncall p stmlbl (Some bty') fn args in
               _vmap <- (x,bty') :: _vmap;
               begin
                 match rt_needs_fixing with
                   | Some thing ->
                     VarDec (x,bty',thing)
                   | None ->
-                    FnCall (x,bty',fn,args')
+                    FnCall (x,bty',fn',args')
               end
           | Ast.VoidFnCall (fn,args) ->
             if stmlbl.data = Secret then
               _everhis <- fn.data :: _everhis;
-            let args',_ = visit#_fncall p None fn args in
-              VoidFnCall (fn,args')
+            let fn',args',_ = visit#_fncall p stmlbl None fn args in
+              VoidFnCall (fn',args')
           | Ast.Assign (e1,e2) ->
             let e1' = visit#expr ~no_unbox_ref:true e1 in
             let e1_ty = type_of e1' in

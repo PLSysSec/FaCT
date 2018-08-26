@@ -20,6 +20,10 @@ class sanitychecker post_transform m =
               if not (ends_with_ret body) then
                 raise @@ err p
             | CExtern(fn,ft,rt,params) -> ()
+            | StdLibFn(fn,ft,rt,params) ->
+              (* check mutable public vs everhi? *)
+              (* check void/return statement vs return type? *)
+              ()
         end;
         fdec'
 
