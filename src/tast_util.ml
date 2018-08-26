@@ -23,6 +23,7 @@ let is_signed =
   xwrap @@ fun p -> function
     | UInt _ -> false
     | Int _ -> true
+    | UVec _ -> false
     | _ -> raise @@ err p
 
 let is_bool =

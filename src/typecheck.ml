@@ -252,7 +252,11 @@ class typechecker =
                 if type_of e2' <: bty' then
                   expr_fix p bty' e2'
                 else
-                  raise @@ err p in
+                  raise @@ cerr p
+                             "expected %s, got %s"
+                             (ps#bty bty')
+                             (ps#bty (type_of e2'))
+              in
                 _vmap <- (x,bty') :: _vmap;
                 let old_rp = !_rp in
                 let blk' = visit#block p pc blk in
@@ -464,7 +468,8 @@ class typechecker =
                   e1',e2'
               | None ->
                 let e1' = visit#expr e1 in
-                let e2' = visit#expr ~lookahead_bty:(type_of e1') e2 in
+                let e1ty = type_of e1' in
+                let e2' = visit#expr ~lookahead_bty:(element_type e1ty >!> e1ty) e2 in
                   e1',e2'
           in
           let bty, e1', e2' = visit#binop p op e1' e2' in
@@ -714,18 +719,23 @@ class typechecker =
               bty, fix e1, fix e2
           | Ast.LeftShift
           | Ast.RightShift ->
-            let bty =
+            let bty,e2' =
               match bty1.data,bty2.data with
                 | UInt (n,l1),(UInt (_,l2) | Int (_,l2)) ->
-                  bty1.pos@>UInt (n,l1 +$ l2)
+                  bty1.pos@>UInt (n,l1 +$ l2), e2
                 | Int (n,l1),(UInt (_,l2) | Int (_,l2)) ->
-                  bty1.pos@>Int (n,l1 +$ l2)
-                | UVec (n,bw1,l1),(UInt (_,l2) | Int (_,l2)) ->
-                  bty1.pos@>UVec (n,bw1,l1 +$ l2)
+                  bty1.pos@>Int (n,l1 +$ l2), e2
+                | UVec (n,bw1,l1),(UInt (_,l2)) ->
+                  let shiftamt = match (expr_of e2).data with
+                    | IntLiteral n -> n
+                    | _ -> raise @@ err p in
+                  let bty' = bty1.pos@>UVec (n,bw1,l1 +$ l2) in
+                  let e2' = (p@>VectorLit (List.init bw1 (fun _ -> shiftamt)), bty') in
+                    bty', e2'
                 | _ -> raise @@ err p;
             in
             let fix = expr_fix p bty in
-              bty, fix e1, fix e2
+              bty, fix e1, fix e2'
           | Ast.LeftRotate
           | Ast.RightRotate ->
             let bty =

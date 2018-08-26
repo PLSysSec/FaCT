@@ -126,6 +126,11 @@ class sanitychecker post_transform m =
       let p = e'.pos in
         begin
           match e'.data with
+            | BinOp (op,e1,e2) ->
+              let e1ty = type_of e1 in
+              let e2ty = type_of e2 in
+                if not (e1ty =: e2ty) then
+                  raise @@ err p
             | Declassify e ->
               let e_bty = type_of e in
                 if not (bty =: declassify e_bty) then
