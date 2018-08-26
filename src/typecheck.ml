@@ -22,22 +22,23 @@ let get p = function
 
 let expr_fix p bty e =
   let e_bty = type_of e in
-  if (is_integral bty) && (is_integral e_bty) then
-    let bty_s = bitsize bty in
-    let e_s = bitsize e_bty in
-      if e_s <> bty_s then
-        let upcast =
-          make_ast p
-            (match bty.data with
-              | UInt (_,l) -> UInt (bty_s,l)
-              | Int (_,l) -> Int (bty_s,l))
-        in
-          (p@>Cast (upcast, e), upcast)
-      else e
-  else if ((label_of bty).data = Secret) && ((label_of e_bty).data = Public) then
-    (p@>Classify e, bty)
-  else
-    e
+  let e' =
+    if (is_integral bty) && (is_integral e_bty) then
+      let bty_s = bitsize bty in
+      let e_s = bitsize e_bty in
+        if e_s <> bty_s then
+          let upcast =
+            make_ast p
+              (match bty.data with
+                | UInt (_,l) -> UInt (bty_s,l)
+                | Int (_,l) -> Int (bty_s,l))
+          in
+            (p@>Cast (upcast, e), upcast)
+        else e
+    else e in
+    if ((label_of bty).data = Secret) && ((label_of e_bty).data = Public) then
+      (p@>Classify e', classify (type_of e'))
+    else e'
 
 let findvar vmap x =
   match Core.List.Assoc.find vmap x ~equal:vequal with
@@ -279,7 +280,7 @@ class typechecker =
           | [] -> (p@>ListOfStuff [], p@>End)
           | stm :: rest ->
             let p = stm.pos in
-            let next = lazy
+            let next () =
               (match rest with
                 | [{data=Ast.Return _} as rtstm]
                 | [{data=Ast.VoidReturn} as rtstm] -> visit#return pc rtstm
@@ -288,7 +289,9 @@ class typechecker =
             let inblock,next' =
               match stm.data with
                 | Ast.Block blk ->
-                  Scope (visit#block p pc blk), force next
+                  let blk' = visit#block p pc blk in
+                  let next' = next () in
+                  Scope blk', next'
                 | Ast.VarDec _
                 | Ast.FnCall _
                 | Ast.VoidFnCall _
@@ -296,16 +299,18 @@ class typechecker =
                 | Ast.Assume _ ->
                   let this = visit#stm pc stm in
                     begin
-                      match (force next).data with
+                      match (next ()).data with
                         | Block ({data=ListOfStuff nexts},following) ->
                           ListOfStuff (this @ nexts), following
                         | _ ->
-                          ListOfStuff (visit#stm pc stm), force next
+                          ListOfStuff this, next ()
                     end
                 | Ast.If _
                 | Ast.RangeFor _
                 | Ast.ArrayFor _ ->
-                  visit#controlflow pc stm, force next
+                  let controlflow' = visit#controlflow pc stm in
+                  let next' = next () in
+                    controlflow', next'
                 | Ast.Return _
                 | Ast.VoidReturn -> (ListOfStuff [], visit#return pc stm)
             in
@@ -315,38 +320,41 @@ class typechecker =
 
     (* lexprs will always have type UInt64 in this implementation *)
     method lexpr ?lookahead_lexpr {pos=p; data} =
-      make_ast p begin
-        match lookahead_lexpr with
-          | Some lexpr -> lexpr.data
-          | None -> begin
-              match data with
-                | Ast.LExpression e ->
-                  let u64 = p@>UInt (64, p@>Public) in
-                  let e' = visit#expr ~lookahead_bty:u64 e in
-                  let e_bty = type_of e' in
-                    if not (e_bty <: u64) then
-                      raise @@ cerr p "cannot use index of type %s" (show_base_type e_bty);
-                    begin
-                      match e' with
-                        | ({data=IntLiteral n},_) ->
-                          if n < 0 then
-                            raise @@ err p;
-                          if n > max_int then
-                            (* this is probably int31 or int63 max or something and not uint64 max,
-                               but it's still a reasonable limit in my opinion *)
-                            raise @@ err p;
-                          LIntLiteral n
-                        | _ ->
-                          let e' = expr_fix p u64 e' in
-                          let x = p @> make_fresh "lexpr" in
-                            _vmap <- (x,u64) :: _vmap;
-                            let var_dec = p@>VarDec(x,u64,e') in
-                              _inject <- var_dec :: _inject;
-                              LDynamic x
-                    end
-                | Ast.LUnspecified -> raise @@ err p
-            end
-      end
+      let u64 = p@>UInt (64, p@>Public) in
+        make_ast p begin
+          match lookahead_lexpr with
+            | Some lexpr -> lexpr.data
+            | None -> begin
+                match data with
+                  | Ast.LExpression e ->
+                    let e' = visit#expr ~lookahead_bty:u64 e in
+                    let e_bty = type_of e' in
+                      if not (e_bty <: u64) then
+                        raise @@ cerr p "cannot use index of type %s" (show_base_type e_bty);
+                      begin
+                        match e' with
+                          | ({data=IntLiteral n},_) ->
+                            if n < 0 then
+                              raise @@ err p;
+                            if n > max_int then
+                              (* this is probably int31 or int63 max or something and not uint64 max,
+                                 but it's still a reasonable limit in my opinion *)
+                              raise @@ err p;
+                            LIntLiteral n
+                          | _ ->
+                            let e' = expr_fix p u64 e' in
+                            let x = p @> make_fresh "lexpr" in
+                              _vmap <- (x,u64) :: _vmap;
+                              let var_dec = p@>VarDec(x,u64,e') in
+                                _inject <- var_dec :: _inject;
+                                LDynamic x
+                      end
+                  | Ast.LUnspecified ->
+                    let x = p @> make_fresh "unspec" in
+                      _vmap <- (x,u64) :: _vmap;
+                      LDynamic x
+              end
+        end
 
     method expr
              ?lookahead_bty
@@ -463,20 +471,7 @@ class typechecker =
         | Ast.Declassify e ->
           let e' = visit#expr e in
           let e_bty = type_of e' in
-          let pub = e_bty.pos@>Public in
-          let rec pub_bty bty_ =
-            let newty =
-              match bty_.data with
-                | Bool _ -> Bool pub
-                | UInt (s,_) -> UInt (s,pub)
-                | Int (s,_) -> Int (s,pub)
-                | UVec (s,bw,_) -> UVec (s,bw,pub)
-                | Ref (bty,m) -> Ref (pub_bty bty,m)
-                | Arr (bty,lexpr,vattr) -> Arr (pub_bty bty,lexpr,vattr)
-                | _ -> raise @@ err p in
-              bty_.pos @> newty
-          in
-            Declassify e', pub_bty e_bty
+            Declassify e', declassify e_bty
         | Ast.Enref e ->
           let e' = visit#expr ?lookahead_bty e in
           let e_bty = type_of e' in
@@ -768,7 +763,10 @@ class typechecker =
     method _fncall p expected_rt fn args =
       let rt,params = findfn _fmap fn in
         if (List.length args <> List.length params) then
-          raise @@ err p;
+          raise @@ cerr p
+                     "expected %d param(s), got %d"
+                     (List.length params)
+                     (List.length args);
         let args' =
           List.map2
             (fun arg param ->
@@ -791,14 +789,30 @@ class typechecker =
             args' params in
         let rt_needs_fixing =
           match expected_rt,rt with
-            | Some ert,Some rt ->
-              if not (rt <: ert) then
+            | Some {data=Ref(ert,mut)},Some rt ->
+              if (rt <: ert) then
+                let fresh = p@> make_fresh fn.data in
+                  _inject <- (p@>FnCall (fresh,rt,fn,args')) :: _inject;
+                  let e_res = expr_fix p ert (p@>Variable fresh,rt) in
+                    Some (p@>Enref e_res, p@>Ref (ert, mut))
+              else
                 raise @@ cerr p
                            "expected %s got %s"
-                           (show_base_type ert)
-                           (show_base_type rt);
-              not (rt =: ert)
-            | None,None -> false
+                           (ps#bty ert)
+                           (ps#bty rt)
+            | Some ert,Some rt ->
+              if (rt =: ert) then
+                None
+              else if (rt <: ert) then
+                let fresh = p@> make_fresh fn.data in
+                  _inject <- (p@>FnCall (fresh,rt,fn,args')) :: _inject;
+                  Some (expr_fix p ert (p@>Variable fresh,rt))
+              else
+                raise @@ cerr p
+                           "expected %s got %s"
+                           (ps#bty ert)
+                           (ps#bty rt)
+            | None,None -> None
             | _ -> raise @@ err p
         in
           args', rt_needs_fixing
@@ -846,8 +860,8 @@ class typechecker =
               else
                 raise @@ cerr p
                            "expected %s, got %s"
-                           (show_base_type' bty'.data)
-                           (show_base_type' e_bty.data) in
+                           (ps#bty bty')
+                           (ps#bty e_bty) in
               _vmap <- (x,bty') :: _vmap;
               VarDec (x,bty',e_fixed)
           | Ast.FnCall (x,bty,fn,args) ->
@@ -856,15 +870,13 @@ class typechecker =
             let bty' = visit#bty bty in
             let args',rt_needs_fixing = visit#_fncall p (Some bty') fn args in
               _vmap <- (x,bty') :: _vmap;
-              if rt_needs_fixing then
-                begin
-                  let fresh = p@> make_fresh x.data in
-                  let (Some rt),_ = findfn _fmap fn in
-                    _inject <- (p@>FnCall (fresh,rt,fn,args')) :: _inject;
-                    VarDec (x,bty',expr_fix p bty' (p@>Variable fresh,rt))
-                end
-              else
-                FnCall (x,bty',fn,args')
+              begin
+                match rt_needs_fixing with
+                  | Some thing ->
+                    VarDec (x,bty',thing)
+                  | None ->
+                    FnCall (x,bty',fn,args')
+              end
           | Ast.VoidFnCall (fn,args) ->
             if stmlbl.data = Secret then
               _everhis <- fn.data :: _everhis;

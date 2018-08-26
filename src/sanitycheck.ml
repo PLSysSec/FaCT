@@ -3,6 +3,7 @@ open Pos
 open Err
 open Tast
 open Tast_util
+open Pseudocode
 
 class sanitychecker post_transform m =
   object (visit)
@@ -58,7 +59,10 @@ class sanitychecker post_transform m =
                   match e1_ty.data with
                     | Ref (subty,{data=W|RW}) ->
                       if not (e2_ty =: subty) then
-                        raise @@ err p
+                        raise @@ cerr p
+                                   "mismatch: %s vs %s"
+                                   (ps#bty e2_ty)
+                                   (ps#bty subty)
                     | _ -> raise @@ err p
                 end
             | Cmov (e1,cond,e2) ->
@@ -84,41 +88,16 @@ class sanitychecker post_transform m =
         begin
           match e'.data with
             | Declassify e ->
-              let rec declassify bty =
-                let p = bty.pos in
-                let pub = p@>Public in
-                let bty' =
-                  match bty.data with
-                    | Bool _ -> Bool pub
-                    | UInt (s,_) -> UInt (s,pub)
-                    | Int (s,_) -> Int (s,pub)
-                    | Ref (bty,m) -> Ref (declassify bty,m)
-                    | Arr (bty,lex,vattr) -> Arr (declassify bty,lex,vattr)
-                    | _ -> raise @@ err p
-                in
-                  p@>bty'
-              in
               let e_bty = type_of e in
                 if not (bty =: declassify e_bty) then
                   raise @@ err p
             | Classify e ->
-              let rec classify bty =
-                let p = bty.pos in
-                let sec = p@>Secret in
-                let bty' =
-                  match bty.data with
-                    | Bool _ -> Bool sec
-                    | UInt (s,_) -> UInt (s,sec)
-                    | Int (s,_) -> Int (s,sec)
-                    | Ref (bty,m) -> Ref (classify bty,m)
-                    | Arr (bty,lex,vattr) -> Arr (classify bty,lex,vattr)
-                    | _ -> raise @@ err p
-                in
-                  p@>bty'
-              in
               let e_bty = type_of e in
                 if not (bty =: classify e_bty) then
-                  raise @@ err p
+                  raise @@ cerr p
+                             "weird classify: %s vs %s"
+                             (ps#bty bty)
+                             (ps#bty (classify e_bty))
             | Deref e ->
               let e_bty = type_of e in
                 begin

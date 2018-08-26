@@ -299,7 +299,7 @@ class oobchecker m =
             Expr.mk_numeral_int ctx n (bv 64)
           | LDynamic x ->
             mlist_find ~equal:vequal !_vmap x
-            >!!> err p
+            >!!> cerr p "couldn't find '%s'" x.data
 
     method expr ((e_,bty_) as e__) =
       let p = e_.pos in
@@ -427,7 +427,7 @@ class oobchecker m =
 
     method block (blk_,next) =
       let p = blk_.pos in
-      let next' = lazy (visit#next next) in
+      let next' () = (visit#next next) in
       let res =
         match blk_.data with
           | If (cond,thens,elses) ->
@@ -448,12 +448,12 @@ class oobchecker m =
                         visit#_add_flow zncond;
                       if ends_with_ret elses' then
                         visit#_add_flow zcond;
-                      return (p@>If (cond',thens',elses'), force next')
+                      return (p@>If (cond',thens',elses'), next' ())
               else
                 (* secret ifs don't guard statements! *)
                 let thens' = visit#block thens in
                 let elses' = visit#block elses in
-                  return (p@>If (cond',thens',elses'), force next')
+                  return (p@>If (cond',thens',elses'), next' ())
 
           | RangeFor (x,bty,lo,hi,blk) ->
             let lo' = visit#expr lo in
@@ -503,7 +503,7 @@ class oobchecker m =
                       visit#_add_all_flow assumptions_for_next_loop_iteration;
                       let blk' = visit#block blk in
                         visit#_pop ();
-                        return (p@>RangeFor (x,bty,lo',hi',blk'), force next')
+                        return (p@>RangeFor (x,bty,lo',hi',blk'), next' ())
 
           | Scope _
           | ListOfStuff _

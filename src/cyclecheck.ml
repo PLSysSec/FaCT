@@ -75,19 +75,22 @@ let transform m =
       edges;
     let fdecs' =
       (* topological sort, callers first *)
-      List.map
+      Base.List.filter_map
+        !sorted
         (fun fn ->
            try
-             List.find
+             List.find_opt
                (function
                  | {data=FunDec(fn',_,_,_,_) | CExtern(fn',_,_,_)} when fn'.data = fn.data -> true
                  | _ -> false)
                fdecs
            with
-               Not_found -> raise @@ cerr fn.pos
-                                       "unknown function: '%s'"
-                                       fn.data)
-        !sorted in
+               Not_found ->
+               if not (List.mem fn.data Stdlib.names) then
+                 raise @@ cerr fn.pos
+                            "unknown function: '%s'"
+                            fn.data
+               else None) in
     let standalones =
       List.filter
         (fun {data=FunDec(fn',_,_,_,_)|CExtern(fn',_,_,_)} ->

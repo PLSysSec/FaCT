@@ -58,6 +58,34 @@ let rec label_of bty_ =
       | Struct _ -> raise @@ cerr p "???"
       | String -> p@>Public
 
+let rec classify bty =
+  let p = bty.pos in
+  let sec = p@>Secret in
+  let bty' =
+    match bty.data with
+      | Bool _ -> Bool sec
+      | UInt (s,_) -> UInt (s,sec)
+      | Int (s,_) -> Int (s,sec)
+      | Ref (bty,m) -> Ref (classify bty,m)
+      | Arr (bty,lex,vattr) -> Arr (classify bty,lex,vattr)
+      | _ -> raise @@ err p
+  in
+    p@>bty'
+
+let rec declassify bty =
+  let p = bty.pos in
+  let pub = p@>Public in
+  let bty' =
+    match bty.data with
+      | Bool _ -> Bool pub
+      | UInt (s,_) -> UInt (s,pub)
+      | Int (s,_) -> Int (s,pub)
+      | Ref (bty,m) -> Ref (declassify bty,m)
+      | Arr (bty,lex,vattr) -> Arr (declassify bty,lex,vattr)
+      | _ -> raise @@ err p
+  in
+    p@>bty'
+
 let length_of =
   xwrap @@ fun p -> function
     | Arr (_,lexpr,_) -> lexpr

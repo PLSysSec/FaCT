@@ -20,6 +20,7 @@ let opt_limit_doc = "seconds The number of seconds to run the optimizer at OF be
 let verify_opt_doc = "opt Comma separated list of optimzations to verify on the FaCT program. They are run in the order in which they are provided"
 let shared_opt_doc = "Generate a .so file"
 let noguac_opt_doc = "Don't run the name-based LLVM IR verifier"
+let fpic_opt_doc = "compile with -fpic"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -125,6 +126,7 @@ let compile_command =
       flag "-verify-opt" (optional string) ~doc:verify_opt_doc +>
       flag "-shared" no_arg ~doc:shared_opt_doc +>
       flag "-no-guac" no_arg ~doc:noguac_opt_doc +>
+      flag "-fpic" no_arg ~doc:fpic_opt_doc +>
       anon (sequence ("filename" %: file)))
     (fun
       out_file
@@ -142,8 +144,9 @@ let compile_command =
       verify_opts
       shared
       noguac
+      fpic
       in_files () ->
-      (*let mode = match mode with
+      let mode = match mode with
         | Some "dev" -> DEV
         | Some "prod" -> PROD
         | Some m -> error_exit ("Unknown mode: " ^ m ^". Expected dev or prod")
@@ -155,11 +158,12 @@ let compile_command =
         | Some "O3" -> O3
         | Some "OF" -> OF
         | Some o -> error_exit ("Unknown optimization level: " ^ o ^ ". Expected O0, O1, O2, O3, or OF")
-        | None -> O0 in*)
+        | None -> O0 in
       let args = { in_files; out_file; debug;
                    ast_out; core_ir_out; pseudo_out; smack_out;
-                   llvm_out; gen_header; verify_llvm; (*mode; opt_level;
-                   opt_limit; verify_opts; shared; noguac*) } in
+                   llvm_out; gen_header; verify_llvm; mode; opt_level;
+                   (*opt_limit;*) verify_opts; shared; noguac;
+                   fpic; } in
         set_log_level debug;
         let prep = prepare_compile out_file in_files () in
           runner prep args)

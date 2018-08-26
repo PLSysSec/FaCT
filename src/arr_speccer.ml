@@ -6,12 +6,7 @@ open Ast_util
 open Astmap
 
 let findfn fmap fname =
-  match Core.List.Assoc.find fmap fname ~equal:vequal with
-    | Some fnty -> fnty
-    | None -> raise @@ cerr fname.pos
-                         "function not defined: '%s'"
-                         fname.data
-
+  Core.List.Assoc.find fmap fname ~equal:vequal
 
 class array_spec_fncall =
   object (visit)
@@ -23,28 +18,30 @@ class array_spec_fncall =
         List.iter
           (fun fdec ->
              match fdec.data with
-               | FunDec(fn,_,_,params,_)
-               | CExtern(fn,_,_,params) ->
-                 _fmap <- (fn,params) :: _fmap)
+               | FunDec(fn,_,_,params,_) ->
+                 _fmap <- (fn,params) :: _fmap
+               | _ -> ())
           fdecs;
         super#fact_module m
 
     method _fncall fn args =
-      let params = findfn _fmap fn in
-      let args' =
-        try List.map2
-              (fun arg param ->
-                 let Param (x,bty) = param.data in
-                   match is_unspec_arr bty with
-                     | Some _ ->
-                       [arg ; arg.pos @> ArrayLen arg]
-                     | None -> [arg])
-              args
-              params
-        with Invalid_argument _ ->
-          raise @@ cerr fn.pos "arity mismatch on call to '%s'" fn.data
-      in
-        List.flatten args'
+      match findfn _fmap fn with
+        | Some params ->
+          let args' =
+            try List.map2
+                  (fun arg param ->
+                     let Param (x,bty) = param.data in
+                       match is_unspec_arr bty with
+                         | Some _ ->
+                           [arg ; arg.pos @> ArrayLen arg]
+                         | None -> [arg])
+                  args
+                  params
+            with Invalid_argument _ ->
+              raise @@ cerr fn.pos "arity mismatch on call to '%s'" fn.data
+          in
+            List.flatten args'
+        | None -> args
 
     method stm_post ({pos=p;data} as stm_) =
       match data with
@@ -80,8 +77,6 @@ class array_spec_fdec =
           List.iter
             (fun param ->
                match param.data with
-                 | Param (x,{pos;data=Arr (bty,{data=LUnspecified},vattr)}) ->
-                   raise @@ NotImplemented("extern with unspec arr" << pos)
                  | _ -> ())
             params;
           fdec
