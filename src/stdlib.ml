@@ -45,7 +45,7 @@ let name_of code =
             sprintf "__store[%d]/%s%s_le" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
       end
 
-let interface_of (tc_expr : Ast.expr -> Tast.expr) p stmlbl fn args =
+let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.expr) p stmlbl fn args =
   let everhi = match stmlbl.data with
     | Public -> false
     | Secret -> true in
@@ -96,7 +96,6 @@ let interface_of (tc_expr : Ast.expr -> Tast.expr) p stmlbl fn args =
           | [arg1;arg2] -> arg1,arg2
           | _ -> raise @@ err p in
         let arg1' = tc_expr arg1 in
-        let arg2' = tc_expr arg2 in
         let subty,lexpr = match (type_of arg1').data with
           | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) -> subty,lexpr
           | _ -> raise @@ err p in
@@ -107,6 +106,8 @@ let interface_of (tc_expr : Ast.expr -> Tast.expr) p stmlbl fn args =
           | LIntLiteral sz -> sz
           | _ -> raise @@ err p in
         let sz = sz_ * 8 in
+        let usz = p@>UInt (sz,lbl) in
+        let arg2' = tc_expr ~lookahead_bty:usz arg2 in
         let _ = match (type_of arg2').data with
           | UInt (sz2,lbl2) when sz = sz2 && lbl2 <$ lbl -> ()
           | _ -> raise @@ err p in
@@ -117,9 +118,11 @@ let interface_of (tc_expr : Ast.expr -> Tast.expr) p stmlbl fn args =
         let fdec' = fake_pos @> StdLibFn (StoreLE (sz,lbl.data,everhi),fnattr,rt',params') in
           fdec',args'
 
+      | _ -> raise @@ cerr p "not a stdlib function: '%s'" fn.data
+
 let llvm_for llctx llmod code =
   Llvm.(
-    let _i1ty = i1_type llctx in
+    let i1ty = i1_type llctx in
     let i8ty = i8_type llctx in
     let _i16ty = i16_type llctx in
     let _i32ty = i32_type llctx in
@@ -146,7 +149,7 @@ let llvm_for llctx llmod code =
 
       match code with
 
-        | Memzero (sz,_,everhi) ->
+        | Memzero (sz,_,false) ->
           let pty = pointer_type (integer_type llctx sz) in
           let ft = function_type voidty [| pty; i64ty |] in
           let fn,b = def_internal name.data ft in
@@ -159,6 +162,19 @@ let llvm_for llctx llmod code =
             build_call memset [| dst; zero; len |] "" b |> built;
             build_ret_void b |> built;
             fn
+        | Memzero (sz,_,true) ->
+          let pty = pointer_type (integer_type llctx sz) in
+          let ft = function_type voidty [| pty; i64ty; i1ty |] in
+          let fn,b = def_internal name.data ft in
+          let _zero = const_null i8ty in
+          let _memset = _get_intrinsic (Memset sz) in
+          let dst = param fn 0 in
+          let len = param fn 1 in
+          let fctx = param fn 2 in
+            set_value_name "dst" dst;
+            set_value_name "len" len;
+            set_value_name "fctx" fctx;
+            raise @@ cerr fake_pos "oblivious memzero not yet implemented"
 
         | LoadLE (sz,_) ->
           let ity = integer_type llctx sz in
@@ -172,7 +188,7 @@ let llvm_for llctx llmod code =
               build_ret load b |> built;
               fn
 
-        | StoreLE (sz,_,everhi) ->
+        | StoreLE (sz,_,false) ->
           let ity = integer_type llctx sz in
           let pty = pointer_type ity in
           let ft = function_type voidty [| memty; ity |] in
@@ -183,6 +199,24 @@ let llvm_for llctx llmod code =
             set_value_name "value" value;
             let cast = build_bitcast dst pty "" b in
               build_store value cast b |> built;
+              build_ret_void b |> built;
+              fn
+        | StoreLE (sz,_,true) ->
+          let ity = integer_type llctx sz in
+          let pty = pointer_type ity in
+          let ft = function_type voidty [| memty; ity; i1ty |] in
+          let fn,b = def_internal name.data ft in
+          let cmov = _get_intrinsic (Intrinsics.cmov_of_choice sz) in
+          let dst = param fn 0 in
+          let value = param fn 1 in
+          let fctx = param fn 2 in
+            set_value_name "dst" dst;
+            set_value_name "value" value;
+            set_value_name "fctx" fctx;
+            let cast = build_bitcast dst pty "" b in
+            let load = build_load cast "" b in
+            let sel = build_call cmov [| fctx; value; load |] "" b in
+              build_store sel cast b |> built;
               build_ret_void b |> built;
               fn
   )

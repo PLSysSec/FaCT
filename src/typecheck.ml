@@ -772,7 +772,9 @@ class typechecker =
         match fnfound with
           | None ->
             if Stdlib.contains fn then
-              let fdec',args' = Stdlib.interface_of (visit#expr) p stmlbl fn args in
+              let fdec',args' = Stdlib.interface_of
+                                  (fun ?lookahead_bty e -> visit#expr ?lookahead_bty e)
+                                  p stmlbl fn args in
               let StdLibFn (code,_,rt',params') = fdec'.data in
               let fn' = Stdlib.name_of code in
                 begin
@@ -892,7 +894,17 @@ class typechecker =
           | Ast.FnCall (x,bty,fn,args) ->
             if stmlbl.data = Secret then
               _everhis <- fn.data :: _everhis;
-            let bty' = visit#bty bty in
+            let bty' = match bty.data with
+              | FillInLater ->
+                let fdec',args' = Stdlib.interface_of
+                                    (fun ?lookahead_bty e -> visit#expr ?lookahead_bty e)
+                                    p stmlbl fn args in
+                let StdLibFn (_,_,rt',_) = fdec'.data in
+                let bty = match rt' with
+                  | Some bty -> bty
+                  | None -> raise @@ cerr p "function '%s' does not return a value" fn.data in
+                  bty
+              | _ -> visit#bty bty in
             let fn',args',rt_needed_fixing = visit#_fncall p stmlbl (Some bty') fn args in
               _vmap <- (x,bty') :: _vmap;
               begin

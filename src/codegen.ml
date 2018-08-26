@@ -351,7 +351,7 @@ class codegen llctx llmod m =
           let lle1 = visit#expr e1 in
           let lle2 = visit#expr e2 in
           let llcond = visit#expr cond in
-          let cmov = _get_intrinsic (CmovAsm8 (integer_bitwidth (type_of lle2))) in
+          let cmov = _get_intrinsic (Intrinsics.cmov_of_choice (integer_bitwidth (type_of lle2))) in
           let orig = build_load lle1 "" _b in
           let result = build_call cmov [| llcond; lle2; orig |] "" _b in
             build_store result lle1 _b |> built
@@ -399,7 +399,7 @@ class codegen llctx llmod m =
             let lle1 = visit#expr e1 in
             let lle2 = visit#expr e2 in
             let lle3 = visit#expr e3 in
-            let select = _get_intrinsic (SelectAsm8 (integer_bitwidth llbty)) in
+            let select = _get_intrinsic (Intrinsics.select_of_choice (integer_bitwidth llbty)) in
               build_call select [| lle1; lle2; lle3 |] "" _b
           | Declassify e
           | Classify e -> visit#expr e

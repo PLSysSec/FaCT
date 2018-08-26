@@ -25,16 +25,22 @@ class fn_extractor =
       wrap @@ fun p -> function
         | FnCallExpr (fn,args) ->
           let var = p@>(make_fresh fn.data) in
-            (mlist_find ~equal:vequal !_frets fn >>= fun rt ->
-             match rt with
-               | None -> raise @@ cerr p
-                                    "cannot use void function in expression: %s"
-                                    fn.data
-               | Some rt' ->
-                 let fcall = p@>FnCall(var,rt',fn,args) in
-                   _pre_inject <- fcall :: _pre_inject;
-                   Some (Variable var))
-            >!!> err p
+          let rt = match mlist_find ~equal:vequal !_frets fn with
+            | Some rt -> rt
+            | None ->
+              if Stdlib.contains fn then
+                Some (p@>FillInLater)
+              else raise @@ cerr p
+                              "couldn't find function: '%s'"
+                              fn.data in
+          let rt' = match rt with
+            | Some rt' -> rt'
+            | None -> raise @@ cerr p
+                                 "cannot use void function in expression: %s"
+                                 fn.data in
+          let fcall = p@>FnCall(var,rt',fn,args) in
+            _pre_inject <- fcall :: _pre_inject;
+            Variable var
         | e -> e
 
   end

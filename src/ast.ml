@@ -48,6 +48,7 @@ and base_type' =
   | Struct of fields
   | UVec of size * int * label  (* this is really a special case of Arr[UInt(size, label), int] *)
   | String  (* for debug functions *)
+  | FillInLater
 [@@deriving show]
 and base_type = base_type' pos_ast [@@deriving show]
 

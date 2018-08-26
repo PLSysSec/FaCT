@@ -16,6 +16,9 @@ type intrinsic =
   | CmovSel of int
   | CmovAsm8 of int
 
+let select_of_choice n = SelectAsm8 n
+let cmov_of_choice n = CmovAsm8 n
+
 let rec get_intrinsic_code = function
   | SelectAsm8 sz when sz < 32 -> SelectAsm sz
   | SelectAsm8 sz -> SelectSel sz

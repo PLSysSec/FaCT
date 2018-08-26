@@ -8,6 +8,16 @@ open Pseudocode
 class sanitychecker post_transform m =
   object (visit)
     inherit Tastmap.tast_visitor m as super
+    val _fmap : (fun_name * (ret_type * params)) list =
+      let Module (_,fdecs,_) = m in
+        List.map
+          (function
+            | {data=FunDec(fn,_,rt,params,_)
+                  | CExtern(fn,_,rt,params)} -> (fn, (rt,params))
+            | {data=StdLibFn(code,_,rt,params)} ->
+              let fn = Stdlib.name_of code in
+                (fn, (rt,params)))
+          fdecs
 
     method fdec fdec =
       let fdec' = super#fdec fdec in
@@ -52,10 +62,35 @@ class sanitychecker post_transform m =
                 if not (e_bty =: bty) then
                   raise @@ cerr p
                              "expected %s, got %s"
-                             (show_base_type bty)
-                             (show_base_type e_bty)
-            | FnCall (x,bty,fn,args) -> ()
-            | VoidFnCall (fn,args) -> ()
+                             (ps#bty bty)
+                             (ps#bty e_bty)
+            | FnCall (x,bty,fn,args) ->
+              let rt,params = findfn _fmap fn in
+                if (List.length args) <> (List.length params) then
+                  raise @@ cerr p "arity mismatch when calling '%s'" fn.data;
+                let _ = match rt with
+                  | Some rty ->
+                    if not (rty =: bty) then
+                      raise @@ cerr p
+                                 "expected %s, got %s"
+                                 (ps#bty bty)
+                                 (ps#bty rty)
+                  | None ->
+                    raise @@ cerr p
+                               "expected %s, got void"
+                               (ps#bty bty) in
+                  ()
+            | VoidFnCall (fn,args) ->
+              let rt,params = findfn _fmap fn in
+                if (List.length args) <> (List.length params) then
+                  raise @@ cerr p "arity mismatch when calling '%s'" fn.data;
+                let _ = match rt with
+                  | Some rty ->
+                    raise @@ cerr p
+                               "expected void, got %s"
+                               (ps#bty rty)
+                  | None -> () in
+                  ()
             | Assign (e1,e2) ->
               let e1_ty = type_of e1 in
               let e2_ty = type_of e2 in

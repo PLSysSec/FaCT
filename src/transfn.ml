@@ -34,7 +34,12 @@ class transfn m =
               else params,blk in
               p @> FunDec (fn,fty,rt,params',blk')
           | CExtern _ -> fdec'
-          | StdLibFn _ -> fdec'
+          | StdLibFn (fn,fty,rt,params) ->
+            let params' =
+              if fty.everhi then
+                params @ [ p@>Param (p@>fctx, p@>Bool (p@>Secret)) ]
+              else params in
+              p @> StdLibFn (fn,fty,rt,params')
 
     method stm stm_ =
       let p = stm_.pos in
