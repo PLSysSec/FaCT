@@ -782,7 +782,7 @@ class typechecker =
                       _fmap <- (fn',(rt',params')) :: _fmap
                     | _ -> ()
                 end;
-                visit#_fncall p stmlbl rt' fn' args'
+                visit#_fncall p stmlbl expected_rt fn' args'
             else raise @@ cerr p
                             "function not defined: '%s'"
                             fn.data
@@ -893,12 +893,12 @@ class typechecker =
             if stmlbl.data = Secret then
               _everhis <- fn.data :: _everhis;
             let bty' = visit#bty bty in
-            let fn',args',rt_needs_fixing = visit#_fncall p stmlbl (Some bty') fn args in
+            let fn',args',rt_needed_fixing = visit#_fncall p stmlbl (Some bty') fn args in
               _vmap <- (x,bty') :: _vmap;
               begin
-                match rt_needs_fixing with
-                  | Some thing ->
-                    VarDec (x,bty',thing)
+                match rt_needed_fixing with
+                  | Some var ->
+                    VarDec (x,bty',var)
                   | None ->
                     FnCall (x,bty',fn',args')
               end
