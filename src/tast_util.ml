@@ -44,6 +44,7 @@ let element_type =
   xwrap @@ fun p -> function
     | Ref (bty,_) -> Some bty
     | Arr ({data=Ref (bty,_)},_,_) -> Some bty
+    | UVec (s,_,l) -> Some (p@>UInt (s,l))
     | _ -> None
 
 let rec label_of bty_ =

@@ -417,6 +417,7 @@ class oobchecker m =
                   let boundscheck = Boolean.mk_and ctx [boundscheck_bot; boundscheck_mid; boundscheck_top] in
                     return @@ visit#_assert (expr_of e).pos zend boundscheck
               end |> consume
+            | VectorLit _
             | Shuffle (_,_)
             | StructLit _
             | StructGet (_,_)

@@ -553,6 +553,12 @@ class typechecker =
                                 "expected array, instead got %s"
                                 (show_base_type' e_bty.data) in
             ArrayView (e',index',len'), e_bty.pos @> new_ty
+        | Ast.VectorLit (ns) ->
+          let num_ns = List.length ns in
+          let new_ty = match lookahead_bty with
+            | Some ({data=UInt (s,l)}) -> p@>UVec (s,num_ns,l)
+            | _ -> raise @@ err p in
+            VectorLit ns, new_ty
         | Ast.Shuffle (e,ns) ->
           let e' = visit#expr e in
           let e_bty = type_of e' in

@@ -154,6 +154,7 @@ class ast_visitor =
             ArrayView (visit#expr e,
                        visit#lexpr index,
                        visit#lexpr len)
+          | VectorLit ns -> VectorLit ns
           | Shuffle (e,ns) ->
             Shuffle (visit#expr e, ns)
           | StructLit entries ->

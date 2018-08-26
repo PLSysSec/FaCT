@@ -102,6 +102,7 @@ class pseudocode (m : fact_module) =
         | Int (s,l) -> sprintf "%s int%d" (visit#lbl l) s
         | Ref (bt,m) -> sprintf "%s@%s" (visit#bty bt) (visit#mut m)
         | Arr (bt,lexpr,vattr) -> sprintf "%s%s[%s]" (visit#vattr vattr) (visit#bty bt) (visit#lexpr lexpr)
+        | UVec (s,n,l) -> sprintf "%s uint%d<%d>" (visit#lbl l) s n
         | _ -> "X[bty]X"
 
     method bty_nolbl =
@@ -111,6 +112,7 @@ class pseudocode (m : fact_module) =
         | Int (s,l) -> sprintf "int%d" s
         | Ref (bt,m) -> sprintf "%s*%s" (visit#bty bt) (visit#mut m)
         | Arr (bt,lexpr,vattr) -> sprintf "%s%s[%s]" (visit#vattr vattr) (visit#bty bt) (visit#lexpr lexpr)
+        | UVec (s,n,l) -> sprintf "uint%d<%d>" s n
         | _ -> "X[bty]X"
 
     method lexpr =
@@ -284,7 +286,7 @@ class pseudocode (m : fact_module) =
         | ArrayLit es ->
           let es' = List.map visit#expr es in
             sprintf "[%s]"
-              (concat "," es')
+              (concat ", " es')
         | ArrayZeros lexpr ->
           sprintf "zeros(%s)" (visit#lexpr lexpr)
         | ArrayCopy e ->
@@ -294,6 +296,9 @@ class pseudocode (m : fact_module) =
             (visit#expr e)
             (visit#lexpr index)
             (visit#lexpr len)
+        | VectorLit ns ->
+          sprintf "<%s>"
+            (concat ", " @@ List.map string_of_int ns)
         | Shuffle (e,ns) ->
           sprintf "%s<%s>"
             (visit#expr e)

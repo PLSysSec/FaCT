@@ -162,7 +162,7 @@ base_type:
             { b with data=(Arr(base, len, { vattr with cache_aligned=true })) }
         | _ -> raise (errSyntax (to_pos $symbolstartpos $endpos)) }
 
-  | l=label MUT t=TYPE LESSTHAN n=INT GREATERTHAN
+  | l=label t=TYPE LESSTHAN n=INT GREATERTHAN
     { let bw =
         match t with
             | "uint8" -> 8
@@ -171,6 +171,15 @@ base_type:
             | "uint64" -> 64
       in
         mkpos (UVec(bw, n, l)) }
+  | l=label MUT t=TYPE LESSTHAN n=INT GREATERTHAN
+    { let bw =
+        match t with
+            | "uint8" -> 8
+            | "uint16" -> 16
+            | "uint32" -> 32
+            | "uint64" -> 64
+      in
+        mkpos (Ref(mkpos (UVec(bw, n, l)), mkpos RW)) }
 
 unop:
   | MINUS { Neg }
@@ -243,6 +252,8 @@ nonfn_expr:
   | ARRCOPY e=paren(expr) { mkpos (ArrayCopy e) }
   | ARRVIEW LPAREN e=expr COMMA i=lexpr COMMA l=lexpr RPAREN { mkpos (ArrayView(e, i, l)) }
 
+  | LESSTHAN ns=separated_list(COMMA, INT) GREATERTHAN
+    { mkpos (VectorLit ns) }
   | e=expr COLON LESSTHAN mask=separated_list(COMMA, INT) GREATERTHAN
     { mkpos (Shuffle(e, mask)) }
 

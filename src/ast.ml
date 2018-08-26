@@ -80,6 +80,7 @@ and expr' =
   | ArrayZeros of lexpr
   | ArrayCopy of expr
   | ArrayView of expr * lexpr * lexpr
+  | VectorLit of int list
   | Shuffle of expr * int list
   | StructLit of (var_name * expr) list
   | StructGet of expr * var_name

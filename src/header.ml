@@ -64,9 +64,10 @@ class headerator (m : fact_module) =
     method param =
       xwrap @@ fun p -> function
         | Param (x,bty) ->
-          sprintf "\n  %s %s"
+          sprintf "\n  %s %s%s"
             (visit#bty bty)
             x.data
+            (visit#abty bty)
 
     method lbl =
       xwrap @@ fun p -> function
@@ -91,13 +92,18 @@ class headerator (m : fact_module) =
         | UInt (s,l) -> sprintf "%s uint%d_t" (visit#lbl l) s
         | Int (s,l) -> sprintf "%s int%d_t" (visit#lbl l) s
         | Ref (bt,m) -> sprintf "%s%s" (visit#bty bt) (visit#mut m)
-        | Arr ({data=Ref (bt,m)},lexpr,_) -> sprintf "%s%s[%s]" (visit#amut m) (visit#bty bt) (visit#lexpr lexpr)
+        | Arr ({data=Ref (bt,m)},lexpr,_) -> sprintf "%s%s" (visit#amut m) (visit#bty bt)
         | _ -> "X[bty]X"
+
+    method abty =
+      xwrap @@ fun p -> function
+        | Arr (_,lexpr,_) -> sprintf "[%s]" (visit#lexpr lexpr)
+        | _ -> ""
 
     method lexpr =
       xwrap @@ fun p -> function
         | LIntLiteral n -> string_of_int n
-        | LDynamic x -> x.data
+        | LDynamic x -> ""
 
   end
 

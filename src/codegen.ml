@@ -49,7 +49,7 @@ let collect_vardecs fdec =
 
 class codegen llctx llmod m =
   object (visit)
-    val all_vars_indirect = false
+    val all_vars_indirect = true
 
     val _get_intrinsic = Intrinsics.make_stuff llctx llmod
     val _b : Llvm.llbuilder = Llvm.builder llctx
@@ -452,6 +452,23 @@ class codegen llctx llmod m =
             let lle = visit#expr e in
             let llstart = visit#lexpr start in
               build_gep lle [| llstart |] "" _b
+          | VectorLit ns ->
+            let llelty = element_type llbty in
+            let llns = List.map (const_int llelty) ns in
+              const_vector (Array.of_list llns)
+          | Shuffle (e,ns) ->
+            let lle = visit#expr e in
+              begin
+                match ns with
+                  | [n] ->
+                    let lln = const_int llbty n in
+                      build_extractelement lle lln "" _b
+                  | _ ->
+                    let llelty = element_type llbty in
+                    let llns = List.map (const_int llelty) ns |> Array.of_list |> const_vector in
+                    let na = undef (type_of lle) in
+                      build_shufflevector lle na llns "" _b
+              end
           | _ -> raise @@ cerr p "unimplemented in codegen: %s" (show_expr' data)
 
     method lexpr {pos=p;data} =

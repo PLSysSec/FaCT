@@ -186,6 +186,7 @@ class tast_visitor (m : fact_module) =
             ArrayView (visit#expr e,
                        visit#lexpr index,
                        visit#lexpr len)
+          | VectorLit ns -> VectorLit ns
           | Shuffle (e,ns) ->
             Shuffle (visit#expr e, ns)
           | StructLit entries ->
