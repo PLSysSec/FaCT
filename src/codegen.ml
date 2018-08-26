@@ -49,7 +49,7 @@ let collect_vardecs fdec =
 
 class codegen llctx llmod m =
   object (visit)
-    val all_vars_indirect = true
+    val all_vars_indirect = false
 
     val _get_intrinsic = Intrinsics.make_stuff llctx llmod
     val _b : Llvm.llbuilder = Llvm.builder llctx

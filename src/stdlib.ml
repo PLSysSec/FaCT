@@ -6,17 +6,17 @@ open Tast_util
 
 let sprintf = Printf.sprintf
 
-let rmem8 len lbl =
+let rmem sz len lbl =
   let p = fake_pos in
     p@>Param (p@>"src",
-              p@>Arr (p@>Ref (p@>UInt (8,lbl),p@>R),p@>LIntLiteral len,default_var_attr))
+              p@>Arr (p@>Ref (p@>UInt (sz,lbl),p@>R),p@>LIntLiteral len,default_var_attr))
 
-let wmem8 len lbl =
+let wmem sz len lbl =
   let p = fake_pos in
     p@>Param (p@>"dst",
-              p@>Arr (p@>Ref (p@>UInt (8,lbl),p@>W),p@>LIntLiteral len,default_var_attr))
+              p@>Arr (p@>Ref (p@>UInt (sz,lbl),p@>W),p@>LIntLiteral len,default_var_attr))
 
-let wmem sz lbl =
+let wmem_unspec sz lbl =
   let p = fake_pos in
     [ p@>Param (p@>"dst",
                 p@>Arr (p@>Ref (p@>UInt (sz,lbl),p@>W),p@>LDynamic (p@>"len"),default_var_attr)) ;
@@ -43,6 +43,10 @@ let name_of code =
             sprintf "__load[%d]/%s_le" sz (ps_lbl lbl)
           | StoreLE (sz,lbl,everhi) ->
             sprintf "__store[%d]/%s%s_le" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+          | LoadLEVec (sz,len,lbl) ->
+            sprintf "__load[%d]<%d>/%s_le" sz len (ps_lbl lbl)
+          | StoreLEVec (sz,len,lbl,everhi) ->
+            sprintf "__store[%d]<%d>/%s%s_le" sz len (ps_lbl lbl) (if everhi then "/oblivious" else "")
       end
 
 let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.expr) p stmlbl fn args =
@@ -64,7 +68,7 @@ let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.ex
           | UInt (s,l) -> s,l
           | _ -> raise @@ err p in
         let rt' = None in
-        let params' = wmem sz lbl in
+        let params' = wmem_unspec sz lbl in
         let arglen = p@>Ast.ArrayLen arg in
         let args' = [ arg; arglen ] in
         let fdec' = fake_pos @> StdLibFn (Memzero (sz,lbl.data,everhi),fnattr,rt',params') in
@@ -78,17 +82,28 @@ let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.ex
         let subty,lexpr = match (type_of arg').data with
           | Arr ({data=Ref (subty,{data=R|RW})},lexpr,_) -> subty,lexpr
           | _ -> raise @@ err p in
-        let lbl = match subty.data with
-          | UInt (8,l) -> l
+        let vecbase,lbl = match subty.data with
+          | UInt (8,l) -> 0,l
+          | UInt (s,l) -> s,l
           | _ -> raise @@ err p in
         let sz_ = match lexpr.data with
           | LIntLiteral sz -> sz
           | _ -> raise @@ err p in
-        let sz = sz_ * 8 in
-        let rt' = Some (fake_pos @> UInt (sz,lbl)) in
-        let params' = [ rmem8 sz_ lbl ] in
+        let base,rt',code = match vecbase with
+          | 0 ->
+            let base = 8 in
+            let sz = sz_ * 8 in
+            let rt' = Some (fake_pos @> UInt (sz,lbl)) in
+            let code = LoadLE (sz,lbl.data) in
+              base,rt',code
+          | _ ->
+            let base = vecbase in
+            let rt' = Some (fake_pos @> UVec (vecbase,sz_,lbl)) in
+            let code = LoadLEVec (vecbase,sz_,lbl.data) in
+              base,rt',code in
+        let params' = [ rmem base sz_ lbl ] in
         let args' = [ arg ] in
-        let fdec' = fake_pos @> StdLibFn (LoadLE (sz,lbl.data),fnattr,rt',params') in
+        let fdec' = fake_pos @> StdLibFn (code,fnattr,rt',params') in
           fdec',args'
 
       | "store_le" ->
@@ -99,24 +114,36 @@ let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.ex
         let subty,lexpr = match (type_of arg1').data with
           | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) -> subty,lexpr
           | _ -> raise @@ err p in
-        let lbl = match subty.data with
-          | UInt (8,l) -> l
+        let vecbase,lbl = match subty.data with
+          | UInt (8,l) -> 0,l
+          | UInt (s,l) -> s,l
           | _ -> raise @@ err p in
         let sz_ = match lexpr.data with
           | LIntLiteral sz -> sz
           | _ -> raise @@ err p in
-        let sz = sz_ * 8 in
-        let usz = p@>UInt (sz,lbl) in
-        let arg2' = tc_expr ~lookahead_bty:usz arg2 in
-        let _ = match (type_of arg2').data with
-          | UInt (sz2,lbl2) when sz = sz2 && lbl2 <$ lbl -> ()
-          | _ -> raise @@ err p in
-        let rt' = None in
-        let params' = [ wmem8 sz_ lbl ;
-                        fake_pos@>Param (fake_pos@>"val", fake_pos@>UInt (sz,lbl)) ] in
-        let args' = [ arg1; arg2 ] in
-        let fdec' = fake_pos @> StdLibFn (StoreLE (sz,lbl.data,everhi),fnattr,rt',params') in
-          fdec',args'
+        let base,valty,code = match vecbase with
+          | 0 ->
+            let base = 8 in
+            let sz = sz_ * 8 in
+            let valty = p@>UInt (sz,lbl) in
+            let code = StoreLE (sz,lbl.data,everhi) in
+              base,valty,code
+          | _ ->
+            let base = vecbase in
+            let valty = p@>UVec (vecbase,sz_,lbl) in
+            let code = StoreLEVec (vecbase,sz_,lbl.data,everhi) in
+              base,valty,code
+        in
+        let arg2' = tc_expr ~lookahead_bty:(element_type valty >!> valty) arg2 in
+        let arg2ty = type_of arg2' in
+          if not (arg2ty <: valty) then
+            raise @@ err p;
+          let rt' = None in
+          let params' = [ wmem base sz_ lbl ;
+                          fake_pos@>Param (fake_pos@>"val", valty) ] in
+          let args' = [ arg1; arg2 ] in
+          let fdec' = fake_pos @> StdLibFn (code,fnattr,rt',params') in
+            fdec',args'
 
       | _ -> raise @@ cerr p "not a stdlib function: '%s'" fn.data
 
@@ -188,6 +215,19 @@ let llvm_for llctx llmod code =
               build_ret load b |> built;
               fn
 
+        | LoadLEVec (sz,len,_) ->
+          let ity = integer_type llctx sz in
+          let vty = vector_type ity len in
+          let pty = pointer_type vty in
+          let ft = function_type vty [| pointer_type ity |] in
+          let fn,b = def_internal name.data ft in
+          let src = param fn 0 in
+            set_value_name "src" src;
+            let cast = build_bitcast src pty "" b in
+            let load = build_load cast "" b in
+              build_ret load b |> built;
+              fn
+
         | StoreLE (sz,_,false) ->
           let ity = integer_type llctx sz in
           let pty = pointer_type ity in
@@ -205,6 +245,40 @@ let llvm_for llctx llmod code =
           let ity = integer_type llctx sz in
           let pty = pointer_type ity in
           let ft = function_type voidty [| memty; ity; i1ty |] in
+          let fn,b = def_internal name.data ft in
+          let cmov = _get_intrinsic (Intrinsics.cmov_of_choice sz) in
+          let dst = param fn 0 in
+          let value = param fn 1 in
+          let fctx = param fn 2 in
+            set_value_name "dst" dst;
+            set_value_name "value" value;
+            set_value_name "fctx" fctx;
+            let cast = build_bitcast dst pty "" b in
+            let load = build_load cast "" b in
+            let sel = build_call cmov [| fctx; value; load |] "" b in
+              build_store sel cast b |> built;
+              build_ret_void b |> built;
+              fn
+
+        | StoreLEVec (sz,len,_,false) ->
+          let ity = integer_type llctx sz in
+          let vty = vector_type ity len in
+          let pty = pointer_type vty in
+          let ft = function_type voidty [| pointer_type ity; vty |] in
+          let fn,b = def_internal name.data ft in
+          let dst = param fn 0 in
+          let value = param fn 1 in
+            set_value_name "dst" dst;
+            set_value_name "value" value;
+            let cast = build_bitcast dst pty "" b in
+              build_store value cast b |> built;
+              build_ret_void b |> built;
+              fn
+        | StoreLEVec (sz,len,_,true) ->
+          let ity = integer_type llctx sz in
+          let vty = vector_type ity len in
+          let pty = pointer_type vty in
+          let ft = function_type voidty [| pointer_type ity; vty; i1ty |] in
           let fn,b = def_internal name.data ft in
           let cmov = _get_intrinsic (Intrinsics.cmov_of_choice sz) in
           let dst = param fn 0 in

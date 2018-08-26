@@ -151,5 +151,7 @@ and stdlib_code =
   | Memzero of int * label' * bool
   | LoadLE of int * label'
   | StoreLE of int * label' * bool
+  | LoadLEVec of int * int * label'
+  | StoreLEVec of int * int * label' * bool
 
 let default_var_attr = { cache_aligned=false; }
