@@ -177,6 +177,14 @@ let rec ( <: ) b1 b2 =
 
 let rec passable_to param_ty arg_ty =
   match arg_ty.data,param_ty.data with
+    | Arr ({data=Ref(rb1,({data=R} as m1))},lexpr1,_),Arr ({data=Ref(rb2,m2)},lexpr2,_) ->
+      rb1 <: rb2 && m1 <* m2 &&
+      begin
+        match lexpr1.data,lexpr2.data with
+          | LIntLiteral n,LIntLiteral m -> n = m
+          | _,LDynamic y -> true
+          | _ -> false
+      end
     | Arr ({data=Ref(rb1,m1)},lexpr1,_),Arr ({data=Ref(rb2,m2)},lexpr2,_) ->
       rb1 =: rb2 && m1 <* m2 &&
       begin
