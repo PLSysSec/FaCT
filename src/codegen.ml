@@ -153,9 +153,9 @@ class codegen llctx llmod m =
           let llfn = declare_function name.data ft llmod in
             mlist_push (name,llfn) _fenv;
             llfn
-        | StdLibFn (name,fnattr,rt,params) ->
-          let ft = visit#_prototype name rt params in
-          let llfn = declare_function name.data ft llmod in
+        | StdLibFn (code,fnattr,rt,params) ->
+          let name = Stdlib.name_of code in
+          let llfn = Stdlib.llvm_for llctx llmod code in
             mlist_push (name,llfn) _fenv;
             llfn
 

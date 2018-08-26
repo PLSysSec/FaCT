@@ -82,7 +82,12 @@ class typechecker =
         let fdecs' = fdecs' @ _stdlibfns in
         let minfo_fmap =
           List.map
-            (function {data=FunDec(fn,_,_,_,_) | CExtern(fn,_,_,_) | StdLibFn(fn,_,_,_)} as fdec -> (fn, fdec))
+            (function
+              | {data=FunDec(fn,_,_,_,_)
+                    | CExtern(fn,_,_,_)} as fdec -> (fn, fdec)
+              | {data=StdLibFn(code,_,_,_)} as fdec ->
+                let fn = Stdlib.name_of code in
+                  (fn, fdec))
             fdecs' in
           Module(sdecs',fdecs',{ fmap=minfo_fmap })
 
@@ -766,9 +771,10 @@ class typechecker =
       let fnfound = findfn_opt _fmap fn in
         match fnfound with
           | None ->
-            if List.mem fn.data Stdlib.names then
+            if Stdlib.contains fn then
               let fdec',args' = Stdlib.interface_of (visit#expr) p stmlbl fn args in
-              let StdLibFn (fn',_,rt',params') = fdec'.data in
+              let StdLibFn (code,_,rt',params') = fdec'.data in
+              let fn' = Stdlib.name_of code in
                 begin
                   match findfn_opt _fmap fn' with
                     | None ->

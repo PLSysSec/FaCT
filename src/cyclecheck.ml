@@ -86,7 +86,7 @@ let transform m =
                fdecs
            with
                Not_found ->
-               if not (List.mem fn.data Stdlib.names) then
+               if not (Stdlib.contains fn) then
                  raise @@ cerr fn.pos
                             "unknown function: '%s'"
                             fn.data

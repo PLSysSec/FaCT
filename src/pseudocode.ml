@@ -53,12 +53,12 @@ class pseudocode (m : fact_module) =
               (visit#rty rt)
               fn.data
               params'
-        | StdLibFn(fn,ft,rt,params) ->
+        | StdLibFn(code,ft,rt,params) ->
           let params' = concat "," @@ List.map visit#param params in
             sprintf "stdlib %s%s %s(%s);"
               (visit#fnattr ft)
               (visit#rty rt)
-              fn.data
+              (Stdlib.name_of code).data
               params'
 
     method fnattr { export; inline; } =

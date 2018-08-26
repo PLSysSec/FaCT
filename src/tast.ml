@@ -128,7 +128,7 @@ and cfn_type = { benign : bool }
 and function_dec' =
   | FunDec of fun_name * fn_type * ret_type * params * block
   | CExtern of fun_name * cfn_type * ret_type * params
-  | StdLibFn of fun_name * fn_type * ret_type * params
+  | StdLibFn of stdlib_code * fn_type * ret_type * params
 [@@deriving show]
 and function_dec = function_dec' pos_ast [@@deriving show]
 and function_decs = function_dec list [@@deriving show]
@@ -145,5 +145,8 @@ and module_info = { fmap : (fun_name * function_dec) list }
 and fact_module =
   | Module of structs * function_decs * module_info
 [@@deriving show]
+
+and stdlib_code =
+  | Memzero of int * label' * bool
 
 let default_var_attr = { cache_aligned=false; }

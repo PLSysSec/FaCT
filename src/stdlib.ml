@@ -3,9 +3,24 @@ open Pos
 open Err
 open Tast
 open Tast_util
-open Pseudocode
 
-let names = [ "memzero" ]
+let sprintf = Printf.sprintf
+
+let contains fn =
+  match fn.data with
+    | "memzero" -> true
+    | _ -> false
+
+let name_of code =
+  let ps_lbl = function
+    | Public -> "public"
+    | Secret -> "secret" in
+    make_ast fake_pos
+      begin
+        match code with
+          | Memzero (sz,lbl,everhi) ->
+            sprintf "__memzero[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "oblivious" else "")
+      end
 
 let wmem sz lbl =
   let p = fake_pos in
@@ -27,7 +42,6 @@ let interface_of (tc_expr : Ast.expr -> Tast.expr) p stmlbl fn args =
       let sz,lbl = match subty.data with
         | UInt (s,l) -> s,l
         | _ -> raise @@ err p in
-      let fn' = p @> (Printf.sprintf "_memzero_%d_%s" sz (ps#lbl lbl)) in
       let rt' = None in
       let params' = wmem sz lbl in
       let arglen = p@>Ast.ArrayLen arg in
@@ -35,19 +49,19 @@ let interface_of (tc_expr : Ast.expr -> Tast.expr) p stmlbl fn args =
       let everhi = match stmlbl.data with
         | Public -> false
         | Secret -> true in
-      let fdec' = fake_pos @> StdLibFn (fn',{ export=false; inline=Default; everhi },rt',params') in
+      let fdec' = fake_pos @> StdLibFn (Memzero (sz,lbl.data,everhi),{ export=false; inline=Default; everhi },rt',params') in
         fdec',args'
 
-let llvm_for llctx llmod fname =
+let llvm_for llctx llmod code =
   Llvm.(
     let _i1ty = i1_type llctx in
-    let _i8ty = i8_type llctx in
+    let i8ty = i8_type llctx in
     let _i16ty = i16_type llctx in
     let _i32ty = i32_type llctx in
     let i64ty = i64_type llctx in
     let _i128ty = integer_type llctx 128 in
     let voidty = void_type llctx in
-    let _memty = pointer_type _i8ty in
+    let _memty = pointer_type i8ty in
     let _noinline = create_enum_attr llctx "noinline" 0L in
     let alwaysinline = create_enum_attr llctx "alwaysinline" 0L in
     let _get_intrinsic = Intrinsics.make_stuff llctx llmod in
@@ -63,17 +77,17 @@ let llvm_for llctx llmod fname =
           position_at_end bb b;
           fn,b in
 
-    let patt = Str.regexp "^_memzero_\\([0-9]+\\)_\\(public\\|secret\\)$" in
-      if Str.string_match patt fname.data 0 then
-        let sz = int_of_string (Str.matched_group 1 fname.data) in
-        let pty = pointer_type (integer_type llctx sz) in
-        let ft = function_type voidty [| pty; i64ty |] in
-        let fn,b = def_internal fname.data ft in
-        let dst = param fn 0 in
-        let len = param fn 1 in
-        let memset = _get_intrinsic (Memset sz) in
-          build_call memset [| dst; len |] "" b |> built;
-          build_ret_void b |> built;
-          Some fn
-      else None
+      match code with
+        | Memzero (sz,_,everhi) ->
+          let name = name_of code in
+          let pty = pointer_type (integer_type llctx sz) in
+          let ft = function_type voidty [| pty; i64ty |] in
+          let fn,b = def_internal name.data ft in
+          let dst = param fn 0 in
+          let len = param fn 1 in
+          let zero = const_null i8ty in
+          let memset = _get_intrinsic (Memset sz) in
+            build_call memset [| dst; zero; len |] "" b |> built;
+            build_ret_void b |> built;
+            fn
   )
