@@ -18,7 +18,7 @@ let has_pub_mut params =
 
 let get p = function
   | Some x -> x
-  | None -> raise @@ err p
+  | None -> raise @@ cerr p "expected type hint, got nothing"
 
 let expr_fix p bty e =
   let e_bty = type_of e in
@@ -485,11 +485,12 @@ class typechecker =
           let e1',e2' =
             match Ast_util.is_untyped_int e1 with
               | Some _ ->
-                let e2' = visit#expr e2 in
-                let e1' = visit#expr ~lookahead_bty:(type_of e2') e1 in
+                let e2' = visit#expr ?lookahead_bty e2 in
+                let e2ty = type_of e2' in
+                let e1' = visit#expr ~lookahead_bty:(element_type e2ty >!> e2ty) e1 in
                   e1',e2'
               | None ->
-                let e1' = visit#expr e1 in
+                let e1' = visit#expr ?lookahead_bty e1 in
                 let e1ty = type_of e1' in
                 let e2' = visit#expr ~lookahead_bty:(element_type e1ty >!> e1ty) e2 in
                   e1',e2'
@@ -782,7 +783,7 @@ class typechecker =
             let e2' = visit#expr ~lookahead_bty:(type_of e3') e2 in
               e2',e3'
           | None ->
-            let e2' = visit#expr e2 in
+            let e2' = visit#expr ?lookahead_bty e2 in
             let e3' = visit#expr ~lookahead_bty:(type_of e2') e3 in
               e2',e3' in
       let bty1 = type_of e1' in
