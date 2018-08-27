@@ -151,7 +151,7 @@ let rec ( =: ) b1 b2 =
           | LDynamic x,LDynamic y -> vequal x y
           | _ -> false
       end
-    | Struct _,Struct _ -> raise @@ cerr b1.pos "incomplete"
+    | Struct s1,Struct s2 -> s1.data = s2.data
     | UVec (n,bw1,l1),UVec (m,bw2,l2) -> n = m && bw1 = bw2 && l1 =$ l2
     | String,String -> raise @@ err b1.pos
     | _ -> false

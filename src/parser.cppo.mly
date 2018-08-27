@@ -181,6 +181,9 @@ base_type:
       in
         mkpos (Ref(mkpos (UVec(bw, n, l)), mkpos RW)) }
 
+  | s=struct_name { mkpos (Ref (mkpos (Struct s), mkpos R)) }
+  | MUT s=struct_name { mkpos (Ref (mkpos (Struct s), mkpos RW)) }
+
 unop:
   | MINUS { Neg }
   | LOGNOT { LogicalNot }

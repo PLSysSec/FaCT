@@ -3,6 +3,7 @@ open Pos
 open Err
 open Tast
 open Llvm
+open Pseudocode
 
 let built : Llvm.llvalue -> unit = ignore
 
@@ -54,8 +55,11 @@ class codegen llctx llmod m =
     val _get_intrinsic = Intrinsics.make_stuff llctx llmod
     val _b : Llvm.llbuilder = Llvm.builder llctx
 
+    val _sdecs : (struct_name * (var_name * (int * base_type)) list) mlist = ref []
+
     val _venv : (var_name * llvalue) mlist = ref []
     val _fenv : (fun_name * llvalue) mlist = ref []
+    val _senv : (struct_name * lltype) mlist = ref []
 
     val i1ty = i1_type llctx
     val i8ty = i8_type llctx
@@ -80,20 +84,75 @@ class codegen llctx llmod m =
           | None -> raise @@ cerr fn.pos
                                "unknown function: '%s'" fn.data
 
+    method _sget s =
+      let res = mlist_find ~equal:Tast_util.vequal !_senv s in
+        match res with
+          | Some llty -> llty
+          | None -> raise @@ cerr s.pos
+                               "unknown type: '%s'" s.data
+
+    method _get_field bty fld =
+      let p = bty.pos in
+      let sname = match bty.data with
+        | Ref ({data=Struct s},_) -> s
+        | _ -> raise @@ cerr p "expected a struct, got %s" (ps#bty bty) in
+      let fields = match  mlist_find ~equal:Tast_util.vequal !_sdecs sname with
+        | Some fields -> fields
+        | None -> raise @@ err p in
+      let i,bty = match mlist_find ~equal:Tast_util.vequal fields fld with
+        | Some entry -> entry
+        | None -> raise @@ err p in
+        i,bty
+
     method bty {pos=p;data} =
       match data with
         | Bool _ -> i1ty
         | UInt (s,_) | Int (s,_) -> integer_type llctx s
         | Ref (bty,_) -> pointer_type (visit#bty bty)
         | Arr ({data=Ref (bty,_)},_,_) -> pointer_type (visit#bty bty)
-        | Struct _ -> raise @@ err p
         | UVec (s,n,_) -> vector_type (integer_type llctx s) n
+        | Struct s -> visit#_sget s
         | String -> raise @@ err p
 
     method fact_module () =
-      let Module(sdecs,fdecs,minfo) = m in
+      let Module (sdecs,fdecs,minfo) = m in
+      let _ = List.map visit#sdec sdecs in
       let _ = List.map visit#fdec (List.rev fdecs) in
         ()
+
+    method sdec {pos=p;data} =
+      let StructDef (name, fields) = data in
+      let field_entries = List.mapi
+                            (fun i {data=Field(x,bty)} ->
+                               (x, (i, bty)))
+                            fields in
+        mlist_push (name, field_entries) _sdecs;
+        let llfields = List.map visit#field fields in
+        let justthetypes = List.map (fun (_,bty) -> bty) llfields in
+        let llsty = named_struct_type llctx name.data in
+          struct_set_body llsty (Array.of_list justthetypes) false;
+          mlist_push (name,llsty) _senv;
+
+    method field {pos=p;data} =
+      let Field (x,bty) = data in
+      let llbty = visit#bty_for_struct bty in
+        (x,llbty)
+
+    method bty_for_struct {pos=p;data} =
+      match data with
+        | Bool _ -> i8ty
+        | UInt (s,_) | Int (s,_) -> integer_type llctx s
+        | Ref (bty,_) -> pointer_type (visit#bty bty)
+        | Arr ({data=Ref (bty,_)},lexpr,_) -> array_type (visit#bty bty) (visit#lexpr_for_struct lexpr)
+        | UVec (s,n,_) -> vector_type (integer_type llctx s) n
+        | Struct s -> visit#_sget s
+        | String -> raise @@ err p
+
+    method lexpr_for_struct {pos=p;data} =
+      match data with
+        | LIntLiteral n -> n
+        | LDynamic x ->
+          raise @@ cerr p "dependent arrays not yet implemented"
 
     method _prototype name rt params =
       let param_types = List.map visit#param params |> Array.of_list in
@@ -415,8 +474,7 @@ class codegen llctx llmod m =
           | ArrayGet (e,lexpr) ->
             let lle = visit#expr e in
             let lllexpr = visit#lexpr lexpr in
-            let arrayloc = build_gep lle [| lllexpr |] "" _b in
-              (*build_load arrayloc "" _b*) arrayloc
+              build_gep lle [| lllexpr |] "" _b
           | ArrayLit es ->
             let lles = List.map visit#expr es in
             let Some el_ty = Tast_util.element_type bty in
@@ -469,6 +527,11 @@ class codegen llctx llmod m =
                     let na = undef (type_of lle) in
                       build_shufflevector lle na llns "" _b
               end
+          | StructGet (e,fld) ->
+            let ety = Tast_util.type_of e in
+            let lle = visit#expr e in
+            let i,_ = visit#_get_field ety fld in
+              build_struct_gep lle i "" _b
           | _ -> raise @@ cerr p "unimplemented in codegen: %s" (show_expr' data)
 
     method lexpr {pos=p;data} =

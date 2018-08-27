@@ -19,21 +19,29 @@ class pseudocode (m : fact_module) =
     method fact_module () =
       let Module(sdecs,fdecs,_) = m in
       let sdecs' = List.map visit#sdec sdecs in
-      let sdecs' = if sdecs' = [] then "" else "[structs]\n\n" in
+      let sdecs' = concat "\n\n" sdecs' in
       let fdecs' = List.map visit#fdec fdecs in
-      let fdecs' = List.fold_left (fun a b -> a ^ "\n\n" ^ b) "" fdecs' in
-        sdecs' ^ fdecs'
+      let fdecs' = concat "\n\n" fdecs' in
+        sdecs' ^ "\n\n" ^ fdecs'
 
     method sdec =
-      wrap @@ fun p ->
+      xwrap @@ fun p ->
       fun (StructDef (name,fields)) ->
         let fields' = List.map visit#field fields in
-          StructDef (name,fields')
+          sprintf
+            "struct %s {
+%s
+};"
+            name.data
+            (concat "\n" fields')
 
     method field =
-      wrap @@ fun p ->
+      xwrap @@ fun p ->
       fun (Field (x,bty)) ->
-        Field (x,bty)
+        sprintf
+          "  %s %s;"
+          (visit#bty bty)
+          x.data
 
     method fdec =
       xwrap @@ fun p -> function
@@ -103,6 +111,7 @@ class pseudocode (m : fact_module) =
         | Ref (bt,m) -> sprintf "%s@%s" (visit#bty bt) (visit#mut m)
         | Arr (bt,lexpr,vattr) -> sprintf "%s%s[%s]" (visit#vattr vattr) (visit#bty bt) (visit#lexpr lexpr)
         | UVec (s,n,l) -> sprintf "%s uint%d<%d>" (visit#lbl l) s n
+        | Struct s -> sprintf "%s" s.data
         | _ -> "X[bty]X"
 
     method bty_nolbl =
@@ -306,7 +315,7 @@ class pseudocode (m : fact_module) =
         | StructLit entries ->
           "X[structlit]X"
         | StructGet (e,field) ->
-          sprintf "%s.%s"
+          sprintf "%s->%s"
             (visit#expr e)
             field.data
         | StringLiteral s -> sprintf "\"%s\"" s

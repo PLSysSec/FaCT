@@ -20,7 +20,7 @@ class headerator (m : fact_module) =
       let Module(sdecs,fdecs,_) = m in
       let sdecs' = (concat "\n\n" @@ List.map visit#sdec sdecs) in
       let fdecs' = (concat "\n\n" @@ List.map visit#fdec fdecs) in
-        sdecs' ^ fdecs'
+        sdecs' ^ "\n\n" ^ fdecs'
 
     method sdec =
       xwrap @@ fun p ->
@@ -91,6 +91,7 @@ class headerator (m : fact_module) =
         | Bool l -> sprintf "%s uint8_t" (visit#lbl l)
         | UInt (s,l) -> sprintf "%s uint%d_t" (visit#lbl l) s
         | Int (s,l) -> sprintf "%s int%d_t" (visit#lbl l) s
+        | Ref ({data=Struct s},m) -> sprintf "%sstruct %s *" (visit#amut m) s.data
         | Ref (bt,m) -> sprintf "%s%s" (visit#bty bt) (visit#mut m)
         | Arr ({data=Ref (bt,m)},lexpr,_) -> sprintf "%s%s" (visit#amut m) (visit#bty bt)
         | _ -> "X[bty]X"

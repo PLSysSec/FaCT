@@ -47,10 +47,18 @@ let findvar vmap x =
                          "variable not defined: '%s'"
                          x.data
 
+let findstruct smap s =
+  match Core.List.Assoc.find ~equal:vequal smap s with
+    | Some fields -> fields
+    | None -> raise @@ cerr s.pos
+                         "struct type not found: '%s'"
+                         s.data
+
 class typechecker =
   object (visit)
     val mutable _vmap : (var_name * base_type) list = []
     val mutable _fmap : (fun_name * (ret_type * params)) list = []
+    val mutable _smap : (struct_name * fields) list = []
     val mutable _cur_fn : fun_name = fake_pos @> ""
     val mutable _cur_rt : ret_type = None
     val mutable _inject : simple_statement' pos_ast list = []
@@ -94,7 +102,10 @@ class typechecker =
     method sdec =
       wrap @@ fun p -> function
         | Ast.StructDef (name,fields) ->
-          StructDef (name,List.map visit#field fields)
+          let fields' = List.map visit#field fields in
+          let sdec' = StructDef (name,fields') in
+            _smap <- (name,fields') :: _smap;
+            sdec'
 
     method inline = function
       | Ast.Default -> Default
@@ -141,7 +152,7 @@ class typechecker =
           | Ast.Int (s,l) -> Int (s,visit#lbl l)
           | Ast.Ref (bty,m) -> Ref (visit#bty bty,visit#mut m)
           | Ast.Arr (bty,lexpr,vattr) -> Arr (visit#bty bty,visit#lexpr ?lookahead_lexpr lexpr,visit#vattr vattr)
-          | Ast.Struct fields -> Struct (List.map visit#field fields)
+          | Ast.Struct name -> Struct name
           | Ast.UVec (s,n,l) -> UVec (s,n,visit#lbl l)
           | Ast.String -> String
       end
@@ -373,8 +384,8 @@ class typechecker =
              ?auto_box_into_ref
              ?lookahead_mut
              e_ =
-      let {data=(e',bty); pos=p} = visit#expr' lookahead_bty lookahead_mut e_ in
-      let e_res = (p@>e', bty) in
+      let {data=(e',e_bty); pos=p} = visit#expr' lookahead_bty lookahead_mut e_ in
+      let e_res = (p@>e', e_bty) in
       let want_ref =
         match lookahead_bty, no_unbox_ref with
           | Some ({data=Ref _}), _
@@ -385,7 +396,7 @@ class typechecker =
         match lookahead_mut with
           | Some m -> m.data
           | None -> RW in
-        match bty.data with
+        match e_bty.data with
           | Ref (subty,{data=R|RW}) ->
             begin
               match want_ref,auto_box with
@@ -396,19 +407,20 @@ class typechecker =
                   (* create a new ref *)
                   (p@>Enref (p@>Deref e_res, subty), p@>Ref (subty, p@>mut))
                 | false,_ ->
-                  (* transparently deref, but only for vars and arrays *)
+                  (* transparently deref, but only for vars, arrays, and structs *)
                   begin
                     let (inner_e,_) = e_res in
                       match inner_e.data with
                         | Variable _
-                        | ArrayGet _ ->
+                        | ArrayGet _
+                        | StructGet _ ->
                           (p@>Deref e_res, subty)
                         | _ -> e_res
                   end
             end
           | _ ->
             if auto_box
-            then (p@>Enref e_res, p@>Ref (bty, p@>mut))
+            then (p@>Enref e_res, p@>Ref (e_bty, p@>mut))
             else e_res
 
     method expr' lookahead_bty lookahead_mut =
@@ -588,6 +600,7 @@ class typechecker =
             Shuffle (e', ns), e_bty.pos @> new_ty
         | Ast.StructLit entries ->
           (* XXX pre-parse the fieldnames to match to a struct for lookaheading *)
+          (*
           let entries' = List.map
                            (fun (field,e) ->
                               (field,visit#expr e))
@@ -596,24 +609,23 @@ class typechecker =
                          (fun (field,e) ->
                             field.pos @> Field (field,type_of e))
                          entries' in
-            StructLit entries', p@>Struct fields
+            StructLit entries', p@>Struct fields*)
+          raise @@ cerr p "struct lit not implemented in typecheck"
         | Ast.StructGet (e,field) ->
-          let e' = visit#expr e in
+          let e' = visit#expr ~no_unbox_ref:true e in
           let e_bty = type_of e' in
-          let f_bty =
-            begin
-              match e_bty.data with
-                | Struct fields ->
-                  List.find_opt
-                    (fun {data=Field (fieldname,f_bty)} ->
-                       vequal field fieldname)
-                    fields >>= fun x ->
-                  let {data=Field (_,f_bty)} = x in
-                    Some f_bty
-                | _ -> None
-            end >!!> err p
-          in
-            StructGet (visit#expr e,field), f_bty
+          let name,m = match e_bty.data with
+            | Ref ({data=Struct name},m) -> name,m
+            | _ -> raise @@ err p in
+          let fields = findstruct _smap name in
+          let fld = match List.find_opt
+                            (fun {data=Field (fieldname,f_bty)} ->
+                               vequal field fieldname)
+                            fields with
+            | Some fld -> fld
+            | None -> raise @@ err p in
+          let {data=Field (_,f_bty)} = fld in
+            StructGet (e',field), e_bty.pos@>Ref (f_bty,m)
         | Ast.StringLiteral _ -> raise @@ cerr p "strings are not implemented yet"
         | Ast.FnCallExpr _ -> raise @@ err p (* these should all be gone after fnextract pass *)
 
@@ -943,7 +955,7 @@ class typechecker =
                 | Ref (bty,{data=W|RW}) -> bty
                 | _ -> raise @@ cerr p
                                   "expected Ref@W, got %s"
-                                  (show_base_type e1_ty)
+                                  (ps#bty e1_ty)
             in
             let e2' = visit#expr ~lookahead_bty:unref_ty e2 in
             let e2_ty = type_of e2' in

@@ -38,8 +38,8 @@ and base_type' =
   | Int of size * label
   | Ref of base_type * mutability
   | Arr of base_type * lexpr * var_attr
-  | Struct of fields
   | UVec of size * int * label  (* this is really a special case of Arr[UInt(size, label), int] *)
+  | Struct of struct_name
   | String  (* for debug functions *)
 [@@deriving show]
 and base_type = base_type' pos_ast [@@deriving show]
