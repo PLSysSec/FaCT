@@ -4,7 +4,9 @@ open Err
 open Tast
 open Tast_util
 
+module LogModule = Log
 open Z3
+module Log = LogModule
 
 (** TODO:
     - if (e1) {
@@ -127,6 +129,10 @@ class oobchecker m =
       Solver.reset _solver;
       Stack.clear _assertion_stack;
       push [] _assertion_stack;
+      begin match fdec.data with
+        | FunDec (fn,_,_,_,_) ->
+          Log.debug "oobchecking %s..." fn.data
+      end;
       super#fdec fdec
 
     method param param =
