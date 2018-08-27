@@ -527,11 +527,42 @@ class codegen llctx llmod m =
                     let na = undef (type_of lle) in
                       build_shufflevector lle na llns "" _b
               end
+          | StructLit entries ->
+            let space = build_alloca (element_type llbty) "" _b in
+              List.iter
+                (fun (fld,e) ->
+                   let i,fldty = visit#_get_field bty fld in
+                   let lle = visit#expr e in
+                   let loc = build_struct_gep space i "" _b in
+                     match fldty.data with
+                       | Bool _
+                       | UInt _
+                       | Int _ ->
+                         build_store lle loc _b |> built
+                       | Arr _ ->
+                         let underlying_ty = lle |> type_of |> element_type in
+                         let pty = pointer_type underlying_ty in
+                         let casted = build_bitcast loc pty "" _b in
+                         let len = Tast_util.(length_of (type_of e)) in
+                         let lllen = visit#lexpr len in
+                         let memcpy = _get_intrinsic (Memcpy (integer_bitwidth underlying_ty)) in
+                           build_call memcpy [| casted; lle; lllen |] "" _b |> built
+                )
+                entries;
+              space
           | StructGet (e,fld) ->
             let ety = Tast_util.type_of e in
             let lle = visit#expr e in
             let i,_ = visit#_get_field ety fld in
-              build_struct_gep lle i "" _b
+            let res = build_struct_gep lle i "" _b in
+            let underlying_ty = type_of res |> element_type in
+              begin
+                match classify_type underlying_ty with
+                  | TypeKind.Array ->
+                    let pty = underlying_ty |> element_type |> pointer_type in
+                      build_bitcast res pty "" _b
+                  | _ -> res
+              end
           | _ -> raise @@ cerr p "unimplemented in codegen: %s" (show_expr' data)
 
     method lexpr {pos=p;data} =

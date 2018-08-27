@@ -617,7 +617,7 @@ class typechecker =
                                 | None -> raise @@ cerr p "no field name '%s'" x.data in
                                 (x,visit#expr ~lookahead_bty:(element_type fieldty >!> fieldty) e))
                            entries in
-            StructLit entries', p@>Struct sname
+            StructLit entries', p@>Ref (p@>Struct sname, p@>RW)
         | Ast.StructGet (e,field) ->
           let e' = visit#expr ~no_unbox_ref:true e in
           let e_bty = type_of e' in
@@ -632,7 +632,11 @@ class typechecker =
             | Some fld -> fld
             | None -> raise @@ err p in
           let (_,f_bty) = fld in
-            StructGet (e',field), e_bty.pos@>Ref (f_bty,m)
+          let gotten_ty = match f_bty.data with
+            | Arr ({data=Ref (elty,_)},lexpr,vattr) ->
+              e_bty.pos@>Arr (e_bty.pos@>Ref (elty,m),lexpr,vattr)
+            | _ -> e_bty.pos@>Ref (f_bty,m) in
+            StructGet (e',field), gotten_ty
         | Ast.StringLiteral _ -> raise @@ cerr p "strings are not implemented yet"
         | Ast.FnCallExpr _ -> raise @@ err p (* these should all be gone after fnextract pass *)
 
@@ -914,7 +918,7 @@ class typechecker =
                              ~lookahead_bty
                              ?lookahead_mut
                              ~no_unbox_ref:(is_ref bty')
-                             ~auto_box_into_ref:(is_ref bty')
+                             ~auto_box_into_ref:(is_ref bty' && not (is_struct lookahead_bty))
                              e in
                   let e_bty = type_of e' in
                     e',e_bty,bty'

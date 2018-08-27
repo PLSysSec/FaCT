@@ -41,6 +41,11 @@ let is_ref =
     | Ref _ -> true
     | _ -> false
 
+let is_struct =
+  xwrap @@ fun p -> function
+    | Struct _ -> true
+    | _ -> false
+
 let element_type =
   xwrap @@ fun p -> function
     | Ref (bty,_) -> Some bty
