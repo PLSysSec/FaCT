@@ -36,9 +36,10 @@ let expr_fix p bty e =
             (p@>Cast (upcast, e), upcast)
         else e
     else e in
-    if ((label_of bty).data = Secret) && ((label_of e_bty).data = Public) then
-      (p@>Classify e', classify (type_of e'))
-    else e'
+    match (label_of_generic bty),(label_of_generic e_bty) with
+      | Some {data=Secret},Some {data=Public} ->
+        (p@>Classify e', classify (type_of e'))
+      | _ -> e'
 
 let findvar vmap x =
   match Core.List.Assoc.find vmap x ~equal:vequal with
@@ -58,7 +59,7 @@ class typechecker =
   object (visit)
     val mutable _vmap : (var_name * base_type) list = []
     val mutable _fmap : (fun_name * (ret_type * params)) list = []
-    val mutable _smap : (struct_name * fields) list = []
+    val mutable _smap : (struct_name * (var_name * base_type) list) list = []
     val mutable _cur_fn : fun_name = fake_pos @> ""
     val mutable _cur_rt : ret_type = None
     val mutable _inject : simple_statement' pos_ast list = []
@@ -103,8 +104,11 @@ class typechecker =
       wrap @@ fun p -> function
         | Ast.StructDef (name,fields) ->
           let fields' = List.map visit#field fields in
+          let fieldentries = List.map
+                               (fun {data=Field(x,bty)} -> (x,bty))
+                               fields' in
           let sdec' = StructDef (name,fields') in
-            _smap <- (name,fields') :: _smap;
+            _smap <- (name,fieldentries) :: _smap;
             sdec'
 
     method inline = function
@@ -302,41 +306,43 @@ class typechecker =
           | [] -> (p@>ListOfStuff [], p@>End)
           | stm :: rest ->
             let p = stm.pos in
-            let next () =
-              (match rest with
-                | [{data=Ast.Return _} as rtstm]
-                | [{data=Ast.VoidReturn} as rtstm] -> visit#return pc rtstm
-                | [] -> p@>End
-                | _ -> p@>(Block (visit#block p pc rest))) in
-            let inblock,next' =
+            let next this =
+              begin
+                let inject_capture = _inject in
+                  _inject <- [];
+                  let next' =
+                    match rest with
+                      | [{data=Ast.Return _} as rtstm]
+                      | [{data=Ast.VoidReturn} as rtstm] -> visit#return pc rtstm
+                      | [] -> p@>End
+                      | _ -> p@>(Block (visit#block p pc rest))
+                  in
+                    if inject_capture <> [] then
+                      p@>ListOfStuff inject_capture, p@>Block (this, next')
+                    else
+                      this, next'
+              end in
+            let res =
               match stm.data with
                 | Ast.Block blk ->
                   let blk' = visit#block p pc blk in
-                  let next' = next () in
-                  Scope blk', next'
+                    next (p@>Scope blk')
                 | Ast.VarDec _
                 | Ast.FnCall _
                 | Ast.VoidFnCall _
                 | Ast.Assign _
                 | Ast.Assume _ ->
                   let this = visit#stm pc stm in
-                    begin
-                      match (next ()).data with
-                        | Block ({data=ListOfStuff nexts},following) ->
-                          ListOfStuff (this @ nexts), following
-                        | _ ->
-                          ListOfStuff this, next ()
-                    end
+                    next (p@>ListOfStuff [this])
                 | Ast.If _
                 | Ast.RangeFor _
                 | Ast.ArrayFor _ ->
                   let controlflow' = visit#controlflow pc stm in
-                  let next' = next () in
-                    controlflow', next'
+                    next (p@>controlflow')
                 | Ast.Return _
-                | Ast.VoidReturn -> (ListOfStuff [], visit#return pc stm)
+                | Ast.VoidReturn -> (p@>ListOfStuff [], visit#return pc stm)
             in
-              p@>inblock, next'
+              res
       in
         block'
 
@@ -446,7 +452,8 @@ class typechecker =
           let lexpr =
             match e_bty.data with
               | Arr (_,lexpr,_) -> lexpr
-              | _ -> raise @@ err p in
+              | _ -> raise @@ cerr p
+                                "expected array, got %s" (ps#bty e_bty) in
             begin
               match lexpr.data with
                 | LIntLiteral n -> IntLiteral n, p@>UInt (64, p@>Public)
@@ -599,32 +606,32 @@ class typechecker =
               | _ -> raise @@ err p in
             Shuffle (e', ns), e_bty.pos @> new_ty
         | Ast.StructLit entries ->
-          (* XXX pre-parse the fieldnames to match to a struct for lookaheading *)
-          (*
+          let sname = match lookahead_bty with
+            | Some {data=Struct s} -> s
+            | None -> raise @@ cerr p "expected struct" in
+          let fields = findstruct _smap sname in
           let entries' = List.map
-                           (fun (field,e) ->
-                              (field,visit#expr e))
+                           (fun (x,e) ->
+                              let fieldty = match mlist_find ~equal:vequal fields x with
+                                | Some bty -> bty
+                                | None -> raise @@ cerr p "no field name '%s'" x.data in
+                                (x,visit#expr ~lookahead_bty:(element_type fieldty >!> fieldty) e))
                            entries in
-          let fields = List.map
-                         (fun (field,e) ->
-                            field.pos @> Field (field,type_of e))
-                         entries' in
-            StructLit entries', p@>Struct fields*)
-          raise @@ cerr p "struct lit not implemented in typecheck"
+            StructLit entries', p@>Struct sname
         | Ast.StructGet (e,field) ->
           let e' = visit#expr ~no_unbox_ref:true e in
           let e_bty = type_of e' in
-          let name,m = match e_bty.data with
+          let sname,m = match e_bty.data with
             | Ref ({data=Struct name},m) -> name,m
             | _ -> raise @@ err p in
-          let fields = findstruct _smap name in
+          let fields = findstruct _smap sname in
           let fld = match List.find_opt
-                            (fun {data=Field (fieldname,f_bty)} ->
+                            (fun (fieldname,f_bty) ->
                                vequal field fieldname)
                             fields with
             | Some fld -> fld
             | None -> raise @@ err p in
-          let {data=Field (_,f_bty)} = fld in
+          let (_,f_bty) = fld in
             StructGet (e',field), e_bty.pos@>Ref (f_bty,m)
         | Ast.StringLiteral _ -> raise @@ cerr p "strings are not implemented yet"
         | Ast.FnCallExpr _ -> raise @@ err p (* these should all be gone after fnextract pass *)
@@ -852,7 +859,7 @@ class typechecker =
                         Some (p@>Enref e_res, p@>Ref (ert, mut))
                   else
                     raise @@ cerr p
-                               "expected %s got %s"
+                               "expected %s, got %s"
                                (ps#bty ert)
                                (ps#bty rt)
                 | Some ert,Some rt ->
@@ -864,11 +871,14 @@ class typechecker =
                       Some (expr_fix p ert (p@>Variable fresh,rt))
                   else
                     raise @@ cerr p
-                               "expected %s got %s"
+                               "expected %s, got %s"
                                (ps#bty ert)
                                (ps#bty rt)
                 | None,None -> None
-                | _ -> raise @@ err p
+                | None,Some rt -> None
+                | Some ert,None -> raise @@ cerr p
+                                              "expected %s, got void"
+                                              (ps#bty ert)
             in
               fn, args', rt_needs_fixing
 
@@ -977,9 +987,7 @@ class typechecker =
                 raise @@ err p;
               Assume e'
       in
-      let stm' = _inject @ [p@>stm'] in
-        _inject <- [];
-        stm'
+        p@>stm'
 
   end
 

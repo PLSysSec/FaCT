@@ -435,20 +435,26 @@ class oobchecker m =
             let cond' = visit#expr cond in
             let cty = type_of cond' in
               if (label_of cty).data = Public then
-                zpop _expr cond >>= fun zcond ->
-                let zncond = Boolean.mk_not ctx zcond in
-                  visit#_push ();
-                  visit#_add zcond;
-                  let thens' = visit#block thens in
-                    visit#_pop ();
-                    visit#_push ();
-                    visit#_add zncond;
+                match zpop _expr cond with
+                  | Some zcond ->
+                    let zncond = Boolean.mk_not ctx zcond in
+                      visit#_push ();
+                      visit#_add zcond;
+                      let thens' = visit#block thens in
+                        visit#_pop ();
+                        visit#_push ();
+                        visit#_add zncond;
+                        let elses' = visit#block elses in
+                          visit#_pop ();
+                          if ends_with_ret thens' then
+                            visit#_add_flow zncond;
+                          if ends_with_ret elses' then
+                            visit#_add_flow zcond;
+                          return (p@>If (cond',thens',elses'), next' ())
+                  | None ->
+                    warn @@ werr p "couldn't infer condition";
+                    let thens' = visit#block thens in
                     let elses' = visit#block elses in
-                      visit#_pop ();
-                      if ends_with_ret thens' then
-                        visit#_add_flow zncond;
-                      if ends_with_ret elses' then
-                        visit#_add_flow zcond;
                       return (p@>If (cond',thens',elses'), next' ())
               else
                 (* secret ifs don't guard statements! *)
@@ -459,8 +465,7 @@ class oobchecker m =
           | RangeFor (x,bty,lo,hi,blk) ->
             let lo' = visit#expr lo in
             let hi' = visit#expr hi in
-              zpop _expr hi' >>= fun zhi ->
-              zpop _expr lo' >>= fun zlo ->
+            let thinger =
               begin
                 match bty.data with
                   | UInt (s,_)
@@ -469,6 +474,8 @@ class oobchecker m =
                   | _ -> None
               end >>= fun zdec ->
               mlist_push (x,zdec) _vmap;
+              zpop _expr hi' >>= fun zhi ->
+              zpop _expr lo' >>= fun zlo ->
               let cmp,cmpe =
                 BitVector.(if is_signed bty
                            then mk_slt,mk_sle
@@ -505,6 +512,14 @@ class oobchecker m =
                       let blk' = visit#block blk in
                         visit#_pop ();
                         return (p@>RangeFor (x,bty,lo',hi',blk'), next' ())
+            in
+              begin match thinger with
+                | Some thing -> thinger
+                | None ->
+                  warn @@ werr p "couldn't infer loop invariants";
+                  let blk' = visit#block blk in
+                    return (p@>RangeFor (x,bty,lo',hi',blk'), next' ())
+              end
 
           | Scope _
           | ListOfStuff _

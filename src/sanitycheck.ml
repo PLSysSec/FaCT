@@ -52,6 +52,14 @@ class sanitychecker post_transform m =
         end;
         blk'
 
+    method block (blk,next) =
+      let blk',next' = super#block (blk,next) in
+      let p = blk'.pos in
+        match blk'.data,next'.data with
+          | ListOfStuff stms, Block ({data=ListOfStuff more}, after) ->
+            p@>ListOfStuff (stms @ more), after
+          | _ -> blk',next'
+
     method stm stm =
       let stm' = super#stm stm in
       let p = stm'.pos in
@@ -86,9 +94,8 @@ class sanitychecker post_transform m =
                   raise @@ cerr p "arity mismatch when calling '%s'" fn.data;
                 let _ = match rt with
                   | Some rty ->
-                    raise @@ cerr p
-                               "expected void, got %s"
-                               (ps#bty rty)
+                    warn @@ werr p
+                               "ignoring return value"
                   | None -> () in
                   ()
             | Assign (e1,e2) ->

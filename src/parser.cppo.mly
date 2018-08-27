@@ -98,8 +98,8 @@ let lit_to_type { data=t; pos=p } =
 %left LEFTSHIFT RIGHTSHIFT LEFTROTATE RIGHTROTATE
 %left PLUS MINUS
 %left TIMES DIVIDE MODULO
-%left DOT
 %nonassoc UNARYOP
+%left DOT
 
 (* Preprocessor shenanigans *)
 #define mkpos make_pos $symbolstartpos $endpos

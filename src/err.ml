@@ -19,6 +19,10 @@ exception SMTSolverError of string
 
 exception TransformError of string
 
+let werr p =
+  Printf.ksprintf
+    (fun s ->
+       InternalCompilerError("warning: " ^ s << p))
 let cerr p =
   Printf.ksprintf
     (fun s ->

@@ -43,7 +43,6 @@ let set_log_level debug =
     | false -> Log.set_log_level Log.ERROR
 
 let error_exit s =
-  ANSITerminal.isatty := (fun _ -> true);
   let ss = Str.bounded_split (Str.regexp_string " ") s 3 in
     ANSITerminal.eprintf [ANSITerminal.white] "%s "  (List.nth ss 0);
     ANSITerminal.eprintf [ANSITerminal.red]   "%s "  (List.nth ss 1);
@@ -169,4 +168,5 @@ let compile_command =
           runner prep args)
 
 let () =
+  ANSITerminal.isatty := (fun _ -> true);
   Core.Command.run ~version:"0.1" ~build_info:"FaCT Compiler" compile_command

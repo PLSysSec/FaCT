@@ -60,6 +60,18 @@ let rec label_of bty_ =
       | Struct _ -> raise @@ cerr p "???"
       | String -> p@>Public
 
+let rec label_of_generic bty_ =
+  let p = bty_.pos in
+    match bty_.data with
+      | Bool l
+      | UInt (_,l)
+      | Int (_,l)
+      | UVec (_,_,l) -> Some l
+      | Ref (bty,_)
+      | Arr (bty,_,_) -> label_of_generic bty
+      | Struct _ -> None
+      | String -> Some (p@>Public)
+
 let rec classify bty =
   let p = bty.pos in
   let sec = p@>Secret in
