@@ -16,11 +16,25 @@ class headerator (m : fact_module) =
     method _prindent n =
       "\n" ^ (String.make ((_indent + n) * 2) ' ')
 
-    method fact_module () =
+    method fact_module header_guard =
       let Module(sdecs,fdecs,_) = m in
       let sdecs' = (concat "\n\n" @@ List.map visit#sdec sdecs) in
       let fdecs' = (concat "\n\n" @@ List.map visit#fdec fdecs) in
-        sdecs' ^ "\n\n" ^ fdecs'
+        sprintf
+          "#ifndef %s
+#define %s
+
+%s
+
+
+%s
+
+#endif /* %s */"
+          header_guard
+          header_guard
+          sdecs'
+          fdecs'
+          header_guard
 
     method sdec =
       xwrap @@ fun p ->
@@ -108,6 +122,21 @@ class headerator (m : fact_module) =
 
   end
 
-let generate_header m =
+let underscore str =
+  "__" ^
+  String.map
+    (fun c ->
+       if not ((c >= '0' && c <= '9') ||
+               (c >= 'a' && c <= 'z') ||
+               (c >= 'A' && c <= 'Z'))
+       then '_'
+       else c)
+    str
+
+let generate_header fname m =
+  let header_guard = fname
+                    |> Filename.basename
+                    |> String.uppercase_ascii
+                    |> underscore in
   let visit = new headerator m in
-    visit#fact_module ()
+    visit#fact_module header_guard

@@ -35,7 +35,14 @@ class ast_visitor =
     method varname x = x
 
     method block blk =
-      visit#stms blk
+      let pre_save = _pre_inject in
+      let post_save = _post_inject in
+        _pre_inject <- [];
+        _post_inject <- [];
+        let res = visit#stms blk in
+          _pre_inject <- pre_save;
+          _post_inject <- post_save;
+          res
 
     method stms stms_ =
       List.flatten @@ List.map

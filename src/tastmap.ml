@@ -74,9 +74,15 @@ class tast_visitor (m : fact_module) =
         p@>blk_'
 
     method block (blk_,next_) =
-      let blk' = visit#block_only (blk_,next_) in
-      let next' = visit#next next_ in
-        (blk',next')
+      let pre_save = _pre_inject in
+      let post_save = _post_inject in
+        _pre_inject <- [];
+        _post_inject <- [];
+        let blk' = visit#block_only (blk_,next_) in
+        let next' = visit#next next_ in
+          _pre_inject <- pre_save;
+          _post_inject <- post_save;
+          (blk',next')
 
     method next next_ =
       let p = next_.pos in

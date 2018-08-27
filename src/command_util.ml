@@ -87,7 +87,7 @@ let generate_header gen_header out_file xftast =
     let header_out_file = out_file ^ ".h" in
       Log.debug "Outputting header file to %s" header_out_file;
       Core_kernel.Out_channel.write_all header_out_file
-        ~data:(Header.generate_header xftast)
+        ~data:(Header.generate_header header_out_file xftast)
 
 let output_bitcode out_file llvm_mod =
   let out_file' = out_file ^ ".bc" in

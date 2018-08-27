@@ -67,11 +67,20 @@ class sanitychecker post_transform m =
           match stm'.data with
             | VarDec (x,bty,e) ->
               let e_bty = type_of e in
-                if not (e_bty =: bty) then
+                if not (e_bty <: bty) then
                   raise @@ cerr p
                              "expected %s, got %s"
                              (ps#bty bty)
-                             (ps#bty e_bty)
+                             (ps#bty e_bty);
+                begin match e_bty.data with
+                  | _ when e_bty =: bty -> ()
+                  | Arr ({data=Ref (_,{data=RW})},_,_) -> ()
+                  | _ ->
+                    raise @@ cerr p
+                               "expected %s, got %s"
+                               (ps#bty bty)
+                               (ps#bty e_bty);
+                end
             | FnCall (x,bty,fn,args) ->
               let rt,params = findfn _fmap fn in
                 if (List.length args) <> (List.length params) then

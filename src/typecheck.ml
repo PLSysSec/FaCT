@@ -301,50 +301,53 @@ class typechecker =
                 ArrayFor(x,bty',e',blk')
 
     method block p pc stms_ =
-      let block' =
-        match stms_ with
-          | [] -> (p@>ListOfStuff [], p@>End)
-          | stm :: rest ->
-            let p = stm.pos in
-            let next this =
-              begin
-                let inject_capture = _inject in
-                  _inject <- [];
-                  let next' =
-                    match rest with
-                      | [{data=Ast.Return _} as rtstm]
-                      | [{data=Ast.VoidReturn} as rtstm] -> visit#return pc rtstm
-                      | [] -> p@>End
-                      | _ -> p@>(Block (visit#block p pc rest))
-                  in
-                    if inject_capture <> [] then
-                      p@>ListOfStuff inject_capture, p@>Block (this, next')
-                    else
-                      this, next'
-              end in
-            let res =
-              match stm.data with
-                | Ast.Block blk ->
-                  let blk' = visit#block p pc blk in
-                    next (p@>Scope blk')
-                | Ast.VarDec _
-                | Ast.FnCall _
-                | Ast.VoidFnCall _
-                | Ast.Assign _
-                | Ast.Assume _ ->
-                  let this = visit#stm pc stm in
-                    next (p@>ListOfStuff [this])
-                | Ast.If _
-                | Ast.RangeFor _
-                | Ast.ArrayFor _ ->
-                  let controlflow' = visit#controlflow pc stm in
-                    next (p@>controlflow')
-                | Ast.Return _
-                | Ast.VoidReturn -> (p@>ListOfStuff [], visit#return pc stm)
-            in
-              res
-      in
-        block'
+      let inject_save = _inject in
+        _inject <- [];
+        let block' =
+          match stms_ with
+            | [] -> (p@>ListOfStuff [], p@>End)
+            | stm :: rest ->
+              let p = stm.pos in
+              let next this =
+                begin
+                  let inject_capture = _inject in
+                    _inject <- [];
+                    let next' =
+                      match rest with
+                        | [{data=Ast.Return _} as rtstm]
+                        | [{data=Ast.VoidReturn} as rtstm] -> visit#return pc rtstm
+                        | [] -> p@>End
+                        | _ -> p@>(Block (visit#block p pc rest))
+                    in
+                      if inject_capture <> [] then
+                        p@>ListOfStuff inject_capture, p@>Block (this, next')
+                      else
+                        this, next'
+                end in
+              let res =
+                match stm.data with
+                  | Ast.Block blk ->
+                    let blk' = visit#block p pc blk in
+                      next (p@>Scope blk')
+                  | Ast.VarDec _
+                  | Ast.FnCall _
+                  | Ast.VoidFnCall _
+                  | Ast.Assign _
+                  | Ast.Assume _ ->
+                    let this = visit#stm pc stm in
+                      next (p@>ListOfStuff [this])
+                  | Ast.If _
+                  | Ast.RangeFor _
+                  | Ast.ArrayFor _ ->
+                    let controlflow' = visit#controlflow pc stm in
+                      next (p@>controlflow')
+                  | Ast.Return _
+                  | Ast.VoidReturn -> (p@>ListOfStuff [], visit#return pc stm)
+              in
+                res
+        in
+          _inject <- inject_save;
+          block'
 
     (* lexprs will always have type UInt64 in this implementation *)
     method lexpr ?lookahead_lexpr {pos=p; data} =
