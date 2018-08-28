@@ -448,7 +448,9 @@ class codegen llctx llmod m =
           | BinOp (op,e1,e2) ->
             let lle1 = visit#expr e1 in
             let lle2 = visit#expr e2 in
-              visit#binop op Tast_util.(not (is_bool bty) && is_signed bty) lle1 lle2
+            let e1ty = Tast_util.type_of e1 in
+            let is_signed = Tast_util.(not (is_bool e1ty) && is_signed e1ty) in
+              visit#binop op is_signed lle1 lle2
           | TernOp (e1,e2,e3) ->
             let lle1 = visit#expr e1 in
             let lle2 = visit#expr e2 in
