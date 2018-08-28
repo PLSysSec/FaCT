@@ -361,6 +361,7 @@ class typechecker =
                 match data with
                   | Ast.LExpression e ->
                     let e' = visit#expr ~lookahead_bty:u64 e in
+                    let e' = expr_fix p u64 e' in
                     let e_bty = type_of e' in
                       if not (e_bty <: u64) then
                         raise @@ cerr p "cannot use index of type %s" (show_base_type e_bty);
@@ -374,8 +375,9 @@ class typechecker =
                                  but it's still a reasonable limit in my opinion *)
                               raise @@ err p;
                             LIntLiteral n
+                          | ({data=Variable x},_) ->
+                            LDynamic x
                           | _ ->
-                            let e' = expr_fix p u64 e' in
                             let x = p @> make_fresh "lexpr" in
                               _vmap <- (x,u64) :: _vmap;
                               let var_dec = p@>VarDec(x,u64,e') in

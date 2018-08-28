@@ -149,6 +149,7 @@ and fact_module =
 
 and stdlib_code =
   | Memzero of int * label' * bool
+  | Memcpy of int * label' * bool
   | LoadLE of int * label'
   | StoreLE of int * label' * bool
   | LoadLEVec of int * int * label'

@@ -16,16 +16,24 @@ let wmem sz len lbl =
     p@>Param (p@>"dst",
               p@>Arr (p@>Ref (p@>UInt (sz,lbl),p@>W),p@>LIntLiteral len,default_var_attr))
 
+let rmem_unspec sz lbl =
+  let p = fake_pos in
+    [ p@>Param (p@>"src",
+                p@>Arr (p@>Ref (p@>UInt (sz,lbl),p@>R),p@>LDynamic (p@>"srclen"),default_var_attr)) ;
+      p@>Param (p@>"srclen",
+                p@>UInt (64,p@>Public)) ]
+
 let wmem_unspec sz lbl =
   let p = fake_pos in
     [ p@>Param (p@>"dst",
-                p@>Arr (p@>Ref (p@>UInt (sz,lbl),p@>W),p@>LDynamic (p@>"len"),default_var_attr)) ;
-      p@>Param (p@>"len",
+                p@>Arr (p@>Ref (p@>UInt (sz,lbl),p@>W),p@>LDynamic (p@>"dstlen"),default_var_attr)) ;
+      p@>Param (p@>"dstlen",
                 p@>UInt (64,p@>Public)) ]
 
 let contains fn =
   match fn.data with
     | "memzero" -> true
+    | "memcpy" -> true
     | "load_le" -> true
     | "store_le" -> true
     | _ -> false
@@ -39,6 +47,8 @@ let name_of code =
         match code with
           | Memzero (sz,lbl,everhi) ->
             sprintf "__memzero[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+          | Memcpy (sz,lbl,everhi) ->
+            sprintf "__memcpy[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
           | LoadLE (sz,lbl) ->
             sprintf "__load[%d]/%s_le" sz (ps_lbl lbl)
           | StoreLE (sz,lbl,everhi) ->
@@ -72,6 +82,39 @@ let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.ex
         let arglen = p@>Ast.ArrayLen arg in
         let args' = [ arg; arglen ] in
         let fdec' = fake_pos @> StdlibFn (Memzero (sz,lbl.data,everhi),fnattr,rt',params') in
+          fdec',args'
+
+      | "memcpy" ->
+        let arg1,arg2 = match args with
+          | [arg1;arg2] -> arg1,arg2
+          | _ -> raise @@ err p in
+        let arg1' = tc_expr arg1 in
+        let arg2' = tc_expr arg2 in
+        let subty1,lexpr1 = match (type_of arg1').data with
+          | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) -> subty,lexpr
+          | _ -> raise @@ err p in
+        let subty2,lexpr2 = match (type_of arg2').data with
+          | Arr ({data=Ref (subty,{data=R|RW})},lexpr,_) -> subty,lexpr
+          | _ -> raise @@ err p in
+        let _ = match lexpr1.data,lexpr2.data with
+          | LIntLiteral n,LIntLiteral m when n = m -> ()
+          | LDynamic x,LDynamic y when vequal x y -> ()
+          | _ -> raise @@ cerr p "unequal lengths to memcpy" in
+        let sz1,lbl1 = match subty1.data with
+          | UInt (s,l) -> s,l
+          | _ -> raise @@ err p in
+        let sz2,lbl2 = match subty2.data with
+          | UInt (s,l)
+            when s = sz1 && l <$ lbl1 -> s,l
+          | _ -> raise @@ err p in
+        let lbl = lbl1 +$ lbl2 in
+        let rt' = None in
+        let params1' = wmem_unspec sz1 lbl1 in
+        let params2' = rmem_unspec sz2 lbl2 in
+        let params' = (List.hd params1') :: params2' in
+        let arglen2 = p@>Ast.ArrayLen arg2 in
+        let args' = [ arg1; arg2; arglen2 ] in
+        let fdec' = fake_pos @> StdlibFn (Memcpy (sz1,lbl.data,everhi),fnattr,rt',params') in
           fdec',args'
 
       | "load_le" ->
@@ -202,6 +245,33 @@ let llvm_for llctx llmod code =
             set_value_name "len" len;
             set_value_name "fctx" fctx;
             raise @@ cerr fake_pos "oblivious memzero not yet implemented"
+
+        | Memcpy (sz,_,false) ->
+          let pty = pointer_type (integer_type llctx sz) in
+          let ft = function_type voidty [| pty; pty; i64ty |] in
+          let fn,b = def_internal name.data ft in
+          let memcpy = _get_intrinsic (Intrinsics.Memcpy sz) in
+          let dst = param fn 0 in
+          let src = param fn 1 in
+          let len = param fn 2 in
+            set_value_name "dst" dst;
+            set_value_name "src" src;
+            set_value_name "len" len;
+            build_call memcpy [| dst; src; len |] "" b |> built;
+            build_ret_void b |> built;
+            fn
+        | Memcpy (sz,_,true) ->
+          let pty = pointer_type (integer_type llctx sz) in
+          let ft = function_type voidty [| pty; pty; i64ty |] in
+          let fn,b = def_internal name.data ft in
+          let _memcpy = _get_intrinsic (Intrinsics.Memcpy sz) in
+          let dst = param fn 0 in
+          let src = param fn 1 in
+          let len = param fn 2 in
+            set_value_name "dst" dst;
+            set_value_name "src" src;
+            set_value_name "len" len;
+            raise @@ cerr fake_pos "oblivious memcpy not yet implemented"
 
         | LoadLE (sz,_) ->
           let ity = integer_type llctx sz in

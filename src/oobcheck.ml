@@ -90,6 +90,7 @@ class oobchecker m =
             visit#_push ();
             visit#_add negated;
             begin
+              print_endline ("checking" << p);
               match (Solver.check _solver []) with
                 | Solver.SATISFIABLE ->
                   let Some m = Solver.get_model _solver in
@@ -116,7 +117,7 @@ class oobchecker m =
         match (Solver.check _solver []) with
           | Solver.SATISFIABLE -> ()
           | Solver.UNSATISFIABLE ->
-            print_endline "unsat!";
+            Log.error "unsat!";
             raise @@ err p
           | Solver.UNKNOWN ->
             print_endline "unknown!";
@@ -132,6 +133,7 @@ class oobchecker m =
       begin match fdec.data with
         | FunDec (fn,_,_,_,_) ->
           Log.debug "oobchecking %s..." fn.data
+        | _ -> ()
       end;
       super#fdec fdec
 
