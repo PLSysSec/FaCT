@@ -173,7 +173,9 @@ class typechecker =
               if List.mem fn.data _everhis then
                 begin
                   if has_pub_mut params' then
-                    raise @@ cerr p "function '%s' with public mut params is called from secret control flow" fn.data
+                    raise @@ cerr p "function '%s' with public mut params is called from secret control flow" fn.data;
+                  if ft'.export then
+                    raise @@ cerr p "function '%s' is not exportable as it is called from secret control flow" fn.data;
                 end;
               _cur_rt <- rt';
               let pc = fake_pos @> Public in
