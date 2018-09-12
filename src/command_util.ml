@@ -241,7 +241,7 @@ let compile (in_files,out_file,out_dir) args =
   let tast = Sanitycheck.transform false tast in (* check that everything is correct before transforms *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
-  let tast = Oobcheck.transform tast in (* array accesses etc. validated *)
+  let tast = Oobcheck.transform args.debug tast in (* array accesses etc. validated *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
   let llctx,llmod = Codegen.codegen tast in

@@ -42,11 +42,11 @@ let zpop exprs e =
 let print_assumptions solver =
   print_endline ">>";
   List.iter
-    (Expr.to_string %> print_endline)
+    (Expr.to_string %> ((^) "  ") %> print_endline)
     (Solver.get_assertions solver);
   print_endline "<<"
 
-class oobchecker m =
+class oobchecker debug m =
   object (visit)
     inherit Tastmap.tast_visitor m as super
     val _solver = Solver.mk_solver ctx None
@@ -83,7 +83,12 @@ class oobchecker m =
     method _ok_turn_assertions_back_on () =
       _assertions_are_on <- true
 
-    method _assert p zcheckvar zexpr =
+    method _assert p zcheckvar zexprs =
+      List.iter (visit#_assert_single p zcheckvar) zexprs
+      (*let zexpr = Boolean.mk_and ctx zexprs in
+        visit#_assert_single p zcheckvar zexpr*)
+
+    method _assert_single p zcheckvar zexpr =
       if _assertions_are_on then
         begin
           let negated = Boolean.mk_not ctx zexpr in
@@ -93,13 +98,18 @@ class oobchecker m =
               match (Solver.check _solver []) with
                 | Solver.SATISFIABLE ->
                   let Some m = Solver.get_model _solver in
-                  let message =
-                    (Model.eval m zcheckvar true >>= fun thinger ->
-                     let value = Expr.to_string thinger in
-                       return @@ Printf.sprintf "value could be %s" value)
-                    >!!> err p
-                  in
-                    raise @@ cerr p "%s" message
+                    if debug then
+                      begin
+                        print_endline (Model.to_string m);
+                        print_assumptions _solver
+                      end;
+                    let message =
+                      (Model.eval m zcheckvar true >>= fun thinger ->
+                       let value = Expr.to_string thinger in
+                         return @@ Printf.sprintf "value could be %s" value)
+                      >!!> err p
+                    in
+                      raise @@ cerr p "%s" message
                 | Solver.UNSATISFIABLE -> ()
                 | Solver.UNKNOWN ->
                   print_endline "unknown!";
@@ -182,7 +192,7 @@ class oobchecker m =
               let zeq = mk_eq ctx zdec z2 in
                 visit#_add zeq;
                 let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
-                  visit#_assert (expr_of e2).pos zdec divcheck;
+                  visit#_assert (expr_of e2).pos zdec [divcheck];
                   (if is_signed bty
                    then mk_sdiv
                    else mk_udiv) ctx z1 z2
@@ -192,7 +202,7 @@ class oobchecker m =
               let zeq = mk_eq ctx zdec z2 in
                 visit#_add zeq;
                 let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
-                  visit#_assert (expr_of e2).pos zdec divcheck;
+                  visit#_assert (expr_of e2).pos zdec [divcheck];
                   (if is_signed bty
                    then mk_srem
                    else mk_urem) ctx z1 z2
@@ -246,8 +256,7 @@ class oobchecker m =
                 visit#_add zeq;
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
-                let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
-                  visit#_assert (expr_of e2).pos zdec shiftcheck;
+                  visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top];
                   mk_shl ctx z1 z2
             | Ast.RightShift ->
               let cmp,cmpe =
@@ -261,8 +270,7 @@ class oobchecker m =
                 visit#_add zeq;
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
-                let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
-                  visit#_assert (expr_of e2).pos zdec shiftcheck;
+                  visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top];
                   (if is_signed (type_of e1)
                    then mk_ashr
                    else mk_lshr)
@@ -279,8 +287,7 @@ class oobchecker m =
                 visit#_add zeq;
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
-                let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
-                  visit#_assert (expr_of e2).pos zdec shiftcheck;
+                  visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top];
                   mk_ext_rotate_left ctx z1 z2
             | Ast.RightRotate ->
               let cmp,cmpe =
@@ -294,8 +301,7 @@ class oobchecker m =
                 visit#_add zeq;
                 let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
                 let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
-                let shiftcheck = Boolean.mk_and ctx [shiftcheck_bot; shiftcheck_top] in
-                  visit#_assert (expr_of e2).pos zdec shiftcheck;
+                  visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top];
                   mk_ext_rotate_right ctx z1 z2
         end)
 
@@ -386,9 +392,13 @@ class oobchecker m =
                 return @@ zpush _expr e__ z
               end |> consume
             (* Non-blessable *)
-            | Enref _
-            | Deref _
-              -> ()
+            | Enref _ -> ()
+            | Deref ({data=Variable x},_) ->
+              begin
+                mlist_find ~equal:vequal !_vmap x >>= fun zdec ->
+                return @@ zpush _expr e__ zdec
+              end |> consume
+            | Deref _ -> ()
             | ArrayGet (e,lexpr) ->
               begin
                 let e_bty = type_of e in
@@ -400,8 +410,7 @@ class oobchecker m =
                   visit#_add zeq;
                   let boundscheck_bot = BitVector.mk_ule ctx (Expr.mk_numeral_int ctx 0 (bv 64)) zi in
                   let boundscheck_top = BitVector.mk_ult ctx zi zlen in
-                  let boundscheck = Boolean.mk_and ctx [boundscheck_bot; boundscheck_top] in
-                    return @@ visit#_assert lexpr.pos zdec boundscheck
+                    return @@ visit#_assert lexpr.pos zdec [boundscheck_bot; boundscheck_top]
               end |> consume
             | ArrayLit _
             | ArrayZeros _
@@ -421,8 +430,7 @@ class oobchecker m =
                   let boundscheck_bot = BitVector.mk_ule ctx (Expr.mk_numeral_int ctx 0 (bv 64)) zi in
                   let boundscheck_mid = BitVector.mk_ule ctx zi zend in
                   let boundscheck_top = BitVector.mk_ule ctx zend zlen in
-                  let boundscheck = Boolean.mk_and ctx [boundscheck_bot; boundscheck_mid; boundscheck_top] in
-                    return @@ visit#_assert (expr_of e).pos zend boundscheck
+                    return @@ visit#_assert (expr_of e).pos zend [boundscheck_bot; boundscheck_mid; boundscheck_top]
               end |> consume
             | VectorLit _
             | Shuffle (_,_)
@@ -547,6 +555,8 @@ class oobchecker m =
                   | UInt (s,_)
                   | Int  (s,_) ->
                     Some (BitVector.mk_const_s ctx x.data s)
+                  | Ref ({data=(UInt (s,_) | Int (s,_))},_) ->
+                    Some (BitVector.mk_const_s ctx x.data s)
                   | _ -> None
               end >>= fun zdec ->
                mlist_push (x,zdec) _vmap;
@@ -583,6 +593,6 @@ class oobchecker m =
 
   end
 
-let transform m =
-  let visit = new oobchecker m in
+let transform debug m =
+  let visit = new oobchecker debug m in
     visit#fact_module ()
