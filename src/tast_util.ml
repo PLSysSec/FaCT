@@ -154,6 +154,16 @@ let ( <* ) m1 m2 =
     | RW,_ -> true
     | _ -> false
 
+let meet_mut p m1 m2 =
+  match m1.data,m2.data with
+    | R,W
+    | W,R -> raise @@ err p
+    | _,R
+    | R,_ -> p@>R
+    | _,W
+    | W,_ -> p@>W
+    | RW,RW -> p@>RW
+
 let rec ( =: ) b1 b2 =
   match b1.data,b2.data with
     | Bool l1,Bool l2 -> true

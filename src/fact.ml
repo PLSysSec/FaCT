@@ -42,6 +42,13 @@ let set_log_level debug =
     | true -> Log.set_log_level Log.DEBUG
     | false -> Log.set_log_level Log.ERROR
 
+let syntax_exit s =
+  let ss = Str.bounded_split (Str.regexp_string " ") s 2 in
+    ANSITerminal.eprintf [ANSITerminal.white] "%s "  (List.nth ss 0);
+    ANSITerminal.eprintf [ANSITerminal.red]   "error: ";
+    Printf.eprintf                            "%s\n" (List.nth ss 1);
+    exit 1
+
 let error_exit s =
   let ss = Str.bounded_split (Str.regexp_string " ") s 3 in
     ANSITerminal.eprintf [ANSITerminal.white] "%s "  (List.nth ss 0);
@@ -62,6 +69,8 @@ let runner prep args =
               List.iter (fun s -> Printf.eprintf "%s\n" s) rlines
       end;
       begin match exn with
+        | (Err.TypeError s) ->
+          syntax_exit s
         | (Err.VariableNotDefined s)
         | (Err.InternalCompilerError s) ->
           error_exit s

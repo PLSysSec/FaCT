@@ -90,7 +90,6 @@ class oobchecker m =
             visit#_push ();
             visit#_add negated;
             begin
-              print_endline ("checking" << p);
               match (Solver.check _solver []) with
                 | Solver.SATISFIABLE ->
                   let Some m = Solver.get_model _solver in

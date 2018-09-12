@@ -560,6 +560,8 @@ class codegen llctx llmod m =
             let underlying_ty = type_of res |> element_type in
               begin
                 match classify_type underlying_ty with
+                  | TypeKind.Pointer ->
+                    build_load res "" _b
                   | TypeKind.Array ->
                     let pty = underlying_ty |> element_type |> pointer_type in
                       build_bitcast res pty "" _b

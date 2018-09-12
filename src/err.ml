@@ -27,7 +27,7 @@ let cerr p =
   Printf.ksprintf
     (fun s ->
        InternalCompilerError("error: " ^ s << p))
-let err p = cerr p "error"
+let err p = cerr p "compile error"
 
 let warn (InternalCompilerError s) =
   let ss = Str.bounded_split (Str.regexp_string " ") s 3 in

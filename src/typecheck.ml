@@ -641,8 +641,9 @@ class typechecker =
             | None -> raise @@ err p in
           let (_,f_bty) = fld in
           let gotten_ty = match f_bty.data with
-            | Arr ({data=Ref (elty,_)},lexpr,vattr) ->
-              e_bty.pos@>Arr (e_bty.pos@>Ref (elty,m),lexpr,vattr)
+            | Ref (subty,ref_m) -> f_bty
+            | Arr ({data=Ref (elty,arr_m)},lexpr,vattr) ->
+              e_bty.pos@>Arr (e_bty.pos@>Ref (elty,meet_mut p arr_m m),lexpr,vattr)
             | _ -> e_bty.pos@>Ref (f_bty,m) in
             StructGet (e',field), gotten_ty
         | Ast.StringLiteral _ -> raise @@ cerr p "strings are not implemented yet"

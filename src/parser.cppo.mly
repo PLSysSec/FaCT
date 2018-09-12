@@ -329,7 +329,17 @@ function_dec:
 
 field:
   | b=base_type x=var_name SEMICOLON
-    { mkpos (Field(x, b)) }
+    { let p = b.pos in
+      let b' =
+        match b.data with
+          | Arr ({data=Ref (subty,{data=R})}, len, vattr) ->
+              p @> Arr (p@>Ref (subty,p@>RW), len, vattr)
+          | Arr ({data=Ref (subty,{data=RW})}, len, vattr) ->
+              p @> Ref (p@>Arr (p@>Ref (subty,p@>RW), len, vattr), p@>R)
+          | Ref ({data=Struct _} as b', {data=R}) -> b'
+          | _ -> b
+      in
+        mkpos (Field(x, b')) }
 
 struct_dec:
   | STRUCT s=struct_name fields=blist(field)
