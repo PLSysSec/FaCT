@@ -200,6 +200,7 @@ let rec ( <: ) b1 b2 =
           | _ -> false
       end
     | UVec (n,bw1,l1),UVec (m,bw2,l2) -> n = m && bw1 = bw2 && l1 <$ l2
+    | Struct s1,Struct s2 -> s1.data = s2.data
     | _ -> false
 
 let rec passable_to param_ty arg_ty =
@@ -221,6 +222,15 @@ let rec passable_to param_ty arg_ty =
           | _ -> false
       end
     | _ -> arg_ty <: param_ty
+
+let has_join b1 b2 =
+  match b1.data,b2.data with
+    | Bool l1,Bool l2 -> true
+    | UInt (n,l1),UInt (m,l2) -> true
+    | Int (n,l1),Int (m,l2) -> true
+    | UVec (n,bw1,l1),UVec (m,bw2,l2)
+      when n = m && bw1 = bw2 -> true
+    | _ -> false
 
 let ( +: ) b1 b2 =
   match b1.data,b2.data with

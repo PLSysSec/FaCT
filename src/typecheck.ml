@@ -678,7 +678,7 @@ class typechecker =
               raise @@ err p;
             if not @@ (is_integral bty2 || is_vec bty2) then
               raise @@ err p;
-            if not (bty1 <: bty2 || bty2 <: bty1) then
+            if not (has_join bty1 bty2) then
               raise @@ cerr p
                          "incompatible types:\n  %s\n  %s"
                          (show_base_type bty1)
@@ -692,7 +692,7 @@ class typechecker =
               raise @@ err p;
             if not (is_integral bty2 || is_bool bty2 || is_vec bty2) then
               raise @@ err p;
-            if not (bty1 <: bty2 || bty2 <: bty1) then
+            if not (has_join bty1 bty2) then
               raise @@ err p;
             let l1 = label_of bty1 in
             let l2 = label_of bty2 in
@@ -707,7 +707,7 @@ class typechecker =
               raise @@ err p;
             if not (is_integral bty2) then
               raise @@ err p;
-            if not (bty1 <: bty2 || bty2 <: bty1) then
+            if not (has_join bty1 bty2) then
               raise @@ err p;
             let l1 = label_of bty1 in
             let l2 = label_of bty2 in
@@ -796,7 +796,7 @@ class typechecker =
       let bty3 = type_of e3' in
         if not (is_bool bty1) then
           raise @@ err p;
-        if not (bty2 <: bty3 || bty3 <: bty2) then
+        if not (has_join bty2 bty3) then
           raise @@ err p;
         let l1 = label_of bty1 in
         let new_bty = bty2 +: bty3 in
@@ -936,10 +936,16 @@ class typechecker =
               if (e_bty <: bty') then
                 expr_fix p bty' e'
               else
-                raise @@ cerr p
-                           "expected %s, got %s"
-                           (ps#bty bty')
-                           (ps#bty e_bty) in
+                match (is_ref bty'),(expr_of e').data with
+                  | true,Enref sube ->
+                    let Some subty = element_type bty' in
+                    let Ref(_,mut) = (type_of e').data in
+                      (p@>Enref (expr_fix p subty sube), p@>Ref (subty, mut))
+                  | _ ->
+                    raise @@ cerr p
+                               "expected %s, got %s"
+                               (ps#bty bty')
+                               (ps#bty e_bty) in
               _vmap <- (x,bty') :: _vmap;
               VarDec (x,bty',e_fixed)
           | Ast.FnCall (x,bty,fn,args) ->

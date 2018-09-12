@@ -49,6 +49,8 @@ let name_of code =
             sprintf "__memzero[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
           | Memcpy (sz,lbl,everhi) ->
             sprintf "__memcpy[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+          | MemcpyStruct (sname,everhi) ->
+            sprintf "__memcpy/%s%s" sname (if everhi then "/oblivious" else "")
           | LoadLE (sz,lbl) ->
             sprintf "__load[%d]/%s_le" sz (ps_lbl lbl)
           | StoreLE (sz,lbl,everhi) ->
@@ -59,7 +61,9 @@ let name_of code =
             sprintf "__store[%d]<%d>/%s%s_le" sz len (ps_lbl lbl) (if everhi then "/oblivious" else "")
       end
 
-let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.expr) p stmlbl fn args =
+let interface_of
+      (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.expr)
+      p stmlbl fn args =
   let everhi = match stmlbl.data with
     | Public -> false
     | Secret -> true in
@@ -90,32 +94,45 @@ let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.ex
           | _ -> raise @@ err p in
         let arg1' = tc_expr arg1 in
         let arg2' = tc_expr arg2 in
-        let subty1,lexpr1 = match (type_of arg1').data with
-          | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) -> subty,lexpr
-          | _ -> raise @@ err p in
-        let subty2,lexpr2 = match (type_of arg2').data with
-          | Arr ({data=Ref (subty,{data=R|RW})},lexpr,_) -> subty,lexpr
-          | _ -> raise @@ err p in
-        let _ = match lexpr1.data,lexpr2.data with
-          | LIntLiteral n,LIntLiteral m when n = m -> ()
-          | LDynamic x,LDynamic y when vequal x y -> ()
-          | _ -> raise @@ cerr p "unequal lengths to memcpy" in
-        let sz1,lbl1 = match subty1.data with
-          | UInt (s,l) -> s,l
-          | _ -> raise @@ err p in
-        let sz2,lbl2 = match subty2.data with
-          | UInt (s,l)
-            when s = sz1 && l <$ lbl1 -> s,l
-          | _ -> raise @@ err p in
-        let lbl = lbl1 +$ lbl2 in
-        let rt' = None in
-        let params1' = wmem_unspec sz1 lbl1 in
-        let params2' = rmem_unspec sz2 lbl2 in
-        let params' = (List.hd params1') :: params2' in
-        let arglen2 = p@>Ast.ArrayLen arg2 in
-        let args' = [ arg1; arg2; arglen2 ] in
-        let fdec' = fake_pos @> StdlibFn (Memcpy (sz1,lbl.data,everhi),fnattr,rt',params') in
-          fdec',args'
+        begin match (type_of arg1').data with
+          | Arr _ ->
+            let subty1,lexpr1 = match (type_of arg1').data with
+              | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) -> subty,lexpr
+              | _ -> raise @@ err p in
+            let subty2,lexpr2 = match (type_of arg2').data with
+              | Arr ({data=Ref (subty,{data=R|RW})},lexpr,_) -> subty,lexpr
+              | _ -> raise @@ err p in
+            let _ = match lexpr1.data,lexpr2.data with
+              | LIntLiteral n,LIntLiteral m when n = m -> ()
+              | LDynamic x,LDynamic y when vequal x y -> ()
+              | _ -> raise @@ cerr p "unequal lengths to memcpy" in
+            let sz1,lbl1 = match subty1.data with
+              | UInt (s,l) -> s,l
+              | _ -> raise @@ err p in
+            let sz2,lbl2 = match subty2.data with
+              | UInt (s,l)
+                when s = sz1 && l <$ lbl1 -> s,l
+              | _ -> raise @@ err p in
+            let lbl = lbl1 +$ lbl2 in
+            let rt' = None in
+            let params1' = wmem_unspec sz1 lbl1 in
+            let params2' = rmem_unspec sz2 lbl2 in
+            let params' = (List.hd params1') :: params2' in
+            let arglen2 = p@>Ast.ArrayLen arg2 in
+            let args' = [ arg1; arg2; arglen2 ] in
+            let fdec' = fake_pos @> StdlibFn (Memcpy (sz1,lbl.data,everhi),fnattr,rt',params') in
+              fdec',args'
+          | Struct sname ->
+            let p = fake_pos in
+            let rt' = None in
+            let params1' = p@>Param (p@>"dst", p@>Ref(p@>Struct sname, p@>W)) in
+            let params2' = p@>Param (p@>"src", p@>Ref(p@>Struct sname, p@>R)) in
+            let params' = [ params1'; params2' ] in
+            let args' = [ arg1; arg2 ] in
+            let fdec' = fake_pos @> StdlibFn (MemcpyStruct (sname.data,everhi),fnattr,rt',params') in
+              fdec',args'
+          | _ -> raise @@ err p
+        end
 
       | "load_le" ->
         let arg = match args with
@@ -190,7 +207,9 @@ let interface_of (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.ex
 
       | _ -> raise @@ cerr p "not a stdlib function: '%s'" fn.data
 
-let llvm_for llctx llmod code =
+let llvm_for
+      (sget : struct_name -> Llvm.lltype)
+      llctx llmod code =
   Llvm.(
     let i1ty = i1_type llctx in
     let i8ty = i8_type llctx in
@@ -272,6 +291,25 @@ let llvm_for llctx llmod code =
             set_value_name "src" src;
             set_value_name "len" len;
             raise @@ cerr fake_pos "oblivious memcpy not yet implemented"
+
+        | MemcpyStruct (s,false) ->
+          let llstruct = sget (fake_pos @> s) in
+          let pty = pointer_type llstruct in
+          let ft = function_type voidty [| pty; pty |] in
+          let fn,b = def_internal name.data ft in
+          let memcpy = _get_intrinsic (Intrinsics.Memcpy 8) in
+          let dst = param fn 0 in
+          let src = param fn 1 in
+            set_value_name "dst" dst;
+            set_value_name "src" src;
+            let dst_ = build_bitcast dst memty "" b in
+            let src_ = build_bitcast src memty "" b in
+            let len = size_of llstruct in
+              build_call memcpy [| dst_; src_; len |] "" b |> built;
+              build_ret_void b |> built;
+              fn
+        | MemcpyStruct (s,true) ->
+          raise @@ cerr fake_pos "oblivious memcpy not yet implemented"
 
         | LoadLE (sz,_) ->
           let ity = integer_type llctx sz in

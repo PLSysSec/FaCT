@@ -214,7 +214,7 @@ class codegen llctx llmod m =
             llfn
         | StdlibFn (code,fnattr,rt,params) ->
           let name = Stdlib.name_of code in
-          let llfn = Stdlib.llvm_for llctx llmod code in
+          let llfn = Stdlib.llvm_for visit#_sget llctx llmod code in
             mlist_push (name,llfn) _fenv;
             llfn
 
