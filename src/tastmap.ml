@@ -133,7 +133,7 @@ class tast_visitor (m : fact_module) =
     method stm_wrapper stm_ =
       let stm' = visit#stm stm_ in
       let stms' = visit#stm_post stm' in
-      let stms' = _pre_inject @ stms' @ _post_inject in
+      let stms' = (List.rev _pre_inject) @ stms' @ (List.rev _post_inject) in
         _pre_inject <- [];
         _post_inject <- [];
         stms'

@@ -322,7 +322,7 @@ class typechecker =
                         | _ -> p@>(Block (visit#block p pc rest))
                     in
                       if inject_capture <> [] then
-                        p@>ListOfStuff inject_capture, p@>Block (this, next')
+                        p@>ListOfStuff (List.rev inject_capture), p@>Block (this, next')
                       else
                         this, next'
                 end in

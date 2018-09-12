@@ -48,7 +48,7 @@ class ast_visitor =
       List.flatten @@ List.map
                         (fun stm ->
                            let stms' = visit#stm stm in
-                           let stms' = _pre_inject @ stms' @ _post_inject in
+                           let stms' = (List.rev _pre_inject) @ stms' @ (List.rev _post_inject) in
                              _pre_inject <- [];
                              _post_inject <- [];
                              stms')
