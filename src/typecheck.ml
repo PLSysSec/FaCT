@@ -730,7 +730,10 @@ class typechecker =
                 | UVec (n,bw1,l1),UVec (m,bw2,l2)
                   when n = m && bw1 = bw2 ->
                   bty1.pos@>UVec (n,bw1,l1 +$ l2)
-                | _ -> raise @@ err p;
+                | _ -> raise @@ cerr p
+                                  "type mismatch for operator '&':\n\t%s vs %s"
+                                  (ps#bty bty1)
+                                  (ps#bty bty2)
             in
             let fix = expr_fix p bty in
               bty, fix e1, fix e2
@@ -856,7 +859,7 @@ class typechecker =
                      if passable_to param_ty arg_ty then
                        expr_fix p param_ty arg
                      else
-                       raise @@ cerr p
+                       raise @@ cerr (expr_of arg).pos
                                   "argument type mismatch when calling '%s':\n\texpected %s, got %s"
                                   fn.data
                                   (ps#bty param_ty)
@@ -938,9 +941,15 @@ class typechecker =
               else
                 match (is_ref bty'),(expr_of e').data with
                   | true,Enref sube ->
-                    let Some subty = element_type bty' in
-                    let Ref(_,mut) = (type_of e').data in
-                      (p@>Enref (expr_fix p subty sube), p@>Ref (subty, mut))
+                    let Some b_subty = element_type bty' in
+                    let Ref(e_subty,mut) = (type_of e').data in
+                      if (e_subty <: b_subty) then
+                        (p@>Enref (expr_fix p b_subty sube), p@>Ref (b_subty, mut))
+                      else
+                        raise @@ cerr p
+                                   "expected %s, got %s"
+                                   (ps#bty bty')
+                                   (ps#bty e_bty)
                   | _ ->
                     raise @@ cerr p
                                "expected %s, got %s"
