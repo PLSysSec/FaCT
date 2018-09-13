@@ -441,6 +441,12 @@ class oobchecker debug m =
         end;
         res
 
+    method scoped_block blk =
+      Solver.push _solver; (* intentionally not visit#_push *)
+      let res = visit#block blk in
+        Solver.pop _solver 1; (* intentionally not visit#_pop *)
+        res
+
     method block (blk_,next) =
       let p = blk_.pos in
       let next' () = (visit#next next) in
@@ -455,11 +461,11 @@ class oobchecker debug m =
                     let zncond = Boolean.mk_not ctx zcond in
                       visit#_push ();
                       visit#_add zcond;
-                      let thens' = visit#block thens in
+                      let thens' = visit#scoped_block thens in
                         visit#_pop ();
                         visit#_push ();
                         visit#_add zncond;
-                        let elses' = visit#block elses in
+                        let elses' = visit#scoped_block elses in
                           visit#_pop ();
                           if ends_with_ret thens' then
                             visit#_add_flow zncond;
@@ -468,13 +474,13 @@ class oobchecker debug m =
                           return (p@>If (cond',thens',elses'), next' ())
                   | None ->
                     warn @@ werr p "couldn't infer condition";
-                    let thens' = visit#block thens in
-                    let elses' = visit#block elses in
+                    let thens' = visit#scoped_block thens in
+                    let elses' = visit#scoped_block elses in
                       return (p@>If (cond',thens',elses'), next' ())
               else
                 (* secret ifs don't guard statements! *)
-                let thens' = visit#block thens in
-                let elses' = visit#block elses in
+                let thens' = visit#scoped_block thens in
+                let elses' = visit#scoped_block elses in
                   return (p@>If (cond',thens',elses'), next' ())
 
           | RangeFor (x,bty,lo,hi,blk) ->
@@ -505,7 +511,7 @@ class oobchecker debug m =
                   visit#_add zconstraint;
                   visit#_push ();
                   visit#_temporarily_turn_off_assertions ();
-                  let _ = visit#block blk in
+                  let _ = visit#scoped_block blk in
                     visit#_ok_turn_assertions_back_on ();
                     let new_assumptions = visit#_pop_with_flow () in
                     let after_first_iteration = cmp ctx zlo zdec in
@@ -524,7 +530,7 @@ class oobchecker debug m =
                         )
                         new_assumptions in
                       visit#_add_all_flow assumptions_for_next_loop_iteration;
-                      let blk' = visit#block blk in
+                      let blk' = visit#scoped_block blk in
                         visit#_pop ();
                         return (p@>RangeFor (x,bty,lo',hi',blk'), next' ())
             in
@@ -532,11 +538,12 @@ class oobchecker debug m =
                 | Some thing -> thinger
                 | None ->
                   warn @@ werr p "couldn't infer loop invariants";
-                  let blk' = visit#block blk in
+                  let blk' = visit#scoped_block blk in
                     return (p@>RangeFor (x,bty,lo',hi',blk'), next' ())
               end
 
-          | Scope _
+          | Scope blk ->
+            return @@ visit#scoped_block blk
           | ListOfStuff _
           | ArrayFor (_,_,_,_) -> return @@ super#block (blk_,next)
       in
