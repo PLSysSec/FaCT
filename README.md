@@ -5,7 +5,7 @@
 
 To install you can either build the source or download ```fact.byte```. We recommend to build from source if possible.
 
-```fact.byte``` is the executable used to compile FaCT programs. Execute ```./fact.byte``` for a list of the command line options.
+```fact.byte``` is the executable used to compile FaCT programs. Execute ```./fact.byte -help``` for a list of the command line options.
 
 ## Usage
 
