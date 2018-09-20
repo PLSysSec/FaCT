@@ -33,9 +33,11 @@ We also need dependency management for Ocaml.
 
 Then we need the actual dependencies for Ocaml.
 
-```opam switch 4.06.0
+```
+opam switch 4.06.0
 eval $(opam config env)
-opam switch import ocamlswitch.txt```
+opam switch import ocamlswitch.txt
+```
 
 If you have not setup oasis, then you must do that first.
 
@@ -63,16 +65,15 @@ This will add FaCT to your path so that you can compile const files with the com
 
 ## Link to a C library
 
-FaCT is designed to be called from C code. In order to do so, write your FaCT functions and compile them. This will output an object file. This can then be linked to a C file. A full working example is in the `example` directory. First, we must compile ```main.c``` in the `example` directory:
+FaCT is designed to be called from C code. In order to do so, write your FaCT functions and compile them. This will output an object file. This can then be linked to a C file. For example:
+
+```fact ex.fact```
+
+Then we compile the calling C file:
 
 ```
-cd example/
 clang -c main.c
 ```
-
-Then we compile ```ex.fact``` using FaCT. This requires clang to use version ≥3.8:
-
-```../fact.byte ex.fact```
 
 Next, we link them together:
 
@@ -80,4 +81,4 @@ Next, we link them together:
 
 Finally, we can run the executable:
 
-```./final ```
+```./final```
