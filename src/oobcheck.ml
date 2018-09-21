@@ -88,6 +88,31 @@ class oobchecker debug m =
       (*let zexpr = Boolean.mk_and ctx zexprs in
         visit#_assert_single p zcheckvar zexpr*)
 
+    method _assert_warn p zexpr wmsg =
+      if _assertions_are_on then
+        begin
+          let negated = Boolean.mk_not ctx zexpr in
+            visit#_push ();
+            visit#_add negated;
+            begin
+              match (Solver.check _solver []) with
+                | Solver.SATISFIABLE ->
+                  let Some m = Solver.get_model _solver in
+                    if debug then
+                      begin
+                        print_endline (Model.to_string m);
+                        print_assumptions _solver
+                      end;
+                    warn @@ werr p "%s" wmsg
+                | Solver.UNSATISFIABLE -> ()
+                | Solver.UNKNOWN ->
+                  print_endline "unknown!";
+                  print_endline @@ Solver.get_reason_unknown _solver;
+                  raise @@ err p
+            end;
+            visit#_pop ()
+        end
+
     method _assert_single p zcheckvar zexpr =
       if _assertions_are_on then
         begin
@@ -503,6 +528,7 @@ class oobchecker debug m =
                            else mk_ult,mk_ule) in
               let nonvacuous_loop_check = cmp ctx zlo zhi in
                 visit#_assert_sat p nonvacuous_loop_check;
+                visit#_assert_warn p nonvacuous_loop_check "possible vacuous loop";
                 let zconstraint =
                   Boolean.mk_and ctx
                     [ cmpe ctx zlo zdec ;

@@ -20,7 +20,7 @@ class var_renamer =
                    x.data
       else
       if Core.List.Assoc.mem !(top _vstack) x ~equal:vequal then
-        warn @@ cerr p
+        warn @@ werr p
                   "shadowing of '%s'"
                   x.data;
       let x' = make_fresh x.data in
