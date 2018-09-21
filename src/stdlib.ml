@@ -33,6 +33,7 @@ let wmem_unspec sz lbl =
 let contains fn =
   match fn.data with
     | "memzero" -> true
+    | "smemzero" -> true
     | "memcpy" -> true
     | "load_le" -> true
     | "store_le" -> true
@@ -47,8 +48,14 @@ let name_of code =
         match code with
           | Memzero (sz,lbl,everhi) ->
             sprintf "__memzero[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+          | SMemzero (sz,lbl,everhi) ->
+            sprintf "__smemzero[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
           | Memcpy (sz,lbl,everhi) ->
             sprintf "__memcpy[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+          | MemzeroStruct (sname,everhi) ->
+            sprintf "__memzero/%s%s" sname (if everhi then "/oblivious" else "")
+          | SMemzeroStruct (sname,everhi) ->
+            sprintf "__smemzero/%s%s" sname (if everhi then "/oblivious" else "")
           | MemcpyStruct (sname,everhi) ->
             sprintf "__memcpy/%s%s" sname (if everhi then "/oblivious" else "")
           | LoadLE (sz,lbl) ->
@@ -75,18 +82,52 @@ let interface_of
           | [arg] -> arg
           | _ -> raise @@ err p in
         let arg' = tc_expr arg in
-        let subty,lexpr = match (type_of arg').data with
-          | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) -> subty,lexpr
+          begin match (type_of arg').data with
+            | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) ->
+              let sz,lbl = match subty.data with
+                | UInt (s,l) -> s,l
+                | _ -> raise @@ err p in
+              let rt' = None in
+              let params' = wmem_unspec sz lbl in
+              let arglen = p@>Ast.ArrayLen arg in
+              let args' = [ arg; arglen ] in
+              let fdec' = fake_pos @> StdlibFn (Memzero (sz,lbl.data,everhi),fnattr,rt',params') in
+                fdec',args'
+            | Struct sname ->
+              let p = fake_pos in
+              let rt' = None in
+              let params' = [ p@>Param (p@>"dst", p@>Ref(p@>Struct sname, p@>W)) ] in
+              let args' = [ arg ] in
+              let fdec' = fake_pos @> StdlibFn (MemzeroStruct (sname.data,everhi),fnattr,rt',params') in
+                fdec',args'
+            | _ -> raise @@ err p
+          end
+
+      | "smemzero" ->
+        let arg = match args with
+          | [arg] -> arg
           | _ -> raise @@ err p in
-        let sz,lbl = match subty.data with
-          | UInt (s,l) -> s,l
-          | _ -> raise @@ err p in
-        let rt' = None in
-        let params' = wmem_unspec sz lbl in
-        let arglen = p@>Ast.ArrayLen arg in
-        let args' = [ arg; arglen ] in
-        let fdec' = fake_pos @> StdlibFn (Memzero (sz,lbl.data,everhi),fnattr,rt',params') in
-          fdec',args'
+        let arg' = tc_expr arg in
+          begin match (type_of arg').data with
+            | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) ->
+              let sz,lbl = match subty.data with
+                | UInt (s,l) -> s,l
+                | _ -> raise @@ err p in
+              let rt' = None in
+              let params' = wmem_unspec sz lbl in
+              let arglen = p@>Ast.ArrayLen arg in
+              let args' = [ arg; arglen ] in
+              let fdec' = fake_pos @> StdlibFn (SMemzero (sz,lbl.data,everhi),fnattr,rt',params') in
+                fdec',args'
+            | Struct sname ->
+              let p = fake_pos in
+              let rt' = None in
+              let params' = [ p@>Param (p@>"dst", p@>Ref(p@>Struct sname, p@>W)) ] in
+              let args' = [ arg ] in
+              let fdec' = fake_pos @> StdlibFn (SMemzeroStruct (sname.data,everhi),fnattr,rt',params') in
+                fdec',args'
+            | _ -> raise @@ err p
+          end
 
       | "memcpy" ->
         let arg1,arg2 = match args with
@@ -252,18 +293,23 @@ let llvm_for
             build_ret_void b |> built;
             fn
         | Memzero (sz,_,true) ->
+          raise @@ cerr fake_pos "oblivious memzero not yet implemented"
+
+        | SMemzero (sz,_,false) ->
           let pty = pointer_type (integer_type llctx sz) in
-          let ft = function_type voidty [| pty; i64ty; i1ty |] in
+          let ft = function_type voidty [| pty; i64ty |] in
           let fn,b = def_internal name.data ft in
-          let _zero = const_null i8ty in
-          let _memset = _get_intrinsic (Memset sz) in
+          let zero = const_null i8ty in
+          let memset = _get_intrinsic (SMemset sz) in
           let dst = param fn 0 in
           let len = param fn 1 in
-          let fctx = param fn 2 in
             set_value_name "dst" dst;
             set_value_name "len" len;
-            set_value_name "fctx" fctx;
-            raise @@ cerr fake_pos "oblivious memzero not yet implemented"
+            build_call memset [| dst; zero; len |] "" b |> built;
+            build_ret_void b |> built;
+            fn
+        | SMemzero (sz,_,true) ->
+          raise @@ cerr fake_pos "oblivious smemzero not yet implemented"
 
         | Memcpy (sz,_,false) ->
           let pty = pointer_type (integer_type llctx sz) in
@@ -280,17 +326,41 @@ let llvm_for
             build_ret_void b |> built;
             fn
         | Memcpy (sz,_,true) ->
-          let pty = pointer_type (integer_type llctx sz) in
-          let ft = function_type voidty [| pty; pty; i64ty |] in
+          raise @@ cerr fake_pos "oblivious memcpy not yet implemented"
+
+        | MemzeroStruct (s,false) ->
+          let llstruct = sget (fake_pos @> s) in
+          let pty = pointer_type llstruct in
+          let ft = function_type voidty [| pty |] in
           let fn,b = def_internal name.data ft in
-          let _memcpy = _get_intrinsic (Intrinsics.Memcpy sz) in
+          let zero = const_null i8ty in
+          let memset = _get_intrinsic (Memset 8) in
           let dst = param fn 0 in
-          let src = param fn 1 in
-          let len = param fn 2 in
             set_value_name "dst" dst;
-            set_value_name "src" src;
-            set_value_name "len" len;
-            raise @@ cerr fake_pos "oblivious memcpy not yet implemented"
+            let dst_ = build_bitcast dst memty "" b in
+            let len = size_of llstruct in
+              build_call memset [| dst_; zero; len |] "" b |> built;
+              build_ret_void b |> built;
+              fn
+        | MemzeroStruct (s,true) ->
+          raise @@ cerr fake_pos "oblivious memzero not yet implemented"
+
+        | SMemzeroStruct (s,false) ->
+          let llstruct = sget (fake_pos @> s) in
+          let pty = pointer_type llstruct in
+          let ft = function_type voidty [| pty |] in
+          let fn,b = def_internal name.data ft in
+          let zero = const_null i8ty in
+          let memset = _get_intrinsic (SMemset 8) in
+          let dst = param fn 0 in
+            set_value_name "dst" dst;
+            let dst_ = build_bitcast dst memty "" b in
+            let len = size_of llstruct in
+              build_call memset [| dst_; zero; len |] "" b |> built;
+              build_ret_void b |> built;
+              fn
+        | SMemzeroStruct (s,true) ->
+          raise @@ cerr fake_pos "oblivious smemzero not yet implemented"
 
         | MemcpyStruct (s,false) ->
           let llstruct = sget (fake_pos @> s) in

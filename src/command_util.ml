@@ -106,7 +106,13 @@ let output_assembly fpic opt_level out_file =
         | O2 -> "-O2"
         | O3 -> "-O3"
         | _ -> "" in
-      run_command "clang-6.0" [|"clang-6.0"; "-S"; opt_arg; "-mavx"; fpic_arg; out_file_bc; "-o"; out_file_s|] true |> ignore
+      run_command "clang-6.0" [|"clang-6.0"; "-S"; opt_arg;
+                                "-mavx";
+                                "-fno-strict-aliasing";
+                                "-fno-strict-overflow";
+                                "-fstack-protector";
+                                "-mretpoline";
+                                fpic_arg; out_file_bc; "-o"; out_file_s|] true |> ignore
 
 let output_object out_file =
   let out_file_s = out_file ^ ".s" in

@@ -5,6 +5,7 @@ let built : Llvm.llvalue -> unit = ignore
 type intrinsic =
   | Memcpy of int
   | Memset of int
+  | SMemset of int
   | Rotl of int
   | Rotr of int
   | SelectAsm of int
@@ -29,6 +30,7 @@ let rec get_intrinsic_code = function
 let get_intrinsic_name = function
   | Memcpy sz -> "fact.memcpy.i" ^ (string_of_int sz)
   | Memset sz -> "fact.memset.i" ^ (string_of_int sz)
+  | SMemset sz -> "fact.smemset.i" ^ (string_of_int sz)
   | Rotl sz -> "fact.rotl.i" ^ (string_of_int sz)
   | Rotr sz -> "fact.rotr.i" ^ (string_of_int sz)
   | SelectAsm sz -> "fact.select.asm.i" ^ (string_of_int sz)
@@ -94,6 +96,26 @@ let make_stuff llctx llmod =
           let len = param fn 2 in
           let alignment = const_int i32ty bytesz in
           let isvolatile = const_int i1ty 0 in
+            set_value_name "dst" dst;
+            set_value_name "n" n;
+            set_value_name "len" len;
+            let dst_ = build_bitcast dst memty "" b in
+            let len_ = build_mul len (const_int i64ty bytesz) "" b in
+              build_call memset [| dst_; n; len_; alignment; isvolatile |] "" b |> built;
+              build_ret_void b |> built;
+              fn
+        | SMemset sz ->
+          let bytesz = sz / 8 in
+          let pty = pointer_type (integer_type llctx sz) in
+          let memft = function_type voidty [| memty; i8ty; i64ty; i32ty; i1ty |] in
+          let memset = declare_function "llvm.memset.p0i8.i64" memft llmod in
+          let ft = function_type voidty [| pty; i8ty; i64ty |] in
+          let fn,b = def_internal name ft in
+          let dst = param fn 0 in
+          let n = param fn 1 in
+          let len = param fn 2 in
+          let alignment = const_int i32ty bytesz in
+          let isvolatile = const_int i1ty 1 in
             set_value_name "dst" dst;
             set_value_name "n" n;
             set_value_name "len" len;

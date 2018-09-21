@@ -527,8 +527,9 @@ class oobchecker debug m =
                            then mk_slt,mk_sle
                            else mk_ult,mk_ule) in
               let nonvacuous_loop_check = cmp ctx zlo zhi in
+              let nonvacuous_loop_warn = cmpe ctx zlo zhi in
                 visit#_assert_sat p nonvacuous_loop_check;
-                visit#_assert_warn p nonvacuous_loop_check "possible vacuous loop";
+                visit#_assert_warn p nonvacuous_loop_warn "possible vacuous loop";
                 let zconstraint =
                   Boolean.mk_and ctx
                     [ cmpe ctx zlo zdec ;
