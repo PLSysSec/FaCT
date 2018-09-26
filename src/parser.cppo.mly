@@ -5,18 +5,40 @@ open Err
 open Ast
 
 let to_type { data=t; pos=p } =
-  match t with
-    | "bool" -> Bool
-    | "int8" -> Int 8
-    | "int16" -> Int 16
-    | "int32" -> Int 32
-    | "int64" -> Int 64
-    | "uint8" -> UInt 8
-    | "uint16" -> UInt 16
-    | "uint32" -> UInt 32
-    | "uint64" -> UInt 64
-    | "uint128" -> UInt 128
-    | _ as t -> raise (errParseType p t)
+  { pos=p; data=
+    match t with
+      | "bool" -> BaseBool
+      | "int8" -> BaseInt 8
+      | "int16" -> BaseInt 16
+      | "int32" -> BaseInt 32
+      | "int64" -> BaseInt 64
+      | "uint8" -> BaseUInt 8
+      | "uint16" -> BaseUInt 16
+      | "uint32" -> BaseUInt 32
+      | "uint64" -> BaseUInt 64
+      | "uint128" -> BaseUInt 128
+      | _ as t -> raise (errParseType p t) }
+
+let to_base_type l ({ pos=p } as t) =
+  { pos=p; data=
+    match (to_type t).data with
+      | BaseBool -> Bool l
+      | BaseUInt s -> UInt(s, l)
+      | BaseInt s -> Int(s, l) }
+
+let lit_to_type { data=t; pos=p } =
+  { pos=p; data=
+    match t with
+      | "i8" -> BaseInt 8
+      | "i16" -> BaseInt 16
+      | "i32" -> BaseInt 32
+      | "i64" -> BaseInt 64
+      | "u8" -> BaseUInt 8
+      | "u16" -> BaseUInt 16
+      | "u32" -> BaseUInt 32
+      | "u64" -> BaseUInt 64
+      | "u128" -> BaseUInt 128
+      | _ as t -> raise (errParseType p t) }
 %}
 
 %token <int> INT
@@ -37,15 +59,16 @@ let to_type { data=t; pos=p } =
 %token IF ELSE
 %token <string> IDENT
 %token <string> TYPE
-%token FOR TO
+%token <string> LIT
+%token FOR FROM TO IN
 %token LBRACK RBRACK
 %token LBRACE RBRACE
 
 %token SECRET PUBLIC
-%token CONST MUT CLOBBER
+%token CONST MUT
 %token REF
 %token RETURN
-%token DECLASSIFY
+%token DECLASSIFY ASSUME
 %token ARRZEROS ARRCOPY ARRVIEW NOINIT
 %token SEMICOLON
 %token COMMA
@@ -54,13 +77,17 @@ let to_type { data=t; pos=p } =
 %token STRUCT DOT
 %token CACHELINE
 
+%token BIGFOR
+
 %token FD_START ST_START EX_START EX_END
 
 %token EOF
 
 (* precedence based on C operator precedence
  * http://en.cppreference.com/w/c/language/operator_precedence *)
+%nonassoc TERNOP
 %left QUESTION
+%left COLON
 %left LOGOR
 %left LOGAND
 %left BITOR
@@ -71,8 +98,8 @@ let to_type { data=t; pos=p } =
 %left LEFTSHIFT RIGHTSHIFT LEFTROTATE RIGHTROTATE
 %left PLUS MINUS
 %left TIMES DIVIDE MODULO
-%left DOT
 %nonassoc UNARYOP
+%left DOT
 
 (* Preprocessor shenanigans *)
 #define mkpos make_pos $symbolstartpos $endpos
@@ -80,7 +107,6 @@ let to_type { data=t; pos=p } =
 #define mkposrange(x,y) make_pos $startpos(x) $endpos(y)
 
 %start <Ast.fact_module> main
-%start <Ast.top_level> top_level
 
 %%
 main:
@@ -94,6 +120,9 @@ main:
 
 %inline plist(X):
   | LPAREN xs=separated_list(COMMA, X) RPAREN { xs }
+
+%inline slist(X):
+  | LBRACK xs=separated_list(COMMA, X) RBRACK { xs }
 
 %inline blist(X):
   | LBRACE xs=list(X) RBRACE { xs }
@@ -110,9 +139,30 @@ fun_name:
 struct_name:
   | s=IDENT { mkpos s }
 
+label:
+  | PUBLIC { mkpos Public }
+  | SECRET { mkpos Secret }
+
+basic_type:
+  | t=TYPE { to_type (mkpos t) }
+
 base_type:
-  | t=TYPE { mkpos (to_type (mkpos t)) }
-  | t=TYPE LESSTHAN n=INT GREATERTHAN
+  | l=label t=TYPE { to_base_type l (mkpos t) }
+  | l=label MUT t=TYPE { mkpos (Ref(to_base_type l (mkpos t), mkpos RW)) }
+
+  | l=label t=TYPE len=brack(lexpr) { mkpos (Arr(mkpos (Ref(to_base_type l (mkpos t), mkpos R)), len, default_var_attr)) }
+  | l=label MUT t=TYPE len=brack(lexpr) { mkpos (Arr(mkpos (Ref(to_base_type l (mkpos t), mkpos RW)), len, default_var_attr)) }
+
+  | l=label t=TYPE LBRACK RBRACK { mkpos (Arr(mkpos (Ref(to_base_type l (mkpos t), mkpos R)), mkpos LUnspecified, default_var_attr)) }
+  | l=label MUT t=TYPE LBRACK RBRACK { mkpos (Arr(mkpos (Ref(to_base_type l (mkpos t), mkpos RW)), mkpos LUnspecified, default_var_attr)) }
+
+  | CACHELINE b=base_type {
+      match b.data with
+        | Arr(base, len, vattr) ->
+            { b with data=(Arr(base, len, { vattr with cache_aligned=true })) }
+        | _ -> raise (errSyntax (to_pos $symbolstartpos $endpos)) }
+
+  | l=label t=TYPE LESSTHAN n=INT GREATERTHAN
     { let bw =
         match t with
             | "uint8" -> 8
@@ -120,19 +170,19 @@ base_type:
             | "uint32" -> 32
             | "uint64" -> 64
       in
-        mkpos (UVec(bw, n)) }
+        mkpos (UVec(bw, n, l)) }
+  | l=label MUT t=TYPE LESSTHAN n=INT GREATERTHAN
+    { let bw =
+        match t with
+            | "uint8" -> 8
+            | "uint16" -> 16
+            | "uint32" -> 32
+            | "uint64" -> 64
+      in
+        mkpos (Ref(mkpos (UVec(bw, n, l)), mkpos RW)) }
 
-array_type:
-  | b=base_type l=brack(lexpr) { mkpos (ArrayAT(b, l)) }
-  | b=base_type LBRACK RBRACK { mkpos (ArrayAT(b, mkpos LUnspecified)) }
-
-label:
-  | PUBLIC { mkpos Public }
-  | SECRET { mkpos Secret }
-
-mutability:
-  | CONST { mkpos Const }
-  | MUT { mkpos Mut }
+  | s=struct_name { mkpos (Ref (mkpos (Struct s), mkpos R)) }
+  | MUT s=struct_name { mkpos (Ref (mkpos (Struct s), mkpos RW)) }
 
 unop:
   | MINUS { Neg }
@@ -177,62 +227,47 @@ unop:
   | LEFTROTATEEQ { LeftRotate }
   | RIGHTROTATEEQ { RightRotate }
 
-arg:
-  | e=expr { mkpos (ByValue e) }
-  | REF x=lvalue { mkpos (ByRef x) }
-  | hasmut=boption(REF) a=array_expr { mkpos (ByArray(a,mkpos (if hasmut then Mut else Const))) }
-
 lexpr:
   | e=expr { mkpos (LExpression e) }
 
-lvalue:
-  | x=var_name { mkpos (Base x) }
-  | l=lvalue e=brack(expr) { mkpos (ArrayEl(l, e)) }
-  | l=lvalue DOT f=var_name { mkpos (StructEl(l, f)) }
+fieldassign:
+  | x=var_name COLON e=expr { (x, e) }
 
-expr:
+nonfn_expr:
   | e=paren(expr) { mkpos e.data }
   | b=BOOL { mkpos (if b then True else False) }
-  | n=INT { mkpos (IntLiteral n) }
-  | s=STRING {mkpos (StringLiteral s) }
-  | lval=lvalue { mkpos (Lvalue lval) }
-  | LEN lval=lvalue { mkpos (ArrayElLen lval) }
-  | b=paren(base_type) e=expr { mkpos (IntCast(b, e)) }
+  | n=INT { mkpos (UntypedIntLiteral n) }
+  | n=INT t=LIT { mkpos (IntLiteral(n, lit_to_type(mkpos t))) }
+  | x=var_name { mkpos (Variable x) }
+  | LEN e=expr %prec UNARYOP { mkpos (ArrayLen e) }
+  | t=basic_type e=paren(expr) { mkpos (Cast(t, e)) }
   | op=unop e=expr %prec UNARYOP { mkpos (UnOp(op, e)) }
   | e1=expr op=binop e2=expr { mkpos (BinOp(op, e1, e2)) }
-  | e1=expr QUESTION e2=expr COLON e3=expr { mkpos (TernOp(e1, e2, e3)) }
-  | fn=fun_name args=plist(arg) { mkpos (FnCall(fn, args)) }
+  | e1=expr QUESTION e2=expr COLON e3=expr %prec TERNOP { mkpos (TernOp(e1, e2, e3)) }
+  | e1=expr QUESTION QUESTION e2=expr COLON COLON e3=expr %prec TERNOP { mkpos (Select(e1, e2, e3)) }
   | DECLASSIFY e=paren(expr) { mkpos (Declassify e) }
+
+  | REF e=expr { mkpos (Enref e) }
+  | TIMES e=expr %prec UNARYOP { mkpos (Deref e) }
+  | e=expr i=brack(lexpr) { mkpos (ArrayGet(e, i)) }
+  | es=slist(expr) { mkpos (ArrayLit es) }
+  | ARRZEROS l=paren(lexpr) { mkpos (ArrayZeros l) }
+  | ARRCOPY e=paren(expr) { mkpos (ArrayCopy e) }
+  | ARRVIEW LPAREN e=expr COMMA i=lexpr COMMA l=lexpr RPAREN { mkpos (ArrayView(e, i, l)) }
+
+  | LESSTHAN ns=separated_list(COMMA, INT) GREATERTHAN
+    { mkpos (VectorLit ns) }
   | e=expr COLON LESSTHAN mask=separated_list(COMMA, INT) GREATERTHAN
     { mkpos (Shuffle(e, mask)) }
 
-array_expr:
-  | es=alist(expr) { mkpos (ArrayLit es) }
-  | a=lvalue { mkpos (ArrayVar a) }
-  | ARRZEROS l=paren(lexpr) { mkpos (ArrayZeros l) }
-  | ARRCOPY a=paren(lvalue) { mkpos (ArrayCopy a) }
-  | ARRVIEW LPAREN a=lvalue COMMA i=expr COMMA l=lexpr RPAREN { mkpos (ArrayView(a, i, l)) }
-  | NOINIT l=paren(lexpr) { mkpos (ArrayNoinit l) }
+  | fs=alist(fieldassign) { mkpos (StructLit fs) }
+  | e=expr DOT x=var_name { mkpos (StructGet(e, x)) }
 
-base_variable_type:
-  | b=base_type
-    { mkpos (RefVT(b, mkpos Unknown, mkpos Const)) }
-  | l=label b=base_type
-    { mkpos (RefVT(b, l, mkpos Const)) }
-  | m=mutability b=base_type
-    { mkpos (RefVT(b, mkpos Unknown, m)) }
-  | l=label m=mutability b=base_type
-    { mkpos (RefVT(b, l, m)) }
+  | s=STRING {mkpos (StringLiteral s) }
 
-array_variable_type:
-  | a=array_type
-    { mkpos (ArrayVT(a, mkpos Unknown, mkpos Const, default_var_attr)) }
-  | l=label a=array_type
-    { mkpos (ArrayVT(a, l, mkpos Const, default_var_attr)) }
-  | m=mutability a=array_type
-    { mkpos (ArrayVT(a, mkpos Unknown, m, default_var_attr)) }
-  | l=label m=mutability a=array_type
-    { mkpos (ArrayVT(a, l, m, default_var_attr)) }
+expr:
+  | e=nonfn_expr { e }
+  | fn=fun_name args=plist(expr) { mkpos (FnCallExpr(fn, args)) }
 
 %inline if_clause:
   | IF c=paren(expr) thens=block elses=loption(ELSE elses=else_clause { elses })
@@ -244,88 +279,43 @@ else_clause:
   | elses=block
     { elses }
 
-for_loop_update:
-  | lval=lvalue ASSIGN e=expr
-    { mkpos (Assign(lval, e)) }
-  | lval=lvalue op=binopeq e=expr
-    { mkpos (Assign(lval, mkpos (BinOp(op, mkposof(lval) (Lvalue lval), e)))) }
-
 statement:
-  | b=base_variable_type x=var_name ASSIGN e=expr SEMICOLON
-    { mkpos (BaseDec(x, b, e)) }
-  | a=array_variable_type x=var_name ASSIGN ae=array_expr SEMICOLON
-    { mkpos (ArrayDec(x, a, ae)) }
-  | CACHELINE a=array_variable_type x=var_name ASSIGN ae=array_expr SEMICOLON
-    { let { data=ArrayVT(a,l,m,attr) } = a in
-      let attr' = { attr with cache_aligned=true } in
-      let a' = { a with data=ArrayVT(a,l,m,attr') } in
-      mkpos (ArrayDec(x, a', ae)) }
-  | MUT STRUCT s=struct_name x=var_name SEMICOLON (* XXX make this better *)
-    { mkpos (StructDec(x, s)) }
-  | a=array_variable_type x=var_name ASSIGN n=var_name RIGHTARROW e=expr SEMICOLON
-    { let { data=ArrayVT({ data=ArrayAT(b, l) }, _, _, _) } = a in
-      mkpos (ArrayDec(x, a, mkposrange(n,e) (ArrayComp(b, l, n, e)))) }
-  | stmt=for_loop_update SEMICOLON
-    { stmt }
+  | stms=block { mkpos (Block stms) }
+  | b=base_type x=var_name ASSIGN e=nonfn_expr SEMICOLON
+    { mkpos (VarDec(x, b, e)) }
+  | b=base_type x=var_name ASSIGN fn=fun_name args=plist(expr) SEMICOLON
+    { mkpos (FnCall(x, b, fn, args)) }
+  | fn=fun_name args=plist(expr) SEMICOLON
+    { mkpos (VoidFnCall(fn, args)) }
+  | e1=expr ASSIGN e2=expr SEMICOLON
+    { mkpos (Assign(e1, e2)) }
+  | e1=expr op=binopeq e2=expr SEMICOLON
+    { let binop = mkpos (BinOp(op, e1, e2)) in
+        mkpos (Assign(e1, binop)) }
   | iff=if_clause (* takes care of else ifs and elses too! *)
     { iff }
-  | a=FOR LPAREN b=base_type i=var_name ASSIGN e1=expr TO e2=expr z=RPAREN stms=block
-    { warn @@ InternalCompilerError ("warning: deprecated for loop syntax" << (to_pos $startpos(a) $endpos(z)));
-      let one = mkposrange(e1,e2) (IntLiteral 1) in
-      let lval = mkposof(i) (Base i) in
-      let lvale = mkposof(i) (Lvalue lval) in
-      let cond = mkposof(e2) (BinOp(LT, lvale, e2)) in
-      let incr = mkposrange(e1,e2) (BinOp(Plus, lvale, one)) in
-      let upd = mkposrange(i,e2) (Assign(lval, incr)) in
-      mkposrange(a,z) (For(i, b, e1, cond, upd, stms)) }
-  | a=FOR LPAREN b=base_type i=var_name ASSIGN e1=expr SEMICOLON e2=expr SEMICOLON upd=for_loop_update z=RPAREN stms=block
-    { mkposrange(a,z) (For(i, b, e1, e2, upd, stms)) }
-  | fn=fun_name args=plist(arg) SEMICOLON
-    { mkpos (VoidFnCall(fn, args)) }
+  | a=FOR LPAREN t=basic_type x=var_name FROM e1=expr TO e2=expr z=RPAREN stms=block
+    { mkposrange(a,z) (RangeFor(x, t, e1, e2, stms)) }
+  | a=FOR LPAREN t=basic_type x=var_name IN e=expr z=RPAREN stms=block
+    { mkposrange(a,z) (ArrayFor(x, t, e, stms)) }
   | RETURN e=expr SEMICOLON
     { mkpos (Return e) }
   | RETURN SEMICOLON
     { mkpos VoidReturn }
+  | ASSUME e=paren(expr) SEMICOLON
+    { mkpos (Assume e) }
+  | a=BIGFOR LPAREN x=var_name FROM n1=INT TO n2=INT z=RPAREN stms=block
+    { mkposrange(a,z) (BigFor(x, n1, n2, stms)) }
 
 %inline block: xs=blist(statement) { xs }
 
 ret_type:
   | VOID { None }
-  | l=label b=base_type { Some (mkpos (BaseET(b, l))) }
-
-param_type:
-  | l=label b=base_type
-    { mkpos (RefVT(b, l, mkpos Const)) }
-  | l=label m=mutability b=base_type
-    { mkpos (RefVT(b, l, m)) }
-  | l=label a=array_type
-    { mkpos (ArrayVT(a, l, mkpos Const, default_var_attr)) }
-  | l=label m=mutability a=array_type
-    { mkpos (ArrayVT(a, l, m, default_var_attr)) }
-  | STRUCT s=struct_name
-    { mkpos (StructVT(s, mkpos Const)) }
-  | m=mutability STRUCT s=struct_name
-    { mkpos (StructVT(s, m)) }
+  | b=base_type { Some b }
 
 param:
-  | t=param_type x=var_name
-    { mkpos (Param(x, t, default_param_attr)) }
-  | CLOBBER t=param_type x=var_name
-    { mkpos (Param(x, t, { default_param_attr with output_only = true })) }
-
-field_type:
-  | l=label b=base_type
-    { mkpos (RefVT(b, l, mkpos Mut)) }
-  | l=label a=array_type
-    { mkpos (ArrayVT(a, l, mkpos Mut, default_var_attr)) }
-  | STRUCT s=struct_name
-    { mkpos (StructVT(s, mkpos Mut)) }
-
-field:
-  | t=field_type x=var_name SEMICOLON
-    { mkpos (Field(x, t, false)) }
-  | REF t=field_type x=var_name SEMICOLON
-    { mkpos (Field(x, t, true)) }
+  | t=base_type x=var_name
+    { mkpos (Param(x, t)) }
 
 function_dec:
   | export=boption(EXPORT) r=ret_type fn=fun_name params=plist(param) body=block
@@ -335,25 +325,34 @@ function_dec:
   | NOINLINE r=ret_type fn=fun_name params=plist(param) body=block
     { mkpos (FunDec(fn, {export=false; inline=Never}, r, params, body)) }
   | EXTERN r=ret_type fn=fun_name params=plist(param) SEMICOLON
-    { mkpos (CExtern(fn, r, params)) }
+    { mkpos (CExtern(fn, {benign=false}, r, params)) }
+
+field:
+  | b=base_type x=var_name SEMICOLON
+    { let p = b.pos in
+      let b' =
+        match b.data with
+          | Arr ({data=Ref (subty,{data=R})}, len, vattr) ->
+              p @> Arr (p@>Ref (subty,p@>RW), len, vattr)
+          | Arr ({data=Ref (subty,{data=RW})}, len, vattr) ->
+              p @> Ref (p@>Arr (p@>Ref (subty,p@>RW), len, vattr), p@>R)
+          | Ref ({data=Struct _} as b', {data=R}) -> b'
+          | _ -> b
+      in
+        mkpos (Field(x, b')) }
 
 struct_dec:
   | STRUCT s=struct_name fields=blist(field)
-    { mkpos (Struct(s, fields)) }
+    { mkpos (StructDef(s, fields)) }
 
 fact_module:
   | fdec=function_dec
-    { Module ([fdec], []) }
+    { Module ([], [fdec]) }
   | sdec=struct_dec
-    { Module ([], [sdec]) }
+    { Module ([sdec], []) }
   | fdec=function_dec m=fact_module
-    { let Module(fdecs,sdecs) = m in
-        Module (fdec :: fdecs, sdecs) }
+    { let Module(sdecs,fdecs) = m in
+        Module (sdecs, fdec :: fdecs) }
   | sdec=struct_dec m=fact_module
-    { let Module(fdecs,sdecs) = m in
-        Module (fdecs, sdec :: sdecs) }
-
-top_level:
-  | FD_START fd=function_dec       { FunctionDec fd }
-  | ST_START st=statement          { Statement st }
-  | EX_START ex=expr EX_END        { Expression ex }
+    { let Module(sdecs,fdecs) = m in
+        Module (sdec :: sdecs, fdecs) }

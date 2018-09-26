@@ -38,19 +38,21 @@ let keywords = [
   ("if",IF);
   ("else",ELSE);
   ("for",FOR);
+  ("from",FROM);
   ("to",TO);
+  ("in",IN);
   ("return",RETURN);
   ("public",PUBLIC);
   ("secret",SECRET);
   ("const",CONST);
   ("mut",MUT);
-  ("clobber",CLOBBER);
   ("ref",REF);
   ("len",LEN);
   ("declassify",DECLASSIFY);
-  ("arrzeros",ARRZEROS);
-  ("arrcopy",ARRCOPY);
-  ("arrview",ARRVIEW);
+  ("assume",ASSUME);
+  ("zeros",ARRZEROS);
+  ("clone",ARRCOPY);
+  ("view",ARRVIEW);
   ("noinit",NOINIT);
   ("extern",EXTERN);
   ("inline",INLINE);
@@ -58,6 +60,7 @@ let keywords = [
   ("noinline",NOINLINE);
   ("struct",STRUCT);
   ("cacheline",CACHELINE);
+  ("FOR",BIGFOR);
 ]
 let _ = List.map add_keyword keywords
 }
@@ -66,7 +69,8 @@ let whitespace = [' ' '\t' '\n']
 let all_ints = ['0'-'9' 'A'-'F' 'a'-'f']
 let ints = ['0'-'9']
 let chars_ints = ['_' 'a'-'z' 'A'-'Z']['_' 'a'-'z' 'A'-'Z' '0'-'9']*
-let int_type = ("int" | "uint") ("8" | "16" | "32" | "64" | "128")?
+let int_type = ("int" | "uint") ("8" | "16" | "32" | "64" | "128")
+let lit_type = ("i" | "u") ("8" | "16" | "32" | "64" | "128")
 let base_type = "bool" | int_type
 
 rule token = parse
@@ -81,6 +85,7 @@ rule token = parse
   | "true"         { BOOL(true) }
   | "false"        { BOOL(false) }
   | base_type as c { TYPE(c) }
+  | lit_type as t  { LIT(t) }
   | chars_ints * as c
     { try Hashtbl.find keywords_table c
       with Not_found -> IDENT c }

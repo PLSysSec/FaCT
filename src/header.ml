@@ -1,139 +1,142 @@
+open Util
 open Pos
 open Err
 open Tast
 
-(* x for 'eXtract' *)
-let xwrap f pa = f pa.pos pa.data
+let sprintf = Printf.sprintf
+let concat = String.concat
 
-let gh_bty =
-  xwrap @@ fun p -> function
-    | UInt n -> Printf.sprintf "uint%d_t" n
-    | Int  n -> Printf.sprintf  "int%d_t" n
-    | Bool   -> Printf.sprintf  "uint8_t" (* XXX *)
-    | Num  _ -> raise @@ err(p)
+class headerator (m : fact_module) =
+  object (visit)
+    val mutable _indent : int = -1
 
-let gh_label' p = function
-  | Public -> "/*public*/"
-  | Secret -> "/*secret*/"
-  | Unknown -> raise @@ err(p)
+    val _minfo : module_info =
+      let Module(_,_,minfo) = m in minfo
 
-let gh_label =
-  xwrap @@ fun p -> function
-    | Fixed l -> gh_label' p l
-    | Guess _ -> raise @@ err(p)
+    method _prindent n =
+      "\n" ^ (String.make ((_indent + n) * 2) ' ')
 
-let gh_mut =
-  xwrap @@ fun p -> function
-    | Const -> ""
-    | Mut -> " *"
+    method fact_module header_guard =
+      let Module(sdecs,fdecs,_) = m in
+      let sdecs' = (concat "\n\n" @@ List.map visit#sdec sdecs) in
+      let fdecs' = (concat "\n\n" @@ List.map visit#fdec fdecs) in
+        sprintf
+          "#ifndef %s
+#define %s
 
-let gh_amut =
-  xwrap @@ fun p -> function
-    | Const -> "const "
-    | Mut -> ""
+%s
 
-let gh_lexpr =
-  xwrap @@ fun p -> function
-    | LIntLiteral n -> string_of_int n
-    | LDynamic _ -> ""
 
-let gh_aty =
-  xwrap @@ fun p -> function
-    | ArrayAT(b,_) -> Printf.sprintf "%s" (gh_bty b)
+%s
 
-let gh_aty_post =
-  xwrap @@ fun p -> function
-    | ArrayAT(_,lexpr) -> Printf.sprintf "[%s]" (gh_lexpr lexpr)
+#endif /* %s */"
+          header_guard
+          header_guard
+          sdecs'
+          fdecs'
+          header_guard
 
-let gh_ety =
-  xwrap @@ fun p -> function
-    | BaseET(b,l) -> String.concat "\n" [gh_label l; gh_bty b]
-    | ArrayET _ -> raise @@ err(p)
-
-let gh_vty x =
-  xwrap @@ fun p -> function
-    | RefVT(b,l,m) -> Printf.sprintf "%s %s%s %s" (gh_label l) (gh_bty b) (gh_mut m) x
-    | ArrayVT(a,l,m,_) -> Printf.sprintf "%s %s%s %s%s" (gh_label l) (gh_amut m) (gh_aty a) x (gh_aty_post a)
-    | StructVT(s,m) -> Printf.sprintf "struct %s * %s%s" s.data (gh_amut m) x
-
-let gh_rty = function
-  | None -> "void"
-  | Some ety -> gh_ety ety
-
-let gh_param { data=Param(x,vty,_) } =
-  "\n  " ^ gh_vty x.data vty
-
-let gh_fdec fenv =
-  xwrap @@ fun p -> function
-    | FunDec(f,ft,rt,params,_) ->
-      let _,everhi = Env.find_var fenv f in
-        if not ft.export then
-          Printf.sprintf "/* %s is an internal function */" f.data
-        else if !everhi then
-          Printf.sprintf "/* %s is not an exportable function */" f.data
-        else
-          let paramdecs = String.concat "," @@ List.map gh_param params in
-            Printf.sprintf
-              "%s %s(%s);"
-              (gh_rty rt)
-              f.data
-              paramdecs
-    | _ -> ""
-
-let gh_field =
-  xwrap @@ fun p -> function
-    | Field(x,vty,is_pointer) ->
-      match vty.data with
-        | RefVT(b,l,_) ->
-          Printf.sprintf
-            "//   %s %s %s%s;"
-            (gh_label l)
-            (gh_bty b)
-            (if is_pointer then "*" else "")
-            x.data
-        | ArrayVT(a,l,_,_) ->
-          Printf.sprintf
-            "//   %s %s%s %s%s;"
-            (gh_label l)
-            (gh_aty a)
-            (if is_pointer then " *" else "")
-            x.data
-            (if is_pointer then "" else gh_aty_post a)
-        | StructVT(s,_) ->
-          Printf.sprintf
-            "//   struct %s %s%s;"
-            s.data
-            (if is_pointer then "*" else "")
-            x.data
-
-let gh_sdec =
-  xwrap @@ fun p -> function
-    | Struct(sname,fields) ->
-      Printf.sprintf
-        "struct %s;
+    method sdec =
+      xwrap @@ fun p ->
+      fun (StructDef (name,fields)) ->
+        sprintf
+          "struct %s;
 // struct %s {
 %s
 // };"
-        sname.data
-        sname.data
-        (String.concat "\n" @@ List.map gh_field fields)
+          name.data
+          name.data
+          (concat "\n" @@ List.map visit#field fields)
 
+    method field =
+      xwrap @@ fun p ->
+      fun (Field (x,bty)) ->
+        sprintf
+          "//   %s %s;"
+          (visit#bty bty)
+          x.data
 
-let gh_module (Module(fenv,fdecs,sdecs)) =
-  String.concat "\n\n" @@ (List.map gh_sdec sdecs @ List.map (gh_fdec fenv) fdecs)
+    method fdec =
+      xwrap @@ fun p -> function
+        | FunDec(fn,ft,rt,params,body) ->
+            if not ft.export then
+              sprintf "/* %s is an internal function */" fn.data
+            else if ft.everhi then
+              sprintf "/* %s is not an exportable function */" fn.data
+            else
+              let params' = concat "," @@ List.map visit#param params in
+                sprintf "%s %s(%s);"
+                  (visit#rty rt)
+                  fn.data
+                  params'
+        | _ -> ""
+
+    method rty = function
+      | None -> "void"
+      | Some bt -> visit#bty bt
+
+    method param =
+      xwrap @@ fun p -> function
+        | Param (x,bty) ->
+          sprintf "\n  %s %s%s"
+            (visit#bty bty)
+            x.data
+            (visit#abty bty)
+
+    method lbl =
+      xwrap @@ fun p -> function
+        | Public -> "/*public*/"
+        | Secret -> "/*secret*/"
+
+    method mut =
+      xwrap @@ fun p -> function
+        | R -> ""
+        | W -> " *"
+        | RW -> " *"
+
+    method amut =
+      xwrap @@ fun p -> function
+        | R -> "const "
+        | W -> ""
+        | RW -> ""
+
+    method bty =
+      xwrap @@ fun p -> function
+        | Bool l -> sprintf "%s uint8_t" (visit#lbl l)
+        | UInt (s,l) -> sprintf "%s uint%d_t" (visit#lbl l) s
+        | Int (s,l) -> sprintf "%s int%d_t" (visit#lbl l) s
+        | Ref ({data=Struct s},m) -> sprintf "%sstruct %s *" (visit#amut m) s.data
+        | Ref (bt,m) -> sprintf "%s%s" (visit#bty bt) (visit#mut m)
+        | Arr ({data=Ref (bt,m)},lexpr,_) -> sprintf "%s%s" (visit#amut m) (visit#bty bt)
+        | _ -> "X[bty]X"
+
+    method abty =
+      xwrap @@ fun p -> function
+        | Arr (_,lexpr,_) -> sprintf "[%s]" (visit#lexpr lexpr)
+        | _ -> ""
+
+    method lexpr =
+      xwrap @@ fun p -> function
+        | LIntLiteral n -> string_of_int n
+        | LDynamic x -> ""
+
+  end
+
+let underscore str =
+  "__" ^
+  String.map
+    (fun c ->
+       if not ((c >= '0' && c <= '9') ||
+               (c >= 'a' && c <= 'z') ||
+               (c >= 'A' && c <= 'Z'))
+       then '_'
+       else c)
+    str
 
 let generate_header fname m =
-  let header_name = fname
+  let header_guard = fname
                     |> Filename.basename
-                    |> String.uppercase_ascii in
-    Printf.sprintf
-      "#ifndef __%s_H
-#define __%s_H
-
-%s
-
-#endif /* __%s_H */"
-      header_name
-      header_name
-      (gh_module m)
-      header_name
+                    |> String.uppercase_ascii
+                    |> underscore in
+  let visit = new headerator m in
+    visit#fact_module header_guard

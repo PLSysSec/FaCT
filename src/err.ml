@@ -19,10 +19,15 @@ exception SMTSolverError of string
 
 exception TransformError of string
 
-let ( << ) s p = Pos.pos_string p ^ ": " ^ s
-
-let cerr (msg, p) = InternalCompilerError("error: " ^ msg << p)
-let err p = cerr("internal compiler error", p)
+let werr p =
+  Printf.ksprintf
+    (fun s ->
+       InternalCompilerError("warning: " ^ s << p))
+let cerr p =
+  Printf.ksprintf
+    (fun s ->
+       InternalCompilerError("error: " ^ s << p))
+let err p = cerr p "compile error"
 
 let warn (InternalCompilerError s) =
   let ss = Str.bounded_split (Str.regexp_string " ") s 3 in

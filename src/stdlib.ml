@@ -1,622 +1,474 @@
+open Util
 open Pos
-open Llvm
-open Llvm.AttrIndex
-open Llvm.Linkage
+open Err
 open Tast
-open Codegen_utils
-
-let p : pos = {file=""; line=0; lpos=0; rpos=0}
-
-type intrinsic = 
-  | Memcpy
-  | Memset
-  | Rotl of int
-  | Rotr of int
-  | Declass of int
-  | CmovAsm of int
-  | CmovXor of int
-  | CmovSel of int
-  | CmovAsm8 of int
-  | Trap
-
-let rec string_of_intrinsic = function
-  | Memcpy -> "llvm.memcpy.p0i8.p0i8.i64"
-  | Memset -> "llvm.memset.p0i8.i64"
-  | Rotl n -> "__rotl" ^ (string_of_int n)
-  | Rotr n -> "__rotr" ^ (string_of_int n)
-  | Declass n -> "fact.declassify.i" ^ (string_of_int n)
-  | CmovAsm n -> "select.cmov.asm.i" ^ (string_of_int n)
-  | CmovXor n -> "select.cmov.xor.i" ^ (string_of_int n)
-  | CmovSel n -> "select.cmov.sel.i" ^ (string_of_int n)
-  | CmovAsm8 n ->
-    if n < 32 then
-      string_of_intrinsic (CmovAsm n)
-    else
-      string_of_intrinsic (CmovSel n)
-  | Trap -> "llvm.trap"
-
-let rec declare_intrinsic cg_ctx = function
-  | Memcpy ->
-    let i32_ty = i32_type cg_ctx.llcontext in
-    let i64_ty = i64_type cg_ctx.llcontext in
-    let ptr_ty = pointer_type (i8_type cg_ctx.llcontext) in
-    let bool_ty = i1_type cg_ctx.llcontext in
-    let arg_types = [| ptr_ty; ptr_ty; i64_ty; i32_ty; bool_ty |] in
-    let vt = void_type cg_ctx.llcontext in
-    let ft = function_type vt arg_types in
-      declare_function (string_of_intrinsic Memcpy) ft cg_ctx.llmodule
-  | Memset ->
-    let i8_ty = i8_type cg_ctx.llcontext in
-    let i32_ty = i32_type cg_ctx.llcontext in
-    let i64_ty = i64_type cg_ctx.llcontext in
-    let ptr_ty = pointer_type (i8_type cg_ctx.llcontext) in
-    let bool_ty = i1_type cg_ctx.llcontext in
-    let arg_types = [| ptr_ty; i8_ty; i64_ty; i32_ty; bool_ty |] in
-    let vt = void_type cg_ctx.llcontext in
-    let ft = function_type vt arg_types in
-      declare_function (string_of_intrinsic Memset) ft cg_ctx.llmodule
-  | Rotl n as rotl_sz ->
-    (* we expect this function to get inlined and disappear at high optimization levels *)
-    let ity = integer_type cg_ctx.llcontext n in
-    let ft = function_type ity [| ity; ity |] in
-    let fn = declare_function (string_of_intrinsic rotl_sz) ft cg_ctx.llmodule in
-      add_function_attr fn cg_ctx.alwaysinline Function;
-      set_linkage Internal fn;
-    let bb = append_block cg_ctx.llcontext "entry" fn in
-    let b = builder cg_ctx.llcontext in
-      position_at_end bb b;
-      let e1 = param fn 0 in
-      let e2 = param fn 1 in
-        set_value_name "_secret_x" e1;
-        set_value_name "_secret_n" e2;
-      let lshift = build_shl e1 e2 "_secret_lshift" b in
-      let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
-      let lrshift = build_lshr e1 subtmp "_secret_lrshift" b in
-      let rotltmp = build_or lshift lrshift "_secret_rotltmp" b in
-        build_ret rotltmp b |> ignore;
-        fn
-  | Rotr n as rotr_sz ->
-    (* we expect this function to get inlined and disappear at high optimization levels *)
-    let ity = integer_type cg_ctx.llcontext n in
-    let ft = function_type ity [| ity; ity |] in
-    let fn = declare_function (string_of_intrinsic rotr_sz) ft cg_ctx.llmodule in
-      add_function_attr fn cg_ctx.alwaysinline Function;
-      set_linkage Internal fn;
-    let bb = append_block cg_ctx.llcontext "entry" fn in
-    let b = builder cg_ctx.llcontext in
-      position_at_end bb b;
-      let e1 = param fn 0 in
-      let e2 = param fn 1 in
-        set_value_name "_secret_x" e1;
-        set_value_name "_secret_n" e2;
-      let lrshift = build_lshr e1 e2 "_secret_lrshift" b in
-      let subtmp = build_sub (const_int (type_of e1) n) e2 "_secret_subtmp" b in
-      let lshift = build_shl e1 subtmp "_secret_lshift" b in
-      let rotrtmp = build_or lrshift lshift "_secret_rotrtmp" b in
-        build_ret rotrtmp b |> ignore;
-        fn
-  | Declass n as dec_sz ->
-    let ity = integer_type cg_ctx.llcontext n in
-    let ft = function_type ity [| ity |] in
-    let fn = declare_function (string_of_intrinsic dec_sz) ft cg_ctx.llmodule in
-      add_function_attr fn cg_ctx.noinline Function;
-      set_linkage Internal fn;
-    let bb = append_block cg_ctx.llcontext "entry" fn in
-    let b = builder cg_ctx.llcontext in
-      position_at_end bb b;
-      let e1 = param fn 0 in
-        set_value_name "_declassified_x" e1;
-        build_ret e1 b |> ignore;
-        fn
-  | CmovAsm n as cmov_sz ->
-    let i1ty = i1_type cg_ctx.llcontext in
-    let i32ty = i32_type cg_ctx.llcontext in
-    let ity = integer_type cg_ctx.llcontext n in
-    let asmty = if n < 32 then i32ty else ity in
-
-    let ft = function_type ity [| i1ty; ity; ity |] in
-    let asmfty = function_type asmty [| i1ty; asmty; asmty |] in
-
-    let fn = declare_function (string_of_intrinsic cmov_sz) ft cg_ctx.llmodule in
-      add_function_attr fn cg_ctx.alwaysinline Function;
-      set_linkage Internal fn;
-    let bb = append_block cg_ctx.llcontext "entry" fn in
-    let b = builder cg_ctx.llcontext in
-
-    let ext x' =
-      if n < 32 then
-        build_zext x' i32ty "_secret_zext" b
-      else x' in
-    let trunc x' =
-      if n < 32 then
-        build_trunc x' ity "_secret_trunc" b
-      else x' in
-
-      position_at_end bb b;
-      let cond = param fn 0 in
-      let x' = param fn 1 in
-      let y' = param fn 2 in
-        set_value_name "_secret_cond" cond;
-        set_value_name "_secret_a" x';
-        set_value_name "_secret_b" y';
-        let x = ext x' in
-        let y = ext y' in
-        let asm = const_inline_asm
-                    asmfty
-                    "testb $1, $1; mov $3, $0; cmovnz $2, $0"
-                    "=&r,r,r,r,~{flags}"
-                    false false in
-        let ret' = build_call asm [| cond; x; y; |] "_secret_asm" b in
-        let ret = trunc ret' in
-          build_ret ret b |> ignore;
-          fn
-  | CmovXor n as cmov_sz ->
-    let i1ty = i1_type cg_ctx.llcontext in
-    let ity = integer_type cg_ctx.llcontext n in
-
-    let ft = function_type ity [| i1ty; ity; ity |] in
-
-    let fn = declare_function (string_of_intrinsic cmov_sz) ft cg_ctx.llmodule in
-      add_function_attr fn cg_ctx.alwaysinline Function;
-      set_linkage Internal fn;
-    let bb = append_block cg_ctx.llcontext "entry" fn in
-    let b = builder cg_ctx.llcontext in
-
-      position_at_end bb b;
-      let cond = param fn 0 in
-      let x = param fn 1 in
-      let y = param fn 2 in
-        set_value_name "_secret_cond" cond;
-        set_value_name "_secret_a" x;
-        set_value_name "_secret_b" y;
-        let m = build_sext cond ity "_secret_cond_sext" b in
-        let xor = build_xor x y "_secret_xor" b in
-        let t = build_and m xor "_secret_t" b in
-        let ret = build_xor y t "_secret_res" b in
-          build_ret ret b |> ignore;
-          fn
-  | CmovSel n as cmov_sz ->
-    let i1ty = i1_type cg_ctx.llcontext in
-    let ity = integer_type cg_ctx.llcontext n in
-
-    let ft = function_type ity [| i1ty; ity; ity |] in
-
-    let fn = declare_function (string_of_intrinsic cmov_sz) ft cg_ctx.llmodule in
-      add_function_attr fn cg_ctx.alwaysinline Function;
-      set_linkage Internal fn;
-    let bb = append_block cg_ctx.llcontext "entry" fn in
-    let b = builder cg_ctx.llcontext in
-
-      position_at_end bb b;
-      let cond = param fn 0 in
-      let x = param fn 1 in
-      let y = param fn 2 in
-        set_value_name "_secret_cond" cond;
-        set_value_name "_secret_a" x;
-        set_value_name "_secret_b" y;
-        let ret = build_select cond x y "_secret_select" b in
-          build_ret ret b |> ignore;
-          fn
-  | CmovAsm8 n ->
-    if n < 32 then
-      declare_intrinsic cg_ctx (CmovAsm n)
-    else
-      declare_intrinsic cg_ctx (CmovSel n)
-  | Trap ->
-    let arg_types = [| |] in
-    let vt = void_type cg_ctx.llcontext in
-    let ft = function_type vt arg_types in
-      declare_function (string_of_intrinsic Trap) ft cg_ctx.llmodule
-
-let get_intrinsic intrinsic cg_ctx =
-  match lookup_function (string_of_intrinsic intrinsic) cg_ctx.llmodule with
-    | Some fn -> fn
-    | None -> declare_intrinsic cg_ctx intrinsic
-
-
-let load_le_proto' n name' =
-  let name = p @> name' in
-  let ft = { export=false; inline=Always } in
-
-  let rt' = p @> BaseET(p @> UInt n, p @> Fixed Secret) in
-  let rt = Some rt' in
-
-  let arr = p @> ArrayAT(p @> UInt 8, p @> LIntLiteral (n / 8)) in
-  let arg = p @> ArrayVT(arr, p @> Fixed Secret, p @> Const, default_var_attr) in
-  let params = [p @> Param (p @> "src", arg, default_param_attr)] in
-
-  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
-    name,fdec
-
-let load_vec_le_proto' bw n name' =
-  let name = p @> name' in
-  let ft = { export=false; inline=Always } in
-
-  let rt' = p @> BaseET(p @> UVec(bw,n), p @> Fixed Secret) in
-  let rt = Some rt' in
-
-  let arr = p @> ArrayAT(p @> UInt bw, p @> LIntLiteral n) in
-  let arg = p @> ArrayVT(arr, p @> Fixed Secret, p @> Const, default_var_attr) in
-  let params = [p @> Param (p @> "src", arg, default_param_attr)] in
-
-  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
-    name,fdec
-
-let load32_le_proto () =
-  load_le_proto' 32 "_load32_le"
-let load64_le_proto () =
-  load_le_proto' 64 "_load64_le"
-let load32_4_le_proto () =
-  load_vec_le_proto' 32 4 "_load32_4_le"
-
-let store_le_proto' n lbl name' =
-  let name = p @> name' in
-  let ft = { export=false; inline=Always } in
-  let rt = None in
-
-  let arr = p @> ArrayAT(p @> UInt 8, p @> LIntLiteral (n / 8)) in
-  let arg = p @> ArrayVT(arr, p @> Fixed lbl, p @> Mut, default_var_attr) in
-
-  let w = p @> RefVT(p @> UInt n, p @> Fixed Secret, p @> Const) in
-  let out_attr = { default_param_attr with output_only = true } in
-  let params = [p @> Param (p @> "dst", arg, out_attr); p @> Param (p @> "w", w, default_param_attr)] in
-
-  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
-    name,fdec
-
-let store_vec_le_proto' bw n name' =
-  let name = p @> name' in
-  let ft = { export=false; inline=Always } in
-  let rt = None in
-
-  let arr = p @> ArrayAT(p @> UInt bw, p @> LIntLiteral n) in
-  let arg = p @> ArrayVT(arr, p @> Fixed Secret, p @> Mut, default_var_attr) in
-
-  let w = p @> RefVT(p @> UVec(bw,n), p @> Fixed Secret, p @> Const) in
-  let out_attr = { default_param_attr with output_only = true } in
-  let params = [p @> Param (p @> "dst", arg, out_attr); p @> Param (p @> "w", w, default_param_attr)] in
-
-  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
-    name,fdec
-
-let store32_le_proto () =
-  store_le_proto' 32 Secret "_store32_le"
-let store64_le_proto () =
-  store_le_proto' 64 Secret "_store64_le"
-let store64p_le_proto () =
-  store_le_proto' 64 Public "_store64_le_public"
-let store32_4_le_proto () =
-  store_vec_le_proto' 32 4 "_store32_4_le"
-
-let memzero_proto' n name' () =
-  let name = p @> name' in
-  let ft = { export=false; inline=Never } in
-  let rt = None in
-
-  let arr = p @> ArrayAT(p @> UInt n, p @> LDynamic (p @> "_len")) in
-  let arg = p @> ArrayVT(arr, p @> Fixed Secret, p @> Mut, default_var_attr) in
-
-  let len = p @> RefVT(p @> UInt 32, p @> Fixed Public, p @> Const) in
-  let out_attr = { default_param_attr with output_only = true } in
-  let params = [p @> Param (p @> "arr", arg, out_attr); p @> Param (p @> "_len", len, default_param_attr)] in
-
-  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
-    name,fdec
-
-let memzero_proto = memzero_proto' 8 "_memzero"
-let memzero32_proto = memzero_proto' 32 "_memzero32"
-let memzero64_proto = memzero_proto' 64 "_memzero64"
-
-let arrcopy_proto () =
-  let name = p @> "_arrcopy" in
-  let ft = { export=false; inline=Never } in
-  let rt = None in
-
-  let arr1 = p @> ArrayAT(p @> UInt 8, p @> LDynamic (p @> "_len1")) in
-  let arr2 = p @> ArrayAT(p @> UInt 8, p @> LDynamic (p @> "_len2")) in
-  let arg1 = p @> ArrayVT(arr1, p @> Fixed Secret, p @> Mut, default_var_attr) in
-  let arg2 = p @> ArrayVT(arr2, p @> Fixed Secret, p @> Const, default_var_attr) in
-
-  let len = p @> RefVT(p @> UInt 32, p @> Fixed Public, p @> Const) in
-  let out_attr = { default_param_attr with output_only = true } in
-  let params = [ p @> Param (p @> "arr1", arg1, out_attr);
-                 p @> Param (p @> "_len1", len, default_param_attr);
-                 p @> Param (p @> "arr2", arg2, default_param_attr);
-                 p @> Param (p @> "_len2", len, default_param_attr); ] in
-
-  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
-  name,fdec
-
-let assert_proto () =
-  let name = p @> "_assert" in
-  let ft = { export=false; inline=Always } in
-  let rt = None in
-
-  let cond = p @> RefVT(p @> Bool, p @> Fixed Public, p @> Const) in
-  let params = [ p @> Param (p @> "cond", cond, default_param_attr) ] in
-
-  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
-    name,fdec
-
-let load_le_codegen' n name cg_ctx =
-  let ity = integer_type cg_ctx.llcontext n in
-  let bty = i8_type cg_ctx.llcontext in
-  let aty = pointer_type bty in
-  let pty = pointer_type ity in
-  let ft = function_type ity [| aty |] in
-  let fn = declare_function name ft cg_ctx.llmodule in
-    add_function_attr fn cg_ctx.alwaysinline Function;
-    add_function_attr fn (create_enum_attr cg_ctx.llcontext "readonly" 0L) Function;
-    set_linkage Internal fn;
-  let bb = append_block cg_ctx.llcontext "entry" fn in
-  let b = builder cg_ctx.llcontext in
-    position_at_end bb b;
-    let arr = param fn 0 in
-    let cast = build_bitcast arr pty "_secret_cast" b in
-    let load = build_load cast "_secret_ld" b in
-      build_ret load b;
-      fn
-
-let load_vec_le_codegen' bw n name cg_ctx =
-  let ity = integer_type cg_ctx.llcontext bw in
-  let vty = vector_type ity n in
-  let aty = pointer_type ity in
-  let pty = pointer_type vty in
-  let ft = function_type vty [| aty |] in
-  let fn = declare_function name ft cg_ctx.llmodule in
-    add_function_attr fn cg_ctx.alwaysinline Function;
-    add_function_attr fn (create_enum_attr cg_ctx.llcontext "readonly" 0L) Function;
-    set_linkage Internal fn;
-  let bb = append_block cg_ctx.llcontext "entry" fn in
-  let b = builder cg_ctx.llcontext in
-    position_at_end bb b;
-    let arr = param fn 0 in
-    let cast = build_bitcast arr pty "_secret_cast" b in
-    let load = build_load cast "_secret_ld" b in
-      build_ret load b;
-      fn
-
-let load32_le_codegen =
-  load_le_codegen' 32 "_load32_le"
-let load64_le_codegen =
-  load_le_codegen' 64 "_load64_le"
-let load32_4_le_codegen =
-  load_vec_le_codegen' 32 4 "_load32_4_le"
-
-let store_le_codegen' n name cg_ctx =
-  let ity = integer_type cg_ctx.llcontext n in
-  let bty = i8_type cg_ctx.llcontext in
-  let aty = pointer_type bty in
-  let pty = pointer_type ity in
-  let ft = function_type (void_type cg_ctx.llcontext) [| aty; ity |] in
-  let fn = declare_function name ft cg_ctx.llmodule in
-      add_function_attr fn cg_ctx.alwaysinline Function;
-    set_linkage Internal fn;
-  let bb = append_block cg_ctx.llcontext "entry" fn in
-  let b = builder cg_ctx.llcontext in
-    position_at_end bb b;
-    let arr = param fn 0 in
-    let w = param fn 1 in
-    let cast = build_bitcast arr pty "_secret_cast" b in
-      build_store w cast b;
-      build_ret_void b;
-      fn
-
-let store_vec_le_codegen' bw n name cg_ctx =
-  let ity = integer_type cg_ctx.llcontext bw in
-  let vty = vector_type ity n in
-  let aty = pointer_type ity in
-  let pty = pointer_type vty in
-  let ft = function_type (void_type cg_ctx.llcontext) [| aty; vty |] in
-  let fn = declare_function name ft cg_ctx.llmodule in
-      add_function_attr fn cg_ctx.alwaysinline Function;
-    set_linkage Internal fn;
-  let bb = append_block cg_ctx.llcontext "entry" fn in
-  let b = builder cg_ctx.llcontext in
-    position_at_end bb b;
-    let arr = param fn 0 in
-    let w = param fn 1 in
-    let cast = build_bitcast arr pty "_secret_cast" b in
-      build_store w cast b;
-      build_ret_void b;
-      fn
-
-let store32_le_codegen =
-  store_le_codegen' 32 "_store32_le"
-let store64_le_codegen =
-  store_le_codegen' 64 "_store64_le"
-let store32_4_le_codegen =
-  store_vec_le_codegen' 32 4 "_store32_4_le"
-
-let memzero_codegen' n name cg_ctx =
-  let i8_ty = i8_type cg_ctx.llcontext in
-  let i32_ty = i32_type cg_ctx.llcontext in
-  let ptr_ty = pointer_type i8_ty in
-  let bool_ty = i1_type cg_ctx.llcontext in
-  let arg_types = [| ptr_ty; i8_ty; i32_ty; i32_ty; bool_ty |] in
-  let vt = void_type cg_ctx.llcontext in
-  let ft = function_type vt arg_types in
-  let memset = declare_function ("llvm.memset.p0i8.i32") ft cg_ctx.llmodule in
-
-  let ity = integer_type cg_ctx.llcontext n in
-  let iptr_ty = pointer_type ity in
-  let arg_types = [| iptr_ty; i32_ty; |] in
-  let vt = void_type cg_ctx.llcontext in
-  let ft = function_type vt arg_types in
-  let fn = declare_function name ft cg_ctx.llmodule in
-    add_function_attr fn cg_ctx.noinline Function;
-    set_linkage Internal fn;
-  let bb = append_block cg_ctx.llcontext "entry" fn in
-  let b = builder cg_ctx.llcontext in
-    position_at_end bb b;
-    let arr = param fn 0 in
-    let len = param fn 1 in
-    let zero = const_int i8_ty 0 in
-    let alignment = const_int i32_ty (n / 8) in
-    let arr' = build_bitcast arr ptr_ty "_secret_cast" b in
-    let volatility = const_int bool_ty 0 in
-    let args = [| arr'; zero; len; alignment; volatility |] in
-      build_call memset args "" b;
-      build_ret_void b;
-      fn
-
-let memzero_codegen = memzero_codegen' 8 "_memzero"
-let memzero32_codegen = memzero_codegen' 32 "_memzero32"
-let memzero64_codegen = memzero_codegen' 64 "_memzero64"
-
-let arrcopy_codegen cg_ctx =
-  let i8_ty = i8_type cg_ctx.llcontext in
-  let i32_ty = i32_type cg_ctx.llcontext in
-  let ptr_ty = pointer_type i8_ty in
-  let bool_ty = i1_type cg_ctx.llcontext in
-  let arg_types = [| ptr_ty; ptr_ty; i32_ty; i32_ty; bool_ty; |] in
-  let vt = void_type cg_ctx.llcontext in
-  let ft = function_type vt arg_types in
-  let memcpy = declare_function ("llvm.memcpy.p0i8.p0i8.i32") ft cg_ctx.llmodule in
-
-  let arg_types = [| ptr_ty; i32_ty; ptr_ty; i32_ty; |] in
-  let vt = void_type cg_ctx.llcontext in
-  let ft = function_type vt arg_types in
-  let fn = declare_function "_arrcopy" ft cg_ctx.llmodule in
-      add_function_attr fn cg_ctx.alwaysinline Function;
-    set_linkage Internal fn;
-  let bb = append_block cg_ctx.llcontext "entry" fn in
-  let b = builder cg_ctx.llcontext in
-    position_at_end bb b;
-    let arr1 = param fn 0 in
-    let len = param fn 1 in
-    let arr2 = param fn 2 in
-    let alignment = const_int i32_ty 1 in
-    let volatility = const_int bool_ty 0 in
-    let args = [| arr1; arr2; len; alignment; volatility |] in
-      build_call memcpy args "" b;
-      build_ret_void b;
-      fn
-
-let assert_codegen cg_ctx =
-  let trap = get_intrinsic Trap cg_ctx in
-  let bool_ty = i1_type cg_ctx.llcontext in
-
-  let arg_types = [| bool_ty |] in
-  let vt = void_type cg_ctx.llcontext in
-  let ft = function_type vt arg_types in
-  let fn = declare_function "_assert" ft cg_ctx.llmodule in
-      add_function_attr fn cg_ctx.alwaysinline Function;
-    set_linkage Internal fn;
-  let bb = append_block cg_ctx.llcontext "entry" fn in
-  let b = builder cg_ctx.llcontext in
-    position_at_end bb b;
-    let start_bb = insertion_block b in
-
-    let then_bb = append_block cg_ctx.llcontext "thenbranch" fn in
-    position_at_end then_bb b;
-    build_ret_void b;
-
-    let else_bb = append_block cg_ctx.llcontext "elsebranch" fn in
-    position_at_end else_bb b;
-    let call = build_call trap [||] "" b in
-    add_call_site_attr call (create_enum_attr cg_ctx.llcontext "noreturn" 0L) Function;
-    build_ret_void b;
-
-    position_at_end start_bb b;
-    let cond = param fn 0 in
-    build_cond_br cond then_bb else_bb b;
-
-    fn
-
-let structcopy_codegen structname cg_ctx =
-  let name = "_structcopy_" ^ structname in
-  let bool_ty = i1_type cg_ctx.llcontext in
-  let i8_ty = i8_type cg_ctx.llcontext in
-  let i32_ty = i32_type cg_ctx.llcontext in
-  let ptr_ty = pointer_type i8_ty in
-  let struct_ty,_ = List.assoc structname cg_ctx.sdecs in
-  let sptr_ty = pointer_type struct_ty in
-
-  let arg_types = [| ptr_ty; ptr_ty; i32_ty; i32_ty; bool_ty; |] in
-  let vt = void_type cg_ctx.llcontext in
-  let ft = function_type vt arg_types in
-  let memcpy = declare_function ("llvm.memcpy.p0i8.p0i8.i32") ft cg_ctx.llmodule in
-
-  let arg_types = [| sptr_ty; sptr_ty; |] in
-  let ft = function_type vt arg_types in
-  let fn = declare_function name ft cg_ctx.llmodule in
-      add_function_attr fn cg_ctx.alwaysinline Function;
-    set_linkage Internal fn;
-  let bb = append_block cg_ctx.llcontext "entry" fn in
-  let b = builder cg_ctx.llcontext in
-    position_at_end bb b;
-    let arg1 = param fn 0 in
-    let arg2 = param fn 1 in
-    let arg1' = build_bitcast arg1 ptr_ty "_secret_cast" b in
-    let arg2' = build_bitcast arg2 ptr_ty "_secret_cast" b in
-    let datalayout' = data_layout cg_ctx.llmodule in
-    let datalayout = Llvm_target.DataLayout.of_string datalayout' in
-    let size' = Llvm_target.DataLayout.abi_size struct_ty datalayout in
-    let size = const_of_int64 i32_ty size' false in
-    let alignment' = Llvm_target.DataLayout.abi_align struct_ty datalayout in
-    let alignment = const_int i32_ty alignment' in
-    let volatility = const_int bool_ty 0 in
-    let args = [| arg1'; arg2'; size; alignment; volatility |] in
-      build_call memcpy args "" b;
-      build_ret_void b;
-      fn
-
-let get_stdlib name cg_ctx =
-  match name with
-    | "_load32_le" -> load32_le_codegen cg_ctx
-    | "_load64_le" -> load64_le_codegen cg_ctx
-    | "_load32_4_le" -> load32_4_le_codegen cg_ctx
-    | "_store32_le" -> store32_le_codegen cg_ctx
-    | "_store64_le" -> store64_le_codegen cg_ctx
-    | "_store64_le_public" -> store_le_codegen' 64 "_store64_le_public" cg_ctx
-    | "_store32_4_le" -> store32_4_le_codegen cg_ctx
-    | "_memzero" -> memzero_codegen cg_ctx
-    | "_memzero32" -> memzero32_codegen cg_ctx
-    | "_memzero64" -> memzero64_codegen cg_ctx
-    | "_arrcopy" -> arrcopy_codegen cg_ctx
-    | "_assert" -> assert_codegen cg_ctx
-    | _ ->
-      if Batteries.String.starts_with name "_structcopy_" then
-        let structname = Batteries.String.lchop ~n:12 name in
-          structcopy_codegen structname cg_ctx
-      else
-        raise (Err.InternalCompilerError name)
-
-let functions = [
-  load32_le_proto ();
-  load64_le_proto ();
-  load32_4_le_proto ();
-  store32_le_proto ();
-  store64_le_proto ();
-  store64p_le_proto ();
-  store32_4_le_proto ();
-  memzero_proto ();
-  memzero32_proto ();
-  memzero64_proto ();
-  arrcopy_proto ();
-  assert_proto ();
-]
-
-
-let structcopy_proto structname =
-  let name = p @> ("_structcopy_" ^ structname.data) in
-  let ft = { export=false; inline=Never } in
-  let rt = None in
-
-  let arg1 = p @> StructVT(structname, p @> Mut) in
-  let arg2 = p @> StructVT(structname, p @> Mut) in
-
-  let out_attr = { default_param_attr with output_only = true } in
-  let params = [ p @> Param (p @> "arg1", arg1, out_attr);
-                 p @> Param (p @> "arg2", arg2, default_param_attr); ] in
-
-  let fdec = p @> (StdlibFunDec(name,ft,rt,params)) in
-    fdec, ref false
-
-let get_stdlib_proto name =
-  if Batteries.String.starts_with name.data "_structcopy_" then
-    let structname = Batteries.String.lchop ~n:12 name.data in
-      structcopy_proto {name with data=structname}
-  else
-    raise (Err.errVarNotDefined name)
+open Tast_util
+
+let sprintf = Printf.sprintf
+
+let rmem sz len lbl =
+  let p = fake_pos in
+    p@>Param (p@>"src",
+              p@>Arr (p@>Ref (p@>UInt (sz,lbl),p@>R),p@>LIntLiteral len,default_var_attr))
+
+let wmem sz len lbl =
+  let p = fake_pos in
+    p@>Param (p@>"dst",
+              p@>Arr (p@>Ref (p@>UInt (sz,lbl),p@>W),p@>LIntLiteral len,default_var_attr))
+
+let rmem_unspec sz lbl =
+  let p = fake_pos in
+    [ p@>Param (p@>"src",
+                p@>Arr (p@>Ref (p@>UInt (sz,lbl),p@>R),p@>LDynamic (p@>"srclen"),default_var_attr)) ;
+      p@>Param (p@>"srclen",
+                p@>UInt (64,p@>Public)) ]
+
+let wmem_unspec sz lbl =
+  let p = fake_pos in
+    [ p@>Param (p@>"dst",
+                p@>Arr (p@>Ref (p@>UInt (sz,lbl),p@>W),p@>LDynamic (p@>"dstlen"),default_var_attr)) ;
+      p@>Param (p@>"dstlen",
+                p@>UInt (64,p@>Public)) ]
+
+let contains fn =
+  match fn.data with
+    | "memzero" -> true
+    | "smemzero" -> true
+    | "memcpy" -> true
+    | "load_le" -> true
+    | "store_le" -> true
+    | _ -> false
+
+let name_of code =
+  let ps_lbl = function
+    | Public -> "public"
+    | Secret -> "secret" in
+    make_ast fake_pos
+      begin
+        match code with
+          | Memzero (sz,lbl,everhi) ->
+            sprintf "__memzero[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+          | SMemzero (sz,lbl,everhi) ->
+            sprintf "__smemzero[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+          | Memcpy (sz,lbl,everhi) ->
+            sprintf "__memcpy[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+          | MemzeroStruct (sname,everhi) ->
+            sprintf "__memzero/%s%s" sname (if everhi then "/oblivious" else "")
+          | SMemzeroStruct (sname,everhi) ->
+            sprintf "__smemzero/%s%s" sname (if everhi then "/oblivious" else "")
+          | MemcpyStruct (sname,everhi) ->
+            sprintf "__memcpy/%s%s" sname (if everhi then "/oblivious" else "")
+          | LoadLE (sz,lbl) ->
+            sprintf "__load[%d]/%s_le" sz (ps_lbl lbl)
+          | StoreLE (sz,lbl,everhi) ->
+            sprintf "__store[%d]/%s%s_le" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+          | LoadLEVec (sz,len,lbl) ->
+            sprintf "__load[%d]<%d>/%s_le" sz len (ps_lbl lbl)
+          | StoreLEVec (sz,len,lbl,everhi) ->
+            sprintf "__store[%d]<%d>/%s%s_le" sz len (ps_lbl lbl) (if everhi then "/oblivious" else "")
+      end
+
+let interface_of
+      (tc_expr : ?lookahead_bty:Tast.base_type -> Ast.expr -> Tast.expr)
+      p stmlbl fn args =
+  let everhi = match stmlbl.data with
+    | Public -> false
+    | Secret -> true in
+  let fnattr = { export=false; inline=Always; everhi } in
+    match fn.data with
+
+      | "memzero" ->
+        let arg = match args with
+          | [arg] -> arg
+          | _ -> raise @@ err p in
+        let arg' = tc_expr arg in
+          begin match (type_of arg').data with
+            | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) ->
+              let sz,lbl = match subty.data with
+                | UInt (s,l) -> s,l
+                | _ -> raise @@ err p in
+              let rt' = None in
+              let params' = wmem_unspec sz lbl in
+              let arglen = p@>Ast.ArrayLen arg in
+              let args' = [ arg; arglen ] in
+              let fdec' = fake_pos @> StdlibFn (Memzero (sz,lbl.data,everhi),fnattr,rt',params') in
+                fdec',args'
+            | Struct sname ->
+              let p = fake_pos in
+              let rt' = None in
+              let params' = [ p@>Param (p@>"dst", p@>Ref(p@>Struct sname, p@>W)) ] in
+              let args' = [ arg ] in
+              let fdec' = fake_pos @> StdlibFn (MemzeroStruct (sname.data,everhi),fnattr,rt',params') in
+                fdec',args'
+            | _ -> raise @@ err p
+          end
+
+      | "smemzero" ->
+        let arg = match args with
+          | [arg] -> arg
+          | _ -> raise @@ err p in
+        let arg' = tc_expr arg in
+          begin match (type_of arg').data with
+            | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) ->
+              let sz,lbl = match subty.data with
+                | UInt (s,l) -> s,l
+                | _ -> raise @@ err p in
+              let rt' = None in
+              let params' = wmem_unspec sz lbl in
+              let arglen = p@>Ast.ArrayLen arg in
+              let args' = [ arg; arglen ] in
+              let fdec' = fake_pos @> StdlibFn (SMemzero (sz,lbl.data,everhi),fnattr,rt',params') in
+                fdec',args'
+            | Struct sname ->
+              let p = fake_pos in
+              let rt' = None in
+              let params' = [ p@>Param (p@>"dst", p@>Ref(p@>Struct sname, p@>W)) ] in
+              let args' = [ arg ] in
+              let fdec' = fake_pos @> StdlibFn (SMemzeroStruct (sname.data,everhi),fnattr,rt',params') in
+                fdec',args'
+            | _ -> raise @@ err p
+          end
+
+      | "memcpy" ->
+        let arg1,arg2 = match args with
+          | [arg1;arg2] -> arg1,arg2
+          | _ -> raise @@ err p in
+        let arg1' = tc_expr arg1 in
+        let arg2' = tc_expr arg2 in
+        begin match (type_of arg1').data with
+          | Arr _ ->
+            let subty1,lexpr1 = match (type_of arg1').data with
+              | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) -> subty,lexpr
+              | _ -> raise @@ err p in
+            let subty2,lexpr2 = match (type_of arg2').data with
+              | Arr ({data=Ref (subty,{data=R|RW})},lexpr,_) -> subty,lexpr
+              | _ -> raise @@ err p in
+            let _ = match lexpr1.data,lexpr2.data with
+              | LIntLiteral n,LIntLiteral m when n = m -> ()
+              | LDynamic x,LDynamic y when vequal x y -> ()
+              | _ -> raise @@ cerr p "unequal lengths to memcpy" in
+            let sz1,lbl1 = match subty1.data with
+              | UInt (s,l) -> s,l
+              | _ -> raise @@ err p in
+            let sz2,lbl2 = match subty2.data with
+              | UInt (s,l)
+                when s = sz1 && l <$ lbl1 -> s,l
+              | _ -> raise @@ err p in
+            let lbl = lbl1 +$ lbl2 in
+            let rt' = None in
+            let params1' = wmem_unspec sz1 lbl1 in
+            let params2' = rmem_unspec sz2 lbl2 in
+            let params' = (List.hd params1') :: params2' in
+            let arglen2 = p@>Ast.ArrayLen arg2 in
+            let args' = [ arg1; arg2; arglen2 ] in
+            let fdec' = fake_pos @> StdlibFn (Memcpy (sz1,lbl.data,everhi),fnattr,rt',params') in
+              fdec',args'
+          | Struct sname ->
+            let p = fake_pos in
+            let rt' = None in
+            let params1' = p@>Param (p@>"dst", p@>Ref(p@>Struct sname, p@>W)) in
+            let params2' = p@>Param (p@>"src", p@>Ref(p@>Struct sname, p@>R)) in
+            let params' = [ params1'; params2' ] in
+            let args' = [ arg1; arg2 ] in
+            let fdec' = fake_pos @> StdlibFn (MemcpyStruct (sname.data,everhi),fnattr,rt',params') in
+              fdec',args'
+          | _ -> raise @@ err p
+        end
+
+      | "load_le" ->
+        let arg = match args with
+          | [arg] -> arg
+          | _ -> raise @@ err p in
+        let arg' = tc_expr arg in
+        let subty,lexpr = match (type_of arg').data with
+          | Arr ({data=Ref (subty,{data=R|RW})},lexpr,_) -> subty,lexpr
+          | _ -> raise @@ err p in
+        let vecbase,lbl = match subty.data with
+          | UInt (8,l) -> 0,l
+          | UInt (s,l) -> s,l
+          | _ -> raise @@ err p in
+        let sz_ = match lexpr.data with
+          | LIntLiteral sz -> sz
+          | _ -> raise @@ err p in
+        let base,rt',code = match vecbase with
+          | 0 ->
+            let base = 8 in
+            let sz = sz_ * 8 in
+            let rt' = Some (fake_pos @> UInt (sz,lbl)) in
+            let code = LoadLE (sz,lbl.data) in
+              base,rt',code
+          | _ ->
+            let base = vecbase in
+            let rt' = Some (fake_pos @> UVec (vecbase,sz_,lbl)) in
+            let code = LoadLEVec (vecbase,sz_,lbl.data) in
+              base,rt',code in
+        let params' = [ rmem base sz_ lbl ] in
+        let args' = [ arg ] in
+        let fdec' = fake_pos @> StdlibFn (code,fnattr,rt',params') in
+          fdec',args'
+
+      | "store_le" ->
+        let arg1,arg2 = match args with
+          | [arg1;arg2] -> arg1,arg2
+          | _ -> raise @@ err p in
+        let arg1' = tc_expr arg1 in
+        let subty,lexpr = match (type_of arg1').data with
+          | Arr ({data=Ref (subty,{data=W|RW})},lexpr,_) -> subty,lexpr
+          | _ -> raise @@ err p in
+        let vecbase,lbl = match subty.data with
+          | UInt (8,l) -> 0,l
+          | UInt (s,l) -> s,l
+          | _ -> raise @@ err p in
+        let sz_ = match lexpr.data with
+          | LIntLiteral sz -> sz
+          | _ -> raise @@ err p in
+        let base,valty,code = match vecbase with
+          | 0 ->
+            let base = 8 in
+            let sz = sz_ * 8 in
+            let valty = p@>UInt (sz,lbl) in
+            let code = StoreLE (sz,lbl.data,everhi) in
+              base,valty,code
+          | _ ->
+            let base = vecbase in
+            let valty = p@>UVec (vecbase,sz_,lbl) in
+            let code = StoreLEVec (vecbase,sz_,lbl.data,everhi) in
+              base,valty,code
+        in
+        let arg2' = tc_expr ~lookahead_bty:(element_type valty >!> valty) arg2 in
+        let arg2ty = type_of arg2' in
+          if not (arg2ty <: valty) then
+            raise @@ err p;
+          let rt' = None in
+          let params' = [ wmem base sz_ lbl ;
+                          fake_pos@>Param (fake_pos@>"val", valty) ] in
+          let args' = [ arg1; arg2 ] in
+          let fdec' = fake_pos @> StdlibFn (code,fnattr,rt',params') in
+            fdec',args'
+
+      | _ -> raise @@ cerr p "not a stdlib function: '%s'" fn.data
+
+let llvm_for
+      (sget : struct_name -> Llvm.lltype)
+      llctx llmod code =
+  Llvm.(
+    let i1ty = i1_type llctx in
+    let i8ty = i8_type llctx in
+    let _i16ty = i16_type llctx in
+    let _i32ty = i32_type llctx in
+    let i64ty = i64_type llctx in
+    let _i128ty = integer_type llctx 128 in
+    let voidty = void_type llctx in
+    let memty = pointer_type i8ty in
+    let _noinline = create_enum_attr llctx "noinline" 0L in
+    let alwaysinline = create_enum_attr llctx "alwaysinline" 0L in
+    let _get_intrinsic = Intrinsics.make_stuff llctx llmod in
+
+    let built : Llvm.llvalue -> unit = ignore in
+
+    let def_internal name ft =
+      let fn = define_function name ft llmod in
+        add_function_attr fn alwaysinline Function;
+        set_linkage Internal fn;
+        let bb = entry_block fn in
+        let b = builder llctx in
+          position_at_end bb b;
+          fn,b in
+
+    let name = name_of code in
+
+      match code with
+
+        | Memzero (sz,_,false) ->
+          let pty = pointer_type (integer_type llctx sz) in
+          let ft = function_type voidty [| pty; i64ty |] in
+          let fn,b = def_internal name.data ft in
+          let zero = const_null i8ty in
+          let memset = _get_intrinsic (Memset sz) in
+          let dst = param fn 0 in
+          let len = param fn 1 in
+            set_value_name "dst" dst;
+            set_value_name "len" len;
+            build_call memset [| dst; zero; len |] "" b |> built;
+            build_ret_void b |> built;
+            fn
+        | Memzero (sz,_,true) ->
+          raise @@ cerr fake_pos "oblivious memzero not yet implemented"
+
+        | SMemzero (sz,_,false) ->
+          let pty = pointer_type (integer_type llctx sz) in
+          let ft = function_type voidty [| pty; i64ty |] in
+          let fn,b = def_internal name.data ft in
+          let zero = const_null i8ty in
+          let memset = _get_intrinsic (SMemset sz) in
+          let dst = param fn 0 in
+          let len = param fn 1 in
+            set_value_name "dst" dst;
+            set_value_name "len" len;
+            build_call memset [| dst; zero; len |] "" b |> built;
+            build_ret_void b |> built;
+            fn
+        | SMemzero (sz,_,true) ->
+          raise @@ cerr fake_pos "oblivious smemzero not yet implemented"
+
+        | Memcpy (sz,_,false) ->
+          let pty = pointer_type (integer_type llctx sz) in
+          let ft = function_type voidty [| pty; pty; i64ty |] in
+          let fn,b = def_internal name.data ft in
+          let memcpy = _get_intrinsic (Intrinsics.Memcpy sz) in
+          let dst = param fn 0 in
+          let src = param fn 1 in
+          let len = param fn 2 in
+            set_value_name "dst" dst;
+            set_value_name "src" src;
+            set_value_name "len" len;
+            build_call memcpy [| dst; src; len |] "" b |> built;
+            build_ret_void b |> built;
+            fn
+        | Memcpy (sz,_,true) ->
+          raise @@ cerr fake_pos "oblivious memcpy not yet implemented"
+
+        | MemzeroStruct (s,false) ->
+          let llstruct = sget (fake_pos @> s) in
+          let pty = pointer_type llstruct in
+          let ft = function_type voidty [| pty |] in
+          let fn,b = def_internal name.data ft in
+          let zero = const_null i8ty in
+          let memset = _get_intrinsic (Memset 8) in
+          let dst = param fn 0 in
+            set_value_name "dst" dst;
+            let dst_ = build_bitcast dst memty "" b in
+            let len = size_of llstruct in
+              build_call memset [| dst_; zero; len |] "" b |> built;
+              build_ret_void b |> built;
+              fn
+        | MemzeroStruct (s,true) ->
+          raise @@ cerr fake_pos "oblivious memzero not yet implemented"
+
+        | SMemzeroStruct (s,false) ->
+          let llstruct = sget (fake_pos @> s) in
+          let pty = pointer_type llstruct in
+          let ft = function_type voidty [| pty |] in
+          let fn,b = def_internal name.data ft in
+          let zero = const_null i8ty in
+          let memset = _get_intrinsic (SMemset 8) in
+          let dst = param fn 0 in
+            set_value_name "dst" dst;
+            let dst_ = build_bitcast dst memty "" b in
+            let len = size_of llstruct in
+              build_call memset [| dst_; zero; len |] "" b |> built;
+              build_ret_void b |> built;
+              fn
+        | SMemzeroStruct (s,true) ->
+          raise @@ cerr fake_pos "oblivious smemzero not yet implemented"
+
+        | MemcpyStruct (s,false) ->
+          let llstruct = sget (fake_pos @> s) in
+          let pty = pointer_type llstruct in
+          let ft = function_type voidty [| pty; pty |] in
+          let fn,b = def_internal name.data ft in
+          let memcpy = _get_intrinsic (Intrinsics.Memcpy 8) in
+          let dst = param fn 0 in
+          let src = param fn 1 in
+            set_value_name "dst" dst;
+            set_value_name "src" src;
+            let dst_ = build_bitcast dst memty "" b in
+            let src_ = build_bitcast src memty "" b in
+            let len = size_of llstruct in
+              build_call memcpy [| dst_; src_; len |] "" b |> built;
+              build_ret_void b |> built;
+              fn
+        | MemcpyStruct (s,true) ->
+          raise @@ cerr fake_pos "oblivious memcpy not yet implemented"
+
+        | LoadLE (sz,_) ->
+          let ity = integer_type llctx sz in
+          let pty = pointer_type ity in
+          let ft = function_type ity [| memty |] in
+          let fn,b = def_internal name.data ft in
+          let src = param fn 0 in
+            set_value_name "src" src;
+            let cast = build_bitcast src pty "" b in
+            let load = build_load cast "" b in
+              build_ret load b |> built;
+              fn
+
+        | LoadLEVec (sz,len,_) ->
+          let ity = integer_type llctx sz in
+          let vty = vector_type ity len in
+          let pty = pointer_type vty in
+          let ft = function_type vty [| pointer_type ity |] in
+          let fn,b = def_internal name.data ft in
+          let src = param fn 0 in
+            set_value_name "src" src;
+            let cast = build_bitcast src pty "" b in
+            let load = build_load cast "" b in
+              build_ret load b |> built;
+              fn
+
+        | StoreLE (sz,_,false) ->
+          let ity = integer_type llctx sz in
+          let pty = pointer_type ity in
+          let ft = function_type voidty [| memty; ity |] in
+          let fn,b = def_internal name.data ft in
+          let dst = param fn 0 in
+          let value = param fn 1 in
+            set_value_name "dst" dst;
+            set_value_name "value" value;
+            let cast = build_bitcast dst pty "" b in
+              build_store value cast b |> built;
+              build_ret_void b |> built;
+              fn
+        | StoreLE (sz,_,true) ->
+          let ity = integer_type llctx sz in
+          let pty = pointer_type ity in
+          let ft = function_type voidty [| memty; ity; i1ty |] in
+          let fn,b = def_internal name.data ft in
+          let cmov = _get_intrinsic (Intrinsics.cmov_of_choice sz) in
+          let dst = param fn 0 in
+          let value = param fn 1 in
+          let fctx = param fn 2 in
+            set_value_name "dst" dst;
+            set_value_name "value" value;
+            set_value_name "fctx" fctx;
+            let cast = build_bitcast dst pty "" b in
+            let load = build_load cast "" b in
+            let sel = build_call cmov [| fctx; value; load |] "" b in
+              build_store sel cast b |> built;
+              build_ret_void b |> built;
+              fn
+
+        | StoreLEVec (sz,len,_,false) ->
+          let ity = integer_type llctx sz in
+          let vty = vector_type ity len in
+          let pty = pointer_type vty in
+          let ft = function_type voidty [| pointer_type ity; vty |] in
+          let fn,b = def_internal name.data ft in
+          let dst = param fn 0 in
+          let value = param fn 1 in
+            set_value_name "dst" dst;
+            set_value_name "value" value;
+            let cast = build_bitcast dst pty "" b in
+              build_store value cast b |> built;
+              build_ret_void b |> built;
+              fn
+        | StoreLEVec (sz,len,_,true) ->
+          let ity = integer_type llctx sz in
+          let vty = vector_type ity len in
+          let pty = pointer_type vty in
+          let ft = function_type voidty [| pointer_type ity; vty; i1ty |] in
+          let fn,b = def_internal name.data ft in
+          let cmov = _get_intrinsic (Intrinsics.cmov_of_choice sz) in
+          let dst = param fn 0 in
+          let value = param fn 1 in
+          let fctx = param fn 2 in
+            set_value_name "dst" dst;
+            set_value_name "value" value;
+            set_value_name "fctx" fctx;
+            let cast = build_bitcast dst pty "" b in
+            let load = build_load cast "" b in
+            let sel = build_call cmov [| fctx; value; load |] "" b in
+              build_store sel cast b |> built;
+              build_ret_void b |> built;
+              fn
+  )

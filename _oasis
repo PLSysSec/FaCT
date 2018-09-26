@@ -6,8 +6,8 @@ Authors:     Gary Soeller, Sunjay Cauligi, Brian Johannesmeyer, Ariana Mirian, Y
 Homepage:    https://github.com/PLSysSec/FaCT
 License:     MIT
 Plugins:     META (0.4), DevFiles (0.4)
-BuildDepends: llvm, llvm.analysis, llvm.bitwriter, llvm.executionengine, llvm.target, llvm.passmgr_builder, llvm.irreader, llvm.linker, llvm.transform_utils, llvm.scalar_opts, llvm.vectorize, llvm.ipo, core, oUnit, dolog, threads, ppx_deriving.std, ctypes, ctypes.foreign, ocamlgraph, lwt.unix, lwt.ppx, ANSITerminal, str, batteries, zarith
-OCamlVersion: >= 4.03
+BuildDepends: llvm, llvm.analysis, llvm.bitwriter, llvm.executionengine, llvm.target, llvm.passmgr_builder, llvm.irreader, llvm.linker, llvm.transform_utils, llvm.scalar_opts, llvm.vectorize, llvm.ipo, core, threads, ppx_deriving.std, lwt.unix, ANSITerminal, dolog, str, z3
+OCamlVersion: >= 4.06
 AlphaFeatures: ocamlbuild_more_args
 XOCamlbuildPluginTags: package(cppo_ocamlbuild)
 
@@ -15,8 +15,3 @@ Executable fact
   Path:       src
   BuildTools: ocamlbuild
   MainIs:     fact.ml
-
-Executable facti
-  Path:       src
-  BuildTools: ocamlbuild
-  MainIs:     facti.ml

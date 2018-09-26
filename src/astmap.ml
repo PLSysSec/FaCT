@@ -1,178 +1,189 @@
+open Util
 open Pos
 open Err
-open Tast
-
-let mkp ast p = make_ast p ast
-
-type map_ctx_record = {
-  ssenv : string Env.env;
-}
-
+open Ast
 
 class ast_visitor =
   object (visit)
+    val mutable _cur_fn : fun_name = fake_pos @> ""
+    val mutable _pre_inject : statement list = []
+    val mutable _post_inject : statement list = []
+
     method fact_module m =
-      let Module(fenv,fdecs,sdecs) = m in
+      let Module(sdecs,fdecs) = m in
       let fdecs' = List.map visit#fdec fdecs in
-        Module(fenv,fdecs',sdecs)
+        Module(sdecs,fdecs')
 
     method fdec =
-      wrap @@ fun p -> function
-        | FunDec(f,ft,rt,params,body) ->
-          let params' = List.map visit#param params in
-          let body' = visit#block body in
-            FunDec(f,ft,rt,params',body')
-        | _ as f -> f
+      (wrap @@ fun p -> function
+          | FunDec(fn,ft,rt,params,body) ->
+            _cur_fn <- fn;
+            let params' = List.map visit#param params in
+            let body' = visit#block body in
+              FunDec(fn,ft,rt,params',body')
+          | CExtern(fn,ft,rt,params) ->
+            _cur_fn <- fn;
+            let params' = List.map visit#param params in
+              CExtern(fn,ft,rt,params'))
+      %> visit#fdec_post
+    method fdec_post fdec = fdec
 
     method param =
       wrap @@ fun p -> function
-        | Param(x,vty,attr) -> Param(x,vty,attr)
+        | Param(x,bty) -> Param(visit#varname x,bty)
 
-    method block (venv,stms) =
-      (venv,visit#stms stms)
+    method varname x = x
+
+    method block blk =
+      let pre_save = _pre_inject in
+      let post_save = _post_inject in
+        _pre_inject <- [];
+        _post_inject <- [];
+        let res = visit#stms blk in
+          _pre_inject <- pre_save;
+          _post_inject <- post_save;
+          res
+
+    method stms stms_ =
+      List.flatten @@ List.map
+                        (fun stm ->
+                           let stms' = visit#stm stm in
+                           let stms' = (List.rev _pre_inject) @ stms' @ (List.rev _post_inject) in
+                             _pre_inject <- [];
+                             _post_inject <- [];
+                             stms')
+                        stms_
 
     method stm' =
       xwrap @@ fun p -> function
-        | BaseDec(x,vty,e) ->
+        | Block blk -> [Block (visit#block blk)]
+        | VarDec (x,bty,e) ->
+          let x' = visit#varname x in
           let e' = visit#expr e in
-            [BaseDec(x,vty,e')]
-        | ArrayDec(x,vty,ae) ->
-          let ae' = visit#aexpr ae in
-            [ArrayDec(x,vty,ae')]
-        | StructDec _ as stm -> [stm]
-        | Assign(lval,e) ->
-          let lval' = visit#lval lval in
+            [VarDec (x',bty,e')]
+        | FnCall (x,bty,fn,args) ->
+          let x' = visit#varname x in
+          let args' = List.map visit#expr args in
+            [FnCall (x',bty,fn,args')]
+        | VoidFnCall (fn,args) ->
+          let args' = List.map visit#expr args in
+            [VoidFnCall (fn,args')]
+        | Assign (e1,e2) ->
+          let e1' = visit#expr e1 in
+          let e2' = visit#expr e2 in
+            [Assign (e1',e2')]
+        | If (cond,thens,elses) ->
+          let cond' = visit#expr cond in
+          let thens' = visit#block thens in
+          let elses' = visit#block elses in
+            [If (cond',thens',elses')]
+        | RangeFor (x,bty,e1,e2,blk) ->
+          let x' = visit#varname x in
+          let e1' = visit#expr e1 in
+          let e2' = visit#expr e2 in
+          let blk' = visit#block blk in
+            [RangeFor (x',bty,e1',e2',blk')]
+        | ArrayFor (x,bty,e,blk) ->
+          let x' = visit#varname x in
           let e' = visit#expr e in
-            [Assign(lval', e')]
-        | If(cond,tblock,fblock) ->
-          let cond' = visit#expr cond in
-          let tblock' = visit#block tblock in
-          let fblock' = visit#block fblock in
-            [If(cond',tblock',fblock')]
-        | For(i,bty,init,cond,upd,block) ->
-          let init' = visit#expr init in
-          let cond' = visit#expr cond in
-          let upd' = visit#expr upd in
-          let block' = visit#block block in
-            [For(i,bty,init',cond',upd',block')]
-        | VoidFnCall(fname,args) ->
-          let args' = List.map visit#arg args in
-            [VoidFnCall(fname, args')]
-        | DebugVoidFnCall _ as stm -> [stm]
+          let blk' = visit#block blk in
+            [ArrayFor (x',bty,e',blk')]
         | Return e ->
           let e' = visit#expr e in
             [Return e']
-        | VoidReturn as stm -> [stm]
-        | Block block ->
-          let block' = visit#block block in
-            [Block block']
+        | VoidReturn -> [VoidReturn]
+        | Assume e ->
+          let e' = visit#expr e in
+            [Assume e']
+        | BigFor (i,n1,n2,blk) ->
+          let i' = visit#varname i in
+          let blk' = visit#block blk in
+            [BigFor (i',n1,n2,blk')]
 
     method stm stm_ =
       let p = stm_.pos in
       let stms' = visit#stm' stm_ in
-        List.map (fun s -> (mkp s p)) stms'
+      let stms' = List.map (fun s -> (make_ast p s)) stms' in
+        List.map visit#stm_post stms'
+    method stm_post stm = stm
 
-    method stms stms_ =
-      List.flatten @@ List.map visit#stm stms_
-
-    method aexpr {data=(ae,ety); pos=p} =
-      let ae' =
-        match ae with
-          | ArrayLit es ->
-            let es' = List.map visit#expr es in
-              ArrayLit es'
-          | ArrayVar lval ->
-            let lval' = visit#lval lval in
-              ArrayVar lval'
-          | ArrayZeros lexpr -> ae
-          | ArrayCopy lval ->
-            let lval' = visit#lval lval in
-              ArrayCopy lval'
-          | ArrayView(lval,e,lexpr) ->
-            let lval' = visit#lval lval in
+    method expr e_ =
+      let p = e_.pos in
+      let e_' = make_ast p @@
+        match e_.data with
+          | True
+          | False
+          | UntypedIntLiteral _
+          | IntLiteral (_,_) -> e_.data
+          | Variable x -> Variable (visit#varname x)
+          | ArrayLen e ->
             let e' = visit#expr e in
-              ArrayView(lval', e', lexpr)
-          | ArrayComp(bty,lexpr,x,e) ->
+              ArrayLen e'
+          | Cast (bty,e) ->
             let e' = visit#expr e in
-              ArrayComp(bty, lexpr, x, e')
-          | ArrayNoinit lexpr -> ae
-          | CheckedArrayExpr(stms, subae) ->
-            let stms' = visit#stms stms in
-            let subae' = visit#aexpr subae in
-              CheckedArrayExpr(stms', subae')
-      in
-        (mkp (ae',ety) p)
-
-    method expr {data=(expr,ety); pos=p} : Tast.expr =
-      let expr' =
-        match expr with
-          | Lvalue lval ->
-            let lval' = visit#lval lval in
-              Lvalue lval'
-          | IntCast(bty,e) ->
+              Cast (bty,e')
+          | UnOp (op,e) ->
             let e' = visit#expr e in
-              IntCast(bty,e')
-          | UnOp(op,e) ->
-            let e' = visit#expr e in
-              UnOp(op,e')
-          | BinOp(op,e1,e2) ->
+              UnOp (op,e')
+          | BinOp (op,e1,e2) ->
             let e1' = visit#expr e1 in
             let e2' = visit#expr e2 in
-              BinOp(op,e1',e2')
-          | TernOp(e1,e2,e3) ->
+              BinOp (op,e1',e2')
+          | TernOp (e1,e2,e3) ->
             let e1' = visit#expr e1 in
             let e2' = visit#expr e2 in
             let e3' = visit#expr e3 in
-              TernOp(e1',e2',e3')
-          | Select(e1,e2,e3) ->
+              TernOp (e1',e2',e3')
+          | Select (e1,e2,e3) ->
             let e1' = visit#expr e1 in
             let e2' = visit#expr e2 in
             let e3' = visit#expr e3 in
-              Select(e1',e2',e3')
-          | FnCall(fname,args) ->
-            let args' = List.map visit#arg args in
-              FnCall(fname, args')
-          | DebugFnCall _ -> expr
+              Select (e1',e2',e3')
           | Declassify e ->
             let e' = visit#expr e in
               Declassify e'
-          | Inject(x,stms) ->
-            let stms' = visit#stms stms in
-              Inject(x,stms')
-          | Shuffle(e,mask) ->
+          | Enref e ->
+            Enref (visit#expr e)
+          | Deref e ->
             let e' = visit#expr e in
-              Shuffle(e', mask)
-          | _ -> expr
-      in
-        (mkp (expr',ety) p)
-
-    method lval {data=(lval,vty); pos=p} =
-      let lval' =
-        match lval with
-          | Base x as data -> data
-          | ArrayEl(lval,e) ->
-            let lval' = visit#lval lval in
+              Deref e'
+          | ArrayGet (e,lexpr) ->
             let e' = visit#expr e in
-              ArrayEl(lval',e')
-          | StructEl(lval,field) ->
-            let lval' = visit#lval lval in
-              StructEl(lval',field)
-          | CheckedLval(stms, sublval) ->
-            let stms' = visit#stms stms in
-            let sublval' = visit#lval sublval in
-              CheckedLval(stms', sublval')
+            let lexpr' = visit#lexpr lexpr in
+              ArrayGet (e', lexpr')
+          | ArrayLit es ->
+            ArrayLit (List.map visit#expr es)
+          | ArrayZeros lexpr ->
+            ArrayZeros (visit#lexpr lexpr)
+          | ArrayCopy e ->
+            ArrayCopy (visit#expr e)
+          | ArrayView (e,index,len) ->
+            ArrayView (visit#expr e,
+                       visit#lexpr index,
+                       visit#lexpr len)
+          | VectorLit ns -> VectorLit ns
+          | Shuffle (e,ns) ->
+            Shuffle (visit#expr e, ns)
+          | StructLit entries ->
+            StructLit (List.map
+                         (fun (field,e) ->
+                            (field,visit#expr e))
+                         entries)
+          | StructGet (e,field) ->
+            StructGet (visit#expr e,field)
+          | StringLiteral _ -> raise @@ err p
+          | FnCallExpr (fn,args) ->
+            let args' = List.map visit#expr args in
+              FnCallExpr (fn,args')
       in
-        (mkp (lval',vty) p)
+        visit#expr_post e_'
+    method expr_post e = e
 
-    method arg =
+    method lexpr =
       wrap @@ fun p -> function
-        | ByValue e ->
+        | LExpression e ->
           let e' = visit#expr e in
-            ByValue e'
-        | ByRef lval ->
-          let lval' = visit#lval lval in
-            ByRef lval'
-        | ByArray(ae,mut) ->
-          let ae' = visit#aexpr ae in
-            ByArray(ae', mut)
+            LExpression e'
+        | LUnspecified as e -> e
+
   end

@@ -2,17 +2,18 @@ open Lwt
 open Pos
 open Err
 open Lexing
+
+(*
 open Typecheck
 open Codegen
 open Debugfun
 open Opt
 open Jank
 open Sys
-
-(*
-open Cast
-open Transform
 *)
+
+type opt_level = O0 | O1 | O2 | O3 | OF
+type mode = DEV | PROD
 
 type args_record = {
   in_files    : string list;
@@ -27,10 +28,11 @@ type args_record = {
   verify_llvm : bool;
   mode        : mode;
   opt_level   : opt_level;
-  opt_limit   : seconds option;
+  (*opt_limit   : seconds option;*)
   verify_opts : string option;
   shared      : bool;
   noguac      : bool;
+  fpic        : bool;
 }
 
 let run_command c args exit_on_error =
@@ -54,54 +56,78 @@ let run_command c args exit_on_error =
 let generate_out_file out_dir out_file = out_dir ^ "/" ^ out_file
 
 let output_ast ast_out out_file ast =
-  match ast_out with
-    | false -> Log.debug "Not outputting AST"
-    | true ->
-      let ast_out_file = out_file ^ ".ast.ml" in
-        Log.debug "Outputting AST to %s" ast_out_file;
-        Core.Out_channel.write_all ast_out_file
-          ~data:((Ast.show_fact_module ast)^"\n")
+  if ast_out then
+    let ast_out_file = out_file ^ ".ast.ml" in
+      Log.debug "Outputting AST to %s" ast_out_file;
+      Core.Out_channel.write_all ast_out_file
+        ~data:((Ast.show_fact_module ast)^"\n")
 
 let output_tast ast_out out_file tast =
-  match ast_out with
-    | false -> Log.debug "Not outputting TAST"
-    | true ->
-      let tast_out_file = out_file ^ ".tast.ml" in
-        Log.debug "Outputting TAST to %s" tast_out_file;
-        Core.Out_channel.write_all tast_out_file
-          ~data:((Tast.show_fact_module tast)^"\n")
+  if ast_out then
+    let tast_out_file = out_file ^ ".tast.ml" in
+      Log.debug "Outputting TAST to %s" tast_out_file;
+      Core.Out_channel.write_all tast_out_file
+        ~data:((Tast.show_fact_module tast)^"\n")
 
-let output_xftast xftast_out out_file tast =
-  match xftast_out with
-    | false -> Log.debug "Not outputting transformed TAST"
-    | true ->
-      let tast_out_file = out_file ^ ".xftast.ml" in
-        Log.debug "Outputting transformed TAST to %s" tast_out_file;
-        Core_kernel.Out_channel.write_all tast_out_file
-          ~data:((Tast.show_fact_module tast)^"\n")
+let generate_pseudo gen_pseudo out_file tast =
+  if gen_pseudo then
+    let pseudo_out_file = out_file ^ ".pseudo.fact" in
+      Log.debug "Outputting pseudocode file to %s" pseudo_out_file;
+      Core_kernel.Out_channel.write_all pseudo_out_file
+        ~data:(Pseudocode.transform tast)
+
+let output_llvm llvm_out out_file llvm_mod =
+  if llvm_out then
+    let out_file' = out_file ^ ".ll" in
+      Log.debug "Outputting LLVM IR to %s" out_file';
+      Llvm.print_module out_file' llvm_mod
 
 let generate_header gen_header out_file xftast =
   if gen_header then
     let header_out_file = out_file ^ ".h" in
       Log.debug "Outputting header file to %s" header_out_file;
       Core_kernel.Out_channel.write_all header_out_file
-        ~data:(Header.generate_header out_file xftast)
+        ~data:(Header.generate_header header_out_file xftast)
 
-let generate_pseudo gen_pseudo out_file xftast =
-  if gen_pseudo then
-    let pseudo_out_file = out_file ^ ".pseudo.fact" in
-      Log.debug "Outputting pseudocode file to %s" pseudo_out_file;
-      Core_kernel.Out_channel.write_all pseudo_out_file
-        ~data:(Pseudocode.generate_pseudo out_file xftast)
+let output_bitcode out_file llvm_mod =
+  let out_file' = out_file ^ ".bc" in
+    Log.debug "Outputting LLVM bitcode to %s" out_file';
+    match Llvm_bitwriter.write_bitcode_file llvm_mod out_file' with
+      | false -> Log.error "An error occurred printing LLVM bitcode"; exit 1
+      | true -> Log.debug "Successfully output LLVM bitcode"
 
-let output_llvm llvm_out out_file llvm_mod =
-  match llvm_out with
-    | false -> Log.debug "Not outputting LLVM IR"
-    | true ->
-      let out_file' = out_file ^ ".ll" in
-      Log.debug "Outputting LLVM IR to %s" out_file';
-      Llvm.print_module out_file' llvm_mod
+let output_assembly fpic opt_level out_file =
+  let out_file_bc = out_file ^ ".bc" in
+  let out_file_s = out_file ^ ".s" in
+    Log.debug "Creating .s file at %s" out_file_s;
+    let fpic_arg = if fpic then "-fpic" else "" in
+    let opt_arg =
+      match opt_level with
+        | O2 -> "-O2"
+        | O3 -> "-O3"
+        | _ -> "" in
+      run_command "clang-6.0" [|"clang-6.0"; "-S"; opt_arg;
+                                "-mavx";
+                                "-fno-strict-aliasing";
+                                "-fno-strict-overflow";
+                                "-fstack-protector";
+                                "-mretpoline";
+                                fpic_arg; out_file_bc; "-o"; out_file_s|] true |> ignore
 
+let output_object out_file =
+  let out_file_s = out_file ^ ".s" in
+  let out_file_o = out_file ^ ".o" in
+    Log.debug "Creating object file at %s" out_file_o;
+    run_command "clang-6.0" [|"clang-6.0"; "-c"; out_file_s; "-o"; out_file_o|] true |> ignore
+
+let output_shared_object out_file args =
+  if not args.shared then () else
+    let out_file_s = out_file ^ ".s" in
+    let out_file_o = out_file ^ ".so" in
+      Log.debug "Creating shared object file at %s" out_file_o;
+      run_command "clang-6.0" [|"clang-6.0"; "-shared"; out_file_s; "-o"; out_file_o|] true |> ignore
+
+(*
 let generate_smack args out_file xftast =
   let do_output out_file_name tast =
     generate_pseudo args.pseudo_out out_file_name tast;
@@ -136,57 +162,6 @@ let generate_smack args out_file xftast =
           let smacktast = Smack_uninit.transform xftast in
             do_output out_file' smacktast*)
       end
-
-
-let output_bitcode out_file llvm_mod =
-  let out_file' = out_file ^ ".bc" in
-  Log.debug "Outputting LLVM bitcode to %s" out_file';
-  match Llvm_bitwriter.write_bitcode_file llvm_mod out_file' with
-    | false -> Log.error "An error occurred printing LLVM bitcode"; exit (-1)
-    | true -> Log.debug "Successfully output LLVM bitcode"
-
-let output_assembly opt_level out_file =
-  let out_file' = out_file ^ ".bc" in
-  let out_file_s = out_file ^ ".s" in
-  let out_file_fpic_s = out_file ^ ".fpic.s" in
-  Log.debug "Creating .s file at %s" out_file_s;
-  match opt_level with
-    | O2 ->
-      begin
-        run_command "llc-6.0" [|"llc-6.0"; "-O2"; "-mcpu=core-avx2"; out_file'|] true |> ignore;
-        run_command "llc-6.0" [|"llc-6.0"; "-O2"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|] true
-      end
-    | O3 ->
-      begin
-        run_command "llc-6.0" [|"llc-6.0"; "-O3"; "-mcpu=core-avx2"; out_file'|] true |> ignore;
-        run_command "llc-6.0" [|"llc-6.0"; "-O3"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|] true
-      end
-    | _ ->
-      begin
-        run_command "llc-6.0" [|"llc-6.0"; "-mcpu=core-avx2"; out_file'|] true |> ignore;
-        run_command "llc-6.0" [|"llc-6.0"; "-mcpu=core-avx2"; "-relocation-model=pic"; out_file'; "-o"; out_file_fpic_s|] true
-      end
-
-let output_object out_file =
-  let out_file_s = out_file ^ ".s" in
-  let out_file_fpic_s = out_file ^ ".fpic.s" in
-  let out_file_o = out_file ^ ".o" in
-  let out_file_fpic = out_file ^ ".fpic.o" in
-  Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang-6.0" [|"clang-6.0"; "-c"; out_file_s; "-o"; out_file_o|] true |> ignore;
-  run_command "clang-6.0" [|"clang-6.0"; "-c"; out_file_fpic_s; "-o"; out_file_fpic|] true
-
-let output_shared_object out_file args =
-  if not args.shared then () else
-  let out_file_s = out_file ^ ".s" in
-  let out_file_fpic_s = out_file ^ ".fpic.s" in
-  let out_file_o = out_file ^ ".so" in
-  let out_file_fpic = out_file ^ ".fpic.so" in
-  Log.debug "Creating object file at %s" out_file_o;
-  run_command "clang-6.0"
-    [|"clang-6.0"; "-shared"; out_file_s; "-o"; out_file_o|] true |> ignore;
-  run_command "clang-6.0"
-    [|"clang-6.0"; "-shared"; out_file_fpic_s; "-o"; out_file_fpic|] true |> ignore
 
 let verify_opt_pass llmod out_file llvm_out = function
   | None       -> Log.info "Not verifying opt passes"
@@ -229,13 +204,13 @@ let ctverify (Tast.Module(_,fdecs,_)) out_file llvm_mod
           verify fun_name wrapper_name (out_file ^ ".h") llvm_mod
     ) wrappers |> ignore;
     ()
+*)
 
 let compile (in_files,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in
-  Log.debug "Compiling program in %s mode" (show_mode args.mode);
+  (*Log.debug "Compiling program in %s mode" (show_mode args.mode);*)
   let lex_and_parse in_file =
     Log.debug "Compiling %s" in_file;
-    (*ignore(Llvm_X86.initialize());*)
     Lexer.file := Some in_file;
     let lexbuf =
       (try Lexing.from_channel (open_in in_file) with
@@ -254,12 +229,49 @@ let compile (in_files,out_file,out_dir) args =
   let asts = List.map lex_and_parse in_files in
   let all_fdecs = List.fold_left (fun fdecs (Ast.Module (more_fdecs,_)) -> fdecs @ more_fdecs) [] asts in
   let all_sdecs = List.fold_left (fun sdecs (Ast.Module (_,more_sdecs)) -> sdecs @ more_sdecs) [] asts in
-  let ast = Ast.Module (all_fdecs,all_sdecs) in
-  output_ast args.ast_out out_file' ast;
-  let tast = Typecheck.tc_module ast in
-  generate_header (args.gen_header || args.verify_llvm) out_file' tast;
-  output_tast args.ast_out out_file' tast;
-  Log.debug "Typecheck complete";
+  let ast = Ast.Module (all_fdecs,all_sdecs) in (* all files combined *)
+    output_ast args.ast_out out_file' ast;
+  let ast = Cyclecheck.transform ast in (* fns sorted topologically, callers first *)
+    output_ast args.ast_out out_file' ast;
+  let ast = Constfold.transform ast in (* constant folding *)
+    output_ast args.ast_out out_file' ast;
+  let ast = Varrename.transform ast in (* unique named vars *)
+    output_ast args.ast_out out_file' ast;
+  let ast = Fnextract.transform ast in (* function calls are no longer expressions *)
+    output_ast args.ast_out out_file' ast;
+  let ast = Arr_speccer.transform ast in (* array lengths filled in *)
+    output_ast args.ast_out out_file' ast;
+  let tast = Typecheck.transform ast in (* transition to tast; exprs have types *)
+    output_tast args.ast_out out_file' tast;
+    generate_pseudo args.pseudo_out out_file' tast;
+  let tast = Sanitycheck.transform false tast in (* check that everything is correct before transforms *)
+    output_tast args.ast_out out_file' tast;
+    generate_pseudo args.pseudo_out out_file' tast;
+  let tast = Oobcheck.transform args.debug tast in (* array accesses etc. validated *)
+    output_tast args.ast_out out_file' tast;
+    generate_pseudo args.pseudo_out out_file' tast;
+  let llctx,llmod = Codegen.codegen tast in
+    output_llvm args.llvm_out out_file' llmod;
+  let tast = Transfn.transform tast in (* transform secret fn calls *)
+    output_tast args.ast_out out_file' tast;
+    generate_pseudo args.pseudo_out out_file' tast;
+  let tast = Transret.transform tast in (* transform secret early returns *)
+    output_tast args.ast_out out_file' tast;
+    generate_pseudo args.pseudo_out out_file' tast;
+  let tast = Transbranch.transform tast in (* transform secret branchs *)
+    output_tast args.ast_out out_file' tast;
+    generate_pseudo args.pseudo_out out_file' tast;
+  let tast = Sanitycheck.transform true tast in (* check that everything is correct after transforms *)
+    output_tast args.ast_out out_file' tast;
+    generate_pseudo args.pseudo_out out_file' tast;
+    generate_header (args.gen_header || args.verify_llvm) out_file' tast;
+  let llctx,llmod = Codegen.codegen tast in
+    output_llvm args.llvm_out out_file' llmod;
+    output_bitcode out_file' llmod;
+    output_assembly args.fpic args.opt_level out_file' |> ignore;
+    output_shared_object out_file' args;
+    output_object out_file' |> ignore;
+  (*Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast args.mode in
   Log.debug "Tast transform complete";
   let xftast = Transform_debug.xf_module args.mode xftast in
@@ -336,4 +348,4 @@ let compile (in_files,out_file,out_dir) args =
   output_bitcode out_file' llvm_mod;
   output_assembly args.opt_level out_file' |> ignore;
   output_shared_object out_file' args;
-  output_object out_file' |> ignore
+  output_object out_file' |> ignore*)

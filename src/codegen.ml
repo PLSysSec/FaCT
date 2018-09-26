@@ -1,1092 +1,627 @@
+open Util
+open Pos
+open Err
 open Tast
 open Llvm
-open Pos
-open Ctverif
-open Codegen_utils
+open Pseudocode
 
-exception CodegenError
-exception CodegenErrorMsg of string
-exception FunctionAlreadyDefined
+let built : Llvm.llvalue -> unit = ignore
 
-let counter = ref 0
+class vardec_collector m =
+  object (visit)
+    inherit Tastmap.tast_visitor m as super
+    val mutable _vars : (var_name * base_type) list = []
 
-(* Start env functionality. This is here because of circular dependencies. TODO: move it out *)
+    method _vars () =
+      List.rev _vars
 
-let has_fn = Hashtbl.mem
-
-let get_fn fenv f =
-  try
-    Hashtbl.find fenv f.data
-  with
-    Not_found -> raise @@ Err.errFnNotDefined f
-
-let add_fn = Hashtbl.add
-
-let new_fenv oldfenv =
-  let fenvs = Hashtbl.create 10 in
-  let add n (fdec,_) =
-    match fdec.data with
-      | FunDec(_,_,ret_ty,args,_)
-      | DebugFunDec(_,ret_ty,args)
-      | StdlibFunDec(_,_,ret_ty,args)
-      | CExtern(_,ret_ty,args) ->
-        add_fn fenvs n {ret_ty; args}
-  in
-  Env.iter add oldfenv;
-  fenvs
-
-(* End env functionality *)
-
-
-let is_signed = Tast_utils.is_signed'
-
-let get_size ctx = function
-  | LIntLiteral s -> s
-  | LDynamic var_name -> raise CodegenError
-
-let is_dynamic_sized_array = function
-  | ArrayVT({data=ArrayAT(_,{data=LDynamic _})},_,_,_) -> true
-  | _ -> false
-
-let vt_to_llvm_ty (cg_ctx : codegen_ctx_record) = function
-  | RefVT({data=base_type},maybe_label,_) ->
-    bt_to_llvm_ty cg_ctx.llcontext base_type
-  | ArrayVT({data=ArrayAT(at,size)},maybe_label,_,_) ->
-    let arr_ty = bt_to_llvm_ty cg_ctx.llcontext at.data in
-    let size = get_size cg_ctx size.data in
-    (* TODO: Should we be passing arrays as a * or **? *)
-    array_type arr_ty size
-  | StructVT(s,_) ->
-    let sty,_ = List.assoc s.data cg_ctx.sdecs in
-    sty
-
-let param_to_type cg_ctx = function
-  | {data=Param(var_name,
-    {data=RefVT({data=base_type},maybe_label,{data=Mut})},_)} ->
-    pointer_type(bt_to_llvm_ty cg_ctx.llcontext base_type)
-  | {data=Param(var_name,
-    {data=RefVT({data=base_type},maybe_label,{data=Const})},_)} ->
-    bt_to_llvm_ty cg_ctx.llcontext base_type
-  | {data=Param(var_name,{data=ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_,_)},_)} ->
-    begin
-      match size.data with
-        | LIntLiteral s ->
-          pointer_type(array_type (bt_to_llvm_ty cg_ctx.llcontext bt.data) s)
-        | LDynamic _ ->
-          Hashtbl.add (Env.get_vtbl cg_ctx.tenv) var_name.data ty;
-          pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt.data)
-    end
-  | {data=Param(var_name,{data=StructVT(s,_)},_)} ->
-    let struct_ty,_ = List.assoc s.data cg_ctx.sdecs in
-      pointer_type struct_ty
-
-let bitsize cg_ctx = function
-  | BaseET({data=base_type},_) ->
-    bt_to_llvm_ty cg_ctx.llcontext base_type
-  | ArrayET({data=ArrayAT(at,size)},_,_) ->
-    bt_to_llvm_ty cg_ctx.llcontext at.data
-
-let expr_ty_to_llvm_ty cg_ctx = function
-  | BaseET({data=base_type},_) ->
-    bt_to_llvm_ty cg_ctx.llcontext base_type
-  | ArrayET({data=ArrayAT(at,size)},_,_) ->
-    let arr_ty = bt_to_llvm_ty cg_ctx.llcontext at.data in
-    let size = get_size cg_ctx size.data in
-    array_type arr_ty size (* TODO: Double check that this is not a pointer*)
-
-let rec byte_size_of_expr_ty = function
-  | BaseET({data=UInt(n)},_)  -> n / 8
-  | BaseET({data=Int(n)},_)   -> n / 8
-  | BaseET({data=Bool},_)     -> 1
-  | BaseET({data=Num(n,_)},_) -> raise CodegenError
-  | ArrayET({data=ArrayAT(bt,_)},_,_) ->
-    byte_size_of_expr_ty (BaseET(bt, (make_ast fake_pos (Fixed Unknown))))
-
-let get_ret_ty cg_ctx = function
-  | None -> void_type cg_ctx.llcontext
-  | Some ty -> expr_ty_to_llvm_ty cg_ctx ty.data
-
-
-let make_name str ml =
-  let make_prefix = function
-    | Public  -> "_public_"
-    | Secret  -> "_secret_"
-    | Unknown -> "_unknown_" in
-  match ml with
-  | {data=Fixed l} -> (make_prefix l) ^ str
-  | {data=Guess(s,l)} -> (make_prefix !l) ^ "guess_" ^ str
-
-let make_name_et str = function
-  | BaseET(_, ml) -> make_name str ml
-  | ArrayET(_,ml,_) -> make_name str ml
-
-let make_name_vt str = function
-  | RefVT(_,ml,_) -> make_name str ml
-  | ArrayVT(_,ml,_,_) -> make_name str ml
-  | StructVT _ -> make_name str (make_ast fake_pos (Fixed Public))
-
-let make_name_ll str llvalue =
-  let name = value_name llvalue in
-  let prefix = ref None in
-  let set_prefix p =
-    match Core.String.is_prefix name ~prefix:p with
-      | true -> prefix := Some p
-      | false -> () in
-  set_prefix "_secret_";
-  set_prefix "_public_";
-  set_prefix "_unknown_";
-  match !prefix with
-    | None -> raise CodegenError
-    | Some p -> p ^ str
-
-(* Allocate all of the args for a function *)
-let allocate_args cg_ctx args f =
-  let allocate_arg acc ({data=Param(var_name,var_type,_)} as arg) ll_arg =
-    let acc =
-    match var_type.data with
-      | RefVT (bt,ml,{data=Mut}) ->
-        let name = make_name var_name.data ml in
-        (*codegen_dec cg_ctx var_type ll_arg;*)
-        Env.add_var cg_ctx.venv var_name ll_arg;
-        set_value_name name ll_arg;
-        acc
-      | RefVT (bt,ml,{data=Const}) ->
-        let ty = param_to_type cg_ctx arg in
-        let name = make_name var_name.data ml in
-        let alloca = build_alloca ty name cg_ctx.builder in
-        (*codegen_dec cg_ctx var_type ll_arg;*)
-        Env.add_var cg_ctx.venv var_name alloca;
-        set_value_name name ll_arg;
-        build_store ll_arg alloca cg_ctx.builder |> ignore;
-        acc
-      (*| ArrayVT({data=ArrayAT(bt,{data=LIntLiteral(s)})},_,_) ->
-        let ty = array_type (bt_to_llvm_ty cg_ctx bt.data) s in
-        let size = const_int (i32_type cg_ctx.llcontext) s in
-        let loaded = build_load ll_arg "loadedarrptr" cg_ctx.builder in
-        let alloca = build_alloca ty var_name.data cg_ctx.builder in
-        add_var cg_ctx.venv var_name ll_arg;
-        ()*)
-      (* We cannot pass a static array to a function.
-         Instead, it must be a dyn array *)
-      | ArrayVT({data=ArrayAT(bt,{data=lvar})},ml,_,attr) ->
-        let ty = pointer_type(bt_to_llvm_ty cg_ctx.llcontext bt.data) in
-        let name = make_name "arrarg" ml in
-        let alloca = build_alloca ty name cg_ctx.builder in
-        (*codegen_dec cg_ctx var_type ll_arg;*)
-        Env.add_var cg_ctx.venv var_name alloca;
-        set_value_name name ll_arg;
-        build_store ll_arg alloca cg_ctx.builder |> ignore;
-        (alloca, lvar, var_name)::acc
-      | StructVT(s,_) ->
-        Env.add_var cg_ctx.venv var_name ll_arg;
-        set_value_name var_name.data ll_arg;
-        acc
-    in
-
-    (*let llvm_ty = param_to_type cg_ctx arg in
-    let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in*)
-    Env.add_var cg_ctx.vtenv var_name var_type;
-    acc
-  in
-  let ll_args = Array.to_list (params f) in
-  List.fold_left2 allocate_arg [] args ll_args
-
-(* Allocate space for each variable declared inside a function. This is
-   done at the beginning of the function. *)
-(* NOTE(src): we really should find a way to get this directly from the tast venvs
-   instead of descending through the AST again *)
-let rec allocate_stack cg_ctx stms =
-  let rec allocate_inject {data=(expr,_)} =
-    match expr with
-      | Lvalue lv -> allocate_lval lv
-      | IntCast(_,e) -> allocate_inject e
-      | UnOp(_,e) -> allocate_inject e
-      | BinOp(_,e1,e2) -> allocate_inject e1; allocate_inject e2
-      | TernOp(e1,e2,e3) -> allocate_inject e1; allocate_inject e2; allocate_inject e3
-      | Select(e1,e2,e3) -> allocate_inject e1; allocate_inject e2; allocate_inject e3
-      | FnCall(f,args) -> () (* XXX descend into the exprs in args *)
-      | Declassify e -> allocate_inject e
-      | Inject(_,stms) -> List.iter allocate_stack' stms
-      | CheckedExpr(_,e) -> allocate_inject e
-      | PostCheckedExpr(e,_) -> allocate_inject e
-      | Shuffle(e,_) -> allocate_inject e
-      | _ -> ()
-  and allocate_lval {data=(lval,_)} =
-    match lval with
-      | Base _ -> ()
-      | ArrayEl(lv,n) -> allocate_lval lv; allocate_inject n
-      | StructEl(lv,_) -> allocate_lval lv
-      | CheckedLval(_,lv) -> allocate_lval lv
-  and allocate_stack' = function
-    | {data=BaseDec(var_name,var_type,expr)} ->
-      allocate_inject expr;
-      let llvm_ty = vt_to_llvm_ty cg_ctx var_type.data in
-      let name = make_name_vt var_name.data var_type.data in
-      let alloca = build_alloca llvm_ty name cg_ctx.builder in
-      Env.add_var cg_ctx.venv var_name alloca;
-      Env.add_var cg_ctx.vtenv var_name var_type
-    | {data=ArrayDec(var_name,var_type,expr)} -> ()
-      (*let llvm_ty = vt_to_llvm_ty cg_ctx.llcontext var_type.data in*)
-      (* TODO: I think this will fail. I think this will just allocate a
-         pointer. But we want it to allocate the space for the array.
-         So yea, fix dis *)
-      (*let alloca = build_alloca llvm_ty var_name.data cg_ctx.builder in
-      add_var cg_ctx.venv var_name alloca*)
-    | {data=StructDec(var_name,var_type)} ->
-      let i32_ty = i32_type cg_ctx.llcontext in
-      let i64_ty = i64_type cg_ctx.llcontext in
-      let i8_ty = i8_type cg_ctx.llcontext in
-      let p8_ty = pointer_type i8_ty in
-      let bool_ty = i1_type cg_ctx.llcontext in
-      let llvm_ty = vt_to_llvm_ty cg_ctx var_type.data in
-      let ptr_ty = pointer_type llvm_ty in
-      let name = make_name_vt var_name.data var_type.data in
-      let alloca = build_alloca llvm_ty name cg_ctx.builder in
-
-      let name = "_public_sourcecasted" in
-      let bitcast = build_bitcast alloca p8_ty name cg_ctx.builder in
-
-      let datalayout' = data_layout cg_ctx.llmodule in
-      let datalayout = Llvm_target.DataLayout.of_string datalayout' in
-      let size' = Llvm_target.DataLayout.abi_size llvm_ty datalayout in
-      let size = const_of_int64 i64_ty size' false in
-      let alignment' = Llvm_target.DataLayout.abi_align llvm_ty datalayout in
-      let alignment = const_int i32_ty alignment' in
-      let volatility = const_int bool_ty 0 in
-      let zero = const_int (i8_type cg_ctx.llcontext) 0 in
-      let args = [| bitcast; zero; size; alignment; volatility |] in
-      let memset = Stdlib.get_intrinsic Memset cg_ctx in
-        build_call memset args "" cg_ctx.builder;
-
-      Env.add_var cg_ctx.venv var_name alloca;
-      Env.add_var cg_ctx.vtenv var_name var_type
-    | {data=Assign(lv,expr)} -> allocate_lval lv; allocate_inject expr
-    | {data=Block(stms)} ->
-      allocate_stack cg_ctx stms
-    | {data=If(cond,thenstms,elsestms)} ->
-      allocate_inject cond;
-      allocate_stack cg_ctx thenstms;
-      allocate_stack cg_ctx elsestms
-    | {data=For(var_name,base_type,init,cond,upd,stms)} ->
-      allocate_inject init;
-      allocate_inject cond;
-      allocate_inject upd;
-      let llvm_ty = bt_to_llvm_ty cg_ctx.llcontext base_type.data in
-      let ml = make_ast fake_pos (Fixed Public) in
-      let name = make_name var_name.data ml in
-      let alloca = build_alloca llvm_ty name cg_ctx.builder in
-      (* TODO: Fix the scoping here. This will force us to use a different
-         var name for the loop iterator for each for loop per function. We
-         probably want to be able to reuse this?? *)
-      Env.add_var cg_ctx.venv var_name alloca;
-      allocate_stack cg_ctx stms
-    | {data=Return(expr)} -> allocate_inject expr
-    | {data=VoidFnCall _} -> ()
-    | {data=DebugVoidFnCall _} -> ()
-    | {data=VoidReturn} -> ()
-  in
-  let env,stms' = stms in
-  ignore(List.map allocate_stack' stms')
-
-let codegen_binop cg_ctx op e1 e2 ty ety b1 b2 ml b =
-  let e1_llty = type_of e1 in
-  let e2_llty = type_of e2 in
-  let get_base llty =
-    match classify_type llty with
-      | Integer -> llty
-      | Vector -> element_type llty
-  in
-  let e1_basellty = get_base e1_llty in
-  let e2_basellty = get_base e2_llty in
-  let e1_width = integer_bitwidth e1_basellty in
-  let e2_width = integer_bitwidth e2_basellty in
-  let e1,e2 =
-    match e1_width,e2_width with
-      | w1,w2 when w1 < w2 ->
-        let name = make_name "lhssext" ml in
-        let build_ext = if is_signed b1.data then build_sext else build_zext in
-        let e1' = (build_ext e1 (type_of e2)) name cg_ctx.builder in
-          e1',e2
-      | w1,w2 when w1 > w2 -> 
-        let name = make_name "rhssext" ml in
-        let build_ext = if is_signed b2.data then build_sext else build_zext in
-        let e2' = (build_ext e2 (type_of e1)) name cg_ctx.builder in
-          e1,e2'
-      | w1,w2 -> e1,e2
-  in
-  let res = 
-    match op with
-      | Ast.Plus -> build_add e1 e2 (make_name "addtmp" ml) b
-      | Ast.Minus -> build_sub e1 e2 (make_name "subtmp" ml) b
-      | Ast.Multiply -> build_mul e1 e2 (make_name "multmp" ml) b
-      | Ast.Divide when is_signed ty -> build_sdiv e1 e2 (make_name "sdivtmp" ml) b
-      | Ast.Modulo when is_signed ty -> build_srem e1 e2 (make_name "sremtmp" ml) b
-      | Ast.Divide -> build_udiv e1 e2 (make_name "udivtmp" ml) b
-      | Ast.Modulo -> build_urem e1 e2 (make_name "uremtmp" ml) b
-      | Ast.Equal -> build_icmp Icmp.Eq e1 e2 (make_name "eqtmp" ml) b
-      | Ast.NEqual -> build_icmp Icmp.Ne e1 e2 (make_name "neqtmp" ml) b
-      | Ast.GT when is_signed ety -> build_icmp Icmp.Sgt e1 e2 (make_name "sgttmp" ml) b
-      | Ast.GTE when is_signed ety -> build_icmp Icmp.Sge e1 e2 (make_name "sgtetmp" ml) b
-      | Ast.LT when is_signed ety -> build_icmp Icmp.Slt e1 e2 (make_name "slttmp" ml) b
-      | Ast.LTE when is_signed ety -> build_icmp Icmp.Sle e1 e2 (make_name "sltetmp" ml) b
-      | Ast.GT -> build_icmp Icmp.Ugt e1 e2 (make_name "ugttmp" ml) b
-      | Ast.GTE -> build_icmp Icmp.Uge e1 e2 (make_name "ugtetmp" ml) b
-      | Ast.LT -> build_icmp Icmp.Ult e1 e2 (make_name "ulttmp" ml) b
-      | Ast.LTE -> build_icmp Icmp.Ule e1 e2 (make_name "ultetmp" ml) b
-      | Ast.LogicalAnd -> build_and e1 e2 (make_name "landtmp" ml) b
-      | Ast.LogicalOr -> build_or e1 e2 (make_name "lortmp" ml) b
-      | Ast.BitwiseAnd -> build_and e1 e2 (make_name "andtmp" ml) b
-      | Ast.BitwiseOr -> build_or e1 e2 (make_name  "ortmp" ml) b
-      | Ast.BitwiseXor -> build_xor e1 e2 (make_name "xortmp" ml) b
-      | Ast.LeftShift ->
-        if (Tast_utils.is_vec b1) then
-          let e2 = const_intcast e2 e1_basellty false in
-          let e2' = const_vector [| e2; e2; e2; e2 |] in
-            build_shl e1 e2' (make_name "lshift" ml) b
-        else
-          build_shl e1 e2 (make_name "lshift" ml) b
-      | Ast.RightShift when is_signed ty ->
-        build_ashr e1 e2 (make_name "arshift" ml) b
-      | Ast.RightShift ->
-        if (Tast_utils.is_vec b1) then
-          let e2 = const_intcast e2 e1_basellty false in
-          let e2' = const_vector [| e2; e2; e2; e2 |] in
-            build_lshr e1 e2' (make_name "lrshift" ml) b
-        else
-          build_lshr e1 e2 (make_name "lrshift" ml) b
-      | Ast.LeftRotate ->
-        (* counting on the optimizer to optimize this into a single instruction *)
-        let UInt n = ty in
-        let rotl_fn = Stdlib.get_intrinsic (Rotl n) cg_ctx in
-          build_call rotl_fn [| e1; e2 |] "rotltmp" b
-      | Ast.RightRotate ->
-        (* counting on the optimizer to optimize this into a single instruction *)
-        let UInt n = ty in
-        let rotr_fn = Stdlib.get_intrinsic (Rotr n) cg_ctx in
-          build_call rotr_fn [| e1; e2 |] "rotrtmp" b
-  in
-
-  let ret_ty = bt_to_llvm_ty cg_ctx.llcontext ty in
-  let ret_width = integer_bitwidth ret_ty in
-  let expr_width = integer_bitwidth (type_of res) in
-  match ret_width,expr_width with
-    | rw,ew when rw < ew ->
-      build_trunc res ret_ty (make_name "truncbinop" ml) cg_ctx.builder
-    | rw,ew when rw > ew ->
-      build_sext res ret_ty (make_name "sextbinop" ml) cg_ctx.builder
-    | rw,ew -> res
-
-let codegen_unop builder value ml = function
-  | Ast.Neg -> build_neg value (make_name "negtmp" ml) builder
-  | Ast.LogicalNot -> build_not value (make_name "lnottmp" ml) builder
-  | Ast.BitwiseNot -> build_not value (make_name "bnottmp" ml) builder
-
-let build_cast ty cg_ctx issigned value = (* from, to *) function
-  | Bool ->
-    let name = make_name_et "bcast" ty in
-    build_intcast value (bt_to_llvm_ty cg_ctx.llcontext Bool) name cg_ctx.builder
-  | UInt(n) ->
-    let name = make_name_et "ucast" ty in
-    let m = integer_bitwidth (type_of value) in
-      (if n > m then (if issigned then build_sext else build_zext) else build_trunc)
-        value (bt_to_llvm_ty cg_ctx.llcontext (UInt n)) name cg_ctx.builder
-  | Int(n) ->
-    let name = make_name_et "icast" ty in
-    let m = integer_bitwidth (type_of value) in
-      (if n > m then (if issigned then build_sext else build_zext) else build_trunc)
-        value (bt_to_llvm_ty cg_ctx.llcontext (Int n)) name cg_ctx.builder
-  | _ -> raise CodegenError (* TODO: How do we cast the Num type?? *)
-
-(*
-let arg_ty_to_expr_ty = function
-  | RefVT(bt, lab, mut) -> BaseET(bt, lab)
-  | ArrayVT(at, lab, mut) -> ArrayET(at, lab, mut)
-*)
-
-let param_ty_to_llvm_ty = function
-  | _ -> raise CodegenError
-
-let size_of_lexpr = function
-  | LIntLiteral n -> n
-  | LDynamic x -> raise CodegenError
-
-let rec codegen_arg cg_ctx arg ty =
-  (*let is_dynamic_array = function
-    | ArrayView _,_ -> true
-    | ArrayVar lval,_ ->
-      let some_arg =
-        try Some(Env.find_var cg_ctx.tenv var_name) with
-          | _ -> None in
+    method param param =
       begin
-      match some_arg with
-        | None -> false
-        | Some arg -> true
-      end
-    | _,ArrayET({data=ArrayAT(_,{data=LDynamic _})},_,_) -> true
-    | _,ArrayET({data=ArrayAT(_,{data=LIntLiteral _})},_,_) -> false
-    | _ -> raise CodegenError in*)
-  let is_dynamic_array arr =
-    let pty = type_of arr in
-    let base = element_type pty in
-    let kind = classify_type base in
-      match kind with
-        | TypeKind.Pointer -> true
-        | _ -> false in
-  let vt =
-    match ty.data with
-      | Param(_,vt,_) -> vt.data in
-  match arg.data with
-    | ByValue expr ->
-      codegen_ext cg_ctx (vt_to_llvm_ty cg_ctx vt) expr
-    | ByArray(arr,_) ->
+        match param.data with
+          | Param (x,bty) ->
+            _vars <- (x,bty) :: _vars
+      end; super#param param
+
+    method block_only (block,next) =
       begin
-        match ty.data with
-          | Param(name,{data=ArrayVT({data=ArrayAT(bt,lexpr)},ml,_,_)},_) ->
-            let arr',_ = codegen_array_expr cg_ctx name arr.data in
-            let arr =
+        match block.data with
+          | RangeFor (x,bty,_,_,_)
+          | ArrayFor (x,bty,_,_) ->
+            _vars <- (x,bty) :: _vars
+          | _ -> ()
+      end; super#block_only (block,next)
+
+    method stm stm =
+      begin
+        match stm.data with
+          | VarDec (x,bty,_)
+          | FnCall (x,bty,_,_) ->
+            _vars <- (x,bty) :: _vars
+          | _ -> ()
+      end; super#stm stm
+
+  end
+
+let collect_vardecs fdec =
+  let m = Module([],[fdec],{fmap=[]}) in
+  let visit = new vardec_collector m in
+    visit#fact_module () |> ignore;
+    visit#_vars ()
+
+class codegen llctx llmod m =
+  object (visit)
+    val all_vars_indirect = false
+
+    val _get_intrinsic = Intrinsics.make_stuff llctx llmod
+    val _b : Llvm.llbuilder = Llvm.builder llctx
+
+    val _sdecs : (struct_name * (var_name * (int * base_type)) list) mlist = ref []
+
+    val _venv : (var_name * llvalue) mlist = ref []
+    val _fenv : (fun_name * llvalue) mlist = ref []
+    val _senv : (struct_name * lltype) mlist = ref []
+
+    val i1ty = i1_type llctx
+    val i8ty = i8_type llctx
+    val i16ty = i16_type llctx
+    val i32ty = i32_type llctx
+    val i64ty = i64_type llctx
+    val i128ty = integer_type llctx 128
+    val voidty = void_type llctx
+    val noinline = create_enum_attr llctx "noinline" 0L
+    val alwaysinline = create_enum_attr llctx "alwaysinline" 0L
+
+    method _get x =
+      let res = mlist_find ~equal:Tast_util.vequal !_venv x in
+        match res with
+          | Some llval -> llval
+          | None -> raise @@ cerr x.pos "couldn't find '%s'" x.data
+
+    method _fget fn =
+      let res = mlist_find ~equal:Tast_util.vequal !_fenv fn in
+        match res with
+          | Some llfn -> llfn
+          | None -> raise @@ cerr fn.pos
+                               "unknown function: '%s'" fn.data
+
+    method _sget s =
+      let res = mlist_find ~equal:Tast_util.vequal !_senv s in
+        match res with
+          | Some llty -> llty
+          | None -> raise @@ cerr s.pos
+                               "unknown type: '%s'" s.data
+
+    method _get_field bty fld =
+      let p = bty.pos in
+      let sname = match bty.data with
+        | Ref ({data=Struct s},_) -> s
+        | _ -> raise @@ cerr p "expected a struct, got %s" (ps#bty bty) in
+      let fields = match  mlist_find ~equal:Tast_util.vequal !_sdecs sname with
+        | Some fields -> fields
+        | None -> raise @@ err p in
+      let i,bty = match mlist_find ~equal:Tast_util.vequal fields fld with
+        | Some entry -> entry
+        | None -> raise @@ err p in
+        i,bty
+
+    method bty {pos=p;data} =
+      match data with
+        | Bool _ -> i1ty
+        | UInt (s,_) | Int (s,_) -> integer_type llctx s
+        | Ref (bty,_) -> pointer_type (visit#bty bty)
+        | Arr ({data=Ref (bty,_)},_,_) -> pointer_type (visit#bty bty)
+        | UVec (s,n,_) -> vector_type (integer_type llctx s) n
+        | Struct s -> visit#_sget s
+        | String -> raise @@ err p
+
+    method fact_module () =
+      let Module (sdecs,fdecs,minfo) = m in
+      let _ = List.map visit#sdec sdecs in
+      let _ = List.map visit#fdec (List.rev fdecs) in
+        ()
+
+    method sdec {pos=p;data} =
+      let StructDef (name, fields) = data in
+      let field_entries = List.mapi
+                            (fun i {data=Field(x,bty)} ->
+                               (x, (i, bty)))
+                            fields in
+        mlist_push (name, field_entries) _sdecs;
+        let llfields = List.map visit#field fields in
+        let justthetypes = List.map (fun (_,bty) -> bty) llfields in
+        let llsty = named_struct_type llctx name.data in
+          struct_set_body llsty (Array.of_list justthetypes) false;
+          mlist_push (name,llsty) _senv;
+
+    method field {pos=p;data} =
+      let Field (x,bty) = data in
+      let llbty = visit#bty_for_struct bty in
+        (x,llbty)
+
+    method bty_for_struct {pos=p;data} =
+      match data with
+        | Bool _ -> i8ty
+        | UInt (s,_) | Int (s,_) -> integer_type llctx s
+        | Ref (bty,_) -> pointer_type (visit#bty bty)
+        | Arr ({data=Ref (bty,_)},lexpr,_) -> array_type (visit#bty bty) (visit#lexpr_for_struct lexpr)
+        | UVec (s,n,_) -> vector_type (integer_type llctx s) n
+        | Struct s -> visit#_sget s
+        | String -> raise @@ err p
+
+    method lexpr_for_struct {pos=p;data} =
+      match data with
+        | LIntLiteral n -> n
+        | LDynamic x ->
+          raise @@ cerr p "dependent arrays not yet implemented"
+
+    method _prototype name rt params =
+      let param_types = List.map visit#param params |> Array.of_list in
+      let ret_ty =
+        match rt with
+          | Some bty -> visit#bty bty
+          | None -> voidty in
+      function_type ret_ty param_types
+
+    method fdec ({pos=p;data} as fdec) =
+      match data with
+        | FunDec(name,fnattr,rt,params,body) ->
+          let ft = visit#_prototype name rt params in
+          let llfn = define_function name.data ft llmod in
+            mlist_push (name,llfn) _fenv;
+            if not fnattr.export then
+              set_linkage Internal llfn;
             begin
-              match lexpr.data, is_dynamic_array arr' with
-                | LIntLiteral s,false ->
-                  let arr',_ = codegen_array_expr cg_ctx name arr.data in
-                  build_load arr' (make_name "arr" ml) cg_ctx.builder |> ignore;
-                  arr'
-                | LIntLiteral s,true ->
-                  let arr',_ = codegen_array_expr cg_ctx name arr.data in
-                  let arr_type = array_type (bt_to_llvm_ty cg_ctx.llcontext bt.data) s in
-                  let pt = pointer_type arr_type in
-                  let name = make_name "dyntostaticarr" ml in
-                  build_bitcast arr' pt name cg_ctx.builder
-                | LDynamic var_name,true ->
-                  let arr',_ = codegen_array_expr cg_ctx name arr.data in
-                  let name = make_name "dynarrarg" ml in
-                  build_load arr' name cg_ctx.builder
-                | LDynamic var_name,false ->
-                  let arr',_ = codegen_array_expr cg_ctx name arr.data in
-                  let ll_ty = bt_to_llvm_ty cg_ctx.llcontext bt.data in
-                  let name = make_name "arrtoptr" ml in
-                    build_bitcast arr' (pointer_type ll_ty) name cg_ctx.builder
-            end in
-            (*remove_var cg_ctx.tenv name;*)
-            arr
-          | _-> raise CodegenError
+              match fnattr.inline with
+                | Always ->
+                  add_function_attr llfn alwaysinline Function
+                | Never ->
+                  add_function_attr llfn noinline Function
+                | _ -> ()
+            end;
+            let bb = entry_block llfn in
+              position_at_end bb _b;
+              let vars = collect_vardecs fdec in
+                if all_vars_indirect then
+                  begin
+                    List.iter
+                      (fun (x,bty) ->
+                         let llty = visit#bty bty in
+                         let stackloc = build_alloca llty x.data _b in
+                           mlist_push (x,stackloc) _venv)
+                      vars;
+                    Array.iter2
+                      (fun llparam {data=Param(x,_)} ->
+                         let stackloc = visit#_get x in
+                           build_store llparam stackloc _b |> built)
+                      (Llvm.params llfn)
+                      (Array.of_list params);
+                  end
+                else
+                  begin
+                    Array.iter2
+                      (fun llparam {data=Param(x,_)} ->
+                         set_value_name x.data llparam;
+                         mlist_push (x,llparam) _venv)
+                      (Llvm.params llfn)
+                      (Array.of_list params);
+                  end;
+                visit#block body |> ignore;
+                llfn
+        | CExtern (name,fnattr,rt,params) ->
+          let ft = visit#_prototype name rt params in
+          let llfn = declare_function name.data ft llmod in
+            mlist_push (name,llfn) _fenv;
+            llfn
+        | StdlibFn (code,fnattr,rt,params) ->
+          let name = Stdlib.name_of code in
+          let llfn = Stdlib.llvm_for visit#_sget llctx llmod code in
+            mlist_push (name,llfn) _fenv;
+            llfn
+
+    method param {pos=p;data} =
+      match data with
+        | Param (x,bty) ->
+          visit#bty bty
+
+    method block ({pos=p;data},next) =
+      begin
+        match data with
+          | Scope blk ->
+            visit#block blk |> ignore
+          | ListOfStuff stms ->
+            List.iter visit#stm stms
+          | If (cond,thens,elses) ->
+            let llcond = visit#expr cond in
+            let curfn = insertion_block _b |> block_parent in
+            let then_bb = append_block llctx "" curfn in
+            let else_bb = append_block llctx "" curfn in
+            let merge_bb = append_block llctx "" curfn in
+              build_cond_br llcond then_bb else_bb _b |> built;
+              position_at_end then_bb _b;
+              if visit#block thens then
+                build_br merge_bb _b |> built;
+              position_at_end else_bb _b;
+              if visit#block elses then
+                build_br merge_bb _b |> built;
+              position_at_end merge_bb _b
+          | RangeFor (x,bty,e1,e2,blk) ->
+            let lle1 = visit#expr e1 in
+            let lle2 = visit#expr e2 in
+            let llbty = visit#bty bty in
+            let pre_bb = insertion_block _b in
+            let curfn = block_parent pre_bb in
+            let check_bb = append_block llctx "" curfn in
+            let loop_bb = append_block llctx "" curfn in
+            let iter_bb = append_block llctx "" curfn in
+            let post_bb = append_block llctx "" curfn in
+            let cmp = if Tast_util.is_signed bty then Icmp.Slt else Icmp.Ult in
+
+            let load_iter loc =
+              if all_vars_indirect
+              then build_load loc "" _b
+              else loc
+            in
+
+            let store_iter llval loc =
+              if all_vars_indirect
+              then build_store llval loc _b |> built
+              else add_incoming (llval, insertion_block _b) loc
+            in
+
+              position_at_end check_bb _b;
+              let iterloc =
+                if all_vars_indirect
+                then visit#_get x
+                else (let loc = build_empty_phi llbty x.data _b in
+                        mlist_push (x,loc) _venv; loc) in
+              let iter = load_iter iterloc in
+              let check = build_icmp cmp iter lle2 "" _b in
+                build_cond_br check loop_bb post_bb  _b |> built;
+
+                position_at_end pre_bb _b;
+                store_iter lle1 iterloc;
+                build_br check_bb _b |> built;
+
+                position_at_end loop_bb _b;
+                if visit#block blk then
+                  build_br iter_bb _b |> built;
+
+                position_at_end iter_bb _b;
+                let iter = load_iter iterloc in
+                let one = const_int (type_of iter) 1 in
+                let add = build_add iter one "" _b in
+                  store_iter add iterloc;
+                  build_br check_bb _b |> built;
+
+                  position_at_end post_bb _b
+          | ArrayFor (x,bty,e,blk) ->
+            let lle = visit#expr e in
+            let len = Tast_util.(length_of (type_of e)) in
+            let lllen = visit#lexpr len in
+            let pre_bb = insertion_block _b in
+            let curfn = block_parent pre_bb in
+            let check_bb = append_block llctx "" curfn in
+            let loop_bb = append_block llctx "" curfn in
+            let iter_bb = append_block llctx "" curfn in
+            let post_bb = append_block llctx "" curfn in
+              if all_vars_indirect then
+                let xloc = visit#_get x in
+                let iterloc = build_alloca i64ty "" _b in
+                  build_store (const_null i64ty) iterloc _b |> built;
+                  build_br check_bb _b |> built;
+
+                  position_at_end check_bb _b;
+                  let iter = build_load iterloc "" _b in
+                  let check = build_icmp Icmp.Ult iter lllen "" _b in
+                    build_cond_br check loop_bb post_bb  _b |> built;
+
+                    position_at_end loop_bb _b;
+                    let iter = build_load iterloc "" _b in
+                    let gep = build_gep lle [| iter |] "" _b in
+                    let load = build_load gep "" _b in
+                      build_store load xloc _b |> built;
+                      if visit#block blk then
+                        build_br iter_bb _b |> built;
+
+                    position_at_end iter_bb _b;
+                    let iter = build_load iterloc "" _b in
+                    let one = const_int (type_of iter) 1 in
+                    let add = build_add iter one "" _b in
+                      build_store add iterloc _b |> built;
+                      build_br check_bb _b |> built;
+
+                      position_at_end post_bb _b
+              else
+                begin
+                  build_br check_bb _b |> built;
+
+                  position_at_end check_bb _b;
+                  let zero = const_null i64ty in
+                  let iter = build_phi [ (zero, pre_bb) ] "" _b in
+                  let check = build_icmp Icmp.Ult iter lllen "" _b in
+                    build_cond_br check loop_bb post_bb  _b |> built;
+
+                    position_at_end loop_bb _b;
+                    let gep = build_gep lle [| iter |] "" _b in
+                    let load = build_load gep "" _b in
+                      mlist_push (x,load) _venv;
+                      if visit#block blk then
+                        build_br iter_bb _b |> built;
+
+                      position_at_end iter_bb _b;
+                      let one = const_int (type_of iter) 1 in
+                      let add = build_add iter one "" _b in
+                        add_incoming (add, iter_bb) iter;
+                        build_br check_bb _b |> built;
+
+                        position_at_end post_bb _b
+                end
       end;
-    | ByRef r ->
-      let var = codegen_lval cg_ctx r in
-      match vt with
-        | RefVT(_,ml,{data=Const})
-        | ArrayVT(_,ml,{data=Const},_) ->
-          build_load var (make_name "argref" ml) cg_ctx.builder
-        | RefVT(_,_,{data=Mut})
-        | ArrayVT(_,_,{data=Mut},_)
-        | StructVT _ ->
-          var
+      visit#next next
 
-and codegen_lval cg_ctx {data=(lval,vt);pos=p} =
-  match lval with
-    | Base var_name ->
-      Env.find_var cg_ctx.venv var_name
-    | ArrayEl(lv,expr) ->
-      let arr' = codegen_lval cg_ctx lv in
-      let index = codegen_expr cg_ctx expr.data in
-      let zero = const_int (type_of index) 0 in
-      let indices, arr =
-        begin
-          match arr' |> type_of |> element_type |> classify_type with
-            | TypeKind.Pointer ->
-              [| index |], build_load arr' (make_name_vt "dyn" vt) cg_ctx.builder
-            | _ -> [| zero; index |], arr'
-        end in
-        build_in_bounds_gep arr indices (make_name_vt "ptr" vt) cg_ctx.builder
-    | StructEl(lv,field) ->
-      let (_,vt) = lv.data in
-      let StructVT(s,m) = vt in
-      let sty, Struct(_,fields) = List.assoc s.data cg_ctx.sdecs in
-      let fields' = List.mapi (fun i fld -> (i, fld.data)) fields in
-      let (fldi,Field(_,fvt,is_pointer)) = List.find (fun (i,Field(fn,_,_)) -> fn.data = field.data) fields' in
-      let st' = codegen_lval cg_ctx lv in
-      let fieldloc = build_struct_gep st' fldi (make_name_vt "structgep" fvt.data) cg_ctx.builder in
-        if is_pointer then
-          build_load fieldloc (make_name_vt "fieldptrld" fvt.data) cg_ctx.builder
-        else
-          fieldloc
-    | CheckedLval(stms, lval) ->
-      List.map (codegen_stm cg_ctx None) stms |> ignore;
-      codegen_lval cg_ctx lval
+    method next {pos=p;data} =
+      match data with
+        | Block blk ->
+          (*let curfn = insertion_block _b |> block_parent in
+          let bb = append_block llctx "" curfn in
+            position_at_end bb _b;*)
+            visit#block blk
+        | Return e ->
+          let lle = visit#expr e in
+            build_ret lle _b |> built;
+            false
+        | VoidReturn -> build_ret_void _b |> built;
+          false
+        | End -> true
 
-and codegen_expr cg_ctx = function
-  | True, ty -> const_all_ones (expr_ty_to_llvm_ty cg_ctx ty)
-  | False, ty -> const_null (expr_ty_to_llvm_ty cg_ctx ty)
-  | IntLiteral i, ty -> const_int (expr_ty_to_llvm_ty cg_ctx ty) i
-  | StringLiteral s, ty ->
-    build_global_stringptr s (make_name_et "str" ty) cg_ctx.builder
-  | Lvalue lval, ty ->
-    let cell = codegen_lval cg_ctx lval in
-      build_load cell (make_name_et "lval" ty) cg_ctx.builder
-  | IntCast(base_ty,expr), ty ->
-    let v = codegen_expr cg_ctx expr.data in
-    let bty = Tast_utils.expr_to_btype expr in
-    build_cast ty cg_ctx (is_signed bty.data) v base_ty.data
-  | UnOp(op,expr), ty ->
-    let llty = expr_ty_to_llvm_ty cg_ctx ty in
-    let expr' = codegen_ext cg_ctx llty expr in
-    let ml = match ty with
-      | BaseET(bt,ml) -> ml
-      | ArrayET _ -> raise CodegenError in
-    codegen_unop cg_ctx.builder expr' ml op
-  | BinOp(op,expr1,expr2), ty ->
-    let ty',ml = match ty with
-      | BaseET(bt, ml) -> bt, ml
-      | ArrayET _ -> raise CodegenError in
-    let b1 = Tast_utils.(expr_to_btype expr1) in
-    let b2 = Tast_utils.(expr_to_btype expr2) in
-      (* assigning ty' to ety is just a placeholder; it doesn't actually get used *)
-      (* I [scauligi] should probably be using an option type instead but I'm lazy and this is easier *)
-    let ety = Tast_utils.(if joinable_bt b1 b2 then join_bt expr1.pos b1 b2 else ty') in
-    let e1 = codegen_expr cg_ctx expr1.data in
-    let e2 = codegen_expr cg_ctx expr2.data in
-    codegen_binop cg_ctx op e1 e2 ty'.data ety.data b1 b2 ml cg_ctx.builder
-  | TernOp(expr1,expr2,expr3), ty ->
-    let e1 = codegen_expr cg_ctx expr1.data in
-    let e1' = build_is_not_null e1 (make_name_et "condtmp" ty) cg_ctx.builder in
-    let ty' = expr_ty_to_llvm_ty cg_ctx ty in
-    let e2 = codegen_ext cg_ctx ty' expr2 in
-    let e3 = codegen_ext cg_ctx ty' expr3 in
-    build_select e1' e2 e3 (make_name_et "terntmp" ty) cg_ctx.builder
-  | FnCall(fun_name,args), ty ->
-    let fun_dec = get_fn cg_ctx.fenv fun_name in
-    let callee = match lookup_function fun_name.data cg_ctx.llmodule with
-      | Some fn -> fn
-      | None -> Stdlib.get_stdlib fun_name.data cg_ctx in
-    let codegen_arg' = codegen_arg cg_ctx in
-    let args' = List.map2 codegen_arg' args fun_dec.args in
-    let name = make_name_et "calltmp" ty in
-    build_call callee (Array.of_list args') name cg_ctx.builder
-  | DebugFnCall(_,_),_ -> raise CodegenError
-  | Declassify(expr), ty ->
-    let e = codegen_expr cg_ctx expr.data in
-    let ty' = expr_ty_to_llvm_ty cg_ctx ty in
-    let fn = Stdlib.get_intrinsic (Declass (integer_bitwidth ty')) cg_ctx in
-      build_call fn [| e |] "_declassified_res" cg_ctx.builder
-  | Select(expr1,expr2,expr3), ty ->
-    let e1 = codegen_expr cg_ctx expr1.data in
-    let e1' = build_is_not_null e1 (make_name_et "condtmp" ty) cg_ctx.builder in
-    let ty' = expr_ty_to_llvm_ty cg_ctx ty in
-    let e2 = codegen_ext cg_ctx ty' expr2 in
-    let e3 = codegen_ext cg_ctx ty' expr3 in
-    let fn = Stdlib.get_intrinsic (CmovAsm8 (integer_bitwidth ty')) cg_ctx in
-      build_call fn [| e1'; e2; e3 |] (make_name_et "selecttmp" ty) cg_ctx.builder
-  | Inject(var_name,stms), ty ->
-    let ret_ty = None in
-    ignore(List.map (codegen_stm cg_ctx ret_ty) stms);
-    let store = Env.find_var cg_ctx.venv var_name in
-    build_load store (make_name_et var_name.data ty) cg_ctx.builder
-  | CheckedExpr(stms,e),_ ->
-    List.map (codegen_stm cg_ctx None) stms |> ignore;
-    codegen_expr cg_ctx e.data
-  | PostCheckedExpr(e,stms),_ ->
-    let e' = codegen_expr cg_ctx e.data in
-      List.map (codegen_stm cg_ctx None) stms |> ignore;
-      e'
-  | Shuffle(expr,mask),ty ->
-    let e = codegen_expr cg_ctx expr.data in
-    let llty = element_type (type_of e) in
-      begin
-        match mask with
-          | [i] ->
-            build_extractelement e (const_int llty i) (make_name_et "extracttmp" ty) cg_ctx.builder
-          | _ ->
-            let m = const_vector
-                      (Array.of_list
-                         (List.map
-                            (fun n -> const_int llty n)
-                            mask)) in
-              build_shufflevector e (undef (type_of e)) m (make_name_et "shuffletmp" ty) cg_ctx.builder
-      end
+    method stm {pos=p;data} =
+      match data with
+        | VarDec (x,bty,e) ->
+          let lle = visit#expr e in
+            if all_vars_indirect then
+              let loc = visit#_get x in
+                build_store lle loc _b |> built
+            else
+              begin
+                set_value_name x.data lle;
+                mlist_push (x,lle) _venv
+              end
+        | FnCall (x,bty,fn,args) ->
+          let llfn = visit#_fget fn in
+          let llargs = List.map visit#expr args |> Array.of_list in
+          let call = build_call llfn llargs "" _b in
+            if all_vars_indirect then
+              let loc = visit#_get x in
+                build_store call loc _b |> built
+            else
+              begin
+                set_value_name x.data call;
+                mlist_push (x,call) _venv
+              end
+        | VoidFnCall (fn,args) ->
+          let llfn = visit#_fget fn in
+          let llargs = List.map visit#expr args |> Array.of_list in
+            build_call llfn llargs "" _b |> built
+        | Assign (e1,e2) ->
+          let lle1 = visit#expr e1 in
+          let lle2 = visit#expr e2 in
+            build_store lle2 lle1 _b |> built
+        | Cmov (e1,cond,e2) ->
+          let lle1 = visit#expr e1 in
+          let lle2 = visit#expr e2 in
+          let llcond = visit#expr cond in
+          let cmov = _get_intrinsic (Intrinsics.cmov_of_choice (integer_bitwidth (type_of lle2))) in
+          let orig = build_load lle1 "" _b in
+          let result = build_call cmov [| llcond; lle2; orig |] "" _b in
+            build_store result lle1 _b |> built
+        | Assume e -> ()
 
-and extend_to ctx builder signed dest et v =
-  let llvm_et = expr_ty_to_llvm_ty ctx et in
-  let lb,rb = integer_bitwidth dest, integer_bitwidth llvm_et in
-  match lb,rb with
-    | lb',rb' when lb' = rb' -> v
-    | lb',rb' when lb' < rb' ->
-      build_trunc v dest (make_name_et "trunctmp" et) ctx.builder
-    | lb',rb' when (lb' > rb') && signed ->
-      build_sext v dest (make_name_et "sexttmp" et) ctx.builder
-    | lb',rb' when lb' > rb' ->
-      build_zext v dest (make_name_et "zexttmp" et) ctx.builder
-    | _ -> raise CodegenError (* This should never be hit *)
+    method expr ({pos=p;data},bty) =
+      let llbty = visit#bty bty in
+        match data with
+          | True -> const_all_ones i1ty
+          | False -> const_null i1ty
+          | IntLiteral n -> const_int llbty n
+          | Variable x ->
+            if all_vars_indirect then
+              let loc = visit#_get x in
+                build_load loc "" _b
+            else
+              visit#_get x
+          | Cast (castty,e) ->
+            let lle = visit#expr e in
+            let llcastty = visit#bty castty in
+            let oldsize = integer_bitwidth (type_of lle) in
+            let newsize = integer_bitwidth llcastty in
+            let build_cast =
+              if newsize < oldsize then
+                build_trunc
+              else if newsize > oldsize then
+                if Tast_util.(is_signed (Tast_util.type_of e))
+                then build_sext
+                else build_zext
+              else (fun lle _ _ _ -> lle) in
+              build_cast lle llcastty "" _b
+          | UnOp (op,e) ->
+            let lle = visit#expr e in
+              visit#unop op lle
+          | BinOp (op,e1,e2) ->
+            let lle1 = visit#expr e1 in
+            let lle2 = visit#expr e2 in
+            let e1ty = Tast_util.type_of e1 in
+            let is_signed = Tast_util.(not (is_bool e1ty) && is_signed e1ty) in
+              visit#binop op is_signed lle1 lle2
+          | TernOp (e1,e2,e3) ->
+            let lle1 = visit#expr e1 in
+            let lle2 = visit#expr e2 in
+            let lle3 = visit#expr e3 in
+              build_select lle1 lle2 lle3 "" _b
+          | Select (e1,e2,e3) ->
+            let lle1 = visit#expr e1 in
+            let lle2 = visit#expr e2 in
+            let lle3 = visit#expr e3 in
+            let select = _get_intrinsic (Intrinsics.select_of_choice (integer_bitwidth llbty)) in
+              build_call select [| lle1; lle2; lle3 |] "" _b
+          | Declassify e
+          | Classify e -> visit#expr e
+          | Enref e ->
+            let lle = visit#expr e in
+            let lle_bty = type_of lle in
+            let stackloc = build_alloca lle_bty "" _b in
+              build_store lle stackloc _b |> built;
+              stackloc
+          | Deref e ->
+            let lle = visit#expr e in
+              build_load lle "" _b
+          | ArrayGet (e,lexpr) ->
+            let lle = visit#expr e in
+            let lllexpr = visit#lexpr lexpr in
+              build_gep lle [| lllexpr |] "" _b
+          | ArrayLit es ->
+            let lles = List.map visit#expr es in
+            let Some el_ty = Tast_util.element_type bty in
+            let len = Tast_util.length_of bty in
+            let llelty = visit#bty el_ty in
+            let lllen = visit#lexpr len in
+            let newarr = build_array_alloca llelty lllen "" _b in
+              List.iteri
+                (fun i lle ->
+                   let cell = build_gep newarr [| const_int i64ty i |] "" _b in
+                     build_store lle cell _b |> built)
+                lles;
+              newarr
+          | ArrayZeros len ->
+            let Some el_ty = Tast_util.element_type bty in
+            let llelty = visit#bty el_ty in
+            let lllen = visit#lexpr len in
+            let newarr = build_array_alloca llelty lllen "" _b in
+            let memset = _get_intrinsic (Memset (integer_bitwidth llelty)) in
+              build_call memset [| newarr; (const_null i8ty); lllen |] "" _b |> built;
+              newarr
+          | ArrayCopy e ->
+            let Some el_ty = Tast_util.element_type bty in
+            let len = Tast_util.length_of bty in
+            let lle = visit#expr e in
+            let llelty = visit#bty el_ty in
+            let lllen = visit#lexpr len in
+            let newarr = build_array_alloca llelty lllen "" _b in
+            let memcpy = _get_intrinsic (Memcpy (integer_bitwidth llelty)) in
+              build_call memcpy [| newarr; lle; lllen |] "" _b |> built;
+              newarr
+          | ArrayView (e,start,len) ->
+            let lle = visit#expr e in
+            let llstart = visit#lexpr start in
+              build_gep lle [| llstart |] "" _b
+          | VectorLit ns ->
+            let llelty = element_type llbty in
+            let llns = List.map (const_int llelty) ns in
+              const_vector (Array.of_list llns)
+          | Shuffle (e,ns) ->
+            let lle = visit#expr e in
+              begin
+                match ns with
+                  | [n] ->
+                    let lln = const_int llbty n in
+                      build_extractelement lle lln "" _b
+                  | _ ->
+                    let llelty = element_type llbty in
+                    let llns = List.map (const_int llelty) ns |> Array.of_list |> const_vector in
+                    let na = undef (type_of lle) in
+                      build_shufflevector lle na llns "" _b
+              end
+          | StructLit entries ->
+            let space = build_alloca (element_type llbty) "" _b in
+              List.iter
+                (fun (fld,e) ->
+                   let i,fldty = visit#_get_field bty fld in
+                   let lle = visit#expr e in
+                   let loc = build_struct_gep space i "" _b in
+                     match fldty.data with
+                       | Bool _
+                       | UInt _
+                       | Int _ ->
+                         build_store lle loc _b |> built
+                       | Arr _ ->
+                         let underlying_ty = lle |> type_of |> element_type in
+                         let pty = pointer_type underlying_ty in
+                         let casted = build_bitcast loc pty "" _b in
+                         let len = Tast_util.(length_of (type_of e)) in
+                         let lllen = visit#lexpr len in
+                         let memcpy = _get_intrinsic (Memcpy (integer_bitwidth underlying_ty)) in
+                           build_call memcpy [| casted; lle; lllen |] "" _b |> built
+                )
+                entries;
+              space
+          | StructGet (e,fld) ->
+            let ety = Tast_util.type_of e in
+            let lle = visit#expr e in
+            let i,_ = visit#_get_field ety fld in
+            let res = build_struct_gep lle i "" _b in
+            let underlying_ty = type_of res |> element_type in
+              begin
+                match classify_type underlying_ty with
+                  | TypeKind.Pointer ->
+                    build_load res "" _b
+                  | TypeKind.Array ->
+                    let pty = underlying_ty |> element_type |> pointer_type in
+                      build_bitcast res pty "" _b
+                  | _ -> res
+              end
+          | _ -> raise @@ cerr p "unimplemented in codegen: %s" (show_expr' data)
 
-and codegen_ext cg_ctx dest (expr : expr) =
-  match expr.data with
-    | expr',ty' ->
-      let expr' = codegen_expr cg_ctx expr.data in
-      begin
-        match classify_type dest with
-          | TypeKind.Pointer -> expr'
-          | _ ->
-            let signed = is_signed (Tast_utils.expr_to_btype expr).data in
-              extend_to cg_ctx cg_ctx.builder signed dest ty' expr'
-      end
+    method lexpr {pos=p;data} =
+      match data with
+        | LIntLiteral n -> const_int i64ty n
+        | LDynamic x ->
+          if all_vars_indirect then
+            let loc = visit#_get x in
+              build_load loc "" _b
+          else
+            visit#_get x
 
-and vt_to_bt = function
-  | RefVT(bt,_,_) -> bt.data
-  | ArrayVT _ -> raise CodegenError
-
-and codegen_array_expr cg_ctx arr_name = function
-  (* XXX gary here too pls *)
-  | ArrayVar lval,ty -> codegen_lval cg_ctx lval,false
-  | ArrayLit exprs,ty ->
-    (* TODO: This needs optimization. We want this array to be global if
-             all exprs are known at compile time. Side note -- this is
-             what clang does.*)
-    let bitsize = bitsize cg_ctx ty in
-    let ll_exprs' = List.map (codegen_ext cg_ctx bitsize) exprs in
-    let arr_ty = array_type bitsize (List.length ll_exprs') in
-    let zero = const_int bitsize 0 in
-    let alloca =
-      build_alloca arr_ty (make_name_et "arraylit" ty) cg_ctx.builder in
-    let gep i el =
-      let i' = const_int (i32_type cg_ctx.llcontext) i in
-      let name = make_name_et "index" ty in
-      let ptr = build_in_bounds_gep alloca [| zero; i' |] name cg_ctx.builder in
-      build_store el ptr cg_ctx.builder |> ignore
+    method unop op lle =
+      let build_unop =
+        match op with
+          | Ast.Neg -> build_neg
+          | Ast.LogicalNot -> build_not
+          | Ast.BitwiseNot -> build_not
       in
-    List.iteri gep ll_exprs';
-    alloca,false
-  | ArrayZeros lexpr,ty ->
-    begin
-      match lexpr.data with
-        | LIntLiteral n ->
-          let ty' = expr_ty_to_base_ty ty in
-          let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
-          let arr_ty = array_type ll_ty n in
-          let name = make_name_et "zerodarray" ty in
-          let alloca = build_alloca arr_ty name cg_ctx.builder in
-          let pointer_ty = pointer_type (i8_type cg_ctx.llcontext) in
-          let name = make_name_et "sourcecasted" ty in
-          let source_casted =
-            build_bitcast alloca pointer_ty name cg_ctx.builder in
-          let zero = const_int (i8_type cg_ctx.llcontext) 0 in
-          let sz = const_int (i64_type cg_ctx.llcontext) (n * (byte_size_of_expr_ty ty)) in
-          let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
-          let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
-          let args = [| source_casted; zero; sz; alignment; volatility |] in
-          let memset = Stdlib.get_intrinsic Memset cg_ctx in
-          build_call memset args "" cg_ctx.builder |> ignore;
-          alloca,false
-        | LDynamic x ->
-          let x_cell = Env.find_var cg_ctx.venv x in
-          let x' = build_load x_cell "_public_load" cg_ctx.builder in
-          let ty' = expr_ty_to_base_ty ty in
-          let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
-          let arr_ty = pointer_type ll_ty in
-          let name = make_name_et "zerodarray" ty in
-          let alloca' = build_array_alloca ll_ty x' name cg_ctx.builder in
-          let alloca = build_alloca arr_ty name cg_ctx.builder in
-          let pointer_ty = pointer_type (i8_type cg_ctx.llcontext) in
-          let name = make_name_et "sourcecasted" ty in
-          let source_casted =
-            build_bitcast alloca' pointer_ty name cg_ctx.builder in
-          let zero = const_int (i8_type cg_ctx.llcontext) 0 in
-          let sz' = const_int (i32_type cg_ctx.llcontext) (byte_size_of_expr_ty ty) in
-          let sz = build_mul x' sz' "_public_size" cg_ctx.builder in
-          let sz = build_zext sz (i64_type cg_ctx.llcontext) "_public_size" cg_ctx.builder in
-          let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
-          let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
-          let args = [| source_casted; zero; sz; alignment; volatility |] in
-          let memset = Stdlib.get_intrinsic Memset cg_ctx in
-          build_call memset args "" cg_ctx.builder |> ignore;
-          build_store alloca' alloca cg_ctx.builder |> ignore;
-          alloca,false
-    end
-  | ArrayCopy lval,ty ->
-    let ll_ty = expr_ty_to_llvm_ty cg_ctx ty in
-    let name = make_name_et "copiedarray" ty in
-    let alloca = build_alloca ll_ty name cg_ctx.builder in
-    let from = codegen_lval cg_ctx lval in
-    let cpy_len = array_length ll_ty in
-    let num_bytes = (byte_size_of_expr_ty ty) * cpy_len in
-    let ll_cpy_len = (const_int (i64_type cg_ctx.llcontext) num_bytes) in
-    let alignment = (const_int (i32_type cg_ctx.llcontext) 0) in
-    let volatility = (const_int (i1_type cg_ctx.llcontext) 0) in
-    let source_cast_ty = pointer_type (i8_type cg_ctx.llcontext) in
-    let source_val, source_ty =
-      begin
-        match from |> type_of |> element_type |> classify_type with
-          | TypeKind.Pointer ->
-            let name = make_name_et "ldedtocopy" ty in
-            let source_casted = build_load from name cg_ctx.builder in
-            let name = make_name_et "sourcecasted" ty in
-            let source_casted' =
-              build_bitcast source_casted source_cast_ty name cg_ctx.builder in
-              source_casted', source_cast_ty
-          | _ ->
-            let name = make_name_et "sourcecasted" ty in
-            let source_casted =
-              build_bitcast from source_cast_ty name cg_ctx.builder in
-              source_casted, source_cast_ty
-      end in
-    let name = make_name_et "destcast" ty in
-    let dest_casted = build_bitcast alloca source_ty name cg_ctx.builder in
-    let args = [| dest_casted; source_val; ll_cpy_len; alignment; volatility |] in
-    let memcpy = Stdlib.get_intrinsic Memcpy cg_ctx in
-    build_call memcpy args "" cg_ctx.builder |> ignore;
-    alloca,false
+        build_unop lle "" _b
 
-  | ArrayView(lval, expr, lexpr),ty ->
-    let index = codegen_expr cg_ctx expr.data in
-    let from = codegen_lval cg_ctx lval in
-    let bt_at_of_et = function
-      | ArrayET({data=ArrayAT(bt,_)} as at,_,_) -> bt,at
-      | _ -> raise CodegenError
-    in
-    let r =
-      begin
-        match from |> type_of |> element_type |> classify_type with
-          | TypeKind.Pointer ->
-            let indices = [| index |] in
-            let name = make_name_et "ldedviewptr" ty in
-            let ptr = build_load from name cg_ctx.builder in
-            let name = make_name_et "source_gep" ty in
-            let source_gep = build_in_bounds_gep ptr indices name cg_ctx.builder in
-            let bt,at = bt_at_of_et ty in
-            let ty' = pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt.data) in
-            let name = make_name_et "arrviewdyn" ty in
-            let alloca = build_alloca ty' name cg_ctx.builder in
-            build_store source_gep alloca cg_ctx.builder |> ignore;
-            alloca,true
-          | _ ->
-            let bt,at = bt_at_of_et ty in
-            let ty' = pointer_type (bt_to_llvm_ty cg_ctx.llcontext bt.data) in
-            let name = make_name_et "arrview" ty in
-            let alloca = build_alloca ty' name cg_ctx.builder in
-            let zero = const_int (type_of index) 0 in
-            let indices = [| zero; index |] in
-            let name = make_name_et "source_gep" ty in
-            let source_gep = build_in_bounds_gep from indices name cg_ctx.builder in
-            build_store source_gep alloca cg_ctx.builder |> ignore;
-            alloca,true
-      end in
-      r
-  | ArrayComp(bt,lexpr, var_name, expr),ty -> raise CodegenError
-  | ArrayNoinit lexpr,ty ->
-    begin
-      match lexpr.data with
-        | LIntLiteral n ->
-          let ty' = expr_ty_to_base_ty ty in
-          let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
-          let arr_ty = array_type ll_ty n in
-          let name = make_name_et "noinitarray" ty in
-          let alloca = build_alloca arr_ty name cg_ctx.builder in
-            alloca,false
-        | LDynamic x ->
-          let x_cell = Env.find_var cg_ctx.venv x in
-          let x' = build_load x_cell "_public_load" cg_ctx.builder in
-          let ty' = expr_ty_to_base_ty ty in
-          let ll_ty = bt_to_llvm_ty cg_ctx.llcontext ty' in
-          let arr_ty = pointer_type ll_ty in
-          let name = make_name_et "noinitarray" ty in
-          let alloca = build_array_alloca arr_ty x' name cg_ctx.builder in
-            alloca,false
-    end
-  | CheckedArrayExpr(stms,ae),_ ->
-    List.map (codegen_stm cg_ctx None) stms |> ignore;
-    codegen_array_expr cg_ctx arr_name ae.data
+    method binop op is_signed lle1 lle2 =
+      let build_binop =
+        match op with
+          | Ast.Plus -> build_add
+          | Ast.Minus -> build_sub
+          | Ast.Multiply -> build_mul
+          | Ast.Divide -> if is_signed then build_sdiv else build_udiv
+          | Ast.Modulo -> if is_signed then build_srem else build_urem
+          | Ast.Equal -> build_icmp Icmp.Eq
+          | Ast.NEqual -> build_icmp Icmp.Ne
+          | Ast.GT -> build_icmp (if is_signed then Icmp.Sgt else Icmp.Ugt)
+          | Ast.GTE -> build_icmp (if is_signed then Icmp.Sge else Icmp.Uge)
+          | Ast.LT -> build_icmp (if is_signed then Icmp.Slt else Icmp.Ult)
+          | Ast.LTE -> build_icmp (if is_signed then Icmp.Sle else Icmp.Ule)
+          | Ast.LogicalAnd -> build_and
+          | Ast.LogicalOr -> build_or
+          | Ast.BitwiseAnd -> build_and
+          | Ast.BitwiseOr -> build_or
+          | Ast.BitwiseXor -> build_xor
+          | Ast.LeftShift -> build_shl
+          | Ast.RightShift -> if is_signed then build_ashr else build_lshr
+          | Ast.LeftRotate ->
+            let rotl = _get_intrinsic (Rotl (integer_bitwidth (type_of lle1))) in
+              (fun a b -> build_call rotl [| a; b |])
+          | Ast.RightRotate ->
+            let rotr = _get_intrinsic (Rotr (integer_bitwidth (type_of lle1))) in
+              (fun a b -> build_call rotr [| a; b |])
+      in
+        build_binop lle1 lle2 "" _b
 
-and codegen_stm cg_ctx ret_ty = function
-  | {data=BaseDec(var_name,var_type,expr)} ->
-    let v = Env.find_var cg_ctx.venv var_name in
-    let expr' = codegen_ext cg_ctx (vt_to_llvm_ty cg_ctx var_type.data) expr in
-    let s = build_store expr' v cg_ctx.builder in
-    (*codegen_dec cg_ctx.verify_llvm var_type expr' cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;*)
-    false
-  | {data=ArrayDec(var_name,var_type,arr_expr)} ->
-    let ArrayVT(_,_,_,vattr) = var_type.data in
-    let bt_of_vt = function
-      | ArrayVT({data=ArrayAT(bt,_)},_,_,_) -> bt
-      | _ -> raise CodegenError
-    in
-    let at_to_et = function
-      | ArrayVT(at,lab,mut',_) -> ArrayET(at,lab,mut')
-      | _ -> raise CodegenError
-    in
-    let bt_at_of_et = function
-    | ArrayET({data=ArrayAT(bt,_)} as at,_,_) -> bt,at
-    | _ -> raise CodegenError
-    in
-    let arr_expr, _ = arr_expr.data in
-    let left_ty = at_to_et var_type.data in
-    let alloca,add_to_type_env = codegen_array_expr cg_ctx var_name (arr_expr, left_ty) in
-      set_value_name (make_name_vt var_name.data var_type.data) alloca;
-      if vattr.cache_aligned then
-        set_alignment 32 alloca; (* XXX 32 is architecture specific or something *)
-    let ct_verif_ty = bt_to_llvm_ty cg_ctx.llcontext (bt_of_vt var_type.data).data in
-    let ct_verif_ty' = pointer_type ct_verif_ty in
-    (*let alloca' = build_bitcast alloca ct_verif_ty' "ddd" cg_ctx.builder in
-    codegen_dec cg_ctx.verify_llvm var_type alloca' cg_ctx.llcontext cg_ctx.llmodule cg_ctx.builder;*)
-    (*let zero = const_int (i32_type cg_ctx.llcontext) 0 in
-    let ptr = build_gep alloca [| zero |] "arrptr" cg_ctx.builder in*)
-    Env.add_var cg_ctx.venv var_name alloca;
-    Env.add_var cg_ctx.vtenv var_name var_type;
-    let bt,at = bt_at_of_et left_ty in
-    if add_to_type_env then Env.add_var cg_ctx.tenv var_name at;
-    false
-  | {data=StructDec(var_name,var_type)} ->
-    false
-  | {data=Assign(lval,expr)} ->
-    let v = codegen_lval cg_ctx lval in
-    let (_,vt) = lval.data in
-    let vt' = vt_to_llvm_ty cg_ctx vt in
-    let expr' = codegen_ext cg_ctx vt' expr in
-    build_store expr' v cg_ctx.builder |> ignore;
-    false
-  | {data=Block(stms)} ->
-    codegen_stms cg_ctx ret_ty stms
-  | {data=If(cond,thenstms,elsestms)} ->
+  end
 
-    let cond' = codegen_expr cg_ctx cond.data in
-    let one = const_int (i1_type cg_ctx.llcontext) 1 in
-    let _,cond_ty = cond.data in
-    let name = make_name_et "branchcompare" cond_ty in
-    let cond_val = build_icmp Icmp.Eq cond' one name cg_ctx.builder in
-
-    let start_bb = insertion_block cg_ctx.builder in
-    let parent_function = block_parent start_bb in
-
-    let then_bb = append_block cg_ctx.llcontext "thenbranch" parent_function in
-    position_at_end then_bb cg_ctx.builder;
-    let then_terminated = codegen_stms cg_ctx ret_ty thenstms in
-
-    let new_then_bb = insertion_block cg_ctx.builder in
-
-
-    let else_bb = append_block cg_ctx.llcontext "elsebranch" parent_function in
-    position_at_end else_bb cg_ctx.builder;
-    let else_terminated = codegen_stms cg_ctx ret_ty elsestms in
-
-    let new_else_bb = insertion_block cg_ctx.builder in
-    position_at_end start_bb cg_ctx.builder;
-    build_cond_br cond_val then_bb else_bb cg_ctx.builder |> ignore;
-
-    if not (then_terminated && else_terminated) then
-        (let merge_bb = append_block cg_ctx.llcontext "branchmerge" parent_function in
-        position_at_end merge_bb cg_ctx.builder;
-
-        (* Only merge if the basic blocks did not terminate *)
-        if not then_terminated then
-        begin
-          position_at_end new_then_bb cg_ctx.builder;
-          build_br merge_bb cg_ctx.builder |> ignore;
-          position_at_end merge_bb cg_ctx.builder
-        end;
-        if not else_terminated then
-        begin
-          position_at_end new_else_bb cg_ctx.builder;
-          build_br merge_bb cg_ctx.builder |> ignore;
-          position_at_end merge_bb cg_ctx.builder;
-        end;
-        false)
-    else true
-  | {data=For(var_name,base_type,init_expr,cond_expr,upd_expr,statements)} ->
-    let preheader = insertion_block cg_ctx.builder in
-    let parent_function = block_parent preheader in
-    let bb_check = append_block cg_ctx.llcontext "loop_check" parent_function in
-    let bb_body = append_block cg_ctx.llcontext "loop_body" parent_function in
-    let bb_end = append_block cg_ctx.llcontext "loop_end" parent_function in
-    let i = Env.find_var cg_ctx.venv var_name in
-    let ml = make_ast fake_pos (Fixed Public) in
-    let name_i = make_name var_name.data ml in
-    set_value_name name_i i;
-    let bt = bt_to_llvm_ty cg_ctx.llcontext base_type.data in
-    let init = codegen_ext cg_ctx bt init_expr in
-    ignore(build_store init i cg_ctx.builder);
-    ignore(build_br bb_check cg_ctx.builder);
-    position_at_end bb_check cg_ctx.builder;
-    let name = make_name "loopcond" ml in
-    let cond = codegen_expr cg_ctx cond_expr.data in
-    ignore(build_cond_br cond bb_body bb_end cg_ctx.builder);
-    position_at_end bb_body cg_ctx.builder;
-    codegen_stms cg_ctx ret_ty statements |> ignore;
-    let incr = codegen_ext cg_ctx bt upd_expr in
-    ignore(build_store incr i cg_ctx.builder);
-    ignore(build_br bb_check cg_ctx.builder);
-    position_at_end bb_end cg_ctx.builder;
-    false
-  | {data=VoidFnCall(fun_name,arg_exprs)} ->
-    (* TODO: refactor this with FnCall *)
-    let fun_dec = get_fn cg_ctx.fenv fun_name in
-    let callee = match lookup_function fun_name.data cg_ctx.llmodule with
-      | Some fn -> fn
-      | None -> Stdlib.get_stdlib fun_name.data cg_ctx in
-    let codegen_arg' = codegen_arg cg_ctx in
-    let args' = List.map2 codegen_arg' arg_exprs fun_dec.args in
-    let call = build_call callee (Array.of_list args') "" cg_ctx.builder in
-    false
-  | {data=DebugVoidFnCall(fun_name,arg_exprs)} ->
-    let f = 
-    match lookup_function fun_name.data cg_ctx.llmodule with
-      | None -> Debugfun.codegen_proto cg_ctx.llcontext cg_ctx.llmodule fun_name
-      | Some f -> f in
-    let fun_dec = get_fn cg_ctx.fenv fun_name in
-    let args = List.map2 (codegen_arg cg_ctx) arg_exprs fun_dec.args in
-    let _ = build_call f (Array.of_list args) "" cg_ctx.builder in
-    false
-  | {data=VoidReturn} ->
-    build_ret_void cg_ctx.builder |> ignore;
-    true
-  | {data=Return(expr)} ->
-    begin
-      match ret_ty with
-        | Some BaseET(bt,label) ->
-          let ty = (bt_to_llvm_ty cg_ctx.llcontext bt.data) in
-          let ret' = codegen_ext cg_ctx ty expr in
-          ignore(build_ret ret' cg_ctx.builder)
-        (* TODO: assert valid function here *)
-        | Some ArrayET _ -> raise CodegenError (* TODO: Cannot retur an array yet *)
-        | None -> raise CodegenError
-    end;
-    true
-
-and codegen_stms cg_ctx ret_ty (stms : Tast.block) =
-  let _,stms' = stms in
-  let cg = codegen_stm cg_ctx ret_ty in
-  List.fold_left (fun returned stm -> (cg stm) || returned) false stms'
-
-and declare_prototypes llcontext llmodule builder fenv = function
-  | Lvalue lval,_ -> declare_lval_prototypes llcontext llmodule builder fenv lval.data
-  | IntCast(_,expr),_ ->
-    declare_prototypes llcontext llmodule builder fenv expr.data
-  | BinOp(_,expr1,expr2),_ ->
-    declare_prototypes llcontext llmodule builder fenv expr1.data;
-    declare_prototypes llcontext llmodule builder fenv expr2.data
-  | UnOp(_,expr),_ ->
-    declare_prototypes llcontext llmodule builder fenv expr.data
-  | TernOp(expr1,expr2,expr3),_ ->
-    declare_prototypes llcontext llmodule builder fenv expr1.data;
-    declare_prototypes llcontext llmodule builder fenv expr2.data;
-    declare_prototypes llcontext llmodule builder fenv expr3.data
-  | FnCall(fun_name,args_exprs),_ ->
-    let {ret_ty; args} = Hashtbl.find fenv fun_name.data in
-    declare_prototype llcontext llmodule builder fenv args ret_ty fun_name |> ignore;
-    ()
-  | _ -> ()
-
-and declare_lval_prototypes cg_ctx llmodule builder fenv = function
-  | Base _,_ -> ()
-  | ArrayEl(_,expr),_ -> declare_prototypes cg_ctx llmodule builder fenv expr.data
-  | StructEl _,_ -> ()
-
-and declare_arg_prototypes cg_ctx llmodule builder fenv = function
-    | ByValue expr ->
-      declare_prototypes cg_ctx llmodule builder fenv expr.data
-    | ByRef _ -> ()
-    | ByArray _ -> raise CodegenError
-
-and declare_prototype cg_ctx llmodule builder fenv params ret name =
-  let param_types = List.map (param_to_type cg_ctx) params in
-  (*let array_ty = array_type (i32_type cg_ctx.llcontext) 10 in*)
-  let param_types' = Array.of_list param_types in
-  let ret_ty = get_ret_ty cg_ctx ret in
-  let ft = function_type ret_ty param_types' in
-  let ft' =
-    match lookup_function name.data llmodule with
-      | None -> 
-        declare_function name.data ft llmodule
-      | Some f -> raise FunctionAlreadyDefined in
-  ft'
-
-let codegen_fun llcontext llmodule builder fenv sdecs verify_llvm = function
-  | { data=FunDec(name,funattrs,ret,params,body) } ->
-    Log.info "Generating function, %s" name.data;
-    let venv = Env.new_env () in
-    let tenv = Env.new_env () in
-    let vtenv = Env.new_env () in
-    let cg_ctx = mk_ctx llcontext llmodule builder venv fenv tenv vtenv
-      sdecs verify_llvm in
-    let ft = declare_prototype cg_ctx llmodule builder fenv params ret name in
-      if not funattrs.export && not verify_llvm then
-        set_linkage Internal ft;
-      (match funattrs.inline with
-        | Always ->
-            add_function_attr ft cg_ctx.alwaysinline Function
-        | Never ->
-            add_function_attr ft cg_ctx.noinline Function
-        | _ -> ());
-    let bb = append_block llcontext "entry" ft in
-    position_at_end bb builder;
-
-    (*declare_ct_verif verify_llvm llcontext llmodule ASSUME;
-    declare_ct_verif verify_llvm llcontext llmodule PUBLIC_IN;
-    declare_ct_verif verify_llvm llcontext llmodule PUBLIC_OUT;
-    declare_ct_verif verify_llvm llcontext llmodule DECLASSIFIED_OUT;
-    declare_ct_verif verify_llvm llcontext llmodule SMACK_VALUE;
-    declare_ct_verif verify_llvm llcontext llmodule SMACK_VALUES;
-    declare_ct_verif verify_llvm llcontext llmodule SMACK_RETURN_VALUE;
-    declare_ct_verif verify_llvm llcontext llmodule DISJOINT_REGIONS;*)
-    let regions = allocate_args cg_ctx params ft in
-    allocate_stack cg_ctx body;
-    (*let arr_env,_ = body in
-    generate_disjoint_regions verify_llvm regions cg_ctx arr_env;*)
-    let returned =
-      begin
-        match ret with
-          | None -> codegen_stms cg_ctx None body
-          | Some ret' ->
-            codegen_stms cg_ctx (Some ret'.data) body
-      end in
-    if not returned then build_ret_void builder |> ignore;
-
-    (*let ret' = codegen_ext llcontext llmodule builder var_env ret in
-    build_ret ret' builder;*)
-    (*Llvm_analysis.assert_valid_function ft;*)
-    ft
-  | { data=CExtern(fun_name, ret_ty, params) } ->
-    let venv = Env.new_env () in
-    let tenv = Env.new_env () in
-    let vtenv = Env.new_env () in
-    let cg_ctx = mk_ctx llcontext llmodule builder venv fenv tenv vtenv
-      sdecs verify_llvm in
-    declare_prototype cg_ctx llmodule builder fenv params ret_ty fun_name
-  | { data=DebugFunDec _} -> raise CodegenError
-  | { data=StdlibFunDec _} -> raise CodegenError
-
-let rec codegen_fdecs llcontext llmodule builder fenv sdecs verify = function
-  | [] -> ()
-  | fd::rest ->
-    ignore(codegen_fun llcontext llmodule builder fenv sdecs verify fd);
-    codegen_fdecs llcontext llmodule builder fenv sdecs verify rest
-
-let field_to_type llctx sdecs {data=Field(_,
-                                          {data=vt},
-                                          is_pointer)} =
-  match vt with
-  | RefVT({data=base_type},maybe_label,_) ->
-    let basety = bt_to_llvm_ty llctx base_type in
-      if is_pointer then pointer_type basety else basety
-  | ArrayVT({data=ArrayAT(bt,size)} as ty,maybe_label,_,_) ->
-    let basety = bt_to_llvm_ty llctx bt.data in
-    begin
-      match size.data with
-        | LIntLiteral s when not is_pointer ->
-          array_type basety s
-        | _ when is_pointer ->
-          pointer_type basety
-    end
-  | StructVT(s,_) ->
-    let struct_ty,_ = List.assoc s.data sdecs in
-    let basety = struct_ty in
-      if is_pointer then pointer_type basety else basety
-
-let codegen_sdec llctx sdecs {data=sdec} =
-  let Struct(s,fields) = sdec in
-  let field_tys = List.map (field_to_type llctx sdecs) fields |> Array.of_list in
-  let struct_ty = named_struct_type llctx s.data in
-    struct_set_body struct_ty field_tys false;
-    (s.data, (struct_ty, sdec)) :: sdecs
-
-let rec codegen llcontext llmodule builder verify = function
-  | Module(oldfenv,fdecs,sdecs) ->
-    Log.info "Codegening module";
-    let sdecs' = List.rev @@ List.fold_left (codegen_sdec llcontext) [] sdecs in
-    let fenv = new_fenv oldfenv in
-      codegen_fdecs llcontext llmodule builder fenv sdecs' verify fdecs
+let codegen m =
+  let llctx = Llvm.create_context () in
+  let llmod = Llvm.create_module llctx "Module" in
+  let visit = new codegen llctx llmod m in
+    visit#fact_module (); llctx, llmod
