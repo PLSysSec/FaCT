@@ -257,7 +257,7 @@ export secret int32 summZeroDynamic() {
 }
 
 export secret int32 summNonZeroDynamic() {
-  secret int32[] arr = {1,2,3};
+  secret int32[] arr = [1,2,3];
   secret int32 res = summ(arr);
   return res;
 }
@@ -270,7 +270,7 @@ export secret int32 summCopyZero() {
 }
 
 export secret int32 summCopyNonZero() {
-  secret int32[5] arr = {1,2,3,4,5};
+  secret int32[5] arr = [1,2,3,4,5];
   secret int32[5] arr2 = clone(arr);
   secret int32 res = summ(arr2);
   return res;
@@ -284,7 +284,7 @@ export secret int32 summCopyZeroDynamic() {
 }
 
 export secret int32 summCopyNonZeroDynamic() {
-  secret int32[] arr = {1,2,3,4,5};
+  secret int32[] arr = [1,2,3,4,5];
   secret int32[] arr2 = clone(arr);
   secret int32 res = summ(arr2);
   return res;
@@ -298,7 +298,7 @@ export secret int32 summViewZero() {
 }
 
 export secret int32 summViewNonZero() {
-  secret int32[10] arr = {1,2,3,4,5,6,7,8,9,10};
+  secret int32[10] arr = [1,2,3,4,5,6,7,8,9,10];
   secret int32[2] arr2 = view(arr,0,2);
   secret int32 res = summ(arr2);
   return res;
@@ -311,22 +311,22 @@ export secret int32 summViewDynamic(secret int32[] arr) {
 }
 
 export secret int32 arrget1() {
-  secret int32[10] arr = {1,2,3,4,5,6,7,8,9,10};
+  secret int32[10] arr = [1,2,3,4,5,6,7,8,9,10];
   return arr[0];
 }
 
 export secret int32 arrget2() {
-  secret int32[10] arr = {1,2,3,4,5,6,7,8,9,10};
+  secret int32[10] arr = [1,2,3,4,5,6,7,8,9,10];
   return arr[1];
 }
 
 export secret int32 arrget3() {
-  secret int32[10] arr = {1,2,3,4,5,6,7,8,9,10};
+  secret int32[10] arr = [1,2,3,4,5,6,7,8,9,10];
   return arr[2];
 }
 
 export secret int32 arrget4() {
-  secret int32[10] arr = {1,2,3,4,5,6,7,8,9,10};
+  secret int32[10] arr = [1,2,3,4,5,6,7,8,9,10];
   return arr[9];
 }
 
@@ -358,7 +358,7 @@ export secret int32 mutateRefCall() {
 }
 
 export secret int32 simpleArrAccess() {
-  secret int32[5] arr = {1,2,3,4,5};
+  secret int32[5] arr = [1,2,3,4,5];
   return arr[0];
 }
 
@@ -368,7 +368,7 @@ export secret int32 simpleArrZerosAccess() {
 }
 
 export secret int32 simpleArrViewAccess() {
-  secret int32[5] arr = {1,2,3,4,5};
+  secret int32[5] arr = [1,2,3,4,5];
   secret int32[2] arr2 = view(arr,2,2);
   return arr2[0];
 }
@@ -459,13 +459,13 @@ export public int32 arrCopy(public int32[5] arr, public int32 index) {
 }
 
 export public int32 mediumComplexArrCopy(public int32 index) {
-  public int32[5] arr = {1,2,3,4,5};
+  public int32[5] arr = [1,2,3,4,5];
   public int32[5] arr2 = clone(arr);
   return arr2[index];
 }
 
 export public int32 complexArrCopy(public int32 index) {
-  public int32[5] arr = {1,2,3,4,5};
+  public int32[5] arr = [1,2,3,4,5];
   public int32 res = arrCopy(arr, index);
   return res;
 }
