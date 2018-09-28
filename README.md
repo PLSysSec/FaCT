@@ -1,6 +1,18 @@
 
 # FaCT
 
+This is the compiler for the Flexible and Constant Time cryptographic programming language.
+FaCT is a domain-specific language that aids you in writing constant-time code for cryptographic routines
+that need to be free from timing side channels.
+
+## Useful links:
+
+- Online demo: (Coming soon!)
+- Sample FaCT code: https://github.com/PLSysSec/fact-eval
+- Haskell embedding: https://github.com/PLSysSec/inline-fact
+- Python embedding: https://github.com/PLSysSec/CTFFI
+- Vim syntax files: https://github.com/PLSysSec/factlang.vim
+
 ## Installation
 
 To install you can either build the source or download ```fact.byte```. We recommend to build from source if possible.
