@@ -312,19 +312,20 @@ class typechecker =
               let p = stm.pos in
               let next this =
                 begin
-                  let inject_capture = _inject in
+                  let inject_capture,next' =
+                    match rest with
+                      | [{data=Ast.Return _} as rtstm]
+                      | [{data=Ast.VoidReturn} as rtstm] ->
+                        let rnext = visit#return pc rtstm in
+                          _inject,rnext
+                      | [] -> _inject,p@>End
+                      | _ -> _inject,p@>(Block (visit#block p pc rest))
+                  in
                     _inject <- [];
-                    let next' =
-                      match rest with
-                        | [{data=Ast.Return _} as rtstm]
-                        | [{data=Ast.VoidReturn} as rtstm] -> visit#return pc rtstm
-                        | [] -> p@>End
-                        | _ -> p@>(Block (visit#block p pc rest))
-                    in
-                      if inject_capture <> [] then
-                        p@>ListOfStuff (List.rev inject_capture), p@>Block (this, next')
-                      else
-                        this, next'
+                    if inject_capture <> [] then
+                      p@>ListOfStuff (List.rev inject_capture), p@>Block (this, next')
+                    else
+                      this, next'
                 end in
               let res =
                 match stm.data with
@@ -344,7 +345,14 @@ class typechecker =
                     let controlflow' = visit#controlflow pc stm in
                       next (p@>controlflow')
                   | Ast.Return _
-                  | Ast.VoidReturn -> (p@>ListOfStuff [], visit#return pc stm)
+                  | Ast.VoidReturn ->
+                    let rnext = visit#return pc stm in
+                    let inject_capture = _inject in
+                      _inject <- [];
+                      if inject_capture <> [] then
+                        (p@>ListOfStuff (List.rev inject_capture), rnext)
+                      else
+                        (p@>ListOfStuff [], rnext)
               in
                 res
         in
