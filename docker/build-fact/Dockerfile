@@ -21,7 +21,7 @@ RUN groupadd --gid "${USER_GID}" "${USER}" && \
       --shell /bin/bash \
       ${USER}
 
-COPY user-mapping-new.sh /user-mapping.sh
+COPY user-mapping.sh /user-mapping.sh
 RUN  chmod u+x /user-mapping.sh
 
 ENTRYPOINT ["/user-mapping.sh"]
@@ -43,7 +43,8 @@ RUN apt-get -y install apt-transport-https ca-certificates curl gnupg2 software-
 USER ${USER}
 RUN echo "export PATH=/usr/lib/llvm-6.0/bin/:$PATH" | tee -a /home/docker/.profile
 RUN opam init --compiler=4.06.0 
-RUN opam install llvm.6.0.0 core.v0.9.2 ounit.2.0.7 ctypes-foreign.0.4.0 utop.2.1.0 dolog.3.0 menhir.20171222 oasis.0.4.10 ppx_deriving.4.2.1 ANSITerminal.0.8 ocamlgraph.1.8.8 yojson.1.4.0 jbuilder.1.0+beta16 batteries.2.8.0
+RUN cd /home/docker/ && wget https://raw.githubusercontent.com/PLSysSec/FaCT/rewrite/ocamlswitch.txt && opam switch import ocamlswitch.txt && rm ocamlswitch.txt
+RUN echo "export LD_LIBRARY_PATH=$HOME/.opam/4.06.0/lib/z3" | tee -a /home/docker/.profile 
 RUN mkdir /home/docker/FaCT
 
 ###############################

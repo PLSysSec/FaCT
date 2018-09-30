@@ -9,8 +9,7 @@ This will download and save the image (warning: 900 MB compressed) then open a s
 cd /home/docker/FaCT
 eval $(opam config env)
 oasis setup
-make configure
-make build
+make
 ```
 
 This will produce `fact.byte`, the FaCT executable. If you're getting errors try running `make clean` and removing `setup.data` then running the above commands again.
