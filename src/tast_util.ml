@@ -41,6 +41,11 @@ let is_ref =
     | Ref _ -> true
     | _ -> false
 
+let is_arr =
+  xwrap @@ fun p -> function
+    | Arr _ -> true
+    | _ -> false
+
 let is_struct =
   xwrap @@ fun p -> function
     | Struct _ -> true

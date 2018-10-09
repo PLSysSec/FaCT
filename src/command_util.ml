@@ -127,6 +127,13 @@ let output_shared_object out_file args =
       Log.debug "Creating shared object file at %s" out_file_o;
       run_command "clang-6.0" [|"clang-6.0"; "-shared"; out_file_s; "-o"; out_file_o|] true |> ignore
 
+let ctverify verif out_file tast =
+  if verif then
+    let wrapper_out_file = out_file ^ "_wrapper.c" in
+    Log.debug "Outputting ctverif wrapper file to %s" wrapper_out_file;
+    Core_kernel.Out_channel.write_all wrapper_out_file ~data:(Ctverif.ctverify out_file tast);
+    Log.debug "To verify, run: `verif.sh [ENTRYPOINT] %s %s %s`" wrapper_out_file (out_file^".ll") (out_file^".h")
+
 (*
 let generate_smack args out_file xftast =
   let do_output out_file_name tast =
@@ -271,6 +278,8 @@ let compile (in_files,out_file,out_dir) args =
     output_assembly args.fpic args.opt_level out_file' |> ignore;
     output_shared_object out_file' args;
     output_object out_file' |> ignore;
+  ctverify args.verify_llvm out_file' tast
+
   (*Log.debug "Typecheck complete";
   let xftast = Transform.xf_module tast args.mode in
   Log.debug "Tast transform complete";
