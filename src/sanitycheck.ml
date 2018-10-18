@@ -126,11 +126,17 @@ class sanitychecker post_transform m =
                 if not (is_bool cty) then
                   raise @@ err p;
                 let e2_ty = type_of e2 in
+                let new_ty = match (label_of cty).data with
+                  | Public -> e2_ty
+                  | Secret -> classify e2_ty in
                   begin
                     match e1_ty.data with
                       | Ref (subty,{data=W|RW}) ->
-                        if not (e2_ty =: subty) then
-                          raise @@ err p
+                        if not (new_ty =: subty) then
+                          raise @@ cerr p
+                                     "mismatch: %s vs %s"
+                                     (ps#bty new_ty)
+                                     (ps#bty subty)
                       | _ -> raise @@ err p
                   end
             | Assume e -> ()

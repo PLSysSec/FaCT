@@ -1005,13 +1005,17 @@ class typechecker =
             in
             let e2' = visit#expr ~lookahead_bty:unref_ty e2 in
             let e2_ty = type_of e2' in
-              if e2_ty <: unref_ty then
+            let new_ty = match stmlbl.data with
+              | Public -> e2_ty
+              | Secret -> classify e2_ty in
+              if new_ty <: unref_ty then
                 Assign (e1',expr_fix p unref_ty e2')
               else
                 raise @@ cerr p
-                           "expected %s, got %s"
-                           (show_base_type unref_ty)
-                           (show_base_type e2_ty)
+                           "expected %s, got %s (in %s context)"
+                           (ps#bty unref_ty)
+                           (ps#bty e2_ty)
+                           (ps#lbl stmlbl)
           | Ast.If _ -> raise @@ err p
           | Ast.RangeFor _ -> raise @@ err p
           | Ast.ArrayFor _ -> raise @@ err p

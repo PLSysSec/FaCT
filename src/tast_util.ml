@@ -171,7 +171,7 @@ let meet_mut p m1 m2 =
 
 let rec ( =: ) b1 b2 =
   match b1.data,b2.data with
-    | Bool l1,Bool l2 -> true
+    | Bool l1,Bool l2 -> l1 =$ l2
     | UInt (n,l1),UInt (m,l2) -> n = m && l1 =$ l2
     | Int (n,l1),Int (m,l2) -> n = m && l1 =$ l2
     | Ref (rb1,m1),Ref (rb2,m2) -> rb1 =: rb2 && m1 =* m2
