@@ -22,6 +22,7 @@ done
 
 # Run ctverif (excluding header files from args)
 # This will probably break with any relative paths to header files that aren't in the local directory
+# TODO: Fail if "SMACK found no errors with unroll bound" is not in output
 docker exec $ID /bin/bash -c "ctverif --entry-points $ENTRYPOINT \$(find /root/verifs/ -type f ! \( -iname '*.h' \))"
 
 # Stop container

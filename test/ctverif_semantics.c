@@ -17,7 +17,7 @@ int32_t mutateArray_wrapper(int32_t arr[5]) {
 }
 
 int32_t mutateArray2_wrapper(int32_t arr2[5], int32_t val){
-    public_in(__SMACK_value(arr));
+    public_in(__SMACK_value(arr2));
     return mutateArray2(arr2, val);
 }
 
@@ -34,7 +34,7 @@ int32_t mixedIf_wrapper(int32_t cond) {
 }
 
 int32_t mixedIf2_wrapper(int32_t cond) {
-    return mixedIf2(int32_t cond);
+    return mixedIf2(cond);
 }
 
 int32_t nestedIf_wrapper(int32_t cond) {
@@ -94,7 +94,7 @@ int32_t lshift_wrapper(int32_t num,uint32_t shift) {
 }
 
 int32_t rshift_wrapper(int32_t num,uint32_t shift) {
-    rshift(num,shift);
+    return rshift(num,shift);
 }
 
 uint8_t gt_wrapper(int32_t a,int32_t b) {
@@ -333,7 +333,7 @@ int32_t simpleArrCopy_wrapper(int8_t c[],/*public*/ uint32_t __c_len,const int8_
     public_in(__SMACK_value(c));
     public_in(__SMACK_value(__c_len));
     public_in(__SMACK_value(k));
-    return simpleArrCopy(int8_t c,/*public*/ __c_len,int8_t k);
+    return simpleArrCopy(c,/*public*/ __c_len,k);
 }
 
 /*public return*/
@@ -350,7 +350,7 @@ int32_t simpleArrCopyStatic_wrapper(int8_t c[5],const int8_t k[5]) {
     public_out(__SMACK_return_value());
     public_in(__SMACK_value(c));
     public_in(__SMACK_value(k));
-    return simpleArrCopyStatic(int8_t c,int8_t k);
+    return simpleArrCopyStatic(c,k);
 }
 
 /*public return*/
