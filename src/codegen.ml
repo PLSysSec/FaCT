@@ -48,11 +48,13 @@ let collect_vardecs fdec =
     visit#fact_module () |> ignore;
     visit#_vars ()
 
-class codegen llctx llmod m =
+class codegen no_inline_asm llctx llmod m =
   object (visit)
     val all_vars_indirect = false
 
     val _get_intrinsic = Intrinsics.make_stuff llctx llmod
+    val _select_of_choice = fun n -> Intrinsics.(if no_inline_asm then SelectXor n else select_of_choice n)
+    val _cmov_of_choice = fun n -> Intrinsics.(if no_inline_asm then CmovXor n else cmov_of_choice n)
     val _b : Llvm.llbuilder = Llvm.builder llctx
 
     val _sdecs : (struct_name * (var_name * (int * base_type)) list) mlist = ref []
@@ -410,7 +412,7 @@ class codegen llctx llmod m =
           let lle1 = visit#expr e1 in
           let lle2 = visit#expr e2 in
           let llcond = visit#expr cond in
-          let cmov = _get_intrinsic (Intrinsics.cmov_of_choice (integer_bitwidth (type_of lle2))) in
+          let cmov = _get_intrinsic (_cmov_of_choice (integer_bitwidth (type_of lle2))) in
           let orig = build_load lle1 "" _b in
           let result = build_call cmov [| llcond; lle2; orig |] "" _b in
             build_store result lle1 _b |> built
@@ -460,7 +462,7 @@ class codegen llctx llmod m =
             let lle1 = visit#expr e1 in
             let lle2 = visit#expr e2 in
             let lle3 = visit#expr e3 in
-            let select = _get_intrinsic (Intrinsics.select_of_choice (integer_bitwidth llbty)) in
+            let select = _get_intrinsic (_select_of_choice (integer_bitwidth llbty)) in
               build_call select [| lle1; lle2; lle3 |] "" _b
           | Declassify e
           | Classify e -> visit#expr e
@@ -620,8 +622,8 @@ class codegen llctx llmod m =
 
   end
 
-let codegen m =
+let codegen no_inline_asm m =
   let llctx = Llvm.create_context () in
   let llmod = Llvm.create_module llctx "Module" in
-  let visit = new codegen llctx llmod m in
+  let visit = new codegen no_inline_asm llctx llmod m in
     visit#fact_module (); llctx, llmod

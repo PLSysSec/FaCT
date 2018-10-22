@@ -33,6 +33,7 @@ type args_record = {
   shared      : bool;
   noguac      : bool;
   fpic        : bool;
+  no_inline_asm : bool;
 }
 
 let run_command c args exit_on_error =
@@ -257,7 +258,7 @@ let compile (in_files,out_file,out_dir) args =
   let tast = Oobcheck.transform args.debug tast in (* array accesses etc. validated *)
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
-  let llctx,llmod = Codegen.codegen tast in
+  let llctx,llmod = Codegen.codegen args.no_inline_asm tast in
     output_llvm args.llvm_out out_file' llmod;
   let tast = Transfn.transform tast in (* transform secret fn calls *)
     output_tast args.ast_out out_file' tast;
@@ -272,7 +273,7 @@ let compile (in_files,out_file,out_dir) args =
     output_tast args.ast_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
     generate_header (args.gen_header || args.verify_llvm) out_file' tast;
-  let llctx,llmod = Codegen.codegen tast in
+  let llctx,llmod = Codegen.codegen args.no_inline_asm tast in
     output_llvm args.llvm_out out_file' llmod;
     output_bitcode out_file' llmod;
     output_assembly args.fpic args.opt_level out_file' |> ignore;

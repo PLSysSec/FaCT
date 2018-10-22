@@ -21,6 +21,7 @@ let verify_opt_doc = "opt Comma separated list of optimzations to verify on the 
 let shared_opt_doc = "Generate a .so file"
 let noguac_opt_doc = "Don't run the name-based LLVM IR verifier"
 let fpic_opt_doc = "compile with -fpic"
+let no_inline_asm_doc = "use XOR-based selection intrinsics instead of inline assembly"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -135,6 +136,7 @@ let compile_command =
       flag "-shared" no_arg ~doc:shared_opt_doc +>
       flag "-no-guac" no_arg ~doc:noguac_opt_doc +>
       flag "-fpic" no_arg ~doc:fpic_opt_doc +>
+      flag "-no-inline-asm" no_arg ~doc:no_inline_asm_doc +>
       anon (sequence ("filename" %: file)))
     (fun
       out_file
@@ -153,6 +155,7 @@ let compile_command =
       shared
       noguac
       fpic
+      no_inline_asm
       in_files () ->
       let mode = match mode with
         | Some "dev" -> DEV
@@ -171,7 +174,7 @@ let compile_command =
                    ast_out; core_ir_out; pseudo_out; smack_out;
                    llvm_out; gen_header; verify_llvm; mode; opt_level;
                    (*opt_limit;*) verify_opts; shared; noguac;
-                   fpic; } in
+                   fpic; no_inline_asm; } in
         set_log_level debug;
         let prep = prepare_compile out_file in_files () in
           runner prep args)
