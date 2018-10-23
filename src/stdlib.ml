@@ -47,25 +47,25 @@ let name_of code =
       begin
         match code with
           | Memzero (sz,lbl,everhi) ->
-            sprintf "__memzero[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+            sprintf "__memzero[%d]_%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
           | SMemzero (sz,lbl,everhi) ->
-            sprintf "__smemzero[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+            sprintf "__smemzero[%d]_%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
           | Memcpy (sz,lbl,everhi) ->
-            sprintf "__memcpy[%d]/%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+            sprintf "__memcpy[%d]_%s%s" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
           | MemzeroStruct (sname,everhi) ->
-            sprintf "__memzero/%s%s" sname (if everhi then "/oblivious" else "")
+            sprintf "__memzero_%s%s" sname (if everhi then "/oblivious" else "")
           | SMemzeroStruct (sname,everhi) ->
-            sprintf "__smemzero/%s%s" sname (if everhi then "/oblivious" else "")
+            sprintf "__smemzero_%s%s" sname (if everhi then "/oblivious" else "")
           | MemcpyStruct (sname,everhi) ->
-            sprintf "__memcpy/%s%s" sname (if everhi then "/oblivious" else "")
+            sprintf "__memcpy_%s%s" sname (if everhi then "/oblivious" else "")
           | LoadLE (sz,lbl) ->
-            sprintf "__load[%d]/%s_le" sz (ps_lbl lbl)
+            sprintf "__load[%d]_%s_le" sz (ps_lbl lbl)
           | StoreLE (sz,lbl,everhi) ->
-            sprintf "__store[%d]/%s%s_le" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
+            sprintf "__store[%d]_%s%s_le" sz (ps_lbl lbl) (if everhi then "/oblivious" else "")
           | LoadLEVec (sz,len,lbl) ->
-            sprintf "__load[%d]<%d>/%s_le" sz len (ps_lbl lbl)
+            sprintf "__load[%d]<%d>_%s_le" sz len (ps_lbl lbl)
           | StoreLEVec (sz,len,lbl,everhi) ->
-            sprintf "__store[%d]<%d>/%s%s_le" sz len (ps_lbl lbl) (if everhi then "/oblivious" else "")
+            sprintf "__store[%d]<%d>_%s%s_le" sz len (ps_lbl lbl) (if everhi then "/oblivious" else "")
       end
 
 let interface_of
