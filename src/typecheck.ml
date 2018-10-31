@@ -27,11 +27,12 @@ let expr_fix p bty e =
       let bty_s = bitsize bty in
       let e_s = bitsize e_bty in
         if e_s <> bty_s then
+          let l = label_of e_bty in
           let upcast =
             make_ast p
               (match bty.data with
-                | UInt (_,l) -> UInt (bty_s,l)
-                | Int (_,l) -> Int (bty_s,l))
+                | UInt (_,_) -> UInt (bty_s,l)
+                | Int (_,_) -> Int (bty_s,l))
           in
             (p@>Cast (upcast, e), upcast)
         else e
