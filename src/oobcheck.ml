@@ -3,6 +3,7 @@ open Pos
 open Err
 open Tast
 open Tast_util
+open Pseudocode
 
 module LogModule = Log
 open Z3
@@ -198,7 +199,112 @@ class oobchecker debug m =
           | Ast.BitwiseNot -> mk_not ctx z)
       )
 
+    method _binop_check op bty e1 e2 =
+      BitVector.(
+        match op with
+          | Ast.Divide ->
+            begin match zpop _expr e2 with
+              | None -> raise @@ cerr (expr_of e2).pos "couldn't determine divisor"
+              | Some z2 ->
+                let bvec_sort = bty |> bitsize |> bv in
+                let zdec = Expr.mk_fresh_const ctx "divisor" bvec_sort in
+                let zeq = mk_eq ctx zdec z2 in
+                  visit#_add zeq;
+                  let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
+                    visit#_assert (expr_of e2).pos zdec [divcheck]
+            end
+          | Ast.Modulo ->
+            begin match zpop _expr e2 with
+              | None -> raise @@ cerr (expr_of e2).pos "couldn't determine divisor"
+              | Some z2 ->
+                let bvec_sort = bty |> bitsize |> bv in
+                let zdec = Expr.mk_fresh_const ctx "divisor" bvec_sort in
+                let zeq = mk_eq ctx zdec z2 in
+                  visit#_add zeq;
+                  let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
+                    visit#_assert (expr_of e2).pos zdec [divcheck]
+            end
+          | Ast.LeftShift ->
+            begin match zpop _expr e2 with
+              | None ->
+                begin match (type_of e2).data with
+                  | UVec _ -> () (* typecheck currently already asserts that vecs only shift by constant amounts *)
+                  | _ -> raise @@ cerr (expr_of e2).pos "couldn't determine shift amount: %s" (ps#expr e2)
+                end
+              | Some z2 ->
+                let cmp,cmpe =
+                  if is_signed (type_of e2)
+                  then mk_slt,mk_sle
+                  else mk_ult,mk_ule in
+                let e1size = bitsize (type_of e1) in
+                let e2size = bitsize (type_of e2) in
+                let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
+                let zeq = mk_eq ctx zdec z2 in
+                  visit#_add zeq;
+                  let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
+                  let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
+                    visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top]
+            end
+          | Ast.RightShift ->
+            begin match zpop _expr e2 with
+              | None ->
+                begin match (type_of e2).data with
+                  | UVec _ -> () (* typecheck currently already asserts that vecs only shift by constant amounts *)
+                  | _ -> raise @@ cerr (expr_of e2).pos "couldn't determine shift amount: %s" (ps#expr e2)
+                end
+              | Some z2 ->
+                let cmp,cmpe =
+                  if is_signed (type_of e2)
+                  then mk_slt,mk_sle
+                  else mk_ult,mk_ule in
+                let e1size = bitsize (type_of e1) in
+                let e2size = bitsize (type_of e2) in
+                let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
+                let zeq = mk_eq ctx zdec z2 in
+                  visit#_add zeq;
+                  let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
+                  let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
+                    visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top]
+            end
+          | Ast.LeftRotate ->
+            begin match zpop _expr e2 with
+              | None -> raise @@ cerr (expr_of e2).pos "couldn't determine shift amount"
+              | Some z2 ->
+                let cmp,cmpe =
+                  if is_signed (type_of e2)
+                  then mk_slt,mk_sle
+                  else mk_ult,mk_ule in
+                let e1size = bitsize (type_of e1) in
+                let e2size = bitsize (type_of e2) in
+                let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
+                let zeq = mk_eq ctx zdec z2 in
+                  visit#_add zeq;
+                  let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
+                  let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
+                    visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top]
+            end
+          | Ast.RightRotate ->
+            begin match zpop _expr e2 with
+              | None -> raise @@ cerr (expr_of e2).pos "couldn't determine shift amount"
+              | Some z2 ->
+                let cmp,cmpe =
+                  if is_signed (type_of e2)
+                  then mk_slt,mk_sle
+                  else mk_ult,mk_ule in
+                let e1size = bitsize (type_of e1) in
+                let e2size = bitsize (type_of e2) in
+                let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
+                let zeq = mk_eq ctx zdec z2 in
+                  visit#_add zeq;
+                  let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
+                  let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
+                    visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top]
+            end
+          | _ -> ()
+      )
+
     method binop op bty e1 e2 =
+      visit#_binop_check op bty e1 e2;
       BitVector.(
         zpop _expr e2 >>= fun z2 ->
         zpop _expr e1 >>= fun z1 ->
@@ -212,25 +318,13 @@ class oobchecker debug m =
             | Ast.Multiply ->
               mk_mul ctx z1 z2
             | Ast.Divide ->
-              let bvec_sort = bty |> bitsize |> bv in
-              let zdec = Expr.mk_fresh_const ctx "divisor" bvec_sort in
-              let zeq = mk_eq ctx zdec z2 in
-                visit#_add zeq;
-                let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
-                  visit#_assert (expr_of e2).pos zdec [divcheck];
-                  (if is_signed bty
-                   then mk_sdiv
-                   else mk_udiv) ctx z1 z2
+              (if is_signed bty
+               then mk_sdiv
+               else mk_udiv) ctx z1 z2
             | Ast.Modulo ->
-              let bvec_sort = bty |> bitsize |> bv in
-              let zdec = Expr.mk_fresh_const ctx "divisor" bvec_sort in
-              let zeq = mk_eq ctx zdec z2 in
-                visit#_add zeq;
-                let divcheck = Boolean.mk_not ctx (mk_eq ctx z2 (Expr.mk_numeral_int ctx 0 bvec_sort)) in
-                  visit#_assert (expr_of e2).pos zdec [divcheck];
-                  (if is_signed bty
-                   then mk_srem
-                   else mk_urem) ctx z1 z2
+              (if is_signed bty
+               then mk_srem
+               else mk_urem) ctx z1 z2
             | Ast.Equal ->
               mk_eq ctx z1 z2
             | Ast.NEqual ->
@@ -270,64 +364,16 @@ class oobchecker debug m =
             | Ast.BitwiseXor ->
               mk_xor ctx z1 z2
             | Ast.LeftShift ->
-              let cmp,cmpe =
-                if is_signed (type_of e2)
-                then mk_slt,mk_sle
-                else mk_ult,mk_ule in
-              let e1size = bitsize (type_of e1) in
-              let e2size = bitsize (type_of e2) in
-              let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
-              let zeq = mk_eq ctx zdec z2 in
-                visit#_add zeq;
-                let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
-                let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
-                  visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top];
-                  mk_shl ctx z1 z2
+              mk_shl ctx z1 z2
             | Ast.RightShift ->
-              let cmp,cmpe =
-                if is_signed (type_of e2)
-                then mk_slt,mk_sle
-                else mk_ult,mk_ule in
-              let e1size = bitsize (type_of e1) in
-              let e2size = bitsize (type_of e2) in
-              let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
-              let zeq = mk_eq ctx zdec z2 in
-                visit#_add zeq;
-                let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
-                let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
-                  visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top];
-                  (if is_signed (type_of e1)
-                   then mk_ashr
-                   else mk_lshr)
-                    ctx z1 z2
+              (if is_signed (type_of e1)
+               then mk_ashr
+               else mk_lshr)
+                ctx z1 z2
             | Ast.LeftRotate ->
-              let cmp,cmpe =
-                if is_signed (type_of e2)
-                then mk_slt,mk_sle
-                else mk_ult,mk_ule in
-              let e1size = bitsize (type_of e1) in
-              let e2size = bitsize (type_of e2) in
-              let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
-              let zeq = mk_eq ctx zdec z2 in
-                visit#_add zeq;
-                let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
-                let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
-                  visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top];
-                  mk_ext_rotate_left ctx z1 z2
+              mk_ext_rotate_left ctx z1 z2
             | Ast.RightRotate ->
-              let cmp,cmpe =
-                if is_signed (type_of e2)
-                then mk_slt,mk_sle
-                else mk_ult,mk_ule in
-              let e1size = bitsize (type_of e1) in
-              let e2size = bitsize (type_of e2) in
-              let zdec = Expr.mk_fresh_const ctx "shiftamt" (bv @@ bitsize @@ type_of e2) in
-              let zeq = mk_eq ctx zdec z2 in
-                visit#_add zeq;
-                let shiftcheck_bot = cmpe ctx (Expr.mk_numeral_int ctx 0 (bv e2size)) z2 in
-                let shiftcheck_top = cmp ctx z2 (Expr.mk_numeral_int ctx e1size (bv e2size)) in
-                  visit#_assert (expr_of e2).pos zdec [shiftcheck_bot; shiftcheck_top];
-                  mk_ext_rotate_right ctx z1 z2
+              mk_ext_rotate_right ctx z1 z2
         end)
 
     method _lexpr lexpr_ =
