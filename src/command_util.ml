@@ -97,16 +97,25 @@ let output_bitcode out_file llvm_mod =
       | false -> Log.error "An error occurred printing LLVM bitcode"; exit 1
       | true -> Log.debug "Successfully output LLVM bitcode"
 
-let output_assembly fpic opt_level out_file =
+let output_assembly args out_file =
   let out_file_bc = out_file ^ ".bc" in
   let out_file_s = out_file ^ ".s" in
+  let out_file_ll = out_file ^ ".ll" in
     Log.debug "Creating .s file at %s" out_file_s;
-    let fpic_arg = if fpic then "-fpic" else "" in
+    let fpic_arg = if args.fpic then "-fpic" else "" in
     let opt_arg =
-      match opt_level with
+      match args.opt_level with
         | O2 -> "-O2"
         | O3 -> "-O3"
         | _ -> "" in
+      if args.llvm_out then
+        run_command "clang-6.0" [|"clang-6.0"; "-S"; "-emit-llvm"; opt_arg;
+                                  "-mavx";
+                                  "-fno-strict-aliasing";
+                                  "-fno-strict-overflow";
+                                  "-fstack-protector";
+                                  "-mretpoline";
+                                  out_file_bc; "-o"; out_file_ll|] true |> ignore;
       run_command "clang-6.0" [|"clang-6.0"; "-S"; opt_arg;
                                 "-mavx";
                                 "-fno-strict-aliasing";
@@ -274,9 +283,8 @@ let compile (in_files,out_file,out_dir) args =
     generate_pseudo args.pseudo_out out_file' tast;
     generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   let llctx,llmod = Codegen.codegen args.no_inline_asm tast in
-    output_llvm args.llvm_out out_file' llmod;
     output_bitcode out_file' llmod;
-    output_assembly args.fpic args.opt_level out_file' |> ignore;
+    output_assembly args out_file' |> ignore;
     output_shared_object out_file' args;
     output_object out_file' |> ignore;
   ctverify args.verify_llvm out_file' tast
