@@ -105,9 +105,11 @@ let output_assembly args out_file =
     let fpic_arg = if args.fpic then "-fpic" else "" in
     let opt_arg =
       match args.opt_level with
+        | O0 -> "-O0"
+        | O1 -> "-O1"
         | O2 -> "-O2"
         | O3 -> "-O3"
-        | _ -> "" in
+        | OF -> "-OF" in
       if args.llvm_out then
         run_command "clang-6.0" [|"clang-6.0"; "-S"; "-emit-llvm"; opt_arg;
                                   "-mavx";
@@ -115,7 +117,7 @@ let output_assembly args out_file =
                                   "-fno-strict-overflow";
                                   "-fstack-protector";
                                   "-mretpoline";
-                                  out_file_bc; "-o"; out_file_ll|] true |> ignore;
+                                  fpic_arg; out_file_bc; "-o"; out_file_ll|] true |> ignore;
       run_command "clang-6.0" [|"clang-6.0"; "-S"; opt_arg;
                                 "-mavx";
                                 "-fno-strict-aliasing";
