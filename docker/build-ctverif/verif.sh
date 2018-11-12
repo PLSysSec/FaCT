@@ -50,10 +50,13 @@ done
 # Run ctverif and fail if "SMACK found no errors with unroll bound" is not in output
 # If verbose, print everything out as ctverif runs
 if [ $VERBOSE = true ]; then
-    OUTP=$(run_ctverif $ID $UNROLL_BOUND $ENTRYPOINT | tee /dev/tty)
+    # Note: Not just piping ctverif output to `tee /dev/tty` here so that the output of this script can be suppressed if desired
+    TMP_FILE=$(mktemp)
+    run_ctverif $ID $UNROLL_BOUND $ENTRYPOINT | tee $TMP_FILE
+    OUTP=$(cat $TMP_FILE)
+    rm $TMP_FILE
 else
     OUTP=$(run_ctverif $ID $UNROLL_BOUND $ENTRYPOINT)
-
 fi
 
 # Stop container
