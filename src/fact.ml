@@ -136,7 +136,7 @@ let compile_command =
       flag "-shared" no_arg ~doc:shared_opt_doc +>
       flag "-no-guac" no_arg ~doc:noguac_opt_doc +>
       flag "-no-inline-asm" no_arg ~doc:no_inline_asm_doc +>
-      flag "-addl" (optional string) ~doc:addl_opts_doc +>
+      flag "-addl" (listed string) ~doc:addl_opts_doc +>
       anon (sequence ("filename" %: file)))
     (fun
       out_file

@@ -33,7 +33,7 @@ type args_record = {
   shared      : bool;
   noguac      : bool;
   no_inline_asm : bool;
-  addl_opts   : string option;
+  addl_opts   : string list;
 }
 
 let run_command c args exit_on_error =
@@ -103,9 +103,10 @@ let output_assembly args out_file =
   let out_file_ll = out_file ^ ".ll" in
     Log.debug "Creating .s file at %s" out_file_s;
     let addl_opts =
-      match args.addl_opts with
-        | Some s -> Str.split (Str.regexp " +") s
-        | None -> [] in
+      List.flatten @@
+      List.map
+        (fun opts -> Str.split (Str.regexp " +") opts)
+        args.addl_opts in
     let opt_arg =
       match args.opt_level with
         | O0 -> "-O0"
@@ -115,7 +116,7 @@ let output_assembly args out_file =
         | OF -> "-OF" in
     let clang_args =
       [ "clang-6.0"; "-S"; opt_arg;
-        out_file_bc; "-o"; out_file_ll ] @ addl_opts in
+        out_file_bc; ] @ addl_opts in
       if args.llvm_out then
         run_command
           "clang-6.0"
@@ -128,18 +129,58 @@ let output_assembly args out_file =
            (clang_args @ ["-o"; out_file_s]))
         true |> ignore
 
-let output_object out_file =
+let output_object args out_file =
   let out_file_s = out_file ^ ".s" in
   let out_file_o = out_file ^ ".o" in
     Log.debug "Creating object file at %s" out_file_o;
-    run_command "clang-6.0" [|"clang-6.0"; "-c"; out_file_s; "-o"; out_file_o|] true |> ignore
+    let addl_opts =
+      List.flatten @@
+      List.map
+        (fun opts -> Str.split (Str.regexp " +") opts)
+        args.addl_opts in
+    let opt_arg =
+      match args.opt_level with
+        | O0 -> "-O0"
+        | O1 -> "-O1"
+        | O2 -> "-O2"
+        | O3 -> "-O3"
+        | OF -> "-OF" in
+    let clang_args =
+      [ "clang-6.0"; "-c"; opt_arg;
+        out_file_s; ]
+      @ addl_opts
+      @ [ "-o"; out_file_o ] in
+      run_command
+        "clang-6.0"
+        (Array.of_list clang_args)
+        true |> ignore
 
 let output_shared_object out_file args =
   if not args.shared then () else
     let out_file_s = out_file ^ ".s" in
     let out_file_o = out_file ^ ".so" in
       Log.debug "Creating shared object file at %s" out_file_o;
-      run_command "clang-6.0" [|"clang-6.0"; "-shared"; out_file_s; "-o"; out_file_o|] true |> ignore
+      let addl_opts =
+        List.flatten @@
+        List.map
+          (fun opts -> Str.split (Str.regexp " +") opts)
+          args.addl_opts in
+      let opt_arg =
+        match args.opt_level with
+          | O0 -> "-O0"
+          | O1 -> "-O1"
+          | O2 -> "-O2"
+          | O3 -> "-O3"
+          | OF -> "-OF" in
+      let clang_args =
+        [ "clang-6.0"; "-shared"; opt_arg;
+          out_file_s; ]
+        @ addl_opts
+        @ [ "-o"; out_file_o ] in
+        run_command
+          "clang-6.0"
+          (Array.of_list clang_args)
+          true |> ignore
 
 let ctverify verif out_file tast =
   if verif then
@@ -290,7 +331,7 @@ let compile (in_files,out_file,out_dir) args =
     output_bitcode out_file' llmod;
     output_assembly args out_file' |> ignore;
     output_shared_object out_file' args;
-    output_object out_file' |> ignore;
+    output_object args out_file' |> ignore;
   ctverify args.verify_llvm out_file' tast
 
   (*Log.debug "Typecheck complete";
