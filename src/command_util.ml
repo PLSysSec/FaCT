@@ -32,8 +32,8 @@ type args_record = {
   verify_opts : string option;
   shared      : bool;
   noguac      : bool;
-  fpic        : bool;
   no_inline_asm : bool;
+  addl_opts   : string option;
 }
 
 let run_command c args exit_on_error =
@@ -102,7 +102,10 @@ let output_assembly args out_file =
   let out_file_s = out_file ^ ".s" in
   let out_file_ll = out_file ^ ".ll" in
     Log.debug "Creating .s file at %s" out_file_s;
-    let fpic_arg = if args.fpic then "-fpic" else "" in
+    let addl_opts =
+      match args.addl_opts with
+        | Some s -> Str.split (Str.regexp " +") s
+        | None -> [] in
     let opt_arg =
       match args.opt_level with
         | O0 -> "-O0"
@@ -110,21 +113,20 @@ let output_assembly args out_file =
         | O2 -> "-O2"
         | O3 -> "-O3"
         | OF -> "-OF" in
+    let clang_args =
+      [ "clang-6.0"; "-S"; opt_arg;
+        out_file_bc; "-o"; out_file_ll ] @ addl_opts in
       if args.llvm_out then
-        run_command "clang-6.0" [|"clang-6.0"; "-S"; "-emit-llvm"; opt_arg;
-                                  "-mavx";
-                                  "-fno-strict-aliasing";
-                                  "-fno-strict-overflow";
-                                  "-fstack-protector";
-                                  "-mretpoline";
-                                  fpic_arg; out_file_bc; "-o"; out_file_ll|] true |> ignore;
-      run_command "clang-6.0" [|"clang-6.0"; "-S"; opt_arg;
-                                "-mavx";
-                                "-fno-strict-aliasing";
-                                "-fno-strict-overflow";
-                                "-fstack-protector";
-                                "-mretpoline";
-                                fpic_arg; out_file_bc; "-o"; out_file_s|] true |> ignore
+        run_command
+          "clang-6.0"
+          (Array.of_list
+             (clang_args @ ["-emit-llvm"; "-o"; out_file_ll]))
+          true |> ignore;
+      run_command
+        "clang-6.0"
+        (Array.of_list
+           (clang_args @ ["-o"; out_file_s]))
+        true |> ignore
 
 let output_object out_file =
   let out_file_s = out_file ^ ".s" in

@@ -20,8 +20,8 @@ let opt_limit_doc = "seconds The number of seconds to run the optimizer at OF be
 let verify_opt_doc = "opt Comma separated list of optimzations to verify on the FaCT program. They are run in the order in which they are provided"
 let shared_opt_doc = "Generate a .so file"
 let noguac_opt_doc = "Don't run the name-based LLVM IR verifier"
-let fpic_opt_doc = "compile with -fpic"
 let no_inline_asm_doc = "use XOR-based selection intrinsics instead of inline assembly"
+let addl_opts_doc = "opts Additional options to pass to clang (e.g. -addl \"-mretpoline -fPIC -fno-strict-aliasing\")"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -135,8 +135,8 @@ let compile_command =
       flag "-verify-opt" (optional string) ~doc:verify_opt_doc +>
       flag "-shared" no_arg ~doc:shared_opt_doc +>
       flag "-no-guac" no_arg ~doc:noguac_opt_doc +>
-      flag "-fpic" no_arg ~doc:fpic_opt_doc +>
       flag "-no-inline-asm" no_arg ~doc:no_inline_asm_doc +>
+      flag "-addl" (optional string) ~doc:addl_opts_doc +>
       anon (sequence ("filename" %: file)))
     (fun
       out_file
@@ -154,8 +154,8 @@ let compile_command =
       verify_opts
       shared
       noguac
-      fpic
       no_inline_asm
+      addl_opts
       in_files () ->
       let mode = match mode with
         | Some "dev" -> DEV
@@ -174,7 +174,7 @@ let compile_command =
                    ast_out; core_ir_out; pseudo_out; smack_out;
                    llvm_out; gen_header; verify_llvm; mode; opt_level;
                    (*opt_limit;*) verify_opts; shared; noguac;
-                   fpic; no_inline_asm; } in
+                   no_inline_asm; addl_opts } in
         set_log_level debug;
         let prep = prepare_compile out_file in_files () in
           runner prep args)
