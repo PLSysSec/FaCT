@@ -7,7 +7,7 @@ that need to be free from timing side channels.
 
 ## Useful links:
 
-- Online demo: (Coming soon!)
+- Online demo: http://fact.sysnet.ucsd.edu:10240/ (thanks to https://github.com/mattgodbolt/compiler-explorer)
 - Sample FaCT code: https://github.com/PLSysSec/fact-eval
 - Haskell embedding: https://github.com/PLSysSec/inline-fact
 - Python embedding: https://github.com/PLSysSec/CTFFI
