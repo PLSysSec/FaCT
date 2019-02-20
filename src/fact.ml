@@ -160,7 +160,7 @@ let compile_command =
       let mode = match mode with
         | Some "dev" -> DEV
         | Some "prod" -> PROD
-        | Some m -> error_exit ("Unknown mode: " ^ m ^". Expected dev or prod")
+        | Some m -> error_exit ("factc: error: Unknown mode: " ^ m ^". Expected dev or prod")
         | None -> PROD in
       let opt_level = match opt_level with
         | Some "O0" -> O0
@@ -168,7 +168,7 @@ let compile_command =
         | Some "O2" -> O2
         | Some "O3" -> O3
         | Some "OF" -> OF
-        | Some o -> error_exit ("Unknown optimization level: " ^ o ^ ". Expected O0, O1, O2, O3, or OF")
+        | Some o -> error_exit ("factc: error: Unknown optimization level: " ^ o ^ ". Expected O0, O1, O2, O3, or OF")
         | None -> O0 in
       let args = { in_files; out_file; debug;
                    ast_out; core_ir_out; pseudo_out; smack_out;
@@ -176,6 +176,7 @@ let compile_command =
                    (*opt_limit;*) verify_opts; shared; noguac;
                    no_inline_asm; addl_opts } in
         set_log_level debug;
+        if List.length in_files = 0 then error_exit ("factc: error: Not enough arguments. Use `-help` for usage.");
         let prep = prepare_compile out_file in_files () in
           runner prep args)
 

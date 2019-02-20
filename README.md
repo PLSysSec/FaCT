@@ -13,12 +13,6 @@ that need to be free from timing side channels.
 - Python embedding: https://github.com/PLSysSec/CTFFI
 - Vim syntax files: https://github.com/PLSysSec/factlang.vim
 
-## Installation
-
-To install you can either build the source or download ```fact.byte```. We recommend to build from source if possible.
-
-```fact.byte``` is the executable used to compile FaCT programs. Execute ```./fact.byte -help``` for a list of the command line options.
-
 ## Usage
 
 #### Basic Usage
@@ -29,51 +23,68 @@ Run ```./fact.byte ex.fact``` to compile a FaCT program where ```ex.fact``` is t
 
 Many debugging options and intermediate data structures are available. Run ```./fact.byte -help``` for all options.
 
-## Set Up And Build On Local Machine
+## Installation
 
-FaCT is developed using Ocaml and LLVM 6.0. Make sure both of these are installed.
+To install you can either build the source or download ```fact.byte```. We recommend to build from source if possible.
+
+```fact.byte``` is the executable used to compile FaCT programs. Execute ```./fact.byte -help``` for a list of the command line options.
+
+### Setting up the build environment
+
+FaCT is developed using Ocaml and LLVM 6.0.
+
+You can download a docker image with an environment already set up to build the compiler here: XXX
+How to use it: TODO
+
+Otherwise, you can set up a build environment locally, following the directions below.
+
+We recommend installing Ocaml via the opam package manager:
+```sh <(curl -sL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)```
+
+the FaCT compiler depends on the LLVM 6.0 toochain,
+and expects binaries with `-6.0` suffixes:
+```sudo apt install llvm-6.0 clang-6.0```
+
 On OS X it can be done with brew.
 
 ```
-brew install ocaml
+brew install opam
 brew install llvm60
 ```
 
-We also need dependency management for Ocaml.
+If the toolchain is not installed with `-6.0` suffixes on the binaries,
+you will need to add symlinks in one of your PATH directories so
+that `clang-6.0` exists in the PATH and points to the Clang 6.0 compiler.
 
-```brew install opam```
+Then we need to install Ocaml and the necessary libraries.
+If you do not already have the following packages installed, install them now:
+```sudo apt install cmake libgmp-dev m4 pkg-config```
 
-Then we need the actual dependencies for Ocaml.
+Then, install Ocaml and the libraries:
 
 ```
-opam switch 4.06.0
+opam init
+eval $(opam config env)
+opam switch create 4.06.0
 eval $(opam config env)
 opam switch import ocamlswitch.txt
 ```
+
+Finally, make sure the Z3 lib is in the path:
+
+```export LD_LIBRARY_PATH="$HOME/.opam/4.06.0/lib/z3"```
+
+### Compiling FaCT
 
 If you have not setup oasis, then you must do that first.
 
 ```oasis setup```
 
-Make sure the Z3 lib is in the path:
-
-```export LD_LIBRARY_PATH="$HOME/.opam/4.06.0/lib/z3"```
-
-Finally we can build the compiler.
+We can now build the compiler:
 
 ```make```
 
-If you want to add a dependency, add it to ```_oasis```, then run the 3 previous commands again.
-
 This will give us the ```fact.byte``` executable.
-
-To install FaCT, run the command
-
-```make install```
-
-This will add FaCT to your path so that you can compile const files with the command,
-
-```fact```
 
 ## Link to a C library
 
