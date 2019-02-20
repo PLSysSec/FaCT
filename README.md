@@ -51,8 +51,14 @@ To install you can either build the source or download ```factc```. We recommend
 
 FaCT is developed using Ocaml and LLVM 6.0.
 
-You can download a docker image with an environment already set up to build the compiler here: XXX
-How to use it: TODO
+You use a docker image with an environment already set up to build the compiler:
+
+```
+cd docker/
+./run.sh
+# run the following once inside the docker shell:
+eval $(opam config env)
+```
 
 Otherwise, you can set up a build environment locally, following the directions below.
 
@@ -102,4 +108,4 @@ We can now build the compiler:
 
 ```make```
 
-This will give us the ```factc``` executable.
+This will produce the ```factc``` executable.
