@@ -63,10 +63,12 @@ eval $(opam config env)
 Otherwise, you can set up a build environment locally, following the directions below.
 
 We recommend installing Ocaml via the opam package manager:
+
 ```sh <(curl -sL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)```
 
 The FaCT compiler depends on the LLVM 6.0 toochain,
 and expects binaries with `-6.0` suffixes:
+
 ```sudo apt install llvm-6.0 clang-6.0```
 
 On OS X it can be done with brew.
