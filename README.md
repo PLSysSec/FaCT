@@ -8,7 +8,7 @@ that need to be free from timing side channels.
 ## Useful links:
 
 - Online demo: http://fact.sysnet.ucsd.edu:10240/ (thanks to https://github.com/mattgodbolt/compiler-explorer)
-- Sample FaCT code: https://github.com/PLSysSec/fact-eval
+- FaCT case studies / evaluation: https://github.com/PLSysSec/fact-eval
 - Haskell embedding: https://github.com/PLSysSec/inline-fact
 - Python embedding: https://github.com/PLSysSec/CTFFI
 - Vim syntax files: https://github.com/PLSysSec/factlang.vim
@@ -17,25 +17,21 @@ that need to be free from timing side channels.
 
 #### Basic Usage
 
-Run ```./factc ex.fact``` to compile a FaCT program where ```ex.fact``` is the name of your file.
+Run ```./factc <source files>``` to compile a FaCT program.
 
 #### Link to a C library
 
-FaCT is designed to be called from C code. In order to do so, write your FaCT functions and compile them. This will output an object file. This can then be linked to a C file. For example:
-
-```./factc ex.fact```
-
-Then we compile the calling C file:
+FaCT is designed to be called from C code. Compiling FaCT source files will
+output an object file, which can then be linked to a C file. For example, if
+your FaCT functions are in `ex.fact` and your C program is in `main.c`:
 
 ```
+./factc ex.fact
 clang -c main.c
+clang -o final main.o ex.o
 ```
 
-Next, we link them together:
-
-```clang -o final main.o ex.o```
-
-Finally, we can run the executable:
+You can then run the executable:
 
 ```./final```
 
@@ -43,15 +39,16 @@ Finally, we can run the executable:
 
 Many debugging options and intermediate data structures are available. Run ```./factc -help``` for all options.
 
-## Installation
+## Building
 
-To install you can either build the source or download ```factc```. We recommend building from source if possible.
+To build the compiler, you can either build from source or download a pre-built release.
+We recommend building from source if possible.
 
 ### Setting up the build environment
 
-FaCT is developed using Ocaml and LLVM 6.0.
+FaCT is developed using OCaml and LLVM 6.0.
 
-You use a docker image with an environment already set up to build the compiler:
+You may use a docker image with an environment already set up to build the compiler:
 
 ```
 cd docker/
@@ -60,9 +57,10 @@ cd docker/
 eval $(opam config env)
 ```
 
-Otherwise, you can set up a build environment locally, following the directions below.
+Otherwise, you can set up a build environment locally. The directions below
+have been tested on Ubuntu 16.04 and 18.04.
 
-We recommend installing Ocaml via the opam package manager:
+We recommend installing OCaml via the opam package manager:
 
 ```sh <(curl -sL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)```
 
@@ -71,22 +69,15 @@ and expects binaries with `-6.0` suffixes:
 
 ```sudo apt install llvm-6.0 clang-6.0```
 
-On OS X it can be done with brew.
+Ensure that `clang-6.0` is in your PATH:
 
-```
-brew install opam
-brew install llvm60
-```
+```clang-6.0 --version```
 
-If the toolchain is not installed with `-6.0` suffixes on the binaries,
-you will need to add symlinks in one of your PATH directories so
-that `clang-6.0` exists in the PATH and points to the Clang 6.0 compiler.
-
-Then we need to install Ocaml and the necessary libraries.
+Install OCaml and the necessary libraries.
 If you do not already have the following packages installed, install them now:
 ```sudo apt install cmake libgmp-dev m4 pkg-config```
 
-Then, install Ocaml and the libraries:
+Then, install OCaml and the libraries:
 
 ```
 opam init
@@ -96,18 +87,17 @@ eval $(opam config env)
 opam switch import ocamlswitch.txt
 ```
 
-Finally, make sure the Z3 lib is in the path:
+Finally, make sure the Z3 lib is available to the OCaml compiler:
 
-```export LD_LIBRARY_PATH="$HOME/.opam/4.06.0/lib/z3"```
+```export LD_LIBRARY_PATH="$HOME/.opam/4.06.0/lib/z3:$LD_LIBRARY_PATH"```
 
 ### Compiling FaCT
 
-If you have not setup oasis, then you must do that first.
+You can now build the compiler:
 
-```oasis setup```
-
-We can now build the compiler:
-
-```make```
+```
+oasis setup
+make
+```
 
 This will produce the ```factc``` executable.
