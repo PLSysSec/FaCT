@@ -45,7 +45,7 @@ Many debugging options and intermediate data structures are available. Run ```./
 
 ## Installation
 
-To install you can either build the source or download ```factc```. We recommend to build from source if possible.
+To install you can either build the source or download ```factc```. We recommend building from source if possible.
 
 ### Setting up the build environment
 
@@ -65,7 +65,7 @@ Otherwise, you can set up a build environment locally, following the directions 
 We recommend installing Ocaml via the opam package manager:
 ```sh <(curl -sL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)```
 
-the FaCT compiler depends on the LLVM 6.0 toochain,
+The FaCT compiler depends on the LLVM 6.0 toochain,
 and expects binaries with `-6.0` suffixes:
 ```sudo apt install llvm-6.0 clang-6.0```
 
