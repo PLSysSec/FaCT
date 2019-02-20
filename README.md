@@ -17,17 +17,35 @@ that need to be free from timing side channels.
 
 #### Basic Usage
 
-Run ```./fact.byte ex.fact``` to compile a FaCT program where ```ex.fact``` is the name of your file.
+Run ```./factc ex.fact``` to compile a FaCT program where ```ex.fact``` is the name of your file.
+
+#### Link to a C library
+
+FaCT is designed to be called from C code. In order to do so, write your FaCT functions and compile them. This will output an object file. This can then be linked to a C file. For example:
+
+```./factc ex.fact```
+
+Then we compile the calling C file:
+
+```
+clang -c main.c
+```
+
+Next, we link them together:
+
+```clang -o final main.o ex.o```
+
+Finally, we can run the executable:
+
+```./final```
 
 #### Debugging
 
-Many debugging options and intermediate data structures are available. Run ```./fact.byte -help``` for all options.
+Many debugging options and intermediate data structures are available. Run ```./factc -help``` for all options.
 
 ## Installation
 
-To install you can either build the source or download ```fact.byte```. We recommend to build from source if possible.
-
-```fact.byte``` is the executable used to compile FaCT programs. Execute ```./fact.byte -help``` for a list of the command line options.
+To install you can either build the source or download ```factc```. We recommend to build from source if possible.
 
 ### Setting up the build environment
 
@@ -84,24 +102,4 @@ We can now build the compiler:
 
 ```make```
 
-This will give us the ```fact.byte``` executable.
-
-## Link to a C library
-
-FaCT is designed to be called from C code. In order to do so, write your FaCT functions and compile them. This will output an object file. This can then be linked to a C file. For example:
-
-```fact ex.fact```
-
-Then we compile the calling C file:
-
-```
-clang -c main.c
-```
-
-Next, we link them together:
-
-```clang -o final main.o ex.o```
-
-Finally, we can run the executable:
-
-```./final```
+This will give us the ```factc``` executable.

@@ -3,7 +3,7 @@ all: salsa.bin
 .PRECIOUS: fact_%.h
 
 fact_%.o: fact_%.fact
-	../../fact.byte -ast-out -pseudocode -generate-header -llvm-out -debug $^
+	../../factc -ast-out -pseudocode -generate-header -llvm-out -debug $^
 
 fact_%.h: fact_%.o
 	touch $@

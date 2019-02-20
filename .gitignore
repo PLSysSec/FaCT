@@ -57,3 +57,4 @@ setup.data
 setup.ml
 configure
 *.pseudo.fact
+factc

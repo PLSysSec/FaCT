@@ -10,6 +10,7 @@ BuildDepends: llvm, llvm.analysis, llvm.bitwriter, llvm.executionengine, llvm.ta
 OCamlVersion: >= 4.06
 AlphaFeatures: ocamlbuild_more_args
 XOCamlbuildPluginTags: package(cppo_ocamlbuild)
+PostCleanCommand: rm -f factc
 
 Executable fact
   Path:       src

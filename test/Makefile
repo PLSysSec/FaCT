@@ -25,7 +25,7 @@ all: $(TESTS) run failure
 
 # test_%.fact --> test_%.o 
 %.o: %.fact
-	../fact.byte -debug -ast-out -core-ir-out -llvm-out -pseudocode -generate-header $<
+	../factc -debug -ast-out -core-ir-out -llvm-out -pseudocode -generate-header $<
 
 # harness_%.c --> harness_%_runner.c 
 %_runner.c: %.c
@@ -40,7 +40,7 @@ run:
 
 FAILURES_DIR=failures
 failure:
-	@for x in $(FAILURES_DIR)/*.fact; do ../fact.byte $$x 2> /dev/null && { echo "ERROR: Build succeeded but should not have -- $$x"; exit 1; } || echo "Build failed as expected -- $$x" ; done
+	@for x in $(FAILURES_DIR)/*.fact; do ../factc $$x 2> /dev/null && { echo "ERROR: Build succeeded but should not have -- $$x"; exit 1; } || echo "Build failed as expected -- $$x" ; done
 
 clean:
 	rm -f *.o *.bc *.s *_runner.c testbin* *.ast.ml *.tast.ml *.core.ml *.ll *.pseudo.fact *.xftast.ml *.h $(FAILURES_DIR)/*.o $(FAILURES_DIR)/*.bc $(FAILURES_DIR)/*.s

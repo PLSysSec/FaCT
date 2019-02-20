@@ -12,6 +12,6 @@ oasis setup
 make
 ```
 
-This will produce `fact.byte`, the FaCT executable. If you're getting errors try running `make clean` and removing `setup.data` then running the above commands again.
+This will produce `factc`, the FaCT executable. If you're getting errors try running `make clean` and removing `setup.data` then running the above commands again.
 
 Additionally, to verify code as constant-time, the FaCT compiler uses [ct-verif](https://github.com/imdea-software/verifying-constant-time/) in a Docker container (warning: compressed image is 720 MB). It can be used regardless of whether the FaCT container is used.

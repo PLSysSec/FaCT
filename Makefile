@@ -1,3 +1,7 @@
+factc: setup.data
+	$(SETUP) -build -no-links
+	cp _build/src/fact.byte factc
+
 # OASIS_START
 # DO NOT EDIT (digest: a3c674b4239234cbbe53afe090018954)
 
