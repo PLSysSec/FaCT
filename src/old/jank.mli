@@ -1,2 +1,0 @@
-val convert : string -> string
-
