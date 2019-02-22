@@ -13,32 +13,6 @@ that need to be free from timing side channels.
 - Python embedding: https://github.com/PLSysSec/CTFFI
 - Vim syntax files: https://github.com/PLSysSec/factlang.vim
 
-## Usage
-
-#### Basic Usage
-
-Run ```./factc <source files>``` to compile a FaCT program.
-
-#### Link to a C library
-
-FaCT is designed to be called from C code. Compiling FaCT source files will
-output an object file, which can then be linked to a C file. For example, if
-your FaCT functions are in `ex.fact` and your C program is in `main.c`:
-
-```
-./factc ex.fact
-clang -c main.c
-clang -o final main.o ex.o
-```
-
-You can then run the executable:
-
-```./final```
-
-#### Debugging
-
-Many debugging options and intermediate data structures are available. Run ```./factc -help``` for all options.
-
 ## Building
 
 To build the compiler, you can either build from source or download a pre-built release.
@@ -46,18 +20,28 @@ We recommend building from source if possible.
 
 ### Setting up the build environment
 
-FaCT is developed using OCaml and LLVM 6.0.
+FaCT is developed using OCaml 4.06.0 and LLVM 6.0.
 
-You may use a docker image with an environment already set up to build the compiler:
+#### Using Docker
+
+If you have docker installed, you can load our docker image with the build
+environment already installed:
 
 ```
 cd docker/
 ./run.sh
-# run the following once inside the docker shell:
+```
+
+Once inside the docker shell, run the following to finish setting up the environment:
+
+```
+cd FaCT/
 eval $(opam config env)
 ```
 
-Otherwise, you can set up a build environment locally. The directions below
+#### Using a local environment
+
+You can also set up a build environment locally. The directions below
 have been tested on Ubuntu 16.04 and 18.04.
 
 We recommend installing OCaml via the opam package manager:
@@ -100,4 +84,30 @@ oasis setup
 make
 ```
 
-This will produce the ```factc``` executable.
+This will produce the `factc` executable.
+
+## Usage
+
+#### Basic Usage
+
+Run ```./factc <source files>``` to compile a FaCT program.
+
+#### Link to a C library
+
+FaCT is designed to be called from C code. Compiling FaCT source files will
+output an object file, which can then be linked to a C file. As an example:
+
+```
+cd example/
+../factc -generate-header example.fact
+clang-6.0 -c main.c
+clang-6.0 -o final main.o example.o
+```
+
+You can then run the executable:
+
+```./final```
+
+#### Debugging
+
+Many debugging options and intermediate data structures are available. Run ```./factc -help``` for all options.
