@@ -1,5 +1,5 @@
-factc: setup.data
-	$(SETUP) -build -no-links
+factc: build
+	rm fact.byte
 	cp _build/src/fact.byte factc
 
 # OASIS_START
