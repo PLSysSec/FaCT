@@ -1,0 +1,12 @@
+export secret uint32 choose(
+    secret bool cond,
+    public uint32 a,
+    public uint32 b) {
+
+  secret mut uint32 output = a;
+  if (cond) {
+    output = b;
+  }
+
+  return output;
+}
