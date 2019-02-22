@@ -3,35 +3,19 @@ open Pos
 open Err
 open Lexing
 
-(*
-open Typecheck
-open Codegen
-open Debugfun
-open Opt
-open Jank
-open Sys
-*)
-
 type opt_level = O0 | O1 | O2 | O3 | OF
-type mode = DEV | PROD
 
 type args_record = {
   in_files    : string list;
   out_file    : string option;
   debug       : bool;
   ast_out     : bool;
-  core_ir_out : bool;
   pseudo_out  : bool;
-  smack_out   : bool;
   llvm_out    : bool;
   gen_header  : bool;
   verify_llvm : bool;
-  mode        : mode;
   opt_level   : opt_level;
-  (*opt_limit   : seconds option;*)
-  verify_opts : string option;
   shared      : bool;
-  noguac      : bool;
   no_inline_asm : bool;
   addl_opts   : string list;
 }
@@ -189,88 +173,8 @@ let ctverify verif out_file tast =
     Core_kernel.Out_channel.write_all wrapper_out_file ~data:(Ctverif.ctverify out_file tast);
     Log.debug "To verify, run: `verif.sh [ENTRYPOINT] %s %s %s`" wrapper_out_file (out_file^".ll") (out_file^".h")
 
-(*
-let generate_smack args out_file xftast =
-  let do_output out_file_name tast =
-    generate_pseudo args.pseudo_out out_file_name tast;
-    let llvm_ctx = Llvm.create_context () in
-    let llvm_mod = Llvm.create_module llvm_ctx "SmackModule" in
-    let llvm_builder = Llvm.builder llvm_ctx in
-    let tast = Transform_args.xf_module tast in
-      codegen llvm_ctx llvm_mod llvm_builder false tast;
-      output_llvm true out_file_name llvm_mod;
-      let lines = ref [] in
-      let chan = open_in (out_file_name ^ ".ll") in
-        begin
-          try
-            while true; do
-              lines := input_line chan :: !lines
-            done
-          with End_of_file ->
-            close_in chan
-        end;
-        lines := List.rev !lines;
-        lines := "; verify with: smack --bit-precise --verifier=boogie --modular --entry-point=[...]" :: !lines;
-        let outfile = open_out (out_file_name ^ ".ll") in
-          output_string outfile @@ String.concat "\n" !lines;
-          close_out outfile in
-    if args.smack_out then
-      begin
-        Log.debug "Generating Smack output";
-        let out_file' = out_file ^ ".smack" in
-        let smacktast = Smack.transform xftast in
-          do_output out_file' smacktast;
-          (*let out_file' = out_file ^ ".smack.uninit" in
-          let smacktast = Smack_uninit.transform xftast in
-            do_output out_file' smacktast*)
-      end
-
-let verify_opt_pass llmod out_file llvm_out = function
-  | None       -> Log.info "Not verifying opt passes"
-  | Some pass  ->
-    let passes = Core.String.split pass ~on:',' in
-    Log.info "Verifying opt passes `%s`" pass;
-    let llmod' = Llvm_transform_utils.clone_module llmod in
-    Opt.verify_some_opts llmod' passes;
-    output_llvm llvm_out (out_file ^ "_optimized") llmod'
-
-let verify_opt_passes llmod = function
-  | false -> Log.info "Not verifying opt passes"
-  | true  ->
-    Log.info "Verifying opt passes";
-    match Opt.verify_opts llmod with
-      | true -> Log.error "An optimzation did not pass!"
-      | false -> Log.info "All optimzations passed!"
-
-let ctverify (Tast.Module(_,fdecs,_)) out_file llvm_mod
-  (wrappers : (Tast.fun_name * Ctverif.c_code) option list) = function
-  | false -> Log.info "Not verifying with ctverif!"
-  | true  ->
-    output_llvm true out_file llvm_mod;
-    let ll_file = out_file ^ ".ll" in
-    let verify f wrapper header llvm_file =
-      let entrypoint = f ^ "_wrapper" in
-      let cmd = [| "verif-ll.sh"; wrapper; header; ll_file; entrypoint|] in
-      let ret_code = try run_command "" cmd false
-        with | _ -> Log.error "Ct-verif failed to run. Please check that `docker/build-ctverif` is in you PATH"; exit 1; in
-      Log.info "Ct-verif returned with status %d" ret_code;
-      (* TODO: Have verif-ll.sh check if ct-verif passed or not and set the
-               error code accordingly. *)
-      in
-    List.map (fun wrapper (*(fun_name,c_code)*) ->
-      match wrapper with
-        | None -> ()
-        | Some({data=fun_name},c_code) ->
-          let wrapper_name = fun_name ^ "_wrapper.c" in
-          Core.Out_channel.write_all wrapper_name ~data:c_code;
-          verify fun_name wrapper_name (out_file ^ ".h") llvm_mod
-    ) wrappers |> ignore;
-    ()
-*)
-
 let compile (in_files,out_file,out_dir) args =
   let out_file' = generate_out_file out_dir out_file in
-  (*Log.debug "Compiling program in %s mode" (show_mode args.mode);*)
   let lex_and_parse in_file =
     Log.debug "Compiling %s" in_file;
     Lexer.file := Some in_file;
@@ -333,82 +237,3 @@ let compile (in_files,out_file,out_dir) args =
     output_shared_object out_file' args;
     output_object args out_file' |> ignore;
   ctverify args.verify_llvm out_file' tast
-
-  (*Log.debug "Typecheck complete";
-  let xftast = Transform.xf_module tast args.mode in
-  Log.debug "Tast transform complete";
-  let xftast = Transform_debug.xf_module args.mode xftast in
-  output_xftast args.core_ir_out out_file' xftast;
-  generate_pseudo args.pseudo_out out_file' xftast;
-  generate_smack args out_file' xftast;
-  let xftast = Oob.transform xftast in
-    (* XXX *) generate_pseudo args.pseudo_out out_file' xftast;
-  let xftast = Transform_args.xf_module xftast in
-  let llvm_ctx = Llvm.create_context () in
-  let llvm_mod = Llvm.create_module llvm_ctx "Module" in
-  let llvm_builder = Llvm.builder llvm_ctx in
-  let _ = codegen llvm_ctx llvm_mod llvm_builder args.verify_llvm xftast in
-  
-  (* TODO: The line below will generate a C wrapper to send to ct-verif.
-     Uncomment it when ready. *)
-  let c_wrappers = Ctverif.generate_wrappers out_file' xftast in
-  List.map (fun wrapper ->
-    match wrapper with
-      | None -> ()
-      | Some (_,c) -> ()(*Log.debug "C-wrapper:\n%s" c*))
-    c_wrappers |> ignore;
-  
-  (* Verify the opt passes via the command line. This doesn't affect llvm_mod *)
-  (* verify_opt_pass llvm_mod out_file' args.llvm_out args.verify_opts; *)
-
-  (* Verify all of the opt passes on the IR. This doesn't affect llvm_mod *)
-  (* verify_opt_passes (Llvm_transform_utils.clone_module llvm_mod) args.verify_llvm; *)
-
-  (* Lets optimize the module *)
-  let llvm_mod = Opt.run_optimizations args.opt_level args.opt_limit llvm_mod in
-
-  ctverify xftast out_file' llvm_mod c_wrappers args.verify_llvm;
-
-  (* Start verify final IR *)
-  let errors = Hashtbl.create 100 in
-  if not args.noguac then
-  begin
-  match Verify.verify errors "NoOpt" llvm_mod with
-    | Verify.Secure -> Log.debug "Secure!"
-    | Verify.InSecure ->
-      let print_errors errors =
-        let strings = Hashtbl.fold
-        (fun (des,det) pass acc -> (pass ^ " -- " ^ des ^ " -- " ^ det)::acc)
-        errors [] in
-        Log.error "%s" (String.concat "\n" strings);
-        begin match args.mode with
-        | Debugfun.DEV ->
-          output_llvm args.llvm_out out_file' llvm_mod;
-          output_bitcode out_file' llvm_mod;
-          output_assembly args.opt_level out_file' |> ignore;
-          output_shared_object out_file' args;
-          output_object out_file' |> ignore
-        | Debugfun.PROD -> () end;
-        exit 1 |> ignore;
-        () in
-      Log.error "Insecure!";
-      print_errors errors;
-    | Verify.Unchanged -> Log.debug "Unchanged!"
-    | Verify.Unknown -> Log.debug "Unknown!" end;
-  (* End verify final IR *)
-
-  (*
-  let triple = Llvm_target.Target.default_triple () in
-  let lltarget = Llvm_target.Target.by_triple triple in
-  let llmachine = Llvm_target.TargetMachine.create ~triple:triple lltarget in
-  let lldly = Llvm_target.TargetMachine.data_layout llmachine in
-  Llvm.set_target_triple (Llvm_target.TargetMachine.triple llmachine) llvm_mod;
-  Llvm.set_data_layout (Llvm_target.DataLayout.as_string lldly) llvm_mod;
-  *)
-
-  (* ADD BACK: Llvm_analysis.assert_valid_module llvm_mod |> ignore;*)
-  output_llvm args.llvm_out out_file' llvm_mod;
-  output_bitcode out_file' llvm_mod;
-  output_assembly args.opt_level out_file' |> ignore;
-  output_shared_object out_file' args;
-  output_object out_file' |> ignore*)

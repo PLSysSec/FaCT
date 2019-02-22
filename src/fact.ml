@@ -6,20 +6,14 @@ let summary = "Compile the given const file."
 let readme = "Compile a const file. Pass the relative path to the file " ^
              "as the first argument."
 let o_doc = "Output Output object file name. Default is the input_file_name.o."
-let debug_doc = " Debug"
+let debug_doc = " Debug output"
 let ast_doc = " Output AST to file"
-let core_ir_doc = " Output Core IR to file"
 let pseudo_doc = " Output transformed pseudocode to file"
-let smack_doc = " Output LLVM for Smack verification to file"
 let llvm_doc = " Output LLVM to file"
 let header_doc = " Output C header to file"
 let verify_llvm_doc = "Verify LLVM IR with ct-verif"
-let mode_doc = "mode The mode to compile with (dev or prod)"
 let opt_level_doc = "level The level of optimization to run (O0, 01, 02, or OF)"
-let opt_limit_doc = "seconds The number of seconds to run the optimizer at OF before quitting and picking the best pipeline"
-let verify_opt_doc = "opt Comma separated list of optimzations to verify on the FaCT program. They are run in the order in which they are provided"
 let shared_opt_doc = "Generate a .so file"
-let noguac_opt_doc = "Don't run the name-based LLVM IR verifier"
 let no_inline_asm_doc = "use XOR-based selection intrinsics instead of inline assembly"
 let addl_opts_doc = "opts Additional options to pass to clang (e.g. -addl \"-mretpoline -fPIC -fno-strict-aliasing\")"
 
@@ -123,18 +117,12 @@ let compile_command =
       flag "-o" (optional string) ~doc:o_doc +>
       flag "-debug" no_arg ~doc:debug_doc +>
       flag "-ast-out" no_arg ~doc:ast_doc +>
-      flag "-core-ir-out" no_arg ~doc:core_ir_doc +>
       flag "-pseudocode" no_arg ~doc:pseudo_doc +>
-      flag "-smack-out" no_arg ~doc:smack_doc +>
       flag "-llvm-out" no_arg ~doc:llvm_doc +>
       flag "-generate-header" no_arg ~doc:header_doc +>
       flag "-verify-llvm" no_arg ~doc:verify_llvm_doc +>
-      flag "-mode" (optional string) ~doc:mode_doc +>
       flag "-opt" (optional string) ~doc:opt_level_doc +>
-      flag "-limit" (optional int) ~doc:opt_limit_doc +>
-      flag "-verify-opt" (optional string) ~doc:verify_opt_doc +>
       flag "-shared" no_arg ~doc:shared_opt_doc +>
-      flag "-no-guac" no_arg ~doc:noguac_opt_doc +>
       flag "-no-inline-asm" no_arg ~doc:no_inline_asm_doc +>
       flag "-addl" (listed string) ~doc:addl_opts_doc +>
       anon (sequence ("filename" %: file)))
@@ -142,26 +130,15 @@ let compile_command =
       out_file
       debug
       ast_out
-      core_ir_out
       pseudo_out
-      smack_out
       llvm_out
       gen_header
       verify_llvm
-      mode
       opt_level
-      opt_limit
-      verify_opts
       shared
-      noguac
       no_inline_asm
       addl_opts
       in_files () ->
-      let mode = match mode with
-        | Some "dev" -> DEV
-        | Some "prod" -> PROD
-        | Some m -> error_exit ("factc: error: Unknown mode: " ^ m ^". Expected dev or prod")
-        | None -> PROD in
       let opt_level = match opt_level with
         | Some "O0" -> O0
         | Some "O1" -> O1
@@ -170,11 +147,10 @@ let compile_command =
         | Some "OF" -> OF
         | Some o -> error_exit ("factc: error: Unknown optimization level: " ^ o ^ ". Expected O0, O1, O2, O3, or OF")
         | None -> O0 in
-      let args = { in_files; out_file; debug;
-                   ast_out; core_ir_out; pseudo_out; smack_out;
-                   llvm_out; gen_header; verify_llvm; mode; opt_level;
-                   (*opt_limit;*) verify_opts; shared; noguac;
-                   no_inline_asm; addl_opts } in
+      let args = { in_files; out_file;
+                   debug; ast_out; pseudo_out;
+                   llvm_out; gen_header; verify_llvm; opt_level;
+                   shared; no_inline_asm; addl_opts } in
         set_log_level debug;
         if List.length in_files = 0 then error_exit ("factc: error: Not enough arguments. Use `-help` for usage.");
         let prep = prepare_compile out_file in_files () in
