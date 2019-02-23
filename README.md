@@ -34,16 +34,15 @@ Once inside the docker shell, run the following to finish setting up the environ
 ```
 cd FaCT/
 eval $(opam config env)
+```
 
 ### Setting up the build environment
 
 FaCT is developed using OCaml 4.06.0 and LLVM 6.0.
 
-```
-
 ### Using a local environment
 
-Building FaCT has been tested on Ubuntu 16.04, 18.04 and macOS.
+Building FaCT has been tested on Ubuntu 16.04, 18.04, and macOS.
 
 
 #### 1. Install System Dependencies
