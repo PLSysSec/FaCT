@@ -18,11 +18,8 @@ that need to be free from timing side channels.
 To build the compiler, you can either build from source or download a pre-built release.
 We recommend building from source if possible.
 
-### Setting up the build environment
 
-FaCT is developed using OCaml 4.06.0 and LLVM 6.0.
-
-#### Using Docker
+### Using Docker
 
 If you have docker installed, you can load our docker image with the build
 environment already installed:
@@ -37,29 +34,47 @@ Once inside the docker shell, run the following to finish setting up the environ
 ```
 cd FaCT/
 eval $(opam config env)
+
+### Setting up the build environment
+
+FaCT is developed using OCaml 4.06.0 and LLVM 6.0.
+
 ```
 
-#### Using a local environment
+### Using a local environment
 
-You can also set up a build environment locally. The directions below
-have been tested on Ubuntu 16.04 and 18.04.
+Building FaCT has been tested on Ubuntu 16.04, 18.04 and macOS.
 
-We recommend installing OCaml via the opam package manager:
 
-```sh <(curl -sL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)```
+#### 1. Install System Dependencies
 
-The FaCT compiler depends on the LLVM 6.0 toochain,
-and expects binaries with `-6.0` suffixes:
+**Ubuntu (16.04 & 18.04)**
 
-```sudo apt install llvm-6.0 clang-6.0```
 
-Ensure that `clang-6.0` is in your PATH:
+```
+sudo apt install llvm-6.0 clang-6.0 cmake libgmp-dev m4 pkg-config
+```
 
-```clang-6.0 --version```
+**macOS**
 
-Install OCaml and the necessary libraries.
-If you do not already have the following packages installed, install them now:
-```sudo apt install cmake libgmp-dev m4 pkg-config```
+These instructions require [Homebrew](https://brew.sh)
+```
+brew install cmake gmp m4 pkg-config
+brew install llvm@6 --with-toolchain
+```
+
+**Note:** This does not put the proper version of clang on your `PATH`. You will need to run:
+```
+export PATH="$(brew --prefix llvm@6)/bin:$PATH"
+```
+
+#### 2. Install OCaml + packages
+
+We recommend installing the [opam package manager](https://opam.ocaml.org/) to manage OCaml and package dependencies:
+
+```
+sh <(curl -sL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)
+```
 
 Then, install OCaml and the libraries:
 
@@ -72,8 +87,18 @@ opam switch import ocamlswitch.txt
 ```
 
 Finally, make sure the Z3 lib is available to the OCaml compiler:
+```
+export LD_LIBRARY_PATH="$HOME/.opam/4.06.0/lib/z3:$LD_LIBRARY_PATH"
+```
 
-```export LD_LIBRARY_PATH="$HOME/.opam/4.06.0/lib/z3:$LD_LIBRARY_PATH"```
+#### 3. Configure Paths
+The FaCT compiler depends on the LLVM 6.0 toolchain **at runtime**,
+and expects binaries with `-6.0` suffixes. 
+Ensure that `clang-6.0` is in your PATH:
+
+```
+clang-6.0 --version
+```
 
 ### Compiling FaCT
 
