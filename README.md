@@ -18,6 +18,11 @@ that need to be free from timing side channels.
 To build the compiler, you can either build from source or download a pre-built release.
 We recommend building from source if possible.
 
+### Virtual machine image
+
+You can download a VM image pre-configured for building the FaCT compiler and case studies
+[here](https://drive.google.com/open?id=1xzw4Ohsdj4WqxJPl1RvvxSnhysMSejPi).
+The file `fact.ova` should have a SHA256 sum of `089398c85c5074d911c2f2b67ca22df453235e8733f1eb283c71717cf70f714c`.
 
 ### Using Docker
 
@@ -135,3 +140,8 @@ You can then run the executable:
 #### Debugging
 
 Many debugging options and intermediate data structures are available. Run ```./factc -help``` for all options.
+
+## Acknowledgements
+
+We thank the anonymous PLDI and PLDI AEC reviewers for their suggestions and
+insightful comments.
