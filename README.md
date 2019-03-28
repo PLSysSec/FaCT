@@ -20,8 +20,7 @@ We recommend building from source if possible.
 
 ### Virtual machine image
 
-You can download a VM image pre-configured for building the FaCT compiler and case studies
-[here](https://drive.google.com/open?id=1xzw4Ohsdj4WqxJPl1RvvxSnhysMSejPi).
+You can download a [VM image pre-configured for building the FaCT compiler and case studies](https://drive.google.com/open?id=1xzw4Ohsdj4WqxJPl1RvvxSnhysMSejPi).
 The file `fact.ova` should have a SHA256 sum of `089398c85c5074d911c2f2b67ca22df453235e8733f1eb283c71717cf70f714c`.
 
 ### Using Docker
