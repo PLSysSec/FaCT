@@ -7,7 +7,7 @@ struct a_sample_thing {
 export void set_blitz(
     secret bool b,
     secret int32 n,
-    struct a_sample_thing ss) {
+    a_sample_thing ss) {
   if (b) {
     ss.a_field = n;
   } else {
