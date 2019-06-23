@@ -8,7 +8,7 @@ that need to be free from timing side channels.
 ## Useful links:
 
 - [Our paper](/FaCT_extended.pdf)
-- [Online demo of code gen](https://fact.sysnet.ucsd.edu/) (thanks to [godbolt](https://github.com/mattgodbolt/compiler-explorer))
+- [Online demo using Compiler Explorer](https://fact.sysnet.ucsd.edu/) ([source](https://github.com/bjohannesmeyer/fact-website) forked from [mattgodbolt/compiler-explorer](https://github.com/mattgodbolt/compiler-explorer))
 - [FaCT case studies / evaluation](https://github.com/PLSysSec/fact-eval)
 - [Haskell embedding](https://github.com/PLSysSec/inline-fact)
 - [Python embedding](https://github.com/PLSysSec/CTFFI)
