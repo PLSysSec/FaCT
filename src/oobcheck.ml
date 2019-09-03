@@ -145,7 +145,7 @@ class oobchecker debug m =
             visit#_pop ()
         end
 
-    method _assert_sat p zexpr =
+    method _assert_sat p zexpr msg =
       visit#_push ();
       visit#_add zexpr;
       begin
@@ -153,7 +153,7 @@ class oobchecker debug m =
           | Solver.SATISFIABLE -> ()
           | Solver.UNSATISFIABLE ->
             Log.error "unsat!";
-            raise @@ err p
+            raise @@ cerr p msg
           | Solver.UNKNOWN ->
             print_endline "unknown!";
             print_endline @@ Solver.get_reason_unknown _solver;
@@ -574,7 +574,7 @@ class oobchecker debug m =
                            else mk_ult,mk_ule) in
               let nonvacuous_loop_check = cmp ctx zlo zhi in
               let nonvacuous_loop_warn = cmpe ctx zlo zhi in
-                visit#_assert_sat p nonvacuous_loop_check;
+                visit#_assert_sat p nonvacuous_loop_check "vacuous loop";
                 visit#_assert_warn p nonvacuous_loop_warn "possible vacuous loop";
                 let zconstraint =
                   Boolean.mk_and ctx
