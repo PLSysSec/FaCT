@@ -43,7 +43,7 @@ RUN apt-get -y install apt-transport-https ca-certificates curl gnupg2 software-
 USER ${USER}
 RUN echo "export PATH=/usr/lib/llvm-6.0/bin/:$PATH" | tee -a /home/docker/.profile
 RUN opam init --compiler=4.06.0 
-RUN cd /home/docker/ && wget https://raw.githubusercontent.com/PLSysSec/FaCT/rewrite/ocamlswitch.txt && opam switch import ocamlswitch.txt && rm ocamlswitch.txt
+RUN cd /home/docker/ && wget https://raw.githubusercontent.com/PLSysSec/FaCT/master/ocamlswitch.txt && opam switch import ocamlswitch.txt && rm ocamlswitch.txt
 RUN echo "export LD_LIBRARY_PATH=$HOME/.opam/4.06.0/lib/z3" | tee -a /home/docker/.profile 
 RUN mkdir /home/docker/FaCT
 
