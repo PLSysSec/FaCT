@@ -16,6 +16,7 @@ let opt_level_doc = "level The level of optimization to run (O0, 01, 02, or OF)"
 let shared_opt_doc = "Generate a .so file"
 let no_inline_asm_doc = "use XOR-based selection intrinsics instead of inline assembly"
 let addl_opts_doc = "opts Additional options to pass to clang (e.g. -addl \"-mretpoline -fPIC -fno-strict-aliasing\")"
+let wasm_doc = "Output Wasm to file"
 
 let normalize_out_file out_file =
   Filename.chop_extension(Filename.basename out_file)
@@ -119,6 +120,7 @@ let compile_command =
       flag "-ast-out" no_arg ~doc:ast_doc +>
       flag "-pseudocode" no_arg ~doc:pseudo_doc +>
       flag "-llvm-out" no_arg ~doc:llvm_doc +>
+      flag "-wasm-out" no_arg ~doc:wasm_doc +>
       flag "-generate-header" no_arg ~doc:header_doc +>
       flag "-verify-llvm" no_arg ~doc:verify_llvm_doc +>
       flag "-opt" (optional string) ~doc:opt_level_doc +>
@@ -132,6 +134,7 @@ let compile_command =
       ast_out
       pseudo_out
       llvm_out
+      wasm_out
       gen_header
       verify_llvm
       opt_level
@@ -149,7 +152,7 @@ let compile_command =
         | None -> O0 in
       let args = { in_files; out_file;
                    debug; ast_out; pseudo_out;
-                   llvm_out; gen_header; verify_llvm; opt_level;
+                   llvm_out; wasm_out; gen_header; verify_llvm; opt_level;
                    shared; no_inline_asm; addl_opts } in
         set_log_level debug;
         if List.length in_files = 0 then error_exit ("factc: error: Not enough arguments. Use `-help` for usage.");

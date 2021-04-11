@@ -12,6 +12,7 @@ type args_record = {
   ast_out     : bool;
   pseudo_out  : bool;
   llvm_out    : bool;
+  wasm_out    : bool;
   gen_header  : bool;
   verify_llvm : bool;
   opt_level   : opt_level;
@@ -66,6 +67,13 @@ let output_llvm llvm_out out_file llvm_mod =
     let out_file' = out_file ^ ".ll" in
       Log.debug "Outputting LLVM IR to %s" out_file';
       Llvm.print_module out_file' llvm_mod
+
+let output_wasm wasm_out out_file tast = 
+  if wasm_out then
+    let out_file' = out_file ^ ".wat" in
+      Log.debug "Outputting Wat to %s" out_file';
+      Core.Out_channel.write_all out_file'
+        ~data:(Wasm.codegen tast)
 
 let generate_header gen_header out_file xftast =
   if gen_header then
@@ -229,6 +237,7 @@ let compile (in_files,out_file,out_dir) args =
     generate_pseudo args.pseudo_out out_file' tast;
   let tast = Sanitycheck.transform true tast in (* check that everything is correct after transforms *)
     output_tast args.ast_out out_file' tast;
+    output_wasm args.wasm_out out_file' tast;
     generate_pseudo args.pseudo_out out_file' tast;
     generate_header (args.gen_header || args.verify_llvm) out_file' tast;
   let llctx,llmod = Codegen.codegen args.no_inline_asm tast in
