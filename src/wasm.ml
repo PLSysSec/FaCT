@@ -90,31 +90,6 @@ let rec build_cast pos prefix oldsize newsize is_signed wasmexpr =
     build_cast pos prefix 8 32 is_signed wasmexpr
   | _ -> raise @@ cerr pos "unimp cast"
 
-let fn_intrinsic fname wargs =
-  if (Str.string_match (Str.regexp "__\\([a-z]+\\)\\[\\([0-9]+\\)\\]_\\([a-z]+\\)_le") fname 0) then 
-  begin
-    let load_or_store = Str.matched_group 1 fname in
-    let nbits = Str.matched_group 2 fname in
-    let secret_or_public = Str.matched_group 3 fname in
-    match nbits with 
-    | "32" | "64" -> begin
-      match load_or_store with
-        | "load" | "store" -> begin
-          match secret_or_public with
-          | "secret" -> 
-            Some (sprintf "(s%s.%s 0 %s)" nbits load_or_store wargs)
-          | "public" -> 
-            Some (sprintf "(i%s.%s 1 %s)" nbits load_or_store wargs)
-          | _ -> None
-        end
-        | _ -> None
-      end
-      | _ -> None
-  end
-  else if (Str.string_match (Str.regexp "__s?memzero\\[\\([0-9]+\\)\\]_\\([a-z]+\\)") fname 0) then
-    Some "(; smemzero ;)"
-  else None
-
 let append dest to_add : unit =
   dest.contents <- dest.contents ^ to_add;
 
@@ -177,6 +152,40 @@ class wasm (m: Tast.fact_module) =
     match data with
       | Param (x, bty) -> 
         "(param " ^ (visit#varname x) ^ " " ^ (visit#bty bty) ^ ")"
+        
+  method fn_intrinsic fn args =
+    let fname = fn.data in
+    if (Str.string_match (Str.regexp "__\\([a-z]+\\)\\[\\([0-9]+\\)\\]_\\([a-z]+\\)_le") fname 0) then 
+    begin
+      let load_or_store = Str.matched_group 1 fname in
+      let nbits = Str.matched_group 2 fname in
+      let secret_or_public = Str.matched_group 3 fname in
+      let wargs = List.map visit#expr args |> String.concat " " in
+      match nbits with 
+      | "32" | "64" -> begin
+        match load_or_store with
+          | "load" | "store" -> begin
+            match secret_or_public with
+            | "secret" -> 
+              Some (sprintf "(s%s.%s 0 %s)" nbits load_or_store wargs)
+            | "public" -> 
+              Some (sprintf "(i%s.%s 1 %s)" nbits load_or_store wargs)
+            | _ -> None
+          end
+          | _ -> None
+        end
+        | _ -> None
+    end
+    else if (Str.string_match (Str.regexp "__s?memzero\\[\\([0-9]+\\)\\]_\\([a-z]+\\)") fname 0) then
+      let arr = List.nth args 0 in
+      let (_, arr_ty) = arr in
+      let Arr (bty, lexpr, _) = arr_ty.data in
+      let len_in_words = visit#arr_len_in_words bty lexpr in
+      let secret = visit#is_secret bty in
+      let bzero = sprintf "bzero_%s" (if secret then "sec" else "pub") in
+
+      Some (sprintf "(call %s %s %s)" (wasm_label bzero) (visit#expr arr) len_in_words)
+    else None
   
   method rty rt = 
     match rt with
@@ -245,6 +254,10 @@ class wasm (m: Tast.fact_module) =
     sprintf "(i32.add %s (i32.mul (i32.const %d) (i32.wrap_i64 %s)))"
     (visit#expr arr) elem_sz (visit#lexpr lexpr)
 
+  method arr_len_in_words bty lexpr =
+    sprintf "(i32.div_u (i32.add (i32.const 7) (i32.mul (i32.const %d) (i32.wrap_i64 %s))) (i32.const 8))"
+      (visit#bytesize bty) (visit#lexpr lexpr)
+
   method expr ({pos=p; data}, bty) =
     let wbty = visit#bty bty in
     match data with
@@ -288,8 +301,41 @@ class wasm (m: Tast.fact_module) =
       | ArrayView (e, lexpr, _) -> (* we don't care about the length *)
         visit#addr_of e lexpr
       | ArrayCopy e -> 
-        "(i32.const 0)"
-      | ArrayZeros lexpr -> "(i32.const 0)"
+        let res = ref "" in
+        let dest_arr_ty = bty in
+        let (src, src_arr_ty) = e in
+        let Arr (dest_bty, dest_lexpr, _) = dest_arr_ty.data in
+        let Arr (src_bty, _, _) = src_arr_ty.data in
+        let len_in_words = visit#arr_len_in_words dest_bty dest_lexpr in
+        let src_secret = visit#is_secret src_bty in
+        let dest_secret = visit#is_secret dest_bty in
+        let rsp = if dest_secret then "srsp" else "prsp" in
+        let memcpy = sprintf "memcpy_%s_%s"
+          (if src_secret then "sec" else "pub")
+          (if dest_secret then "sec" else "pub") in
+        
+        append res @@ sprintf "(set_global %s (i32.sub (get_global %s) (i32.mul (i32.const 8) %s)))"
+          (wasm_label rsp) (wasm_label rsp) len_in_words;
+        append res @@ sprintf "(call %s %s (get_global %s) %s)" (wasm_label memcpy) (visit#expr e) (wasm_label rsp) len_in_words;
+        append res @@ sprintf "(get_global %s)" (wasm_label rsp);
+
+        res.contents
+      | ArrayZeros lexpr -> 
+        let res = ref "" in
+        let arr_ty = bty in
+        let Arr (bty, lexpr, _) = arr_ty.data in
+        let len_in_words = visit#arr_len_in_words bty lexpr in
+        let secret = visit#is_secret bty in
+        let rsp = if secret then "srsp" else "prsp" in
+        let bzero = sprintf "bzero_%s" (if secret then "sec" else "pub") in
+
+        append res @@ sprintf "(set_global %s (i32.sub (get_global %s) (i32.mul (i32.const 8) %s)))"
+          (wasm_label rsp) (wasm_label rsp) len_in_words;
+        append res @@ sprintf "(call %s (get_global %s) %s)"
+          (wasm_label bzero) (wasm_label rsp) len_in_words;
+        append res @@ sprintf "(get_global %s)" (wasm_label rsp);
+
+        res.contents
       | _ -> sprintf "(unimp %s)" (show_expr' data)
 
   method assignment p dest wexpr = 
@@ -305,8 +351,10 @@ class wasm (m: Tast.fact_module) =
           (visit#bty arr_ty) mem (visit#addr_of e lexpr) wexpr
       | _ -> raise @@ cerr p "unimp assign"
     
-  method fcall fname wargs = 
-    let intrinsic = fn_intrinsic fname wargs in
+  method fcall fn args = 
+    let intrinsic = visit#fn_intrinsic fn args in
+    let wargs = List.map visit#expr args |> String.concat " " in
+    let fname = fn.data in
       begin
         match intrinsic with 
         | Some s -> s
@@ -334,15 +382,9 @@ class wasm (m: Tast.fact_module) =
           | _ -> raise @@ cerr p "unimp cmov"
         end
       | FnCall (x, bty, fn, args) ->
-        let wargs = List.map visit#expr args |> String.concat " " in
-        let fname = fn.data in
-        let intrinsic = fn_intrinsic fname wargs in
-          sprintf "(set_local %s %s)" 
-            (visit#varname x) (visit#fcall fname wargs)
-      | VoidFnCall (fn, args) ->
-        let wargs = List.map visit#expr args |> String.concat " " in
-        let fname = fn.data in
-        (visit#fcall fname wargs)
+        sprintf "(set_local %s %s)" 
+          (visit#varname x) (visit#fcall fn args)
+      | VoidFnCall (fn, args) -> (visit#fcall fn args)
       | Assume e -> ""
 
   method block ({pos=p; data}, next) = 
@@ -396,12 +438,12 @@ class wasm (m: Tast.fact_module) =
       "(set_global $srsp (get_local $srbp)) "
     ^ "(set_global $prsp (get_local $prbp)) "
 
-  method fdec ({pos=p; data} as fdec) : string = 
+  method fdec ({pos=p; data} as fdec) = 
     match data with
       | FunDec(name, fnattr, rt, params, body) -> 
         let res = ref "" in
         append res "(func ";
-        append res (wasm_label name.data ^ " ");
+        append res (wasm_label name.data ^ " untrusted ");
         append res ((visit#fsig rt params) ^ " ");
 
         let vars = collect_locals fdec in
@@ -424,6 +466,16 @@ class wasm (m: Tast.fact_module) =
         end
       | _ -> raise @@ cerr p "unimp fdec"
   
+  method func_export {pos=p; data} =
+    match data with
+    | FunDec(name, fnattr, rt, params, body) ->
+      let name = name.data in
+      if fnattr.export then
+        sprintf "(export \"%s\" (func %s))" name (wasm_label name)
+      else
+        ""
+    | _ -> ""
+  
   method fact_module () = 
     let res = ref "" in
     append res "(module ";
@@ -442,6 +494,8 @@ class wasm (m: Tast.fact_module) =
     append res Wasm_intrinsics.memcpy_funcs;
     
     append res (List.map visit#fdec (List.rev fdecs) |> String.concat " ");
+
+    append res (List.map visit#func_export (List.rev fdecs) |> String.concat " ");
 
     append res ")";
     res.contents
