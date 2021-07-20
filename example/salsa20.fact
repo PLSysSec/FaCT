@@ -1,0 +1,215 @@
+// NOTE: the original function has an additional parameter
+// `const unsigned char *c`, but the secretbox code passes
+// NULL in for this parameter so I'm just not using it
+// also I'm just hardcoding the `const int rounds` parameter
+// since in secretbox it's always 20
+export void _crypto_core_salsa20( // crypto_core_salsa in core_salsa_ref.c
+    secret mut uint8[64] output,
+    secret uint8[16] input,
+    secret uint8[32] k) {
+  secret mut uint32 x0 = 0x61707865;
+  secret mut uint32 x5 = 0x3320646e;
+  secret mut uint32 x10 = 0x79622d32;
+  secret mut uint32 x15 = 0x6b206574;
+
+  secret uint32 j0 = x0;
+  secret uint32 j5 = x5;
+  secret uint32 j10 = x10;
+  secret uint32 j15 = x15;
+
+  secret mut uint32 x1 = load_le(view(k, 0, 4));
+  secret mut uint32 x2 = load_le(view(k, 4, 4));
+  secret mut uint32 x3 = load_le(view(k, 8, 4));
+  secret mut uint32 x4 = load_le(view(k, 12, 4));
+  secret mut uint32 x11 = load_le(view(k, 16, 4));
+  secret mut uint32 x12 = load_le(view(k, 20, 4));
+  secret mut uint32 x13 = load_le(view(k, 24, 4));
+  secret mut uint32 x14 = load_le(view(k, 28, 4));
+
+  secret uint32 j1 = x1;
+  secret uint32 j2 = x2;
+  secret uint32 j3 = x3;
+  secret uint32 j4 = x4;
+  secret uint32 j11 = x11;
+  secret uint32 j12 = x12;
+  secret uint32 j13 = x13;
+  secret uint32 j14 = x14;
+
+  secret mut uint32 x6 = load_le(view(input, 0, 4));
+  secret mut uint32 x7 = load_le(view(input, 4, 4));
+  secret mut uint32 x8 = load_le(view(input, 8, 4));
+  secret mut uint32 x9 = load_le(view(input, 12, 4));
+
+  secret uint32 j6 = x6;
+  secret uint32 j7 = x7;
+  secret uint32 j8 = x8;
+  secret uint32 j9 = x9;
+
+  for (uint32 i from 0 to 10) {
+    x4  ^= (x0  + x12) <<<  7 ;
+    x8  ^= (x4  + x0 ) <<<  9 ;
+    x12 ^= (x8  + x4 ) <<<  13;
+    x0  ^= (x12 + x8 ) <<<  18;
+    x9  ^= (x5  + x1 ) <<<  7 ;
+    x13 ^= (x9  + x5 ) <<<  9 ;
+    x1  ^= (x13 + x9 ) <<<  13;
+    x5  ^= (x1  + x13) <<<  18;
+    x14 ^= (x10 + x6 ) <<<  7 ;
+    x2  ^= (x14 + x10) <<<  9 ;
+    x6  ^= (x2  + x14) <<<  13;
+    x10 ^= (x6  + x2 ) <<<  18;
+    x3  ^= (x15 + x11) <<<  7 ;
+    x7  ^= (x3  + x15) <<<  9 ;
+    x11 ^= (x7  + x3 ) <<<  13;
+    x15 ^= (x11 + x7 ) <<<  18;
+    x1  ^= (x0  + x3 ) <<<  7 ;
+    x2  ^= (x1  + x0 ) <<<  9 ;
+    x3  ^= (x2  + x1 ) <<<  13;
+    x0  ^= (x3  + x2 ) <<<  18;
+    x6  ^= (x5  + x4 ) <<<  7 ;
+    x7  ^= (x6  + x5 ) <<<  9 ;
+    x4  ^= (x7  + x6 ) <<<  13;
+    x5  ^= (x4  + x7 ) <<<  18;
+    x11 ^= (x10 + x9 ) <<<  7 ;
+    x8  ^= (x11 + x10) <<<  9 ;
+    x9  ^= (x8  + x11) <<<  13;
+    x10 ^= (x9  + x8 ) <<<  18;
+    x12 ^= (x15 + x14) <<<  7 ;
+    x13 ^= (x12 + x15) <<<  9 ;
+    x14 ^= (x13 + x12) <<<  13;
+    x15 ^= (x14 + x13) <<<  18;
+  }
+
+  store_le(view(output,  0, 4), x0  + j0 );
+  store_le(view(output,  4, 4), x1  + j1 );
+  store_le(view(output,  8, 4), x2  + j2 );
+  store_le(view(output, 12, 4), x3  + j3 );
+  store_le(view(output, 16, 4), x4  + j4 );
+  store_le(view(output, 20, 4), x5  + j5 );
+  store_le(view(output, 24, 4), x6  + j6 );
+  store_le(view(output, 28, 4), x7  + j7 );
+  store_le(view(output, 32, 4), x8  + j8 );
+  store_le(view(output, 36, 4), x9  + j9 );
+  store_le(view(output, 40, 4), x10 + j10);
+  store_le(view(output, 44, 4), x11 + j11);
+  store_le(view(output, 48, 4), x12 + j12);
+  store_le(view(output, 52, 4), x13 + j13);
+  store_le(view(output, 56, 4), x14 + j14);
+  store_le(view(output, 60, 4), x15 + j15);
+}
+
+export public int32 _crypto_stream_salsa20( // stream_ref in salsa20_ref.c
+    secret mut uint8[] c,
+    public uint8[8] n,
+    secret uint8[32] k) {
+  if (len c == 0) {
+    return 0;
+  }
+  secret mut uint8[32] kcopy = clone(k);
+  secret mut uint8[16] input = zeros(16);
+  for (uint32 i from 0 to 8) {
+    input[i] = n[i];
+  }
+  // input[8..15] = 0 already taken care of by zeros
+  public uint32 ctimes = uint32(len c >> 6);
+  for (uint32 j from 0 to ctimes) {
+    _crypto_core_salsa20(view(c, j*64, 64), input, kcopy);
+    secret mut uint32 u = 1;
+    for (uint32 i from 8 to 16) {
+      u += input[i];
+      input[i] = uint8(u);
+      u >>= 8;
+    }
+  }
+  secret mut uint8[64] block = zeros(64);
+  if (ctimes * 64 < len c) {
+    _crypto_core_salsa20(block, input, kcopy);
+    public uint32 remain = uint32(len c - ctimes * 64);
+    secret mut uint8[] cview = view(c, ctimes*64, remain);
+    for (uint32 i from 0 to remain) {
+      cview[i] = block[i];
+    }
+  }
+  smemzero(block);
+  smemzero(kcopy);
+
+  return 0;
+}
+
+export void salsa20_encrypt(
+  secret uint8[] m,
+  secret mut uint8[] c,
+  public uint8[8] n,
+  secret uint8[32] k
+) {
+  assume(len m == len c);
+
+  _crypto_stream_salsa20(c, n, k);
+
+  public uint64 nwords = (len m) / 8;
+
+  for (uint64 i from 0 to nwords) {
+    public uint64 start = i * 8;
+    public uint64 end = start + 8;
+    secret uint64 cword = load_le(view(c, start, 8));
+    secret uint64 mword = load_le(view(m, start, 8));
+    secret uint64 xor = cword ^ mword;
+    store_le(view(c, start, 8), xor);
+  }
+
+  public uint64 done = nwords * 8;
+  
+  for(uint64 i from done to len m) {
+    c[i] ^= m[i];
+  }
+}
+
+export public int32 _crypto_stream_salsa20_xor_ic( // stream_ref_xor_ic in salsa20_ref.c
+    secret mut uint8[] c,
+    secret uint8[] m,
+    secret uint8[8] n,
+    public uint64 ic_val,
+    secret uint8[32] k) {
+  if (len m == 0) {
+    return 0;
+  }
+  assume(len m == len c);
+  public mut uint64 ic = ic_val;
+  secret mut uint8[32] kcopy = clone(k);
+  secret mut uint8[16] input = zeros(16);
+  for (uint32 i from 0 to 8) {
+    input[i] = n[i];
+  }
+  for (uint32 i from 8 to 16) {
+    input[i] = ic & uint8(0xff);
+    ic >>= 8;
+  }
+  public uint64 mtimes = len m / 64;
+  secret mut uint8[64] block = zeros(64);
+  for (uint64 j from 0 to mtimes) {
+    _crypto_core_salsa20(block, input, kcopy);
+    secret mut uint8[64] cview = view(c, j*64, 64);
+    secret uint8[64] mview = view(m, j*64, 64);
+    for (uint32 i from 0 to 64) {
+      cview[i] = mview[i] ^ block[i];
+    }
+    secret mut uint32 u = 1;
+    for (uint32 i from 8 to 16) {
+      u += input[i];
+      input[i] = uint8(u);
+      u >>= 8;
+    }
+  }
+  if (mtimes * 64 < len m) {
+    public uint64 remain = len m - mtimes * 64;
+    _crypto_core_salsa20(block, input, kcopy);
+    secret mut uint8[] cview = view(c, mtimes*64, remain);
+    secret uint8[] mview = view(m, mtimes*64, remain);
+    for (uint64 i from 0 to remain) {
+      cview[i] = mview[i] ^ block[i];
+    }
+  }
+  smemzero(block);
+  smemzero(kcopy);
+  return 0;
+}

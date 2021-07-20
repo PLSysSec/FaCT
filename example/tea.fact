@@ -1,0 +1,39 @@
+export void encrypt (secret mut uint32[2] v, secret uint32[4] k) {
+    secret mut uint32 delta = 0x9e3779b9;
+    secret mut uint32 sum = 0;
+    secret mut uint32 v0 = v[0];
+    secret mut uint32 v1 = v[1];
+    secret mut uint32 k0 = k[0];
+    secret mut uint32 k1 = k[1];
+    secret mut uint32 k2 = k[2];
+    secret mut uint32 k3 = k[3];
+
+    for (uint32 i from 0 to 32) {
+        sum += delta;
+        v0 += ((v1<<4) + k0) ^ (v1 + sum) ^ ((v1>>5) + k1);
+        v1 += ((v0<<4) + k2) ^ (v0 + sum) ^ ((v0>>5) + k3);
+    }
+
+    v[0] = v0;
+    v[1] = v1;
+}
+
+export void decrypt (secret mut uint32[2] v, secret uint32[4] k) {
+    secret mut uint32 delta = 0x9e3779b9;
+    secret mut uint32 sum = 0xc6ef3720;
+    secret mut uint32 v0 = v[0];
+    secret mut uint32 v1 = v[1];
+    secret mut uint32 k0 = k[0];
+    secret mut uint32 k1 = k[1];
+    secret mut uint32 k2 = k[2];
+    secret mut uint32 k3 = k[3];
+
+    for (uint32 i from 0 to 32) {
+        v1 -= ((v0<<4) + k2) ^ (v0 + sum) ^ ((v0>>5) + k3);
+        v0 -= ((v1<<4) + k0) ^ (v1 + sum) ^ ((v1>>5) + k1);
+        sum -= delta;
+    }
+
+    v[0] = v0;
+    v[1] = v1;
+}

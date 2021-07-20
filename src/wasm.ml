@@ -113,12 +113,20 @@ class wasm (m: Tast.fact_module) =
     | Ref (bty, _) -> visit#is_secret bty
     | _ -> raise @@ cerr p "unimp secret"
   
+  method is_signed {pos=p;data} =
+    match data with
+    | UInt (_, _) -> false
+    | Int (_, _) -> true
+    | Ref (bty, _) -> visit#is_signed bty
+    | _ -> raise @@ cerr p "unimp is_signed"
+  
   method int_bitwidth {pos=p;data} = 
     match data with 
     | Bool _ -> 1
     | UInt (w, _) -> w
     | Int (w, _) -> w
-    | _ -> raise @@ cerr p "unimp bitwidth"
+    | Ref (bty, _) -> visit#int_bitwidth bty
+    | _ -> raise @@ cerr p "unimp bitwidth %s" @@ show_base_type' data
   
   method bytesize {pos=p;data} =
     match data with
@@ -141,7 +149,7 @@ class wasm (m: Tast.fact_module) =
     | UInt (64, {data=Public}) | Int (64, {data=Public}) -> "i64"
     | Ref (bty, _) -> visit#bty bty
     | Arr (bty, _, _) -> "i32"
-    | _ -> raise @@ cerr p "unimp bty"
+    | _ -> raise @@ cerr p "unimp bty %s" @@ show_base_type' data
   
   method arr_bty {pos=p;data} = 
     match data with
@@ -223,10 +231,14 @@ class wasm (m: Tast.fact_module) =
         sprintf "(%s.lt_%s %s %s)" bty sign we1 we2
       | Ast.LTE -> 
         sprintf "(%s.le_%s %s %s)" bty sign we1 we2
-      | Ast.LogicalAnd | Ast.BitwiseAnd -> 
+      | Ast.LogicalAnd -> 
         sprintf "(%s.and %s %s)" bty (to_bool we1 bty) (to_bool we2 bty)
-      | Ast.LogicalOr | Ast.BitwiseOr -> 
+      | Ast.BitwiseAnd ->
+        sprintf "(%s.and %s %s)" bty we1 we2
+      | Ast.LogicalOr -> 
         sprintf "(%s.or %s %s)" bty (to_bool we1 bty) (to_bool we2 bty)
+      | Ast.BitwiseOr ->
+        sprintf "(%s.or %s %s)" bty we1 we2
       | Ast.BitwiseXor -> sprintf "(%s.xor %s %s)" bty we1 we2
       | Ast.LeftShift -> sprintf "(%s.shl %s %s)" bty we1 we2
       | Ast.RightShift -> sprintf "(%s.shr_%s %s %s)" bty sign we1 we2
@@ -295,9 +307,14 @@ class wasm (m: Tast.fact_module) =
       | ArrayGet (e, lexpr) -> 
         let (_, arr_ty) = e in
         let arr_ty = visit#arr_bty arr_ty in (* the underlying type of the array *)
+        let newsize = visit#int_bitwidth arr_ty in
+        let oldsize = if (newsize <= 32) then 32 else newsize in
+        let is_signed = visit#is_signed arr_ty in
+        let prefix = if (visit#is_secret arr_ty) then "s" else "i" in
         let mem = if (visit#is_secret arr_ty) then "0" else "1" in
-        sprintf "(%s.load %s %s)"
-          (visit#bty arr_ty) mem (visit#addr_of e lexpr)
+        let load = sprintf "(%s.load %s %s)"
+          (visit#bty arr_ty) mem (visit#addr_of e lexpr) in
+        build_cast p prefix oldsize newsize is_signed load
       | ArrayView (e, lexpr, _) -> (* we don't care about the length *)
         visit#addr_of e lexpr
       | ArrayCopy e -> 
@@ -347,8 +364,10 @@ class wasm (m: Tast.fact_module) =
         let (_, arr_ty) = e in
         let arr_ty = visit#arr_bty arr_ty in (* the underlying type of the array *)
         let mem = if (visit#is_secret arr_ty) then "0" else "1" in
-        sprintf "(%s.store %s %s %s)" 
-          (visit#bty arr_ty) mem (visit#addr_of e lexpr) wexpr
+        let width = visit#int_bitwidth arr_ty in
+        let suffix = if width < 32 then sprintf "%d" width else "" in
+        sprintf "(%s.store%s %s %s %s)" 
+          (visit#bty arr_ty) suffix mem (visit#addr_of e lexpr) wexpr
       | _ -> raise @@ cerr p "unimp assign"
     
   method fcall fn args = 
@@ -371,15 +390,10 @@ class wasm (m: Tast.fact_module) =
         visit#assignment p e1 (visit#expr e2)
       | Cmov (e1, cond, e2) -> 
         begin
-          match e1 with
-          | ({data=Variable v}, bty) -> 
-            let (_, cond_bty) = cond in
-            let op = (if (visit#is_secret cond_bty) then "sselect" else "select") in
-            sprintf "(set_local %s (%s %s (get_local %s) %s))" 
-            (visit#varname v) op (visit#expr e2) (visit#varname v) (visit#expr cond)
-            (* If cond then select e2, otherwise select e1, 
-              then move the resulting value back into e1 *)
-          | _ -> raise @@ cerr p "unimp cmov"
+          let (_, cond_bty) = cond in
+          let op = (if (visit#is_secret cond_bty) then "sselect" else "select") in
+          visit#assignment p e1 (sprintf "(%s %s %s %s)" 
+            op (visit#expr e2) (visit#expr e1) (visit#expr cond))
         end
       | FnCall (x, bty, fn, args) ->
         sprintf "(set_local %s %s)" 
