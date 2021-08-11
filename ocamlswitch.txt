@@ -14,7 +14,7 @@ conf-pkg-config	1.1	installed
 conf-python-2-7	1.0	installed
 conf-which	1	installed
 configurator	v0.11.0	installed
-core	v0.11.2	root
+core	v0.11.3	root
 core_kernel	v0.11.1	installed
 cppo	1.6.4	installed
 cppo_ocamlbuild	1.6.0	installed
