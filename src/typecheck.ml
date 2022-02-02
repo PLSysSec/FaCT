@@ -96,7 +96,7 @@ class typechecker =
               | {data=FunDec(fn,_,_,_,_)
                     | CExtern(fn,_,_,_)} as fdec -> (fn, fdec)
               | {data=StdlibFn(code,_,_,_)} as fdec ->
-                let fn = Stdlib.name_of code in
+                let fn = Cstdlib.name_of code in
                   (fn, fdec))
             fdecs' in
           Module(sdecs',fdecs',{ fmap=minfo_fmap })
@@ -831,12 +831,12 @@ class typechecker =
       let fnfound = findfn_opt _fmap fn in
         match fnfound with
           | None ->
-            if Stdlib.contains fn then
-              let fdec',args' = Stdlib.interface_of
+            if Cstdlib.contains fn then
+              let fdec',args' = Cstdlib.interface_of
                                   (fun ?lookahead_bty e -> visit#expr ?lookahead_bty e)
                                   p stmlbl fn args in
               let StdlibFn (code,_,rt',params') = fdec'.data in
-              let fn' = Stdlib.name_of code in
+              let fn' = Cstdlib.name_of code in
                 begin
                   match findfn_opt _fmap fn' with
                     | None ->
@@ -971,7 +971,7 @@ class typechecker =
               _everhis <- fn.data :: _everhis;
             let bty' = match bty.data with
               | FillInLater ->
-                let fdec',args' = Stdlib.interface_of
+                let fdec',args' = Cstdlib.interface_of
                                     (fun ?lookahead_bty e -> visit#expr ?lookahead_bty e)
                                     p stmlbl fn args in
                 let StdlibFn (_,_,rt',_) = fdec'.data in

@@ -15,7 +15,7 @@ class sanitychecker post_transform m =
             | {data=FunDec(fn,_,rt,params,_)
                   | CExtern(fn,_,rt,params)} -> (fn, (rt,params))
             | {data=StdlibFn(code,_,rt,params)} ->
-              let fn = Stdlib.name_of code in
+              let fn = Cstdlib.name_of code in
                 (fn, (rt,params)))
           fdecs
 

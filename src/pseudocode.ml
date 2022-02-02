@@ -66,7 +66,7 @@ class pseudocode (m : fact_module) =
             sprintf "stdlib %s%s %s(%s);"
               (visit#fnattr ft)
               (visit#rty rt)
-              (Stdlib.name_of code).data
+              (Cstdlib.name_of code).data
               params'
 
     method fnattr { export; inline; } =
