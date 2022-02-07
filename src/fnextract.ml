@@ -28,7 +28,7 @@ class fn_extractor =
           let rt = match mlist_find ~equal:vequal !_frets fn with
             | Some rt -> rt
             | None ->
-              if Stdlib.contains fn then
+              if Cstdlib.contains fn then
                 Some (p@>FillInLater)
               else raise @@ cerr p
                               "couldn't find function: '%s'"

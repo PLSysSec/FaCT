@@ -215,8 +215,8 @@ class codegen no_inline_asm llctx llmod m =
             mlist_push (name,llfn) _fenv;
             llfn
         | StdlibFn (code,fnattr,rt,params) ->
-          let name = Stdlib.name_of code in
-          let llfn = Stdlib.llvm_for visit#_sget llctx llmod code in
+          let name = Cstdlib.name_of code in
+          let llfn = Cstdlib.llvm_for visit#_sget llctx llmod code in
             mlist_push (name,llfn) _fenv;
             llfn
 
