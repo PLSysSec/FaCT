@@ -125,7 +125,7 @@ let compile_command =
       flag "-shared" no_arg ~doc:shared_opt_doc +>
       flag "-no-inline-asm" no_arg ~doc:no_inline_asm_doc +>
       flag "-addl" (listed string) ~doc:addl_opts_doc +>
-      anon (sequence ("filename" %: file)))
+      anon (sequence ("filename" %: string)))
     (fun
       out_file
       debug
